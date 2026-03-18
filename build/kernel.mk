@@ -1,7 +1,7 @@
 .PHONY: kernel-patch kernel
 
-kernel-patch: $(KERNEL_WORKSPACE_MARKER)
-	printf 'patched kernel workspace is [%s]\n' "$(KERNEL_WORKSPACE)"
+kernel-patch: sync-kernel-source-inputs
+	printf 'kernel source tree is ready in-place at [%s]\n' "$(KERNEL_WORKSPACE)"
 
 kernel: | ensure-output-dirs
 	printf 'start make kernel\n'

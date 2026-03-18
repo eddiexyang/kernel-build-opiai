@@ -11,16 +11,10 @@ ARCH_TYPE ?= arm64
 CROSS_COMPILE_PREFIX ?= aarch64-linux-gnu-
 JOBS ?= $(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 16)
 
-LINUX_SOURCE_DIR := $(ROOT_DIR)/linux-source
+LINUX_SOURCE_DIR ?= $(abspath $(ROOT_DIR)/../linux-opiai)
 PATCH_ROOT_DIR := $(ROOT_DIR)/patches
 KERNEL_TOOLS_DIR := $(ROOT_DIR)/kernel-tools
-KERNEL_DEFCONFIG_DIR := $(KERNEL_TOOLS_DIR)/defconfigs
 KERNEL_SPMI_DIR := $(KERNEL_TOOLS_DIR)/spmi_hisi
-KERNEL_PATCH_SERIES ?=
-KERNEL_PRODUCT_PATCH_SERIES ?=
-KERNEL_EMMC_MINI_PATCH := $(PATCH_ROOT_DIR)/hisi/0001-ascend-add-emmc-patch-for-mini.patch
-KERNEL_EMMC_310B_PATCH := $(PATCH_ROOT_DIR)/hisi/0001-ascend-add-emmc-patch-for-ascend-310B.patch
-KERNEL_APPLY_EMMC_PATCH_SWAP ?= 0
 DRIVER_SOURCE_DIR := $(ROOT_DIR)/driver
 DTB_SOURCE_DIR := $(ROOT_DIR)/dtb
 ABL_DIR := $(ROOT_DIR)/abl
@@ -28,8 +22,7 @@ LIBC_SEC_DIR := $(ROOT_DIR)/libc_sec
 SIGNING_DIR := $(ROOT_DIR)/signing
 CONFIG_FEATURE_FILE := $(ROOT_DIR)/config/feature/ascend310Brc.config
 
-KERNEL_WORKSPACE := $(WORKSPACE_DIR)/kernel/linux-source
-KERNEL_WORKSPACE_MARKER := $(KERNEL_WORKSPACE)/.opi-prepared-v2
+KERNEL_WORKSPACE := $(LINUX_SOURCE_DIR)
 DTB_WORKSPACE := $(WORKSPACE_DIR)/dtb
 
 KERNEL_DEFCONFIG := ascend310B_defconfig
@@ -53,12 +46,13 @@ include $(ROOT_DIR)/build/headers_deb.mk
 help:
 	printf '%s\n' '[Usage]:'
 	printf '%-50s%-50s\n' '    make clean' '# build clean'
-	printf '%-50s%-50s\n' '    make kernel-patch' '# prepare shared patched kernel workspace'
+	printf '%-50s%-50s\n' '    make kernel-patch' '# sync in-place kernel source inputs'
 	printf '%-50s%-50s\n' '    make kernel' '# build kernel for Euler'
 	printf '%-50s%-50s\n' '    make dtb' '# build dtb'
 	printf '%-50s%-50s\n' '    make driver' '# build driver'
 	printf '%-50s%-50s\n' '    make modules-deb' '# build merged kernel/driver modules deb'
 	printf '%-50s%-50s\n' '    make headers-deb' '# build linux-headers deb for external modules'
+	printf '%-50s%-50s\n' "    default linux source" "# $(LINUX_SOURCE_DIR)"
 
 clean:
 	$(MAKE) --no-print-directory clean-all-outputs
