@@ -1,4 +1,4 @@
-.PHONY: kernel-patch kernel kernelSource
+.PHONY: kernel-patch kernel
 
 kernel-patch: $(KERNEL_WORKSPACE_MARKER)
 	printf 'patched kernel workspace is [%s]\n' "$(KERNEL_WORKSPACE)"
@@ -34,14 +34,3 @@ kernel: | ensure-output-dirs
 	printf 'sign %s/Image success\n' "$(OUTPUT_DIR)"
 	printf 'generate %s/modules success\n' "$(OUTPUT_DIR)"
 	printf 'generate %s/Image success\n' "$(OUTPUT_DIR)"
-
-kernelSource: | ensure-output-dirs
-	printf 'prepare shared kernel source\n'
-	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
-	$(MAKE) --no-print-directory kernel-patch
-	$(MAKE) --no-print-directory clean-kernel-build-artifacts
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" modules_prepare
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" modules -j"$(JOBS)"
-	printf 'kernel_directory is [%s]\n' "$(KERNEL_WORKSPACE)"
-	printf 'generate kernel source success\n'

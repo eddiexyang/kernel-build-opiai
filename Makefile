@@ -56,7 +56,6 @@ help:
 	printf '%-50s%-50s\n' '    make driver' '# build driver'
 	printf '%-50s%-50s\n' '    make modules-deb' '# build merged kernel/driver modules deb'
 	printf '%-50s%-50s\n' '    make headers-deb' '# build linux-headers deb for external modules'
-	printf '%-50s%-50s\n' '    make kernelSource' '# prepare shared kernel source'
 
 clean:
 	$(MAKE) --no-print-directory clean-all-outputs
