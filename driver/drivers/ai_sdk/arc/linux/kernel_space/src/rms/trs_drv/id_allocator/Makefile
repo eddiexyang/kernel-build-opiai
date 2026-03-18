@@ -17,7 +17,7 @@ else
     DRIVER_SRC_BASE_DIR := $(DRIVER_KERNEL_DIR)/src
 
     EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-    EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
 endif
 

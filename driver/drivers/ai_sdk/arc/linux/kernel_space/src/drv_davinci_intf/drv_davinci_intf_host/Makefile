@@ -19,7 +19,7 @@ ifeq ($(TOP_DIR),)
         ccflags-y += -funsigned-char -Wextra -Wformat=2 -Wfloat-equal -Wcast-align -Wvla -Wundef -Wstack-usage=2048 $(WDATE_TIME)
         ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
         TOPDIR_ABS := $(KERNEL_DIR)
-        EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../libc_sec/include
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/inc
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/drv_davinci_intf/drv_davinci_intf_host
 		EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common
@@ -46,7 +46,7 @@ else
     else
         ccflags-y += -funsigned-char -Wextra -Wformat=2 -Wfloat-equal -Wcast-align -Wvla -Wundef -Wstack-usage=2048 $(WDATE_TIME)
         ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/drv_davinci_intf/drv_davinci_intf_host
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common

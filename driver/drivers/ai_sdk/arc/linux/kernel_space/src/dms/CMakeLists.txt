@@ -60,7 +60,7 @@ if (${PRODUCT_SIDE} STREQUAL device)
 			${DRIVER_KERNEL_DIR}/src/dbl/drv_urd
 			${DRIVER_KERNEL_DIR}/src/dms/product
 			${DRIVER_KERNEL_DIR}/src/fpdc
-			${TOP_DIR}/abl/libc_sec/include
+			${TOP_DIR}/libc_sec/include
 			${DRIVER_KERNEL_DIR}/inc
 			${DRIVER_KERNEL_DIR}/inc/ascend_platform
 			${DRIVER_KERNEL_DIR}/src/dms

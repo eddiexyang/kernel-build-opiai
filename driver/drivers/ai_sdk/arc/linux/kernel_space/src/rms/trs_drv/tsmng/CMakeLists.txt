@@ -11,7 +11,7 @@ if(AOSCORE_LLVM_MUSL) #aos core build add_library(tsmng_obj OBJECT)
 
     target_include_directories(tsmng_obj PRIVATE
         ${TOP_DIR}/inc/driver
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${DRIVER_KERNEL_DIR}/inc
         ${DRIVER_KERNEL_DIR}/src/rms/trs_drv/tsmng
         ${DRIVER_KERNEL_DIR}/src/rms/trs_drv/tsmng/ascend910

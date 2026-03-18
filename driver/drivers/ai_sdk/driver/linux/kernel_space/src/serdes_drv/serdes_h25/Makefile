@@ -3,7 +3,7 @@ ccflags-y += -I$(M)/ \
              -I$(TOP_DIR)/inc/driver \
              -I$(M)/includes/ \
              -I$(M)/src \
-             -I$(TOP_DIR)/abl/libc_sec/include \
+             -I$(TOP_DIR)/libc_sec/include \
              -I$(TOP_DIR)/inc/soc/mini_v3 \
              -I$(TOP_DIR)/drivers/firmware/hiss/inc/hiss \
              -I$(DRIVER_KERNEL_DIR)/inc/

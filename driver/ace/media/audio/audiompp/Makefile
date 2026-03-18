@@ -9,7 +9,7 @@ EXTRA_CFLAGS += -I${TOP_DIR}/inc \
                 -I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/dms/sensor/config \
                 -I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/dms/config \
                 -I${TOP_DIR}/inc/driver \
-                -I$(TOP_DIR)/abl/libc_sec/include \
+                -I$(TOP_DIR)/libc_sec/include \
                 -I${TOP_DIR}/ace/media/mediabase/src/base/mkp/include \
                 -I${TOP_DIR}/ace/media/mediabase/src/base/arch/arch11/include \
                 -I${TOP_DIR}/ace/media/mediabase/src/src/base/arch/include \

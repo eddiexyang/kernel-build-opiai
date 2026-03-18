@@ -70,7 +70,7 @@ ccflags-y += 	-I$(HNS3_DIR) \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/dms/include \
 		-I$(TOP_DIR)/inc/driver \
 		-I$(TOP_DIR)/abl/bbox/inc/bbox/device \
-		-I$(TOP_DIR)/abl/libc_sec/include \
+		-I$(TOP_DIR)/libc_sec/include \
 		-I$(TOP_DIR)/drivers/ai_sdk/driver/linux/kernel_space/src/eeprom
 
 #### compile hclgeplf.ko

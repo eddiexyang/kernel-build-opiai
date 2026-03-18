@@ -62,7 +62,7 @@ obj-m += drv_pkicms.o
 	endif
 else
 	EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
-	EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+	EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 	EXTRA_CFLAGS += -I$(TOP_DIR)/os/itrustee/tzdriver/libhwsecurec
 	EXTRA_CFLAGS += -I$(TOP_DIR)/inc/hiss
 	EXTRA_CFLAGS += -I$(TOP_DIR)/drivers/firmware/hiss/inc/hiss

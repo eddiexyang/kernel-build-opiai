@@ -227,7 +227,7 @@ else
 
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
     ifneq ($(filter $(PRODUCT),  ascend910 ascend910B ascend920esl ascend920emu),)
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_device/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common/
@@ -243,7 +243,7 @@ else
         endif
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/hdcdrv/hdc_host/
     else ifneq ($(filter $(PRODUCT),  ascend310 ascend310rc ascend310B as31xm1 ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu ascend310p helper310p),)
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/drv_devmng/drv_devmng_inc
@@ -274,7 +274,7 @@ else
         endif
     else ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a),)
         EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MDC_V51
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/mdc/ts_drv/ts_drv_device/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/mdc/ts_drv/ts_drv_common/
@@ -289,7 +289,7 @@ else
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/logdrv/log_bind_core/
     else ifneq ($(filter $(PRODUCT), ascend610Liteesl ascend610Lite),)
         EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MDC_V51
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/mdc/ts_drv/ts_drv_device/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/mdc/ts_drv/ts_drv_common/
@@ -303,7 +303,7 @@ else
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/logdrv/log_xpc/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/logdrv/log_bind_core/
     else
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(KERNEL_DIR)/drivers/hisi/npu/drivers/inc
         EXTRA_CFLAGS += -I$(KERNEL_DIR)/drivers/hisi/npu/drivers/inc/comm
         EXTRA_CFLAGS += -I$(KERNEL_DIR)/drivers/hisi/npu/src/tsdrv/ts_drv/ts_drv_device/ascend310

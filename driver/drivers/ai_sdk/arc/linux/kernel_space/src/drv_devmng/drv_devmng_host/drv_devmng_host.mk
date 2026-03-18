@@ -104,7 +104,7 @@ ifeq ($(TOP_DIR),)
 				)
 
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../inc/driver
-		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../abl/libc_sec/include/
+		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../libc_sec/include/
 		ifeq ($(TARGET_PRODUCT),cloud)
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD_HOST
@@ -309,7 +309,7 @@ else # ifeq ($(TOP_DIR),)
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/soft_fault
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/power
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/include
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include/
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include/
 
 		ifneq ($(filter $(PRODUCT),  ascend910 ascend910B ascend920esl ascend920emu),)
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD

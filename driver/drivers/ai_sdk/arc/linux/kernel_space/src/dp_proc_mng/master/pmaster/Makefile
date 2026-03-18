@@ -40,7 +40,7 @@ else
 	else
 		ccflags-y += -Wtrampolines -Wfloat-equal -Wvla -Wundef
         EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 		EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dp_proc_mng/

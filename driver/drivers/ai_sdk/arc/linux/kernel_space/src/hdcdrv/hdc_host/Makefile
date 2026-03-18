@@ -48,7 +48,7 @@ else
                 )
 
     EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../drivers/dev_inc
-    EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../libc_sec/include
     ifeq ($(TARGET_PRODUCT),cloud)
         EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD
         EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD_HOST
@@ -137,7 +137,7 @@ else
 
     EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
     EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-    EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
     ifeq ($(PRODUCT),ascend920esl)
         EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_ESL_FPGA
     else ifeq ($(PRODUCT),ascend910B)

@@ -215,7 +215,7 @@ else #for CMake & ctrl cpu open
 	include $(DRIVER_KERNEL_DIR)/src/dms/xpc/dms_xpc.mk
 	include ${DRIVER_KERNEL_DIR}/src/dms/time/dms_time.mk
 
-	EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+	EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 	EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
 	EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dbl/dev_urd
 	EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms

@@ -19,7 +19,7 @@ else
     EXTRA_CFLAGS += -I$(TOP_DIR)/abl/bbox/inc/bbox/device
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/toolchain/bbox
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/toolchain/bbox/device
-    EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/aicpu/common
 
     EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc

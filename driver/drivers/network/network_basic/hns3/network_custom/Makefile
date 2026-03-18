@@ -20,7 +20,7 @@ ccflags-y += -I$(HNS3_DIR) \
 		-I$(HNS3_DIR)/hns3pf \
 		-I$(HNS3_DIR)/hns3_common \
 		-I$(TOP_DIR)/abl/bbox/inc/bbox/device \
-		-I$(TOP_DIR)/abl/libc_sec/include \
+		-I$(TOP_DIR)/libc_sec/include \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/inc \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/fpdc \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/dms/config \

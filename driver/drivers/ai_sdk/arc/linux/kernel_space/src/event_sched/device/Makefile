@@ -84,7 +84,7 @@ else
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver/
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver/errcode/
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/common/
-    EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 
     obj-m  += ascend_event_sched.o
     ascend_event_sched-objs := comm/esched_fops.o comm/esched.o comm/esched_sysfs.o

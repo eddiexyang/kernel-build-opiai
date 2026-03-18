@@ -4,14 +4,14 @@ endif
 ifeq ($(TOP_DIR),)
 KERNEL_DIR :=$(srctree)
 EXTRA_CFLAGS += -I$(PWD)/drivers/dev_inc
-EXTRA_CFLAGS += -I$(KERNEL_DIR)/abl/libc_sec/include
+EXTRA_CFLAGS += -I$(KERNEL_DIR)/libc_sec/include
 ccflags-y += -Wall -Werror -funsigned-char -Wextra -Wformat=2 -Wfloat-equal -Wcast-align -Wvla -Wundef -Wstack-usage=2048 $(WDATE_TIME)
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 obj-m   += drv_davinci_intf.o
 drv_davinci_intf-objs := davinci_intf_init.o davinci_intf_process.o
 else
 EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a helper310p ascend610Lite ascend610Liteesl),)
     ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
         EXTRA_CFLAGS += -DCFG_FEATURE_SUPPORT_CPUDOMAIN

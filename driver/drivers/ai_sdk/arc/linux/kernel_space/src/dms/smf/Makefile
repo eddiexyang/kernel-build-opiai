@@ -94,7 +94,7 @@ else     # for cmake
   ifneq ($(filter $(PRODUCT), as31xm1 ascend610 ascend610Lite bs9sx1a), )
       EXTRA_CFLAGS += -DCFG_FEATURE_MDC_CLOCKID_CONFIG
   endif
-  EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+  EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/dtm
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/config

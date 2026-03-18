@@ -58,7 +58,7 @@ ifeq ($(TOP_DIR),)
 
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/inc
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../drivers/dev_platform/tsdrv/ts_drv/ts_drv_vm
-		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../abl/libc_sec/include
+		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../libc_sec/include
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../inc/driver
 		obj-m += drv_vtsdrv.o
 		drv_vtsdrv-objs := vtsdrv_init.o vtsdrv_proc.o vtsdrv_sqcq.o
@@ -106,7 +106,7 @@ else
 		endif
 		EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 		EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_vm
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common

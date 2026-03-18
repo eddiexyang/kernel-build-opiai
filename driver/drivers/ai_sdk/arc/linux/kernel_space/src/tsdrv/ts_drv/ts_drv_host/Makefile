@@ -260,7 +260,7 @@ else
 		EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
 		EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/tsdrv_virt
@@ -278,7 +278,7 @@ else
 		EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/tsdrv_virt
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common/devdrv_callback/

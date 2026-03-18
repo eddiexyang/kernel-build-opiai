@@ -63,7 +63,7 @@ if(AOSCORE_LLVM_MUSL)
     target_include_directories(drv_soc_misc_obj PRIVATE
         ${AOS_CORE_INC_DIR}/build/include/core
         ${TOP_DIR}/inc/driver
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/abl/ascend_hal/user_space/src/dms
         ${TOP_DIR}/drivers/ai_sdk/driver/linux/kernel_space/src/PCA6416
         ${DRIVER_KERNEL_DIR}/inc

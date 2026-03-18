@@ -33,7 +33,7 @@ KERNEL_DIR := $(srctree)
 
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/inc
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/inc/driver
-        EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/abl/bbox/inc/bbox
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/abl/bbox/inc/bbox/device
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/abl/ascend_hal/user_space/src/dms/
@@ -62,7 +62,7 @@ KERNEL_DIR :=$(srctree)
     ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
-    EXTRA_CFLAGS += -I${TOP_DIR}/abl/libc_sec/include
+    EXTRA_CFLAGS += -I${TOP_DIR}/libc_sec/include
     EXTRA_CFLAGS += -I$(TOP_DIR)/abl/bbox/inc/bbox
     EXTRA_CFLAGS += -I$(TOP_DIR)/abl/bbox/inc/bbox/device
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/toolchain/bbox/device # for ascend310 source release

@@ -61,7 +61,7 @@ else
         EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc/
         EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver/
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 
         ifneq ($(filter $(PRODUCT),  helper310p),)
             obj-m += ascend_event_sched_host.o

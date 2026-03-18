@@ -9,7 +9,7 @@ ifeq ($(TOP_DIR),)
         ccflags-y += -Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare -Wno-implicit-fallthrough
         TOPDIR_ABS := $(KERNEL_DIR)
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../inc/driver
-        EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../libc_sec/include
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/inc
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/xsmem/dc/xsmem_host
     endif
@@ -25,7 +25,7 @@ else
         ccflags-y += -Wall -Werror -Wtrampolines $(WDATE_TIME) -Wfloat-equal -Wvla -Wundef -funsigned-char -Wformat=2 -Wstack-usage=2048 -Wcast-align -Wextra
         ccflags-y += -Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare -Wno-implicit-fallthrough
         EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver/
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+        EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc/
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/xsmem/dc/xsmem_host
     endif

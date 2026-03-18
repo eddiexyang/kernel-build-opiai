@@ -21,7 +21,7 @@ if (AOSCORE_LLVM_MUSL)
     target_compile_definitions(ipc_drv_obj PRIVATE CFG_SOC_PLATFORM_MINIV2_MDC)
     target_link_libraries(ipc_drv_obj PRIVATE $<BUILD_INTERFACE:utils_intf_pub>)
     target_include_directories(ipc_drv_obj PRIVATE
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/inc/driver
         ${TOP_DIR}/inc/driver/errcode
         ${TOP_DIR}/inc/common

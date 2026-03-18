@@ -21,7 +21,7 @@ if (AOSCORE_LLVM_MUSL)
     )
 
     target_include_directories(drv_centre_notify_obj PRIVATE
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${DRIVER_KERNEL_DIR}/inc
         ${DRIVER_KERNEL_DIR}/inc/ascend_platform
     )

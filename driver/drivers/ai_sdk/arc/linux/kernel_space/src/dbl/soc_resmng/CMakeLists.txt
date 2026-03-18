@@ -19,7 +19,7 @@ if(AOSCORE_LLVM_MUSL)
 
     target_include_directories(ascend_soc_resmng_obj PRIVATE
         ${TOP_DIR}/inc/driver
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${DRIVER_KERNEL_DIR}/inc
         ${DRIVER_KERNEL_DIR}/src/common
     )

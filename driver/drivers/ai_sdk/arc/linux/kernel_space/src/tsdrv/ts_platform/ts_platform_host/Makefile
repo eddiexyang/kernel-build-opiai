@@ -65,7 +65,6 @@ ifeq ($(TOP_DIR),)
         endif
     else
         TOPDIR_ABS := $(KERNEL_DIR)
-        EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../abl/libc_sec/include
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../libc_sec/include
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../drivers/ai_sdk/arc/linux/kernel_space/dev_inc
         EXTRA_CFLAGS += -I$(TOPDIR_ABS)/../../drivers/ai_sdk/arc/linux/kernel_space/npu_inc
@@ -124,7 +123,6 @@ else
 
     ifeq ($(DAVINCI_HIAI_DKMS),y)
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/libc_sec/include
-        EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/npu_inc
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/dev_inc_open/inc
         EXTRA_CFLAGS += -I$(HIAI_DKMS_DIR)/dev_inc/inc
@@ -165,7 +163,6 @@ else
             drv_tsdrv_platform_host-objs += tsdrv_parse/ascend910/tsdrv_irq_parse.o tsdrv_parse/ascend910/tsdrv_addr_parse.o
         endif
     else
-        EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
         EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
         EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
         EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc

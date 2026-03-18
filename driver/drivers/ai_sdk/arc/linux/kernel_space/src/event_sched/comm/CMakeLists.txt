@@ -27,7 +27,7 @@ target_include_directories(ascend_event_sched_obj PRIVATE
     ${TOP_DIR}/inc/driver/
     ${TOP_DIR}/inc/driver/errcode/
     ${TOP_DIR}/inc/common/
-    ${TOP_DIR}/abl/libc_sec/include
+    ${TOP_DIR}/libc_sec/include
 )
 
 add_custom_command(

@@ -29,7 +29,7 @@ EXTRA_CFLAGS += -I$(MEDIABASE_INC_PATH)/mediabase/include \
 
 EXTRA_CFLAGS += -I$(CBBPATH)/chnl/mkp/include \
 		-I$(CBBPATH)/drv_dvpp_comm/include \
-		-I$(TOP_DIR)/abl/libc_sec/include \
+		-I$(TOP_DIR)/libc_sec/include \
 		-I$(TOP_DIR)/inc/driver \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/inc \
 		-I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/src/drv_devmng/drv_devmng_inc \

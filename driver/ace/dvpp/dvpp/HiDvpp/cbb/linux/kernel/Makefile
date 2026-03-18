@@ -20,7 +20,7 @@ EXTRA_CFLAGS += -I$(BASE_INC_PATH)/external/mediabase \
         -I$(BASE_PATH)/osal/linux/kernel/himedia \
         -I$(BASE_PATH)/osal/linux/kernel \
         -I$(BASE_PATH)/base/arch/$(ARCDIR)/include \
-        -I$(TOP_DIR)/abl/libc_sec/include \
+        -I$(TOP_DIR)/libc_sec/include \
         -I$(TOP_DIR)/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-gnu-5.4/aarch64-linux-gnu/include \
         -I$(TOP_DIR)/kernel/linux-source/arch/arm/include \
         -I$(TOP_DIR)/kernel/linux-source/arch/arm64/include \

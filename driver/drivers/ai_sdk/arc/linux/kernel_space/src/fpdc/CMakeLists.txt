@@ -24,7 +24,7 @@ if(AOSCORE_LLVM_MUSL)
     )
 
     target_include_directories(drv_fpdc_obj PRIVATE
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/inc/driver
         ${DRIVER_KERNEL_DIR}/inc
         ${DRIVER_KERNEL_DIR}/src/dms/include

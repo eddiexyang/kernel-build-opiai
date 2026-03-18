@@ -69,7 +69,7 @@ include_directories(
     ${HDMI_DIR}/include
     ${HDMI_MKP_DIR}
     ${TOP_DIR}/abl/slog/inc/toolchain/
-    ${TOP_DIR}/abl/libc_sec/include/
+    ${TOP_DIR}/libc_sec/include/
 
     ${MB_INC_COMMON_DIR}/osal
     ${H8_ADAPT_TOP_DIR}/osal/include

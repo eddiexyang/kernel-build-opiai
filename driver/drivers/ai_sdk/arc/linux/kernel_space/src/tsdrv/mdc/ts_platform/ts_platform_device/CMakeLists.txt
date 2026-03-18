@@ -34,7 +34,7 @@ if(AOSCORE_LLVM_MUSL)
         ${TOP_DIR}/abl/bbox/inc/bbox/device
         ${TOP_DIR}/inc/toolchain/bbox
         ${TOP_DIR}/inc/toolchain/bbox/device
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/inc/aicpu/common
 
         ${DRIVER_KERNEL_DIR}/inc

@@ -36,7 +36,7 @@ ccflags-y +=  -I$(BASE_INC_PATH)/external/mediabase \
               -I$(TOP_DIR)/ace/media/inc/media/camera/camerav2 \
               -I$(TOP_DIR)/inc/driver   \
 
-ccflags-y += -I$(TOP_DIR)/abl/libc_sec/include
+ccflags-y += -I$(TOP_DIR)/libc_sec/include
 
 ccflags-y += -Wno-error=date-time
 ccflags-y += -Wno-date-time

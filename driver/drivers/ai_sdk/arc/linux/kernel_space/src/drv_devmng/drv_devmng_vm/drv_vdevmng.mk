@@ -55,7 +55,7 @@ ifeq ($(TOP_DIR),)
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../tsdrv/ts_drv/ts_drv_common/
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../drv_devmng_host/ascend910
 		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../dev_core/device_manager/device_manager_inc/
-		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../abl/libc_sec/include/
+		EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../libc_sec/include/
 
 		ifeq ($(TARGET_PRODUCT),cloud)
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD
@@ -148,7 +148,7 @@ else # for CMake compile
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/event/
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/include/
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/sensor/
-		EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include/
+		EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include/
 
 		ifeq ($(PRODUCT),ascend910)
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD

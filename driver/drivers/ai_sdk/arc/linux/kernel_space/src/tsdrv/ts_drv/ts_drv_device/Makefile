@@ -112,7 +112,7 @@ else ifneq ($(filter $(MAKE_PRODUCT),  ascend610 bs9sx1a),)
 endif
 
 EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
-EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
 
 ifneq ($(filter $(MAKE_PRODUCT),  ascend910 ascend910B ascend920esl ascend920emu),)

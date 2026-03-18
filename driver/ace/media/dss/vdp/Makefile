@@ -31,7 +31,7 @@ COMMON_INCLUDE += -I$(MPP_PATH)/base/arch/$(OT_ARCH)/include
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/include
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/ext_inc
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/arch/$(OT_ARCH)/include
-COMMON_INCLUDE += -I$(TOP_DIR)/abl/libc_sec/include
+COMMON_INCLUDE += -I$(TOP_DIR)/libc_sec/include
 COMMON_INCLUDE += -I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/inc
 #*******************************************************************************
 #********************* Set the source code and include path ********************

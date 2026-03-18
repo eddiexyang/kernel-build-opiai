@@ -17,7 +17,7 @@ if (AOSCORE_LLVM_MUSL)
 
     target_link_libraries(drv_davinci_intf_obj PRIVATE $<BUILD_INTERFACE:utils_intf_pub>)
     target_include_directories(drv_davinci_intf_obj PRIVATE
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${DRIVER_KERNEL_DIR}/inc
     )
 

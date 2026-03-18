@@ -31,7 +31,7 @@ if(AOSCORE_LLVM_MUSL)
         ${TOP_DIR}/inc/driver
         ${TOP_DIR}/abl/bbox/inc/bbox
         ${TOP_DIR}/abl/ascend_hal/user_space/src/dms
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${DRIVER_KERNEL_DIR}/inc
         ${DRIVER_KERNEL_DIR}/src/dms/dtm
         ${DRIVER_KERNEL_DIR}/src/dms/include

@@ -8,7 +8,7 @@ endif
 ifeq ($(TOP_DIR),)
     KERNEL_DIR :=$(srctree)
     EXTRA_CFLAGS += -I$(PWD)/inc/driver
-    EXTRA_CFLAGS += -I$(PWD)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(PWD)/libc_sec/include
     EXTRA_CFLAGS += -I$(PWD)/drivers/ai_sdk/arc/linux/kernel_space/inc
     EXTRA_CFLAGS += -I$(PWD)/drivers/ai_sdk/arc/linux/kernel_space/src/xsmem/dc/xsmem_device
 
@@ -33,7 +33,7 @@ else
     endif
 
     EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver/
-    EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+    EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
     EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/xsmem/dc/xsmem_device
     EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc/
 

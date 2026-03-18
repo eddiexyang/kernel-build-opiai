@@ -48,7 +48,7 @@ else     # for cmake
       EXTRA_CFLAGS += -fstack-protector-all
   endif
 
-  EXTRA_CFLAGS += -I$(TOP_DIR)/abl/libc_sec/include
+  EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/dtm
   EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/config

@@ -45,7 +45,7 @@ COMMON_INCLUDE += -I$(MPP_PATH)/sys/include
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/ext_inc
 COMMON_INCLUDE += -I$(TOP_DIR)/ace/media/dss/vdp/dfx
 COMMON_INCLUDE += -I$(TOP_DIR)/ace/media/dss/vdp/tde/drv/init/include
-COMMON_INCLUDE += -I$(TOP_DIR)/abl/libc_sec/include
+COMMON_INCLUDE += -I$(TOP_DIR)/libc_sec/include
 COMMON_INCLUDE += -I$(TOP_DIR)/inc/driver
 
 DRV_CFLAGS := -Wall -fsigned-char -Wno-error=date-time

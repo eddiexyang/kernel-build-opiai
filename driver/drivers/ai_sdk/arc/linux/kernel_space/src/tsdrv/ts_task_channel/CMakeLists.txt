@@ -23,7 +23,7 @@ if(AOSCORE_LLVM_MUSL)
         ${TOP_DIR}/ace/csruntime/inc/tsch/
         ${TOP_DIR}/inc/driver/errcode/
         ${TOP_DIR}/inc/common/
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/abl/bbox/inc/bbox
         ${TOP_DIR}/inc/toolchain/bbox
         ${TOP_DIR}/inc/aicpu/common/

@@ -15,7 +15,7 @@ if(AOSCORE_LLVM_MUSL)
 
     target_include_directories(drv_devdrv_obj PRIVATE
         ${DRIVER_KERNEL_DIR}/inc
-        ${TOP_DIR}/abl/libc_sec/include
+        ${TOP_DIR}/libc_sec/include
         ${TOP_DIR}/inc/driver
         ${TOP_DIR}/inc/soc/hi1910p
         ${TOP_DIR}/drivers/config/user_config/miniv2
