@@ -1,0 +1,51 @@
+From 72a972629c717d879c0943d5e5a712d159d06565 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Thu, 30 Jun 2022 12:19:47 +0200
+Subject: [PATCH 4559/4585] [Backport] x86, kvm: use proper ASM macros for
+ kvm_vcpu_is_preempted
+
+stable inclusion
+from stable-v5.10.133
+commit 81f20e5000eca278a8bab4959c4fa1beda1fbed5
+category: bugfix
+bugzilla: 187378
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=81f20e5000eca278a8bab4959c4fa1beda1fbed5
+
+--------------------------------
+
+commit edbaf6e5e93acda96aae23ba134ef3c1466da3b5 upstream.
+
+The build rightfully complains about:
+	arch/x86/kernel/kvm.o: warning: objtool: __raw_callee_save___kvm_vcpu_is_preempted()+0x12: missing int3 after ret
+
+because the ASM_RET call is not being used correctly in kvm_vcpu_is_preempted().
+
+This was hand-fixed-up in the kvm merge commit a4cfff3f0f8c ("Merge branch
+'kvm-older-features' into HEAD") which of course can not be backported to
+stable kernels, so just fix this up directly instead.
+
+Cc: Paolo Bonzini <pbonzini@redhat.com>
+Cc: Ben Hutchings <bwh@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/kernel/kvm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/kvm.c b/arch/x86/kernel/kvm.c
+index 3a2501f27c8d..f69199874592 100644
+--- a/arch/x86/kernel/kvm.c
++++ b/arch/x86/kernel/kvm.c
+@@ -958,7 +958,7 @@ asm(
+ "movq	__per_cpu_offset(,%rdi,8), %rax;"
+ "cmpb	$0, " __stringify(KVM_STEAL_TIME_preempted) "+steal_time(%rax);"
+ "setne	%al;"
+-"ret;"
++ASM_RET
+ ".size __raw_callee_save___kvm_vcpu_is_preempted, .-__raw_callee_save___kvm_vcpu_is_preempted;"
+ ".popsection");
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,40 @@
+From e31830d20da0cd9958d13d5489d1f102ddebb35a Mon Sep 17 00:00:00 2001
+From: Xu Qiang <xuqiang36@huawei.com>
+Date: Sat, 8 Apr 2023 07:56:37 +0000
+Subject: [PATCH 0099/1646] [Huawei] mm/sharepool: Add sp_group_sem protection.
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6GI0X
+
+----------------------------------------------
+
+In sp_update_process_stat, traverse node_list
+and lock protection is required.
+
+Signed-off-by: Xu Qiang <xuqiang36@huawei.com>
+---
+ mm/share_pool.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 852a70abc73e..edfc86bdee9e 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -841,8 +841,11 @@ static void sp_update_process_stat(struct task_struct *tsk, bool inc,
+ 	unsigned long size = spa->real_size;
+ 	enum spa_type type = spa->type;
+ 
++	down_read(&sp_group_sem);
+ 	spg_node = find_spg_node_by_spg(tsk->mm, spa->spg);
+-	update_mem_usage(size, inc, spa->is_hugepage, spg_node, type);
++	if (spg_node != NULL)
++		update_mem_usage(size, inc, spa->is_hugepage, spg_node, type);
++	up_read(&sp_group_sem);
+ }
+ 
+ static inline void check_interrupt_context(void)
+-- 
+2.17.1
+

@@ -1,0 +1,131 @@
+From bc7ec9c73b4ed0b8b0dc4fe7f5f4a54448071834 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 24 May 2023 15:13:30 +0800
+Subject: [PATCH 01/53] [Huawei] mm/sharepool: Delete sp_[un]register_notifier
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+No one uses those interfaces anymore.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ include/linux/share_pool.h | 13 -------------
+ mm/share_pool.c            | 26 ++------------------------
+ 2 files changed, 2 insertions(+), 37 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index 88a0117a3145..982f03387900 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -270,9 +270,6 @@ extern int mg_sp_walk_page_range(unsigned long uva, unsigned long size,
+ 
+ extern void mg_sp_walk_page_free(struct sp_walk_data *sp_walk_data);
+ 
+-extern int sp_register_notifier(struct notifier_block *nb);
+-extern int sp_unregister_notifier(struct notifier_block *nb);
+-
+ extern bool mg_sp_config_dvpp_range(size_t start, size_t size, int device_id, int tgid);
+ 
+ extern bool mg_is_sharepool_addr(unsigned long addr);
+@@ -401,16 +398,6 @@ static inline void mg_sp_walk_page_free(struct sp_walk_data *sp_walk_data)
+ {
+ }
+ 
+-static inline int sp_register_notifier(struct notifier_block *nb)
+-{
+-	return -EPERM;
+-}
+-
+-static inline int sp_unregister_notifier(struct notifier_block *nb)
+-{
+-	return -EPERM;
+-}
+-
+ static inline bool mg_sp_config_dvpp_range(size_t start, size_t size, int device_id, int tgid)
+ {
+ 	return false;
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index bccd4a487d12..0ec643ae2b29 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -80,8 +80,6 @@ static DEFINE_IDR(sp_group_idr);
+ /* rw semaphore for sp_group_idr and mm->sp_group_master */
+ static DECLARE_RWSEM(sp_group_sem);
+ 
+-static BLOCKING_NOTIFIER_HEAD(sp_notifier_chain);
+-
+ static DEFINE_IDA(sp_group_id_ida);
+ 
+ /*** Statistical and maintenance tools ***/
+@@ -1581,7 +1579,6 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	struct sp_group_node *spg_node;
+ 	struct task_struct *tsk = NULL;
+ 	struct mm_struct *mm = NULL;
+-	bool is_alive = true;
+ 
+ 	if (!sp_is_enabled())
+ 		return -EOPNOTSUPP;
+@@ -1654,12 +1651,10 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	}
+ 
+ 	if (list_is_singular(&spg->procs))
+-		is_alive = spg->is_alive = false;
++		spg->is_alive = false;
+ 	delete_spg_node(spg, spg_node);
+ 	sp_group_put(spg);
+ 	up_write(&spg->rw_lock);
+-	if (!is_alive)
+-		blocking_notifier_call_chain(&sp_notifier_chain, 0, spg);
+ 
+ 	list_del(&spg_node->group_node);
+ 	mm->sp_group_master->count--;
+@@ -3490,18 +3485,6 @@ void mg_sp_walk_page_free(struct sp_walk_data *sp_walk_data)
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_walk_page_free);
+ 
+-int sp_register_notifier(struct notifier_block *nb)
+-{
+-	return blocking_notifier_chain_register(&sp_notifier_chain, nb);
+-}
+-EXPORT_SYMBOL_GPL(sp_register_notifier);
+-
+-int sp_unregister_notifier(struct notifier_block *nb)
+-{
+-	return blocking_notifier_chain_unregister(&sp_notifier_chain, nb);
+-}
+-EXPORT_SYMBOL_GPL(sp_unregister_notifier);
+-
+ static bool is_sp_dynamic_dvpp_addr(unsigned long addr);
+ /**
+  * mg_sp_config_dvpp_range() - User can config the share pool start address
+@@ -4138,7 +4121,6 @@ int sp_group_exit(void)
+ 	struct sp_group *spg;
+ 	struct sp_group_master *master;
+ 	struct sp_group_node *spg_node, *tmp;
+-	bool is_alive = true;
+ 
+ 	if (!sp_is_enabled())
+ 		return 0;
+@@ -4166,13 +4148,9 @@ int sp_group_exit(void)
+ 		down_write(&spg->rw_lock);
+ 		/* a dead group should NOT be reactive again */
+ 		if (spg_valid(spg) && list_is_singular(&spg->procs))
+-			is_alive = spg->is_alive = false;
++			spg->is_alive = false;
+ 		delete_spg_node(spg, spg_node);
+ 		up_write(&spg->rw_lock);
+-
+-		if (!is_alive)
+-			blocking_notifier_call_chain(&sp_notifier_chain, 0,
+-						     spg);
+ 	}
+ 
+ 	/* match with get_task_mm() in sp_group_add_task() */
+-- 
+2.17.1
+

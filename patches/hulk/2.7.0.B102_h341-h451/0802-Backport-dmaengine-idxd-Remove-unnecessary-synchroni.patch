@@ -1,0 +1,46 @@
+From 296d711559f122a4731eb9e6a9ba11ed34ce859c Mon Sep 17 00:00:00 2001
+From: Minghao Chi <chi.minghao@zte.com.cn>
+Date: Mon, 16 May 2022 11:54:12 +0000
+Subject: [PATCH 0802/1646] [Backport] dmaengine: idxd: Remove unnecessary
+ synchronize_irq() before free_irq()
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 411dccf9d271e49f37471c73ebedb18719d6b608
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=411dccf9d271e49f37471c73ebedb18719d6b608
+
+--------------------------------
+
+Calling synchronize_irq() right before free_irq() is quite useless. On one
+hand the IRQ can easily fire again before free_irq() is entered, on the
+other hand free_irq() itself calls synchronize_irq() internally (in a race
+condition free way), before any state associated with the IRQ is freed.
+
+Signed-off-by: Minghao Chi <chi.minghao@zte.com.cn>
+Link: https://lore.kernel.org/r/20220516115412.1651772-1-chi.minghao@zte.com.cn
+Acked-by: Dave Jiang <dave.jiang@intel.com>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/dma/idxd/device.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/dma/idxd/device.c b/drivers/dma/idxd/device.c
+index 06cbca71cf26..ab846880803c 100644
+--- a/drivers/dma/idxd/device.c
++++ b/drivers/dma/idxd/device.c
+@@ -1182,7 +1182,6 @@ void idxd_wq_free_irq(struct idxd_wq *wq)
+ 	if (wq->type != IDXD_WQT_KERNEL)
+ 		return;
+ 
+-	synchronize_irq(ie->vector);
+ 	free_irq(ie->vector, ie);
+ 	idxd_flush_pending_descs(ie);
+ 	if (idxd->request_int_handles)
+-- 
+2.17.1
+

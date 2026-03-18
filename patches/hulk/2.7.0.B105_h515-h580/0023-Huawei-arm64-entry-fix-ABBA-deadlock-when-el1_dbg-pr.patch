@@ -1,0 +1,116 @@
+From 9aa9bc8a53541d4bb69f9ccb98463ee35348f364 Mon Sep 17 00:00:00 2001
+From: Yu Liao <liaoyu15@huawei.com>
+Date: Sat, 10 Jun 2023 16:52:30 +0800
+Subject: [PATCH 023/780] [Huawei] arm64: entry: fix ABBA deadlock when el1_dbg
+ preempts rq->lock context
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188349
+
+--------------------------------
+
+When arm64 enters el1_dbg, it will hold rcu_node lock. If rq_lock critical
+section is preempted by el1_dbg, it may cause an ABBA deadlock. The
+scenario is as follows:
+
+CPU0 			CPU1
+---- 			----
+process			context rcu_gp_fqs()
+
+lock(&rq->lock);
+			lock(rcu_node_0);
+			lock(&rq->lock);
+//el1_dbg()
+lock(rcu_node_0);
+
+rcu_nmi_enter() do not hold rcu_node in the nmi context, so fix this issue
+by keeping the same logical for el1_dbg without marking el1_dbg as nmi.
+
+Fixes: d8bb6718c4db ("arm64: Make debug exception handlers visible from RCU")
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm64/kernel/entry-common.c | 8 ++++++++
+ include/linux/preempt.h          | 2 ++
+ kernel/panic.c                   | 5 +++++
+ kernel/rcu/tree.c                | 2 +-
+ 4 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/entry-common.c b/arch/arm64/kernel/entry-common.c
+index 387c755b79f6..b8a527ac6781 100644
+--- a/arch/arm64/kernel/entry-common.c
++++ b/arch/arm64/kernel/entry-common.c
+@@ -17,6 +17,7 @@
+ #include <asm/mmu.h>
+ #include <asm/sysreg.h>
+ 
++static DEFINE_PER_CPU(int, dbg_count);
+ /*
+  * This is intended to match the logic in irqentry_enter(), handling the kernel
+  * mode transitions only.
+@@ -150,10 +151,16 @@ static void noinstr el1_inv(struct pt_regs *regs, unsigned long esr)
+ 	exit_to_kernel_mode(regs);
+ }
+ 
++int in_dbg(void)
++{
++	return this_cpu_read(dbg_count) > 0;
++}
++
+ static void noinstr arm64_enter_el1_dbg(struct pt_regs *regs)
+ {
+ 	regs->lockdep_hardirqs = lockdep_hardirqs_enabled();
+ 
++	this_cpu_inc(dbg_count);
+ 	lockdep_hardirqs_off(CALLER_ADDR0);
+ 	rcu_nmi_enter();
+ 
+@@ -172,6 +179,7 @@ static void noinstr arm64_exit_el1_dbg(struct pt_regs *regs)
+ 	rcu_nmi_exit();
+ 	if (restore)
+ 		lockdep_hardirqs_on(CALLER_ADDR0);
++	this_cpu_dec(dbg_count);
+ }
+ 
+ static void noinstr el1_dbg(struct pt_regs *regs, unsigned long esr)
+diff --git a/include/linux/preempt.h b/include/linux/preempt.h
+index 7d9c1c0e149c..89d5281e060a 100644
+--- a/include/linux/preempt.h
++++ b/include/linux/preempt.h
+@@ -352,4 +352,6 @@ static __always_inline void migrate_enable(void)
+ 	preempt_enable();
+ }
+ 
++int in_dbg(void);
++
+ #endif /* __LINUX_PREEMPT_H */
+diff --git a/kernel/panic.c b/kernel/panic.c
+index 22a6230da366..71d568c3c7e1 100644
+--- a/kernel/panic.c
++++ b/kernel/panic.c
+@@ -763,3 +763,8 @@ static int __init panic_on_taint_setup(char *s)
+ 	return 0;
+ }
+ early_param("panic_on_taint", panic_on_taint_setup);
++
++int __weak in_dbg(void)
++{
++	return 0;
++}
+diff --git a/kernel/rcu/tree.c b/kernel/rcu/tree.c
+index a128743afff1..e1bbde2648e2 100644
+--- a/kernel/rcu/tree.c
++++ b/kernel/rcu/tree.c
+@@ -957,7 +957,7 @@ void __rcu_irq_enter_check_tick(void)
+ 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+ 
+ 	// If we're here from NMI there's nothing to do.
+-	if (in_nmi())
++	if (in_nmi() || in_dbg())
+ 		return;
+ 
+ 	RCU_LOCKDEP_WARN(rcu_dynticks_curr_cpu_in_eqs(),
+-- 
+2.17.1
+

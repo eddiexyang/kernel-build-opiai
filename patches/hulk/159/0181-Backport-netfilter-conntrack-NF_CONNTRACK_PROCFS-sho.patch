@@ -1,0 +1,45 @@
+From c8e22cd586485be40a512cbe457e958f78d4eddf Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert@linux-m68k.org>
+Date: Mon, 15 Aug 2022 12:39:20 +0200
+Subject: [PATCH 181/595] [Backport] netfilter: conntrack: NF_CONNTRACK_PROCFS
+ should no longer default to y
+
+stable inclusion
+from stable-v5.10.141
+commit 6ba9e8fb47f6300a9245dff61256cd476a58838b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YZOC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6ba9e8fb47f6300a9245dff61256cd476a58838b
+
+--------------------------------
+
+[ Upstream commit aa5762c34213aba7a72dc58e70601370805fa794 ]
+
+NF_CONNTRACK_PROCFS was marked obsolete in commit 54b07dca68557b09
+("netfilter: provide config option to disable ancient procfs parts") in
+v3.3.
+
+Signed-off-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/netfilter/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/netfilter/Kconfig b/net/netfilter/Kconfig
+index 6bafd3876aff..8bf70ce03f95 100644
+--- a/net/netfilter/Kconfig
++++ b/net/netfilter/Kconfig
+@@ -118,7 +118,6 @@ config NF_CONNTRACK_ZONES
+ 
+ config NF_CONNTRACK_PROCFS
+ 	bool "Supply CT list in procfs (OBSOLETE)"
+-	default y
+ 	depends on PROC_FS
+ 	help
+ 	This option enables for the list of known conntrack entries
+-- 
+2.17.1
+

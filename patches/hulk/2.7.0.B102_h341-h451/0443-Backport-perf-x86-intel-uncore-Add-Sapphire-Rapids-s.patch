@@ -1,0 +1,63 @@
+From ced99ed3c5936d3245182c8b200b3b4a88132364 Mon Sep 17 00:00:00 2001
+From: Kan Liang <kan.liang@linux.intel.com>
+Date: Wed, 30 Jun 2021 14:08:34 -0700
+Subject: [PATCH 0443/1646] [Backport] perf/x86/intel/uncore: Add Sapphire
+ Rapids server M3UPI support
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 2a8e51eae7c83c29795622cfc794cf83436cc05d
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2a8e51eae7c83c29795622cfc794cf83436cc05d
+
+--------------------------------
+
+M3 Intel UPI is the interface between the mesh and the Intel UPI link
+layer. It is responsible for translating between the mesh protocol
+packets and the flits that are used for transmitting data across the
+Intel UPI interface.
+
+The layout of the control registers for a M3UPI uncore unit is similar
+to a UPI uncore unit.
+
+Signed-off-by: Kan Liang <kan.liang@linux.intel.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Reviewed-by: Andi Kleen <ak@linux.intel.com>
+Link: https://lore.kernel.org/r/1625087320-194204-11-git-send-email-kan.liang@linux.intel.com
+Signed-off-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/events/intel/uncore_snbep.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/events/intel/uncore_snbep.c b/arch/x86/events/intel/uncore_snbep.c
+index 95426bba8ee9..d97fc899e3d1 100644
+--- a/arch/x86/events/intel/uncore_snbep.c
++++ b/arch/x86/events/intel/uncore_snbep.c
+@@ -5589,6 +5589,11 @@ static struct intel_uncore_type spr_uncore_upi = {
+ 	.name			= "upi",
+ };
+ 
++static struct intel_uncore_type spr_uncore_m3upi = {
++	SPR_UNCORE_PCI_COMMON_FORMAT(),
++	.name			= "m3upi",
++};
++
+ #define UNCORE_SPR_NUM_UNCORE_TYPES		12
+ 
+ static struct intel_uncore_type *spr_uncores[UNCORE_SPR_NUM_UNCORE_TYPES] = {
+@@ -5601,7 +5606,7 @@ static struct intel_uncore_type *spr_uncores[UNCORE_SPR_NUM_UNCORE_TYPES] = {
+ 	&spr_uncore_imc,
+ 	&spr_uncore_m2m,
+ 	&spr_uncore_upi,
+-	NULL,
++	&spr_uncore_m3upi,
+ 	NULL,
+ 	NULL,
+ };
+-- 
+2.17.1
+

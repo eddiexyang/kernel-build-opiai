@@ -1,0 +1,45 @@
+From 9f0527ff63e175a7d800a53ac7f2a367209b9141 Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Tue, 10 Jan 2023 08:46:47 -0800
+Subject: [PATCH 198/921] [Backport] io_uring: Fix unsigned 'res' comparison
+ with zero in io_fixup_rw_res()
+
+stable inclusion
+from stable-v5.10.162
+commit 07b3672c4090d1e8147b1ae9c2546d8a8d8e13ae
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v5.10.172&id=07b3672c4090d1e8147b1ae9c2546d8a8d8e13ae
+
+--------------------------------
+
+Smatch warning: io_fixup_rw_res() warn:
+	unsigned 'res' is never less than zero.
+
+Change type of 'res' from unsigned to long.
+
+Fixes: d6b7efc722a2 ("io_uring/rw: fix error'ed retry return values")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ io_uring/io_uring.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c
+index 0be7804b32b1..6f124dfe1555 100644
+--- a/io_uring/io_uring.c
++++ b/io_uring/io_uring.c
+@@ -2714,7 +2714,7 @@ static bool __io_complete_rw_common(struct io_kiocb *req, long res)
+ 	return false;
+ }
+ 
+-static inline int io_fixup_rw_res(struct io_kiocb *req, unsigned res)
++static inline int io_fixup_rw_res(struct io_kiocb *req, long res)
+ {
+ 	struct io_async_rw *io = req->async_data;
+ 
+-- 
+2.17.1
+

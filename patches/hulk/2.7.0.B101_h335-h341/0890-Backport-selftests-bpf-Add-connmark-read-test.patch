@@ -1,0 +1,74 @@
+From 2f1178a27a753530c708fe82998f0bcec2756e65 Mon Sep 17 00:00:00 2001
+From: Daniel Xu <dxu@dxuuu.xyz>
+Date: Thu, 11 Aug 2022 15:55:26 -0600
+Subject: [PATCH 890/921] [Backport] selftests/bpf: Add connmark read test
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 99799de2cba2d399acf65f49a986b3d5cf0732ab
+category: bugfix
+bugzilla: 188604
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=99799de2cba2d399acf65f49a986b3d5cf0732ab
+
+--------------------------------
+
+Test that the prog can read from the connection mark. This test is nice
+because it ensures progs can interact with netfilter subsystem
+correctly.
+
+Signed-off-by: Daniel Xu <dxu@dxuuu.xyz>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Kumar Kartikeya Dwivedi <memxor@gmail.com>
+Link: https://lore.kernel.org/bpf/d3bc620a491e4c626c20d80631063922cbe13e2b.1660254747.git.dxu@dxuuu.xyz
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ tools/testing/selftests/bpf/prog_tests/bpf_nf.c | 3 ++-
+ tools/testing/selftests/bpf/progs/test_bpf_nf.c | 3 +++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/prog_tests/bpf_nf.c b/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
+index 904fbbbaa82f..e7294c261fca 100644
+--- a/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
++++ b/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
+@@ -28,7 +28,7 @@ static int connect_to_server(int srv_fd)
+ 
+ static void test_bpf_nf_ct(int mode)
+ {
+-	const char *iptables = "iptables -t raw %s PREROUTING -j CT";
++	const char *iptables = "iptables -t raw %s PREROUTING -j CONNMARK --set-mark 42/0";
+ 	int srv_fd = -1, client_fd = -1, srv_client_fd = -1;
+ 	struct sockaddr_in peer_addr = {};
+ 	struct test_bpf_nf *skel;
+@@ -98,6 +98,7 @@ static void test_bpf_nf_ct(int mode)
+ 	/* expected status is IPS_SEEN_REPLY */
+ 	ASSERT_EQ(skel->bss->test_status, 2, "Test for ct status update ");
+ 	ASSERT_EQ(skel->data->test_exist_lookup, 0, "Test existing connection lookup");
++	ASSERT_EQ(skel->bss->test_exist_lookup_mark, 43, "Test existing connection lookup ctmark");
+ end:
+ 	if (srv_client_fd != -1)
+ 		close(srv_client_fd);
+diff --git a/tools/testing/selftests/bpf/progs/test_bpf_nf.c b/tools/testing/selftests/bpf/progs/test_bpf_nf.c
+index a01f6140e111..4d44a91d480c 100644
+--- a/tools/testing/selftests/bpf/progs/test_bpf_nf.c
++++ b/tools/testing/selftests/bpf/progs/test_bpf_nf.c
+@@ -28,6 +28,7 @@ __be16 sport = 0;
+ __be32 daddr = 0;
+ __be16 dport = 0;
+ int test_exist_lookup = -ENOENT;
++u32 test_exist_lookup_mark = 0;
+ 
+ struct nf_conn;
+ 
+@@ -168,6 +169,8 @@ nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
+ 		       sizeof(opts_def));
+ 	if (ct) {
+ 		test_exist_lookup = 0;
++		if (ct->mark == 42)
++			test_exist_lookup_mark = 43;
+ 		bpf_ct_release(ct);
+ 	} else {
+ 		test_exist_lookup = opts_def.error;
+-- 
+2.17.1
+

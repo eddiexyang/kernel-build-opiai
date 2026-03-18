@@ -1,0 +1,71 @@
+From 1f18972d78dcac1c1477134e24893f9bceae70d0 Mon Sep 17 00:00:00 2001
+From: Jakob Koschel <jkl820.git@gmail.com>
+Date: Wed, 1 Mar 2023 18:19:14 +0100
+Subject: [PATCH 1490/1646] [Backport] scsi: lpfc: Avoid usage of list iterator
+ variable after loop
+
+stable inclusion
+from stable-v5.10.177
+commit 3e0a423a55a75a27537084ab9b2edae32b3df2b8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3e0a423a55a75a27537084ab9b2edae32b3df2b8
+
+--------------------------------
+
+[ Upstream commit 2850b23e9f9ae3696e472d2883ea1b43aafa884e ]
+
+If the &epd_pool->list is empty when executing
+lpfc_get_io_buf_from_expedite_pool() the function would return an invalid
+pointer. Even in the case if the list is guaranteed to be populated, the
+iterator variable should not be used after the loop to be more robust for
+future changes.
+
+Linus proposed to avoid any use of the list iterator variable after the
+loop, in the attempt to move the list iterator variable declaration into
+the macro to avoid any potential misuse after the loop [1].
+
+Link: https://lore.kernel.org/all/CAHk-=wgRr_D8CB-D9Kg-c=EHreAsk5SqXPwr9Y7k9sA6cWXJ6w@mail.gmail.com/ [1]
+Signed-off-by: Jakob Koschel <jkl820.git@gmail.com>
+Link: https://lore.kernel.org/r/20230301-scsi-lpfc-avoid-list-iterator-after-loop-v1-1-325578ae7561@gmail.com
+Reviewed-by: Justin Tee <justin.tee@broadcom.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/scsi/lpfc/lpfc_sli.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/scsi/lpfc/lpfc_sli.c b/drivers/scsi/lpfc/lpfc_sli.c
+index 755d68b98160..923ceaba0bf3 100644
+--- a/drivers/scsi/lpfc/lpfc_sli.c
++++ b/drivers/scsi/lpfc/lpfc_sli.c
+@@ -20816,20 +20816,20 @@ lpfc_get_io_buf_from_private_pool(struct lpfc_hba *phba,
+ static struct lpfc_io_buf *
+ lpfc_get_io_buf_from_expedite_pool(struct lpfc_hba *phba)
+ {
+-	struct lpfc_io_buf *lpfc_ncmd;
++	struct lpfc_io_buf *lpfc_ncmd = NULL, *iter;
+ 	struct lpfc_io_buf *lpfc_ncmd_next;
+ 	unsigned long iflag;
+ 	struct lpfc_epd_pool *epd_pool;
+ 
+ 	epd_pool = &phba->epd_pool;
+-	lpfc_ncmd = NULL;
+ 
+ 	spin_lock_irqsave(&epd_pool->lock, iflag);
+ 	if (epd_pool->count > 0) {
+-		list_for_each_entry_safe(lpfc_ncmd, lpfc_ncmd_next,
++		list_for_each_entry_safe(iter, lpfc_ncmd_next,
+ 					 &epd_pool->list, list) {
+-			list_del(&lpfc_ncmd->list);
++			list_del(&iter->list);
+ 			epd_pool->count--;
++			lpfc_ncmd = iter;
+ 			break;
+ 		}
+ 	}
+-- 
+2.17.1
+

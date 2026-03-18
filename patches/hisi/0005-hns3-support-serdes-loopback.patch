@@ -1,0 +1,62 @@
+From ce9a6d1ef9bb948fd303e834e18c024f605ae48d Mon Sep 17 00:00:00 2001
+Date: Tue, 13 Jun 2023 20:08:37 +0800
+Subject: [PATCH] [Huawei] hns nic support serdes loopback function
+
+---
+ drivers/net/ethernet/hisilicon/hns3/hnae3.h     |  2 ++
+ .../ethernet/hisilicon/hns3/hns3pf/hclge_main.c | 17 ++++++++++++-----
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hnae3.h b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+index f462250..89ff237 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hnae3.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+@@ -421,6 +421,8 @@ struct hnae3_client_ops {
+ 			    enum hnae3_reset_notify_type type);
+ 	void (*process_hw_error)(struct hnae3_handle *handle,
+ 				 enum hnae3_hw_error_type);
++    int (*serdes_loopback)(struct hnae3_handle *handle, bool en,
++                        u32 loop_mode);
+ };
+ 
+ #define HNAE3_CLIENT_NAME_LENGTH 16
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 6f91641..61702e3 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -830,8 +830,7 @@ static int hclge_get_sset_count(struct hnae3_handle *handle, int stringset)
+ 			handle->flags |= HNAE3_SUPPORT_APP_LOOPBACK;
+ 		}
+ 
+-		count += 2;
+-		handle->flags |= HNAE3_SUPPORT_SERDES_SERIAL_LOOPBACK;
++		count += 1;
+ 		handle->flags |= HNAE3_SUPPORT_SERDES_PARALLEL_LOOPBACK;
+ 
+ 		if ((hdev->hw.mac.phydev && hdev->hw.mac.phydev->drv &&
+@@ -8005,11 +8004,19 @@ static int hclge_cfg_common_loopback(struct hclge_dev *hdev, bool en,
+ static int hclge_set_common_loopback(struct hclge_dev *hdev, bool en,
+ 				     enum hnae3_loop loop_mode)
+ {
++	struct hnae3_client *client = hdev->custom_client;
++	struct hclge_vport *vport = &hdev->vport[0];
+ 	int ret;
+ 
+-	ret = hclge_cfg_common_loopback(hdev, en, loop_mode);
+-	if (ret)
+-		return ret;
++	if (client->ops->serdes_loopback) {
++		ret = client->ops->serdes_loopback(&vport->custom, en, loop_mode);
++		if (ret)
++			return ret;
++	} else {
++		ret = hclge_cfg_common_loopback(hdev, en, loop_mode);
++		if (ret)
++			return ret;
++	}
+ 
+ 	hclge_cfg_mac_mode(hdev, en);
+ 
+-- 
+2.27.0
+

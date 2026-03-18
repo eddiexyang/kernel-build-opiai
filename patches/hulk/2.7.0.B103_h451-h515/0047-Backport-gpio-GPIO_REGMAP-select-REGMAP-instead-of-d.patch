@@ -1,0 +1,57 @@
+From eb869cd4e21ccab39afce112aa98fc901a8e617a Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sat, 25 Feb 2023 21:39:48 -0800
+Subject: [PATCH 047/263] [Backport] gpio: GPIO_REGMAP: select REGMAP instead
+ of depending on it
+
+stable inclusion
+from stable-v5.10.178
+commit c51b336bd9516e67f3f5b7e4d9706a380e587d24
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I71Z4N
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c51b336bd9516e67f3f5b7e4d9706a380e587d24
+
+--------------------------------
+
+[ Upstream commit d49765b5f4320a402fbc4ed5edfd73d87640f27c ]
+
+REGMAP is a hidden (not user visible) symbol. Users cannot set it
+directly thru "make *config", so drivers should select it instead of
+depending on it if they need it.
+
+Consistently using "select" or "depends on" can also help reduce
+Kconfig circular dependency issues.
+
+Therefore, change the use of "depends on REGMAP" to "select REGMAP".
+
+Fixes: ebe363197e52 ("gpio: add a reusable generic gpio_chip using regmap")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Michael Walle <michael@walle.cc>
+Cc: Linus Walleij <linus.walleij@linaro.org>
+Cc: Bartosz Golaszewski <brgl@bgdev.pl>
+Cc: linux-gpio@vger.kernel.org
+Acked-by: Michael Walle <michael@walle.cc>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpio/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index c91355c89ec6..5210d1a3e9d1 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -99,7 +99,7 @@ config GPIO_GENERIC
+ 	tristate
+ 
+ config GPIO_REGMAP
+-	depends on REGMAP
++	select REGMAP
+ 	tristate
+ 
+ # put drivers in the right section, in alphabetical order
+-- 
+2.17.1
+

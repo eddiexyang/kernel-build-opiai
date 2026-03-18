@@ -1,0 +1,254 @@
+From af97eea58c3bf6634bbe7a83b3f1c4d0ac41fcf6 Mon Sep 17 00:00:00 2001
+From: Lu Wei <luwei32@huawei.com>
+Date: Mon, 14 Nov 2022 22:20:44 +0800
+Subject: [PATCH 0053/1398] [Huawei] bpf: socketmap: add Kconfig for customized
+ socketmap
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187986
+
+-------------------------------
+
+Add Kconfig for customized socketmap for EulerOS.
+
+Signed-off-by: Lu Wei <luwei32@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig |  1 +
+ arch/x86/configs/openeuler_defconfig   |  1 +
+ include/net/netfilter/nf_conntrack.h   |  2 ++
+ include/net/sock.h                     |  6 +++++-
+ net/Kconfig                            | 10 ++++++++++
+ net/core/filter.c                      |  8 ++++++++
+ net/core/sock.c                        |  4 ++++
+ net/netfilter/nf_conntrack_proto.c     |  6 ++++++
+ net/socket.c                           |  2 ++
+ 9 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 0a9bff266c43..d3f6e20f780d 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -1784,6 +1784,7 @@ CONFIG_NET_RX_BUSY_POLL=y
+ CONFIG_BQL=y
+ CONFIG_BPF_JIT=y
+ # CONFIG_BPF_STREAM_PARSER is not set
++CONFIG_EULER_SOCKETMAP=y
+ CONFIG_NET_FLOW_LIMIT=y
+ 
+ #
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 13c3938b42d0..e2fc38353a49 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -1735,6 +1735,7 @@ CONFIG_NET_RX_BUSY_POLL=y
+ CONFIG_BQL=y
+ CONFIG_BPF_JIT=y
+ CONFIG_BPF_STREAM_PARSER=y
++CONFIG_EULER_SOCKETMAP=y
+ CONFIG_NET_FLOW_LIMIT=y
+ 
+ #
+diff --git a/include/net/netfilter/nf_conntrack.h b/include/net/netfilter/nf_conntrack.h
+index 2b2d9deed907..d4b628317781 100644
+--- a/include/net/netfilter/nf_conntrack.h
++++ b/include/net/netfilter/nf_conntrack.h
+@@ -342,8 +342,10 @@ nf_ct_set(struct sk_buff *skb, struct nf_conn *ct, enum ip_conntrack_info info)
+ #define MODULE_ALIAS_NFCT_HELPER(helper) \
+         MODULE_ALIAS("nfct-helper-" helper)
+ 
++#ifdef CONFIG_EULER_SOCKETMAP
+ typedef int (*bpf_getorigdst_opt_func)(struct sock *sk, int optname,
+ 				       void *optval, int *optlen, int dir);
+ extern bpf_getorigdst_opt_func bpf_getorigdst_opt;
++#endif
+ 
+ #endif /* _NF_CONNTRACK_H */
+diff --git a/include/net/sock.h b/include/net/sock.h
+index f4de05072597..e3d52b17f234 100644
+--- a/include/net/sock.h
++++ b/include/net/sock.h
+@@ -525,7 +525,7 @@ struct sock {
+ #endif
+ 	struct rcu_head		sk_rcu;
+ 
+-#ifndef __GENKSYMS__
++#if defined(CONFIG_EULER_SOCKETMAP) && !defined(__GENKSYMS__)
+ 	union {
+ 		kgid_t	sk_gid;
+ 		u64	sk_gid_padding;
+@@ -1913,7 +1913,9 @@ static inline void sock_graft(struct sock *sk, struct socket *parent)
+ 	parent->sk = sk;
+ 	sk_set_socket(sk, parent);
+ 	sk->sk_uid = SOCK_INODE(parent)->i_uid;
++#ifdef CONFIG_EULER_SOCKETMAP
+ 	sk->sk_gid = SOCK_INODE(parent)->i_gid;
++#endif
+ 	security_sock_graft(sk, parent);
+ 	write_unlock_bh(&sk->sk_callback_lock);
+ }
+@@ -1926,10 +1928,12 @@ static inline kuid_t sock_net_uid(const struct net *net, const struct sock *sk)
+ 	return sk ? sk->sk_uid : make_kuid(net->user_ns, 0);
+ }
+ 
++#ifdef CONFIG_EULER_SOCKETMAP
+ static inline kgid_t sock_net_gid(const struct net *net, const struct sock *sk)
+ {
+ 	return sk ? sk->sk_gid : make_kgid(net->user_ns, 0);
+ }
++#endif
+ 
+ static inline u32 net_tx_rndhash(void)
+ {
+diff --git a/net/Kconfig b/net/Kconfig
+index d6567162c1cf..0bd8fdc6f58d 100644
+--- a/net/Kconfig
++++ b/net/Kconfig
+@@ -320,6 +320,16 @@ config BPF_STREAM_PARSER
+ 	  It can be used to enforce socket policy, implement socket redirects,
+ 	  etc.
+ 
++config EULER_SOCKETMAP
++	bool "enable EulerOS SOCKETMAP"
++	depends on INET
++	depends on BPF_SYSCALL
++	depends on CGROUP_BPF
++	select NET_SOCK_MSG
++	default n
++	help
++	  Enabling this support socket map in EulerOS.
++
+ config NET_FLOW_LIMIT
+ 	bool
+ 	depends on RPS
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 714a7b945127..54e271674f23 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -5010,6 +5010,7 @@ static const struct bpf_func_proto bpf_sock_addr_setsockopt_proto = {
+ 	.arg5_type	= ARG_CONST_SIZE,
+ };
+ 
++#ifdef CONFIG_EULER_SOCKETMAP
+ BPF_CALL_1(bpf_get_sockops_uid_gid, struct bpf_sock_ops_kern *, bpf_sock)
+ {
+ 	struct sock *sk = bpf_sock->sk;
+@@ -5080,6 +5081,7 @@ static const struct bpf_func_proto bpf_sk_original_addr_proto = {
+ 	.arg3_type	= ARG_PTR_TO_UNINIT_MEM,
+ 	.arg4_type	= ARG_CONST_SIZE,
+ };
++#endif
+ 
+ BPF_CALL_5(bpf_sock_addr_getsockopt, struct bpf_sock_addr_kern *, ctx,
+ 	   int, level, int, optname, char *, optval, int, optlen)
+@@ -7381,10 +7383,12 @@ sock_ops_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+ 		return &bpf_sk_storage_get_proto;
+ 	case BPF_FUNC_sk_storage_delete:
+ 		return &bpf_sk_storage_delete_proto;
++#ifdef CONFIG_EULER_SOCKETMAP
+ 	case BPF_FUNC_get_sockops_uid_gid:
+ 		return &bpf_get_sockops_uid_gid_proto;
+ 	case BPF_FUNC_sk_original_addr:
+ 		return &bpf_sk_original_addr_proto;
++#endif
+ #ifdef CONFIG_INET
+ 	case BPF_FUNC_load_hdr_opt:
+ 		return &bpf_sock_ops_load_hdr_opt_proto;
+@@ -7777,7 +7781,9 @@ static bool __sock_filter_check_attach_type(int off,
+ 	case bpf_ctx_range(struct bpf_sock, src_ip4):
+ 		switch (attach_type) {
+ 		case BPF_CGROUP_INET4_POST_BIND:
++#ifdef CONFIG_EULER_SOCKETMAP
+ 		case BPF_CGROUP_INET_SOCK_RELEASE:
++#endif
+ 			goto read_only;
+ 		default:
+ 			return false;
+@@ -7793,7 +7799,9 @@ static bool __sock_filter_check_attach_type(int off,
+ 		switch (attach_type) {
+ 		case BPF_CGROUP_INET4_POST_BIND:
+ 		case BPF_CGROUP_INET6_POST_BIND:
++#ifdef CONFIG_EULER_SOCKETMAP
+ 		case BPF_CGROUP_INET_SOCK_RELEASE:
++#endif
+ 			goto read_only;
+ 		default:
+ 			return false;
+diff --git a/net/core/sock.c b/net/core/sock.c
+index 56a927b9b372..c5241ba6c729 100644
+--- a/net/core/sock.c
++++ b/net/core/sock.c
+@@ -2987,11 +2987,15 @@ void sock_init_data(struct socket *sock, struct sock *sk)
+ 		RCU_INIT_POINTER(sk->sk_wq, &sock->wq);
+ 		sock->sk	=	sk;
+ 		sk->sk_uid	=	SOCK_INODE(sock)->i_uid;
++#ifdef CONFIG_EULER_SOCKETMAP
+ 		sk->sk_gid	=	SOCK_INODE(sock)->i_gid;
++#endif
+ 	} else {
+ 		RCU_INIT_POINTER(sk->sk_wq, NULL);
+ 		sk->sk_uid	=	make_kuid(sock_net(sk)->user_ns, 0);
++#ifdef CONFIG_EULER_SOCKETMAP
+ 		sk->sk_gid	=	make_kgid(sock_net(sk)->user_ns, 0);
++#endif
+ 	}
+ 
+ 	rwlock_init(&sk->sk_callback_lock);
+diff --git a/net/netfilter/nf_conntrack_proto.c b/net/netfilter/nf_conntrack_proto.c
+index b0fc4d881d76..f4d62fced6dd 100644
+--- a/net/netfilter/nf_conntrack_proto.c
++++ b/net/netfilter/nf_conntrack_proto.c
+@@ -292,6 +292,7 @@ getorigdst(struct sock *sk, int optval, void __user *user, int *len)
+ 	return -ENOENT;
+ }
+ 
++#ifdef CONFIG_EULER_SOCKETMAP
+ static int bpf_getorigdst_impl(struct sock *sk, int optval, void *user,
+ 			       int *len, int dir)
+ {
+@@ -352,6 +353,7 @@ static int bpf_getorigdst_impl(struct sock *sk, int optval, void *user,
+ 		 &tuple.dst.u3.ip, ntohs(tuple.dst.u.tcp.port));
+ 	return -ENOENT;
+ }
++#endif
+ 
+ static struct nf_sockopt_ops so_getorigdst = {
+ 	.pf		= PF_INET,
+@@ -717,7 +719,9 @@ int nf_conntrack_proto_init(void)
+ 		goto cleanup_sockopt;
+ #endif
+ 
++#ifdef CONFIG_EULER_SOCKETMAP
+ 	bpf_getorigdst_opt = bpf_getorigdst_impl;
++#endif
+ 
+ 	return ret;
+ 
+@@ -730,7 +734,9 @@ int nf_conntrack_proto_init(void)
+ 
+ void nf_conntrack_proto_fini(void)
+ {
++#ifdef CONFIG_EULER_SOCKETMAP
+ 	bpf_getorigdst_opt = NULL;
++#endif
+ 
+ 	nf_unregister_sockopt(&so_getorigdst);
+ #if IS_ENABLED(CONFIG_IPV6)
+diff --git a/net/socket.c b/net/socket.c
+index 78fdcbe5eaa5..26751e2f4251 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -545,7 +545,9 @@ static int sockfs_setattr(struct dentry *dentry, struct iattr *iattr)
+ 
+ 		if (sock->sk) {
+ 			sock->sk->sk_uid = iattr->ia_uid;
++#ifdef CONFIG_EULER_SOCKETMAP
+ 			sock->sk->sk_gid = iattr->ia_gid;
++#endif
+ 		} else {
+ 			err = -ENOENT;
+ 		}
+-- 
+2.17.1
+

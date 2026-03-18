@@ -1,0 +1,107 @@
+From 824a12edb95321f8bb32049b2542693006a8c617 Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Thu, 23 Mar 2023 16:18:19 +0800
+Subject: [PATCH 226/921] [Backport] mm: fix null-ptr-deref in
+ kswapd_is_running()
+
+maillist inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PKGM
+
+Reference: https://lore.kernel.org/linux-mm/20220824071909.192535-1-wangkefeng.wang@huawei.com/
+
+--------------------------------
+
+The kswapd_run/stop() will set pgdat->kswapd to NULL, which could race with
+kswapd_is_running() in kcompactd(),
+
+kswapd_run/stop()	kcompactd()
+			  kswapd_is_running()
+				if (pgdat->kswapd) // load non-NULL pgdat->kswapd
+  pgdat->kswapd = NULL
+				task_is_running(pgdat->kswapd) // Null
+pointer derefence
+
+The KASAN report the null-ptr-deref shown below,
+
+  vmscan: Failed to start kswapd on node 0
+  ...
+  BUG: KASAN: null-ptr-deref in kcompactd+0x440/0x504
+  Read of size 8 at addr 0000000000000024 by task kcompactd0/37
+
+  CPU: 0 PID: 37 Comm: kcompactd0 Kdump: loaded Tainted: G OE 5.10.60 #1
+  Hardware name: QEMU KVM Virtual Machine, BIOS 0.0.0 02/06/2015
+  Call trace:
+   dump_backtrace+0x0/0x394
+   show_stack+0x34/0x4c
+   dump_stack+0x158/0x1e4
+   __kasan_report+0x138/0x140
+   kasan_report+0x44/0xdc
+   __asan_load8+0x94/0xd0
+   kcompactd+0x440/0x504
+   kthread+0x1a4/0x1f0
+   ret_from_fork+0x10/0x18
+
+For race between kswapd_run() and kcompactd(), adding a temporary value
+when create a kthread, and only set it to pgdat->kswapd if kthread_run()
+return successful task_struct to fix the issue.
+
+For race between kswapd_stop() and kcompactd(), let's call
+kcompactd_stop() before kswapd_stop() to fix the issue.
+
+Signed-off-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+
+Conflicts:
+	mm/vmscan.c
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/memory_hotplug.c |  2 +-
+ mm/vmscan.c         | 10 ++++++----
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/mm/memory_hotplug.c b/mm/memory_hotplug.c
+index 7456d825414d..d2dd2bfcaac3 100644
+--- a/mm/memory_hotplug.c
++++ b/mm/memory_hotplug.c
+@@ -1483,8 +1483,8 @@ int __ref offline_pages(unsigned long start_pfn, unsigned long nr_pages)
+ 
+ 	node_states_clear_node(node, &arg);
+ 	if (arg.status_change_nid >= 0) {
+-		kswapd_stop(node);
+ 		kcompactd_stop(node);
++		kswapd_stop(node);
+ 	}
+ 
+ 	writeback_set_ratelimit();
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 7a6ff6e8c76d..0ad7bdbe4e0a 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -4263,17 +4263,19 @@ int kswapd_run(int nid)
+ {
+ 	pg_data_t *pgdat = NODE_DATA(nid);
+ 	int ret = 0;
++	struct task_struct *t;
+ 
+ 	if (pgdat->kswapd)
+ 		return 0;
+ 
+-	pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);
+-	if (IS_ERR(pgdat->kswapd)) {
++	t = kthread_run(kswapd, pgdat, "kswapd%d", nid);
++	if (IS_ERR(t)) {
+ 		/* failure at boot is fatal */
+ 		BUG_ON(system_state < SYSTEM_RUNNING);
+ 		pr_err("Failed to start kswapd on node %d\n", nid);
+-		ret = PTR_ERR(pgdat->kswapd);
+-		pgdat->kswapd = NULL;
++		ret = PTR_ERR(t);
++	} else {
++		pgdat->kswapd = t;
+ 	}
+ 	return ret;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,88 @@
+From 66f2432e8c0ab2f5b139b03e44bee814e44aa366 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Thu, 2 Mar 2023 14:54:51 +0800
+Subject: [PATCH 493/500] [Huawei] raid1, raid10: switch to precise io
+ accounting
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188421
+
+--------------------------------
+
+'ios' and 'sectors' is counted in bio_start_io_acct() while io is
+started insted of io is done. Hence switch to precise io accounting to
+count them when io is done.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ drivers/md/raid1.c  | 6 +++---
+ drivers/md/raid10.c | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/md/raid1.c b/drivers/md/raid1.c
+index e4869bde8d8b..00915e6ec410 100644
+--- a/drivers/md/raid1.c
++++ b/drivers/md/raid1.c
+@@ -301,7 +301,7 @@ static void call_bio_endio(struct r1bio *r1_bio)
+ 		bio->bi_status = BLK_STS_IOERR;
+ 
+ 	if (blk_queue_io_stat(bio->bi_disk->queue))
+-		bio_end_io_acct(bio, r1_bio->start_time);
++		bio_end_precise_io_acct(bio, r1_bio->start_time);
+ 	bio_endio(bio);
+ }
+ 
+@@ -1295,7 +1295,7 @@ static void raid1_read_request(struct mddev *mddev, struct bio *bio,
+ 	r1_bio->read_disk = rdisk;
+ 
+ 	if (!r1bio_existed && blk_queue_io_stat(bio->bi_disk->queue))
+-		r1_bio->start_time = bio_start_io_acct(bio);
++		r1_bio->start_time = bio_start_precise_io_acct(bio);
+ 
+ 	read_bio = bio_clone_fast(bio, gfp, &mddev->bio_set);
+ 
+@@ -1487,7 +1487,7 @@ static void raid1_write_request(struct mddev *mddev, struct bio *bio,
+ 	}
+ 
+ 	if (blk_queue_io_stat(bio->bi_disk->queue))
+-		r1_bio->start_time = bio_start_io_acct(bio);
++		r1_bio->start_time = bio_start_precise_io_acct(bio);
+ 	atomic_set(&r1_bio->remaining, 1);
+ 	atomic_set(&r1_bio->behind_remaining, 0);
+ 
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index 045d1a97e273..c2fceaf2f3d0 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -298,7 +298,7 @@ static void raid_end_bio_io(struct r10bio *r10_bio)
+ 		bio->bi_status = BLK_STS_IOERR;
+ 
+ 	if (blk_queue_io_stat(bio->bi_disk->queue))
+-		bio_end_io_acct(bio, r10_bio->start_time);
++		bio_end_precise_io_acct(bio, r10_bio->start_time);
+ 	bio_endio(bio);
+ 	/*
+ 	 * Wake up any possible resync thread that waits for the device
+@@ -1203,7 +1203,7 @@ static void raid10_read_request(struct mddev *mddev, struct bio *bio,
+ 	slot = r10_bio->read_slot;
+ 
+ 	if (!handle_error && blk_queue_io_stat(bio->bi_disk->queue))
+-		r10_bio->start_time = bio_start_io_acct(bio);
++		r10_bio->start_time = bio_start_precise_io_acct(bio);
+ 	read_bio = bio_clone_fast(bio, gfp, &mddev->bio_set);
+ 
+ 	r10_bio->devs[slot].bio = read_bio;
+@@ -1491,7 +1491,7 @@ static void raid10_write_request(struct mddev *mddev, struct bio *bio,
+ 	}
+ 
+ 	if (blk_queue_io_stat(bio->bi_disk->queue))
+-		r10_bio->start_time = bio_start_io_acct(bio);
++		r10_bio->start_time = bio_start_precise_io_acct(bio);
+ 	atomic_set(&r10_bio->remaining, 1);
+ 	md_bitmap_startwrite(mddev->bitmap, r10_bio->sector, r10_bio->sectors, 0);
+ 
+-- 
+2.17.1
+

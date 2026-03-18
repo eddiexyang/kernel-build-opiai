@@ -1,0 +1,58 @@
+From fd06e4527f50d82a551d3df77d2a121bda8537a2 Mon Sep 17 00:00:00 2001
+From: Tom Lendacky <thomas.lendacky@amd.com>
+Date: Mon, 23 Jan 2023 16:53:08 -0600
+Subject: [PATCH 471/921] [Backport] crypto: ccp - Flush the SEV-ES TMR memory
+ before giving it to firmware
+
+stable inclusion
+from stable-v5.10.173
+commit 627e140a5b7df4ec285271b8566720a3990732b8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=627e140a5b7df4ec285271b8566720a3990732b8
+
+--------------------------------
+
+[ Upstream commit 46a334a98f585ef78d51d8f5736596887bdd7f54 ]
+
+Perform a cache flush on the SEV-ES TMR memory after allocation to prevent
+any possibility of the firmware encountering an error should dirty cache
+lines be present. Use clflush_cache_range() to flush the SEV-ES TMR memory.
+
+Fixes: 97f9ac3db661 ("crypto: ccp - Add support for SEV-ES to the PSP driver")
+Signed-off-by: Tom Lendacky <thomas.lendacky@amd.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/crypto/ccp/sev-dev.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/ccp/sev-dev.c b/drivers/crypto/ccp/sev-dev.c
+index b609fdb8c6fc..d33639440d41 100644
+--- a/drivers/crypto/ccp/sev-dev.c
++++ b/drivers/crypto/ccp/sev-dev.c
+@@ -23,6 +23,7 @@
+ #include <linux/gfp.h>
+ 
+ #include <asm/smp.h>
++#include <asm/cacheflush.h>
+ 
+ #include "psp-dev.h"
+ #include "sev-dev.h"
+@@ -1067,7 +1068,10 @@ void sev_pci_init(void)
+ 
+ 	/* Obtain the TMR memory area for SEV-ES use */
+ 	sev_es_tmr = sev_fw_alloc(SEV_ES_TMR_SIZE);
+-	if (!sev_es_tmr)
++	if (sev_es_tmr)
++		/* Must flush the cache before giving it to the firmware */
++		clflush_cache_range(sev_es_tmr, SEV_ES_TMR_SIZE);
++	else
+ 		dev_warn(sev->dev,
+ 			 "SEV: TMR allocation failed, SEV-ES support unavailable\n");
+ 
+-- 
+2.17.1
+

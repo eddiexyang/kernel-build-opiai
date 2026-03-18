@@ -1,0 +1,118 @@
+From a633be8a278fd599af93f7606ab89d0b8459ad51 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Wed, 16 Nov 2022 17:24:15 +0800
+Subject: [PATCH 0076/1398] [Huawei] blk-throttle: add a config to control
+ hierarchical throttle in cgroup v1
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188004
+
+-------------------------------
+
+The feature that enable default hierarchy for io throttle in cgroup v1
+can only be enabled with CONFIG_BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig |  1 +
+ arch/x86/configs/openeuler_defconfig   |  1 +
+ block/Kconfig                          | 11 +++++++++++
+ block/blk-throttle.c                   | 17 ++++++++++++++---
+ 4 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 954b83458a8f..ea419a2ac3ec 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -905,6 +905,7 @@ CONFIG_BLK_DEV_INTEGRITY_T10=m
+ CONFIG_BLK_DEV_ZONED=y
+ CONFIG_BLK_DEV_THROTTLING=y
+ # CONFIG_BLK_DEV_THROTTLING_LOW is not set
++CONFIG_BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT=y
+ # CONFIG_BLK_CMDLINE_PARSER is not set
+ CONFIG_BLK_WBT=y
+ # CONFIG_BLK_CGROUP_IOLATENCY is not set
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 9054ce9f58cc..96e2263037d4 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -895,6 +895,7 @@ CONFIG_BLK_DEV_INTEGRITY_T10=m
+ CONFIG_BLK_DEV_ZONED=y
+ CONFIG_BLK_DEV_THROTTLING=y
+ # CONFIG_BLK_DEV_THROTTLING_LOW is not set
++CONFIG_BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT=y
+ # CONFIG_BLK_CMDLINE_PARSER is not set
+ CONFIG_BLK_WBT=y
+ # CONFIG_BLK_CGROUP_IOLATENCY is not set
+diff --git a/block/Kconfig b/block/Kconfig
+index 123808a5bf90..eb1244a83ef2 100644
+--- a/block/Kconfig
++++ b/block/Kconfig
+@@ -114,6 +114,17 @@ config BLK_DEV_THROTTLING_LOW
+ 
+ 	Note, this is an experimental interface and could be changed someday.
+ 
++config BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT
++	bool "Block layer global limit in cgroup v1"
++	depends on BLK_DEV_THROTTLING=y
++	default n
++	help
++	blkio subsytem is not under default hierarchy in cgroup v1 by default,
++	Enabling this will support globlal limit in cgroup v1.
++
++	Note, a cmdline "blkcg_global_limit=1" is still required to enabled this
++	feature.
++
+ config BLK_CMDLINE_PARSER
+ 	bool "Block device command line partition parser"
+ 	help
+diff --git a/block/blk-throttle.c b/block/blk-throttle.c
+index 0427c9c63e81..32de0928eb7c 100644
+--- a/block/blk-throttle.c
++++ b/block/blk-throttle.c
+@@ -43,9 +43,15 @@ static struct blkcg_policy blkcg_policy_throtl;
+ /* A workqueue to queue throttle related work */
+ static struct workqueue_struct *kthrotld_workqueue;
+ 
++#ifdef BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT
+ /* True if global limit is enabled in cgroup v1 */
+ static bool global_limit;
+ 
++static inline bool blkcg_global_limit_enabled(void)
++{
++	return global_limit;
++}
++
+ static int __init setup_global_limit(char *str)
+ {
+ 	if (!strcmp(str, "1") || !strcmp(str, "Y") || !strcmp(str, "y"))
+@@ -55,7 +61,12 @@ static int __init setup_global_limit(char *str)
+ }
+ 
+ __setup("blkcg_global_limit=", setup_global_limit);
+-
++#else
++static inline bool blkcg_global_limit_enabled(void)
++{
++	return false;
++}
++#endif
+ /*
+  * To implement hierarchical throttling, throtl_grps form a tree and bios
+  * are dispatched upwards level by level until they reach the top and get
+@@ -571,8 +582,8 @@ static void throtl_pd_init(struct blkg_policy_data *pd)
+ 	 * regardless of the position of the group in the hierarchy.
+ 	 */
+ 	sq->parent_sq = &td->service_queue;
+-	if ((cgroup_subsys_on_dfl(io_cgrp_subsys) || global_limit) &&
+-	    blkg->parent)
++	if ((cgroup_subsys_on_dfl(io_cgrp_subsys) ||
++	     blkcg_global_limit_enabled()) && blkg->parent)
+ 		sq->parent_sq = &blkg_to_tg(blkg->parent)->service_queue;
+ 	tg->td = td;
+ }
+-- 
+2.17.1
+

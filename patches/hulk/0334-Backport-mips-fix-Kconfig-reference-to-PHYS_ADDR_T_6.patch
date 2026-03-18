@@ -1,0 +1,62 @@
+From 68121d8482e9e38dcf368cbd65f93561dd135cec Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Wed, 27 Apr 2022 11:13:24 +0800
+Subject: [PATCH 0334/2065] [Backport] mips: fix Kconfig reference to
+ PHYS_ADDR_T_64BIT
+
+stable inclusion
+from stable-v5.10.94
+commit 0be9ae1e532ecebacc32454c86b8f157796c63a1
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0be9ae1e532ecebacc32454c86b8f157796c63a1
+
+--------------------------------
+
+[ Upstream commit a670c82d9ca4f1e7385d9d6f26ff41a50fbdd944 ]
+
+Commit d4a451d5fc84 ("arch: remove the ARCH_PHYS_ADDR_T_64BIT config
+symbol") removes config ARCH_PHYS_ADDR_T_64BIT with all instances of that
+config refactored appropriately. Since then, it is recommended to use the
+config PHYS_ADDR_T_64BIT instead.
+
+Commit 171543e75272 ("MIPS: Disallow CPU_SUPPORTS_HUGEPAGES for XPA,EVA")
+introduces the expression "!(32BIT && (ARCH_PHYS_ADDR_T_64BIT || EVA))"
+for config CPU_SUPPORTS_HUGEPAGES, which unintentionally refers to the
+non-existing symbol ARCH_PHYS_ADDR_T_64BIT instead of the intended
+PHYS_ADDR_T_64BIT.
+
+Fix this Kconfig reference to the intended PHYS_ADDR_T_64BIT.
+
+This issue was identified with the script ./scripts/checkkconfigsymbols.py.
+I then reported it on the mailing list and Paul confirmed the mistake in
+the linked email thread.
+
+Link: https://lore.kernel.org/lkml/H8IU3R.H5QVNRA077PT@crapouillou.net/
+Suggested-by: Paul Cercueil <paul@crapouillou.net>
+Fixes: 171543e75272 ("MIPS: Disallow CPU_SUPPORTS_HUGEPAGES for XPA,EVA")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Signed-off-by: Thomas Bogendoerfer <tsbogend@alpha.franken.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ arch/mips/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 990f1f1e9b66..896a29df1a6d 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -2147,7 +2147,7 @@ config CPU_SUPPORTS_ADDRWINCFG
+ 	bool
+ config CPU_SUPPORTS_HUGEPAGES
+ 	bool
+-	depends on !(32BIT && (ARCH_PHYS_ADDR_T_64BIT || EVA))
++	depends on !(32BIT && (PHYS_ADDR_T_64BIT || EVA))
+ config MIPS_PGD_C0_CONTEXT
+ 	bool
+ 	default y if 64BIT && (CPU_MIPSR2 || CPU_MIPSR6) && !CPU_XLP
+-- 
+2.17.1
+

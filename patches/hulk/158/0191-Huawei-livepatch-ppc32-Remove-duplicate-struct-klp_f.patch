@@ -1,0 +1,253 @@
+From a50dc5ecfc222c86bf8e8b847ec50c1ab8d21dcf Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Fri, 12 Aug 2022 14:34:21 +0000
+Subject: [PATCH 0191/1076] [Huawei] livepatch/ppc32: Remove duplicate 'struct
+ klp_func_list' related codes
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187517
+
+--------------------------------
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/powerpc/include/asm/livepatch.h |   5 --
+ arch/powerpc/kernel/livepatch_32.c   | 119 ++++++---------------------
+ 2 files changed, 23 insertions(+), 101 deletions(-)
+
+diff --git a/arch/powerpc/include/asm/livepatch.h b/arch/powerpc/include/asm/livepatch.h
+index ae674ea59ab3..f68567bb0a6b 100644
+--- a/arch/powerpc/include/asm/livepatch.h
++++ b/arch/powerpc/include/asm/livepatch.h
+@@ -139,11 +139,6 @@ int klp_unwind_frame(struct task_struct *tsk, struct stackframe *frame);
+ 
+ #endif /* CONFIG_LIVEPATCH_FTRACE */
+ 
+-#ifdef CONFIG_LIVEPATCH_STOP_MACHINE_CONSISTENCY
+-struct klp_patch;
+-int klp_check_calltrace(struct klp_patch *patch, int enable);
+-#endif
+-
+ static inline void klp_init_thread_info(struct task_struct *p)
+ {
+ 	/* + 1 to account for STACK_END_MAGIC */
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index 52356621934b..8a3093cb2330 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -31,7 +31,6 @@
+ 
+ #if defined (CONFIG_LIVEPATCH_STOP_MACHINE_CONSISTENCY) || \
+     defined (CONFIG_LIVEPATCH_WO_FTRACE)
+-#define MAX_SIZE_TO_CHECK (LJMP_INSN_SIZE * sizeof(u32))
+ #define CHECK_JUMP_RANGE LJMP_INSN_SIZE
+ #endif
+ 
+@@ -55,22 +54,11 @@ static bool is_jump_insn(u32 insn)
+ }
+ 
+ struct walk_stackframe_args {
+-	int enable;
+-	struct klp_func_list *check_funcs;
+-	struct module *mod;
++	void *data;
+ 	int ret;
++	bool (*check_func)(void *data, int *ret, unsigned long pc);
+ };
+ 
+-static inline unsigned long klp_size_to_check(unsigned long func_size,
+-		int force)
+-{
+-	unsigned long size = func_size;
+-
+-	if (force == KLP_STACK_OPTIMIZE && size > MAX_SIZE_TO_CHECK)
+-		size = MAX_SIZE_TO_CHECK;
+-	return size;
+-}
+-
+ static bool check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+@@ -85,32 +73,8 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-static int add_func_to_list(struct klp_func_list **funcs, struct klp_func_list **func,
+-		unsigned long func_addr, unsigned long func_size, const char *func_name,
+-		int force)
+-{
+-	if (*func == NULL) {
+-		*funcs = (struct klp_func_list*)kzalloc(sizeof(**funcs), GFP_ATOMIC);
+-		if (!(*funcs))
+-			return -ENOMEM;
+-		*func = *funcs;
+-	} else {
+-		(*func)->next = (struct klp_func_list*)kzalloc(sizeof(**funcs),
+-				GFP_ATOMIC);
+-		if (!(*func)->next)
+-			return -ENOMEM;
+-		*func = (*func)->next;
+-	}
+-	(*func)->func_addr = func_addr;
+-	(*func)->func_size = func_size;
+-	(*func)->func_name = func_name;
+-	(*func)->force = force;
+-	(*func)->next = NULL;
+-	return 0;
+-}
+-
+-static int klp_check_activeness_func(struct klp_patch *patch, int enable,
+-		struct klp_func_list **check_funcs)
++int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
++				   klp_add_func_t add_func, struct klp_func_list **func_list)
+ {
+ 	int ret;
+ 	struct klp_object *obj;
+@@ -161,7 +125,7 @@ static int klp_check_activeness_func(struct klp_patch *patch, int enable,
+ 				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+ 				    (func->force == KLP_NORMAL_FORCE) ||
+ 				    check_jump_insn(func_addr)) {
+-					ret = add_func_to_list(check_funcs, &pcheck,
++					ret = add_func(func_list, &pcheck,
+ 							func_addr, func_size,
+ 							func->old_name, func->force);
+ 					if (ret)
+@@ -196,14 +160,14 @@ static int klp_check_activeness_func(struct klp_patch *patch, int enable,
+ 					func_addr = (unsigned long)prev->new_func;
+ 					func_size = prev->new_size;
+ 				}
+-				ret = add_func_to_list(check_funcs, &pcheck, func_addr,
++				ret = add_func(func_list, &pcheck, func_addr,
+ 						func_size, func->old_name, 0);
+ 				if (ret)
+ 					return ret;
+ #endif
+ 				func_addr = (unsigned long)func->new_func;
+ 				func_size = func->new_size;
+-				ret = add_func_to_list(check_funcs, &pcheck, func_addr,
++				ret = add_func(func_list, &pcheck, func_addr,
+ 						func_size, func->old_name, 0);
+ 				if (ret)
+ 					return ret;
+@@ -228,46 +192,21 @@ void notrace klp_walk_stackframe(struct stackframe *frame,
+ 	}
+ }
+ 
+-static bool check_func_list(struct klp_func_list *funcs, int *ret, unsigned long pc)
++static int klp_check_jump_func(struct stackframe *frame, void *ws_args)
+ {
+-	while (funcs != NULL) {
+-		*ret = klp_compare_address(pc, funcs->func_addr, funcs->func_name,
+-					klp_size_to_check(funcs->func_size, funcs->force));
+-		if (*ret) {
+-			return false;
+-		}
+-		funcs = funcs->next;
+-	}
+-	return true;
+-}
+-
+-static int klp_check_jump_func(struct stackframe *frame, void *data)
+-{
+-	struct walk_stackframe_args *args = data;
+-	struct klp_func_list *check_funcs = args->check_funcs;
++	struct walk_stackframe_args *args = ws_args;
+ 
+ 	/* check the PC first */
+-	if (!check_func_list(check_funcs, &args->ret, frame->pc))
++	if (!args->check_func(args->data, &args->ret, frame->pc))
+ 		return args->ret;
+ 
+ 	/* check NIP when the exception stack switching */
+-	if (frame->nip && !check_func_list(check_funcs, &args->ret, frame->nip))
++	if (frame->nip && !args->check_func(args->data, &args->ret, frame->nip))
+ 		return args->ret;
+ 
+ 	return 0;
+ }
+ 
+-static void free_list(struct klp_func_list **funcs)
+-{
+-	struct klp_func_list *p;
+-
+-	while (*funcs != NULL) {
+-		p = *funcs;
+-		*funcs = (*funcs)->next;
+-		kfree(p);
+-	}
+-}
+-
+ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			      int (*fn)(struct stackframe *, void *))
+ {
+@@ -314,53 +253,41 @@ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 	return 0;
+ }
+ 
+-int klp_check_calltrace(struct klp_patch *patch, int enable)
++int arch_klp_check_calltrace(bool (*check_func)(void *, int *, unsigned long), void *data)
+ {
+-	int ret = 0;
+-	struct klp_func_list *check_funcs = NULL;
+ 	struct walk_stackframe_args args = {
+-		.ret = 0
++		.data = data,
++		.ret = 0,
++		.check_func = check_func,
+ 	};
+ 
+-	ret = klp_check_activeness_func(patch, enable, &check_funcs);
+-	if (ret) {
+-		pr_err("collect active functions failed, ret=%d\n", ret);
+-		goto out;
+-	}
+-	if (!check_funcs)
+-		goto out;
+-
+-	args.check_funcs = check_funcs;
+-	ret = do_check_calltrace(&args, klp_check_jump_func);
+-
+-out:
+-	free_list(&check_funcs);
+-	return ret;
++	return do_check_calltrace(&args, klp_check_jump_func);
+ }
+ 
+-static int check_module_calltrace(struct stackframe *frame, void *data)
++static int check_module_calltrace(struct stackframe *frame, void *ws_args)
+ {
+-	struct walk_stackframe_args *args = data;
++	struct walk_stackframe_args *args = ws_args;
++	struct module *mod = args->data;
+ 
+ 	/* check the PC first */
+-	if (within_module_core(frame->pc, args->mod))
++	if (within_module_core(frame->pc, mod))
+ 		goto err_out;
+ 
+ 	/* check NIP when the exception stack switching */
+-	if (frame->nip && within_module_core(frame->nip, args->mod))
++	if (frame->nip && within_module_core(frame->nip, mod))
+ 		goto err_out;
+ 
+ 	return 0;
+ 
+ err_out:
+-	pr_err("module %s is in use!\n", args->mod->name);
++	pr_err("module %s is in use!\n", mod->name);
+ 	return (args->ret = -EBUSY);
+ }
+ 
+ int arch_klp_module_check_calltrace(void *data)
+ {
+ 	struct walk_stackframe_args args = {
+-		.mod = (struct module *)data,
++		.data = data,
+ 		.ret = 0
+ 	};
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From 2fbe898a0158789ae2941d337747f4fad6b7b768 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Fri, 28 Oct 2022 21:40:43 +0800
+Subject: [PATCH 0729/1398] [Backport] HID: hyperv: fix possible memory leak in
+ mousevsc_probe()
+
+stable inclusion
+from stable-v5.10.155
+commit 8597b59e3d22b27849bd3e4f92a3d466774bfb04
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64YCD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8597b59e3d22b27849bd3e4f92a3d466774bfb04
+
+--------------------------------
+
+[ Upstream commit b5bcb94b0954a026bbd671741fdb00e7141f9c91 ]
+
+If hid_add_device() returns error, it should call hid_destroy_device()
+to free hid_dev which is allocated in hid_allocate_device().
+
+Fixes: 74c4fb058083 ("HID: hv_mouse: Properly add the hid device")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Wei Liu <wei.liu@kernel.org>
+Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ drivers/hid/hid-hyperv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hid/hid-hyperv.c b/drivers/hid/hid-hyperv.c
+index 978ee2aab2d4..b7704dd6809d 100644
+--- a/drivers/hid/hid-hyperv.c
++++ b/drivers/hid/hid-hyperv.c
+@@ -498,7 +498,7 @@ static int mousevsc_probe(struct hv_device *device,
+ 
+ 	ret = hid_add_device(hid_dev);
+ 	if (ret)
+-		goto probe_err1;
++		goto probe_err2;
+ 
+ 
+ 	ret = hid_parse(hid_dev);
+-- 
+2.17.1
+

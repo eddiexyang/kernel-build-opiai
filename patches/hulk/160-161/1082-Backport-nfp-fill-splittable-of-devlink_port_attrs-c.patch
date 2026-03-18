@@ -1,0 +1,58 @@
+From 5b8bec3833d9a2e586a2ef104081462f8987bbf5 Mon Sep 17 00:00:00 2001
+From: Diana Wang <na.wang@corigine.com>
+Date: Thu, 17 Nov 2022 16:37:43 +0100
+Subject: [PATCH 1082/1398] [Backport] nfp: fill splittable of
+ devlink_port_attrs correctly
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.157
+commit ce41e03cacaa1f15539785a381ef0a27cf6d25da
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68TNM
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ce41e03cacaa1f15539785a381ef0a27cf6d25da
+
+--------------------------------
+
+[ Upstream commit 4abd9600b9d15d3d92a9ac25cf200422a4c415ee ]
+
+The error is reflected in that it shows wrong splittable status of
+port when executing "devlink port show".
+The reason which leads the error is that the assigned operation of
+splittable is just a simple negation operation of split and it does
+not consider port lanes quantity. A splittable port should have
+several lanes that can be split(lanes quantity > 1).
+If without the judgement, it will show wrong message for some
+firmware, such as 2x25G, 2x10G.
+
+Fixes: a0f49b548652 ("devlink: Add a new devlink port split ability attribute and pass to netlink")
+Signed-off-by: Diana Wang <na.wang@corigine.com>
+Reviewed-by: Louis Peens <louis.peens@corigine.com>
+Reviewed-by: Niklas Söderlund <niklas.soderlund@corigine.com>
+Signed-off-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/netronome/nfp/nfp_devlink.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/netronome/nfp/nfp_devlink.c b/drivers/net/ethernet/netronome/nfp/nfp_devlink.c
+index 7a8187458724..24578c48f075 100644
+--- a/drivers/net/ethernet/netronome/nfp/nfp_devlink.c
++++ b/drivers/net/ethernet/netronome/nfp/nfp_devlink.c
+@@ -363,7 +363,7 @@ int nfp_devlink_port_register(struct nfp_app *app, struct nfp_port *port)
+ 		return ret;
+ 
+ 	attrs.split = eth_port.is_split;
+-	attrs.splittable = !attrs.split;
++	attrs.splittable = eth_port.port_lanes > 1 && !attrs.split;
+ 	attrs.lanes = eth_port.port_lanes;
+ 	attrs.flavour = DEVLINK_PORT_FLAVOUR_PHYSICAL;
+ 	attrs.phys.port_number = eth_port.label_port;
+-- 
+2.17.1
+

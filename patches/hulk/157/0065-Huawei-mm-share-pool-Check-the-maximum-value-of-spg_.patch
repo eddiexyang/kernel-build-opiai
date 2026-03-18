@@ -1,0 +1,38 @@
+From 6a8b32c6ccbeecb3933e08375d4fd322ad676e07 Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Fri, 2 Sep 2022 10:25:45 +0000
+Subject: [PATCH 065/261] [Huawei] mm/share pool: Check the maximum value of
+ spg_id
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PIA4
+
+--------------------------------
+
+The maximum value of spg_id is checked to ensure that the value
+of spg_id is within the valid range:
+SPG_ID_DEFAULT or [SPG_ID_MIN SPG_ID_AUTO)
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ mm/share_pool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 4693186ff1e1..1ec1c86d5910 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2247,7 +2247,7 @@ static int sp_alloc_prepare(unsigned long size, unsigned long sp_flags,
+ 		return -EINVAL;
+ 	}
+ 
+-	if (spg_id != SPG_ID_DEFAULT && spg_id < SPG_ID_MIN) {
++	if (spg_id != SPG_ID_DEFAULT && (spg_id < SPG_ID_MIN || spg_id >= SPG_ID_AUTO)) {
+ 		pr_err_ratelimited("allocation failed, invalid group id %d\n", spg_id);
+ 		return -EINVAL;
+ 	}
+-- 
+2.17.1
+

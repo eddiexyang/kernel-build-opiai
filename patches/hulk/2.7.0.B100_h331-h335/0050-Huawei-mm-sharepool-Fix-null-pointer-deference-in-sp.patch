@@ -1,0 +1,115 @@
+From 37087ca662058e16f10abff6ec02561954f7703d Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Sat, 18 Feb 2023 03:09:02 +0000
+Subject: [PATCH 050/500] [Huawei] mm/sharepool: Fix null-pointer-deference in
+ sp_free_area
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6G76L
+
+----------------------------------------------
+
+When a process is deleted from a group, the process does not apply for
+memory from the shared group. Otherwise, the UAF problem occurs. We checked
+this, but it didn't do a good job of preventing sp_alloc and del_task
+concurrency. The process applies for memory after passing the check, which
+violates our requirements and causes problems. The solution is to place the
+checked code in the critical area to ensure that no memory can be allocated
+after the check is passed.
+
+[ T7596] Unable to handle kernel NULL pointer dereference at virtual
+address 0000000000000098
+[ T7596] Mem abort info:
+[ T7596]   ESR = 0x96000004
+[ T7596]   EC = 0x25: DABT (current EL), IL = 32 bits
+[ T7596]   SET = 0, FnV = 0
+[ T7596]   EA = 0, S1PTW = 0
+[ T7596] Data abort info:
+[ T7596]   ISV = 0, ISS = 0x00000004
+[ T7596]   CM = 0, WnR = 0
+[ T7596] user pgtable: 4k pages, 48-bit VAs, pgdp=00000001040a3000
+[ T7596] [0000000000000098] pgd=0000000000000000, p4d=0000000000000000
+[ T7596] Internal error: Oops: 96000004 [#1] SMP
+[ T7596] Modules linked in: sharepool_dev(OE) [last unloaded: demo]
+[ T7596] CPU: 1 PID: 7596 Comm: test_sp_group_d Tainted: G OE 5.10.0+ #8
+[ T7596] Hardware name: linux,dummy-virt (DT)
+[ T7596] pstate: 20000005 (nzCv daif -PAN -UAO -TCO BTYPE=--)
+[ T7596] pc : sp_free_area+0x34/0x120
+[ T7596] lr : sp_free_area+0x30/0x120
+[ T7596] sp : ffff80001c6a3b20
+[ T7596] x29: ffff80001c6a3b20 x28: 0000000000000009
+[ T7596] x27: 0000000000000000 x26: ffff800011c49d20
+[ T7596] x25: ffff0000c227f6c0 x24: 0000000000000008
+[ T7596] x23: ffff0000c0cf0ce8 x22: 0000000000000001
+[ T7596] x21: ffff0000c4082b30 x20: 0000000000000000
+[ T7596] x19: ffff0000c4082b00 x18: 0000000000000000
+[ T7596] x17: 0000000000000000 x16: 0000000000000000
+[ T7596] x15: 0000000000000000 x14: 0000000000000000
+[ T7596] x13: 0000000000000000 x12: ffff0005fffe12c0
+[ T7596] x11: 0000000000000008 x10: ffff0005fffe12c0
+[ T7596] x9 : ffff8000103eb690 x8 : 0000000000000001
+[ T7596] x7 : 0000000000210d00 x6 : 0000000000000000
+[ T7596] x5 : ffff8000123edea0 x4 : 0000000000000030
+[ T7596] x3 : ffffeff000000000 x2 : 0000eff000000000
+[ T7596] x1 : 0000e80000000000 x0 : 0000000000000000
+[ T7596] Call trace:
+[ T7596]  sp_free_area+0x34/0x120
+[ T7596]  __sp_area_drop_locked+0x3c/0x60
+[ T7596]  sp_area_drop+0x80/0xbc
+[ T7596]  remove_vma+0x54/0x70
+[ T7596]  exit_mmap+0x114/0x1d0
+[ T7596]  mmput+0x90/0x1ec
+[ T7596]  exit_mm+0x1d0/0x2f0
+[ T7596]  do_exit+0x180/0x400
+[ T7596]  do_group_exit+0x40/0x114
+[ T7596]  get_signal+0x1e8/0x720
+[ T7596]  do_signal+0x11c/0x1e4
+[ T7596]  do_notify_resume+0x15c/0x250
+[ T7596]  work_pending+0xc/0x6d8
+[ T7596] Code: f9400001 f9402c00 97fff0e5 aa0003f4 (f9404c00)
+[ T7596] ---[ end trace 3c8368d77e758ebd ]---
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 61c33f15d690..aab36579727c 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1617,13 +1617,6 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 		goto out;
+ 	}
+ 
+-	if (!list_empty(&spg->spa_list)) {
+-		up_write(&sp_group_sem);
+-		pr_err_ratelimited("spa is not empty");
+-		ret = -EINVAL;
+-		goto out;
+-	}
+-
+ 	ret = get_task(tgid, &tsk);
+ 	if (ret) {
+ 		up_write(&sp_group_sem);
+@@ -1662,6 +1655,15 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	}
+ 
+ 	down_write(&spg->rw_lock);
++
++	if (!list_empty(&spg->spa_list)) {
++		up_write(&spg->rw_lock);
++		up_write(&sp_group_sem);
++		pr_err_ratelimited("spa is not empty");
++		ret = -EINVAL;
++		goto out_put_mm;
++	}
++
+ 	if (list_is_singular(&spg->procs))
+ 		is_alive = spg->is_alive = false;
+ 	delete_spg_node(spg, spg_node);
+-- 
+2.17.1
+

@@ -1,0 +1,46 @@
+From ca1abe984f1fe900ffc7e789b9e613d60e99840c Mon Sep 17 00:00:00 2001
+From: Jianglei Nie <niejianglei2021@163.com>
+Date: Tue, 12 Jul 2022 09:10:37 +0800
+Subject: [PATCH 0084/1076] [Backport] ima: Fix potential memory leak in
+ ima_init_crypto()
+
+stable inclusion
+from stable-v5.10.132
+commit c1d9702ceb4a091da6bee380627596d1fba09274
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5QEX0
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c1d9702ceb4a091da6bee380627596d1fba09274
+
+--------------------------------
+
+[ Upstream commit 067d2521874135267e681c19d42761c601d503d6 ]
+
+On failure to allocate the SHA1 tfm, IMA fails to initialize and exits
+without freeing the ima_algo_array. Add the missing kfree() for
+ima_algo_array to avoid the potential memory leak.
+
+Signed-off-by: Jianglei Nie <niejianglei2021@163.com>
+Fixes: 6d94809af6b0 ("ima: Allocate and initialize tfm for each PCR bank")
+Signed-off-by: Mimi Zohar <zohar@linux.ibm.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ security/integrity/ima/ima_crypto.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/security/integrity/ima/ima_crypto.c b/security/integrity/ima/ima_crypto.c
+index f6a7e9643b54..b1e5e7749e41 100644
+--- a/security/integrity/ima/ima_crypto.c
++++ b/security/integrity/ima/ima_crypto.c
+@@ -205,6 +205,7 @@ int __init ima_init_crypto(void)
+ 
+ 		crypto_free_shash(ima_algo_array[i].tfm);
+ 	}
++	kfree(ima_algo_array);
+ out:
+ 	crypto_free_shash(ima_shash_tfm);
+ 	return rc;
+-- 
+2.17.1
+

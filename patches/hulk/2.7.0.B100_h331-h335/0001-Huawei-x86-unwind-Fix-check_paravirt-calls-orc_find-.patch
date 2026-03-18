@@ -1,0 +1,46 @@
+From 4b47f6c06e2253243a2f10a6fa24923802e41e33 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Thu, 16 Feb 2023 11:57:10 +0800
+Subject: [PATCH 001/500] [Huawei] x86/unwind: Fix check_paravirt() calls
+ orc_find() before declaration
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187818
+
+--------------------------------
+
+check_paravirt() calls orc_find() before its implementation code.
+
+If CONFIG_DYNAMIC_FTRACE is enabled, orc_find() will be declared
+earlier and compiling will not fail. Otherwise it will fail for
+"implicit declaration of function 'orc_find'".
+
+Move declaration of orc_find() out of CONFIG_DYNAMIC_FTRACE macro to
+fix this.
+
+Fixes: cbb12ea4718a ("[Huawei] x86/unwind: Fix orc entry for paravirt {save,restore}_fl")
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ arch/x86/kernel/unwind_orc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/unwind_orc.c b/arch/x86/kernel/unwind_orc.c
+index 7eb796dc0f3c..e8b7293ccbb4 100644
+--- a/arch/x86/kernel/unwind_orc.c
++++ b/arch/x86/kernel/unwind_orc.c
+@@ -77,9 +77,9 @@ static struct orc_entry *orc_module_find(unsigned long ip)
+ }
+ #endif
+ 
+-#ifdef CONFIG_DYNAMIC_FTRACE
+ static struct orc_entry *orc_find(unsigned long ip);
+ 
++#ifdef CONFIG_DYNAMIC_FTRACE
+ /*
+  * Ftrace dynamic trampolines do not have orc entries of their own.
+  * But they are copies of the ftrace entries that are static and
+-- 
+2.17.1
+

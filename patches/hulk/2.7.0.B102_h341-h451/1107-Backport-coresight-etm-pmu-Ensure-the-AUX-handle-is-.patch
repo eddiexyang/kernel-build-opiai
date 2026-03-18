@@ -1,0 +1,83 @@
+From 0d4f5aa981c868bfb55f02957003ac9ee936b861 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:38:09 +0800
+Subject: [PATCH 1107/1646] [Backport] coresight: etm-pmu: Ensure the AUX
+ handle is valid
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 2ef43054bb26cd3df53a32f50d7eea796a578931
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2ef43054bb26cd3df53a32f50d7eea796a578931
+
+--------------------------------
+
+The ETM perf infrastructure closes out a handle during event_stop
+or on an error in starting the event. In either case, it is possible
+for a "sink" to update/close the handle, under certain circumstances.
+(e.g no space in ring buffer.). So, ensure that we handle this
+gracefully in the PMU driver by verifying the handle is still valid.
+
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Anshuman Khandual <anshuman.khandual@arm.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Reviewed-by: Anshuman Khandual <anshuman.khandual@arm.com>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20210914102641.1852544-4-suzuki.poulose@arm.com
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ .../hwtracing/coresight/coresight-etm-perf.c  | 27 ++++++++++++++++---
+ 1 file changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-etm-perf.c b/drivers/hwtracing/coresight/coresight-etm-perf.c
+index 18c93f796387..34a920fbb08d 100644
+--- a/drivers/hwtracing/coresight/coresight-etm-perf.c
++++ b/drivers/hwtracing/coresight/coresight-etm-perf.c
+@@ -382,8 +382,15 @@ static void etm_event_start(struct perf_event *event, int flags)
+ fail_disable_path:
+ 	coresight_disable_path(path);
+ fail_end_stop:
+-	perf_aux_output_flag(handle, PERF_AUX_FLAG_TRUNCATED);
+-	perf_aux_output_end(handle, 0);
++	/*
++	 * Check if the handle is still associated with the event,
++	 * to handle cases where if the sink failed to start the
++	 * trace and TRUNCATED the handle already.
++	 */
++	if (READ_ONCE(handle->event)) {
++		perf_aux_output_flag(handle, PERF_AUX_FLAG_TRUNCATED);
++		perf_aux_output_end(handle, 0);
++	}
+ fail:
+ 	event->hw.state = PERF_HES_STOPPED;
+ 	return;
+@@ -464,7 +471,21 @@ static void etm_event_stop(struct perf_event *event, int mode)
+ 
+ 		size = sink_ops(sink)->update_buffer(sink, handle,
+ 					      event_data->snk_config);
+-		perf_aux_output_end(handle, size);
++		/*
++		 * Make sure the handle is still valid as the
++		 * sink could have closed it from an IRQ.
++		 * The sink driver must handle the race with
++		 * update_buffer() and IRQ. Thus either we
++		 * should get a valid handle and valid size
++		 * (which may be 0).
++		 *
++		 * But we should never get a non-zero size with
++		 * an invalid handle.
++		 */
++		if (READ_ONCE(handle->event))
++			perf_aux_output_end(handle, size);
++		else
++			WARN_ON(size);
+ 	}
+ 
+ 	/* Disabling the path make its elements available to other sessions */
+-- 
+2.17.1
+

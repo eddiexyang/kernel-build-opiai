@@ -1,0 +1,234 @@
+From abfcf426dd4d44efb47178b3730ec91f142c5793 Mon Sep 17 00:00:00 2001
+From: Ziyang Xuan <william.xuanziyang@huawei.com>
+Date: Mon, 30 Jan 2023 16:03:06 +0800
+Subject: [PATCH 872/905] [Huawei] raw: fix KABI for backporting raw RCU
+ conversion patches
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188116
+
+--------------------------------
+
+In order to fix softlockup problem in raw sockets because global rwlock,
+backport "raw: RCU conversion" series patches. That will introduce KABI
+changes. This patch is to fix KABI changes.
+
+Signed-off-by: Ziyang Xuan <william.xuanziyang@huawei.com>
+---
+ include/net/raw.h        | 18 ++++--------------
+ include/net/raw_common.h | 22 ++++++++++++++++++++++
+ include/net/rawv6.h      |  3 +--
+ include/net/sock.h       |  4 +++-
+ net/ipv4/raw.c           |  8 ++++----
+ net/ipv4/raw_diag.c      |  6 +++---
+ net/ipv6/af_inet6.c      |  1 +
+ net/ipv6/raw.c           |  2 +-
+ 8 files changed, 39 insertions(+), 25 deletions(-)
+ create mode 100644 include/net/raw_common.h
+
+diff --git a/include/net/raw.h b/include/net/raw.h
+index 5e665934ebc7..76b3f842258f 100644
+--- a/include/net/raw.h
++++ b/include/net/raw.h
+@@ -15,11 +15,12 @@
+ 
+ #include <net/inet_sock.h>
+ #include <net/protocol.h>
++#include <net/raw_common.h>
+ #include <linux/icmp.h>
+ 
+ extern struct proto raw_prot;
+ 
+-extern struct raw_hashinfo raw_v4_hashinfo;
++extern struct raw_hashinfo_new raw_v4_hashinfo;
+ bool raw_v4_match(struct net *net, struct sock *sk, unsigned short num,
+ 		  __be32 raddr, __be32 laddr, int dif, int sdif);
+ 
+@@ -29,22 +30,11 @@ int raw_local_deliver(struct sk_buff *, int);
+ 
+ int raw_rcv(struct sock *, struct sk_buff *);
+ 
+-#define RAW_HTABLE_SIZE	MAX_INET_PROTOS
+-
+ struct raw_hashinfo {
+-	spinlock_t lock;
+-	struct hlist_nulls_head ht[RAW_HTABLE_SIZE];
++	rwlock_t lock;
++	struct hlist_head ht[RAW_HTABLE_SIZE];
+ };
+ 
+-static inline void raw_hashinfo_init(struct raw_hashinfo *hashinfo)
+-{
+-	int i;
+-
+-	spin_lock_init(&hashinfo->lock);
+-	for (i = 0; i < RAW_HTABLE_SIZE; i++)
+-		INIT_HLIST_NULLS_HEAD(&hashinfo->ht[i], i);
+-}
+-
+ #ifdef CONFIG_PROC_FS
+ int raw_proc_init(void);
+ void raw_proc_exit(void);
+diff --git a/include/net/raw_common.h b/include/net/raw_common.h
+new file mode 100644
+index 000000000000..77e701357928
+--- /dev/null
++++ b/include/net/raw_common.h
+@@ -0,0 +1,22 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#ifndef _RAW_COMMON_H
++#define _RAW_COMMON_H
++
++#define RAW_HTABLE_SIZE	MAX_INET_PROTOS
++
++struct raw_hashinfo_new {
++	spinlock_t lock;
++	struct hlist_nulls_head ht[RAW_HTABLE_SIZE];
++};
++
++static inline void raw_hashinfo_init(struct raw_hashinfo_new *hashinfo)
++{
++	int i;
++
++	spin_lock_init(&hashinfo->lock);
++	for (i = 0; i < RAW_HTABLE_SIZE; i++)
++		INIT_HLIST_NULLS_HEAD(&hashinfo->ht[i], i);
++}
++
++#endif	/* _RAW_COMMON_H */
+diff --git a/include/net/rawv6.h b/include/net/rawv6.h
+index bc70909625f6..700de7d3af68 100644
+--- a/include/net/rawv6.h
++++ b/include/net/rawv6.h
+@@ -3,9 +3,8 @@
+ #define _NET_RAWV6_H
+ 
+ #include <net/protocol.h>
+-#include <net/raw.h>
+ 
+-extern struct raw_hashinfo raw_v6_hashinfo;
++extern struct raw_hashinfo_new raw_v6_hashinfo;
+ bool raw_v6_match(struct net *net, struct sock *sk, unsigned short num,
+ 		  const struct in6_addr *loc_addr,
+ 		  const struct in6_addr *rmt_addr, int dif, int sdif);
+diff --git a/include/net/sock.h b/include/net/sock.h
+index d64fa6bfe654..c53c6d2c76b0 100644
+--- a/include/net/sock.h
++++ b/include/net/sock.h
+@@ -1155,6 +1155,7 @@ struct request_sock_ops;
+ struct timewait_sock_ops;
+ struct inet_hashinfo;
+ struct raw_hashinfo;
++struct raw_hashinfo_new;
+ struct smc_hashinfo;
+ struct module;
+ 
+@@ -1269,7 +1270,8 @@ struct proto {
+ 	union {
+ 		struct inet_hashinfo	*hashinfo;
+ 		struct udp_table	*udp_table;
+-		struct raw_hashinfo	*raw_hash;
++		KABI_REPLACE(struct raw_hashinfo *raw_hash,
++			     struct raw_hashinfo_new *raw_hash)
+ 		struct smc_hashinfo	*smc_hash;
+ 	} h;
+ 
+diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c
+index ec33f129e240..44f9380717f0 100644
+--- a/net/ipv4/raw.c
++++ b/net/ipv4/raw.c
+@@ -85,12 +85,12 @@ struct raw_frag_vec {
+ 	int hlen;
+ };
+ 
+-struct raw_hashinfo raw_v4_hashinfo;
++struct raw_hashinfo_new raw_v4_hashinfo;
+ EXPORT_SYMBOL_GPL(raw_v4_hashinfo);
+ 
+ int raw_hash_sk(struct sock *sk)
+ {
+-	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
++	struct raw_hashinfo_new *h = sk->sk_prot->h.raw_hash;
+ 	struct hlist_nulls_head *hlist;
+ 
+ 	hlist = &h->ht[inet_sk(sk)->inet_num & (RAW_HTABLE_SIZE - 1)];
+@@ -107,7 +107,7 @@ EXPORT_SYMBOL_GPL(raw_hash_sk);
+ 
+ void raw_unhash_sk(struct sock *sk)
+ {
+-	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
++	struct raw_hashinfo_new *h = sk->sk_prot->h.raw_hash;
+ 
+ 	spin_lock(&h->lock);
+ 	if (__sk_nulls_del_node_init_rcu(sk))
+@@ -944,7 +944,7 @@ struct proto raw_prot = {
+ #ifdef CONFIG_PROC_FS
+ static struct sock *raw_get_first(struct seq_file *seq, int bucket)
+ {
+-	struct raw_hashinfo *h = PDE_DATA(file_inode(seq->file));
++	struct raw_hashinfo_new *h = PDE_DATA(file_inode(seq->file));
+ 	struct raw_iter_state *state = raw_seq_private(seq);
+ 	struct hlist_nulls_head *hlist;
+ 	struct hlist_nulls_node *hnode;
+diff --git a/net/ipv4/raw_diag.c b/net/ipv4/raw_diag.c
+index a5fcca24f9eb..70981c6d67ef 100644
+--- a/net/ipv4/raw_diag.c
++++ b/net/ipv4/raw_diag.c
+@@ -14,7 +14,7 @@
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+-static struct raw_hashinfo *
++static struct raw_hashinfo_new *
+ raw_get_hashinfo(const struct inet_diag_req_v2 *r)
+ {
+ 	if (r->sdiag_family == AF_INET) {
+@@ -56,7 +56,7 @@ static bool raw_lookup(struct net *net, struct sock *sk,
+ 
+ static struct sock *raw_sock_get(struct net *net, const struct inet_diag_req_v2 *r)
+ {
+-	struct raw_hashinfo *hashinfo = raw_get_hashinfo(r);
++	struct raw_hashinfo_new *hashinfo = raw_get_hashinfo(r);
+ 	struct hlist_nulls_head *hlist;
+ 	struct hlist_nulls_node *hnode;
+ 	struct sock *sk;
+@@ -142,7 +142,7 @@ static void raw_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
+ 			  const struct inet_diag_req_v2 *r)
+ {
+ 	bool net_admin = netlink_net_capable(cb->skb, CAP_NET_ADMIN);
+-	struct raw_hashinfo *hashinfo = raw_get_hashinfo(r);
++	struct raw_hashinfo_new *hashinfo = raw_get_hashinfo(r);
+ 	struct net *net = sock_net(skb->sk);
+ 	struct inet_diag_dump_data *cb_data;
+ 	struct hlist_nulls_head *hlist;
+diff --git a/net/ipv6/af_inet6.c b/net/ipv6/af_inet6.c
+index b6097ebd9b27..4c62e8d6dbf6 100644
+--- a/net/ipv6/af_inet6.c
++++ b/net/ipv6/af_inet6.c
+@@ -62,6 +62,7 @@
+ #include <net/rpl.h>
+ #include <net/compat.h>
+ #include <net/xfrm.h>
++#include <net/raw_common.h>
+ #include <net/rawv6.h>
+ 
+ #include <linux/uaccess.h>
+diff --git a/net/ipv6/raw.c b/net/ipv6/raw.c
+index 2a55aefdb89a..36eb1f44a7d5 100644
+--- a/net/ipv6/raw.c
++++ b/net/ipv6/raw.c
+@@ -61,7 +61,7 @@
+ 
+ #define	ICMPV6_HDRLEN	4	/* ICMPv6 header, RFC 4443 Section 2.1 */
+ 
+-struct raw_hashinfo raw_v6_hashinfo;
++struct raw_hashinfo_new raw_v6_hashinfo;
+ EXPORT_SYMBOL_GPL(raw_v6_hashinfo);
+ 
+ bool raw_v6_match(struct net *net, struct sock *sk, unsigned short num,
+-- 
+2.17.1
+

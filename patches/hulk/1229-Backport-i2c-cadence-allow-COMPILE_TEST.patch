@@ -1,0 +1,43 @@
+From d78dd5645532bdbb4f3d3bbce99ce221789ffc92 Mon Sep 17 00:00:00 2001
+From: Wolfram Sang <wsa@kernel.org>
+Date: Sat, 12 Feb 2022 20:45:48 +0100
+Subject: [PATCH 1229/2065] [Backport] i2c: cadence: allow COMPILE_TEST
+
+stable inclusion
+from stable-v5.10.104
+commit 57c333ad8c2829cf92cf1a3edd5742038b021a83
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XAC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=57c333ad8c2829cf92cf1a3edd5742038b021a83
+
+--------------------------------
+
+[ Upstream commit 0b0dcb3882c8f08bdeafa03adb4487e104d26050 ]
+
+Driver builds fine with COMPILE_TEST. Enable it for wider test coverage
+and easier maintenance.
+
+Signed-off-by: Wolfram Sang <wsa@kernel.org>
+Acked-by: Michal Simek <michal.simek@xilinx.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/i2c/busses/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+index 036fdcee5eb3..f9261016acaa 100644
+--- a/drivers/i2c/busses/Kconfig
++++ b/drivers/i2c/busses/Kconfig
+@@ -488,7 +488,7 @@ config I2C_BRCMSTB
+ 
+ config I2C_CADENCE
+ 	tristate "Cadence I2C Controller"
+-	depends on ARCH_ZYNQ || ARM64 || XTENSA
++	depends on ARCH_ZYNQ || ARM64 || XTENSA || COMPILE_TEST
+ 	help
+ 	  Say yes here to select Cadence I2C Host Controller. This controller is
+ 	  e.g. used by Xilinx Zynq.
+-- 
+2.17.1
+

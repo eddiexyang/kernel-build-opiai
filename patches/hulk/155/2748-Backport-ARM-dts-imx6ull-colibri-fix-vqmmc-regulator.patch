@@ -1,0 +1,48 @@
+From 02b96b924cd3ced90977a90a0d524e9b1edf6f82 Mon Sep 17 00:00:00 2001
+From: Max Krummenacher <max.krummenacher@toradex.com>
+Date: Thu, 14 Apr 2022 10:50:54 +0200
+Subject: [PATCH 2748/4585] [Backport] ARM: dts: imx6ull-colibri: fix vqmmc
+ regulator
+
+stable inclusion
+from stable-v5.10.114
+commit 73c35379dbdf0899370f255b77242eeea213c6af
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ESJO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=73c35379dbdf0899370f255b77242eeea213c6af
+
+--------------------------------
+
+[ Upstream commit 45974e4276a8d6653394f66666fc57d8ffa6de9a ]
+
+The correct spelling for the property is gpios. Otherwise, the regulator
+will neither reserve nor control any GPIOs. Thus, any SD/MMC card which
+can use UHS-I modes will fail.
+
+Fixes: c2e4987e0e02 ("ARM: dts: imx6ull: add Toradex Colibri iMX6ULL support")
+Signed-off-by: Max Krummenacher <max.krummenacher@toradex.com>
+Signed-off-by: Denys Drozdov <denys.drozdov@toradex.com>
+Signed-off-by: Marcel Ziswiler <marcel.ziswiler@toradex.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm/boot/dts/imx6ull-colibri.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/imx6ull-colibri.dtsi b/arch/arm/boot/dts/imx6ull-colibri.dtsi
+index 4436556624d6..548cfcc7a01d 100644
+--- a/arch/arm/boot/dts/imx6ull-colibri.dtsi
++++ b/arch/arm/boot/dts/imx6ull-colibri.dtsi
+@@ -37,7 +37,7 @@
+ 
+ 	reg_sd1_vmmc: regulator-sd1-vmmc {
+ 		compatible = "regulator-gpio";
+-		gpio = <&gpio5 9 GPIO_ACTIVE_HIGH>;
++		gpios = <&gpio5 9 GPIO_ACTIVE_HIGH>;
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pinctrl_snvs_reg_sd>;
+ 		regulator-always-on;
+-- 
+2.17.1
+

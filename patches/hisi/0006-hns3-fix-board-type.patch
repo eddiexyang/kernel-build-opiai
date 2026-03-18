@@ -1,0 +1,93 @@
+From 148548f6f8a99a48ff0000a1e4cd57e6c6a7f5dc Mon Sep 17 00:00:00 2001
+Date: Wed, 21 Jun 2023 10:20:32 +0800
+Subject: [PATCH] [Huawei] hns fix board_type and add auto_adapt
+
+---
+ drivers/net/ethernet/hisilicon/hns3/hnae3.h          |  2 +-
+ .../hisilicon/hns3/hns3_common/hclge_comm_cmd.h      |  2 +-
+ .../net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c  | 12 ++++++------
+ .../net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h  |  2 +-
+ 4 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hnae3.h b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+index 89ff237..2e7427d 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hnae3.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+@@ -803,7 +803,7 @@ struct hnae3_ae_ops {
+ 				       u32 *status_code);
+ 	void (*clean_vf_config)(struct hnae3_ae_dev *ae_dev, int num_vfs);
+ 	void (*get_device_info)(const struct hnae3_handle *handle,
+-				u32 *board_id, u32 *device_id, u32 *chip_id, u32 *die_id);
++				u32 *board_type, u32 *device_id, u32 *chip_id, u32 *die_id);
+ 	void (*query_tstamp)(struct hnae3_handle *handle, struct timespec64 *kts);
+ };
+ 
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h b/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
+index b8e10f5..5ebb22e 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
+@@ -426,7 +426,7 @@ struct hclge_comm_hw {
+ };
+ 
+ struct hclge_get_device_info_cmd {
+-	__le32 board_id;
++	__le32 board_type;
+ 	__le32 device_id;
+ 	__le32 chip_id;
+ 	__le32 pf_id;
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 9c591c7..580dac9 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -1639,15 +1639,15 @@ void hclge_init_device_info(struct hclge_dev *hdev)
+ 		return;
+ 	}
+ 
+-	hdev->board_id = __le32_to_cpu(req->board_id);
++	hdev->board_type = __le32_to_cpu(req->board_type);
+ 	hdev->device_id = __le32_to_cpu(req->device_id);
+ 	hdev->chip_id = __le32_to_cpu(req->chip_id);
+ 	hdev->pf_id = __le32_to_cpu(req->pf_id);
+ 	hdev->die_id = __le32_to_cpu(req->die_id);
+ 	hdev->mac_mode = __le32_to_cpu(req->mac_mode);
+ 	dev_info(&hdev->pdev->dev,
+-		 "hclge init chip_id[%u] die_id[%u] device_id[%u] board_id[%u] pf_id[%u] mac_mode[%u] info success\n",
+-		 hdev->chip_id, hdev->die_id, hdev->device_id, hdev->board_id, hdev->pf_id, hdev->mac_mode);
++		 "hclge init chip_id[%u] die_id[%u] device_id[%u] board_type[%u] pf_id[%u] mac_mode[%u] info success\n",
++		 hdev->chip_id, hdev->die_id, hdev->device_id, hdev->board_type, hdev->pf_id, hdev->mac_mode);
+ }
+ 
+ static int hclge_get_cap(struct hclge_dev *hdev)
+@@ -13591,13 +13591,13 @@ static void hclge_clean_vport_config(struct hnae3_ae_dev *ae_dev, int num_vfs)
+ }
+ 
+ static void hclge_get_device_info(const struct hnae3_handle *handle,
+-				  u32 *board_id, u32 *device_id, u32 *chip_id, u32 *die_id)
++				  u32 *board_type, u32 *device_id, u32 *chip_id, u32 *die_id)
+ {
+ 	struct hclge_vport *vport = hclge_get_vport(handle);
+ 	struct hclge_dev *hdev = vport->back;
+ 
+-	if (board_id)
+-		*board_id = hdev->board_id;
++	if (board_type)
++		*board_type = hdev->board_type;
+ 
+ 	if (device_id)
+ 		*device_id = hdev->device_id;
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
+index 70c3649..4486811 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
+@@ -892,7 +892,7 @@ struct hclge_dev {
+ 	u16 num_tqps;			/* Num task queue pairs of this PF */
+ 	u16 num_req_vfs;		/* Num VFs requested for this PF */
+ 
+-	u32 board_id;
++	u32 board_type;
+ 	u32 device_id;		/* device id used to number all devices. A+X moudle[0:15], others the same as chip_id */
+ 	u32 chip_id;		/* chip id, for global addressing, such as Px */
+ 	u32 pf_id;
+-- 
+2.27.0
+

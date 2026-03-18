@@ -1,0 +1,161 @@
+From e2efb51c528bcc89aa5bb688cdb2e402bffc3255 Mon Sep 17 00:00:00 2001
+From: Wang Hai <wanghai38@huawei.com>
+Date: Sat, 25 Jun 2022 16:25:44 +0800
+Subject: [PATCH 2623/4585] [Huawei] oom_kill.c: Revert "[Backport] oom_kill.c:
+ futex: delay the OOM reaper to allow time for proper futex cleanup"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187076
+
+--------------------------------
+
+This reverts commit 4e75f33a321ff2d79ceae68454513eb6198bf0a5.
+
+commit 4e75f33a321f ("[Backport] oom_kill.c: futex: delay the OOM reaper
+to allow time for proper futex cleanup") introduces kabi changes. This
+bugfix is not a serious problem. So revert first, and then apply later
+after fixing the kabi changes.
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/linux/sched.h |  1 -
+ mm/oom_kill.c         | 54 +++++++++++--------------------------------
+ 2 files changed, 14 insertions(+), 41 deletions(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index d8fd97b2a720..a0af88afbad1 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1367,7 +1367,6 @@ struct task_struct {
+ 	int				pagefault_disabled;
+ #ifdef CONFIG_MMU
+ 	struct task_struct		*oom_reaper_list;
+-	struct timer_list		oom_reaper_timer;
+ #endif
+ #ifdef CONFIG_VMAP_STACK
+ 	struct vm_struct		*stack_vm_area;
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 2933e2beba6f..ffbe8fe2bbf6 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -680,7 +680,7 @@ static void oom_reap_task(struct task_struct *tsk)
+ 	 */
+ 	set_bit(MMF_OOM_SKIP, &mm->flags);
+ 
+-	/* Drop a reference taken by queue_oom_reaper */
++	/* Drop a reference taken by wake_oom_reaper */
+ 	put_task_struct(tsk);
+ }
+ 
+@@ -690,12 +690,12 @@ static int oom_reaper(void *unused)
+ 		struct task_struct *tsk = NULL;
+ 
+ 		wait_event_freezable(oom_reaper_wait, oom_reaper_list != NULL);
+-		spin_lock_irq(&oom_reaper_lock);
++		spin_lock(&oom_reaper_lock);
+ 		if (oom_reaper_list != NULL) {
+ 			tsk = oom_reaper_list;
+ 			oom_reaper_list = tsk->oom_reaper_list;
+ 		}
+-		spin_unlock_irq(&oom_reaper_lock);
++		spin_unlock(&oom_reaper_lock);
+ 
+ 		if (tsk)
+ 			oom_reap_task(tsk);
+@@ -704,48 +704,22 @@ static int oom_reaper(void *unused)
+ 	return 0;
+ }
+ 
+-static void wake_oom_reaper(struct timer_list *timer)
++static void wake_oom_reaper(struct task_struct *tsk)
+ {
+-	struct task_struct *tsk = container_of(timer, struct task_struct,
+-			oom_reaper_timer);
+-	struct mm_struct *mm = tsk->signal->oom_mm;
+-	unsigned long flags;
+-
+-	/* The victim managed to terminate on its own - see exit_mmap */
+-	if (test_bit(MMF_OOM_SKIP, &mm->flags)) {
+-		put_task_struct(tsk);
++	/* mm is already queued? */
++	if (test_and_set_bit(MMF_OOM_REAP_QUEUED, &tsk->signal->oom_mm->flags))
+ 		return;
+-	}
+ 
+-	spin_lock_irqsave(&oom_reaper_lock, flags);
++	get_task_struct(tsk);
++
++	spin_lock(&oom_reaper_lock);
+ 	tsk->oom_reaper_list = oom_reaper_list;
+ 	oom_reaper_list = tsk;
+-	spin_unlock_irqrestore(&oom_reaper_lock, flags);
++	spin_unlock(&oom_reaper_lock);
+ 	trace_wake_reaper(tsk->pid);
+ 	wake_up(&oom_reaper_wait);
+ }
+ 
+-/*
+- * Give the OOM victim time to exit naturally before invoking the oom_reaping.
+- * The timers timeout is arbitrary... the longer it is, the longer the worst
+- * case scenario for the OOM can take. If it is too small, the oom_reaper can
+- * get in the way and release resources needed by the process exit path.
+- * e.g. The futex robust list can sit in Anon|Private memory that gets reaped
+- * before the exit path is able to wake the futex waiters.
+- */
+-#define OOM_REAPER_DELAY (2*HZ)
+-static void queue_oom_reaper(struct task_struct *tsk)
+-{
+-	/* mm is already queued? */
+-	if (test_and_set_bit(MMF_OOM_REAP_QUEUED, &tsk->signal->oom_mm->flags))
+-		return;
+-
+-	get_task_struct(tsk);
+-	timer_setup(&tsk->oom_reaper_timer, wake_oom_reaper, 0);
+-	tsk->oom_reaper_timer.expires = jiffies + OOM_REAPER_DELAY;
+-	add_timer(&tsk->oom_reaper_timer);
+-}
+-
+ static int __init oom_init(void)
+ {
+ 	oom_reaper_th = kthread_run(oom_reaper, NULL, "oom_reaper");
+@@ -753,7 +727,7 @@ static int __init oom_init(void)
+ }
+ subsys_initcall(oom_init)
+ #else
+-static inline void queue_oom_reaper(struct task_struct *tsk)
++static inline void wake_oom_reaper(struct task_struct *tsk)
+ {
+ }
+ #endif /* CONFIG_MMU */
+@@ -1004,7 +978,7 @@ static void __oom_kill_process(struct task_struct *victim, const char *message)
+ 	rcu_read_unlock();
+ 
+ 	if (can_oom_reap)
+-		queue_oom_reaper(victim);
++		wake_oom_reaper(victim);
+ 
+ 	mmdrop(mm);
+ 	put_task_struct(victim);
+@@ -1040,7 +1014,7 @@ static void oom_kill_process(struct oom_control *oc, const char *message)
+ 	task_lock(victim);
+ 	if (task_will_free_mem(victim)) {
+ 		mark_oom_victim(victim);
+-		queue_oom_reaper(victim);
++		wake_oom_reaper(victim);
+ 		task_unlock(victim);
+ 		put_task_struct(victim);
+ 		return;
+@@ -1182,7 +1156,7 @@ bool out_of_memory(struct oom_control *oc)
+ 	 */
+ 	if (task_will_free_mem(current)) {
+ 		mark_oom_victim(current);
+-		queue_oom_reaper(current);
++		wake_oom_reaper(current);
+ 		return true;
+ 	}
+ 
+-- 
+2.17.1
+

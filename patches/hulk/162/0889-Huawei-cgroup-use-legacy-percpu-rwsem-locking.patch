@@ -1,0 +1,171 @@
+From f63bcbceac95d26f32bd7641f9d705a12ca080bc Mon Sep 17 00:00:00 2001
+From: Xie XiuQi <xiexiuqi@huawei.com>
+Date: Sat, 25 Jun 2022 01:25:50 +0800
+Subject: [PATCH 889/905] [Huawei] cgroup: use legacy percpu-rwsem locking
+
+Offering: HULK
+hulk inclusion
+category: performance
+bugzilla: NA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d59cfc09c32a2ae31f1c3bc2983a0cd79afb3f14
+
+--------------------------------
+
+Use legacy percpu-rwsem locking to fix the bug
+of high latency when creating cgroups.
+
+Signed-off-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Jian Cheng <cj.chengjian@huawei.com>
+Signed-off-by: Wei Li <liwei391@huawei.com>
+---
+ include/linux/cgroup-defs.h | 10 +++++-----
+ kernel/cgroup/cgroup-v1.c   |  8 ++++----
+ kernel/cgroup/cgroup.c      | 12 ++++++------
+ 3 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/include/linux/cgroup-defs.h b/include/linux/cgroup-defs.h
+index 0ea59a0fd0ad..05faeb221bf8 100644
+--- a/include/linux/cgroup-defs.h
++++ b/include/linux/cgroup-defs.h
+@@ -16,7 +16,7 @@
+ #include <linux/rcupdate.h>
+ #include <linux/refcount.h>
+ #include <linux/percpu-refcount.h>
+-#include <linux/percpu-rwsem.h>
++#include <linux/legacy-percpu-rwsem.h>
+ #include <linux/u64_stats_sync.h>
+ #include <linux/workqueue.h>
+ #include <linux/bpf-cgroup.h>
+@@ -765,18 +765,18 @@ struct cgroup_subsys {
+ 	unsigned int depends_on;
+ };
+ 
+-extern struct percpu_rw_semaphore cgroup_threadgroup_rwsem;
++extern struct legacy_percpu_rw_semaphore cgroup_threadgroup_rwsem;
+ 
+ /**
+  * cgroup_threadgroup_change_begin - threadgroup exclusion for cgroups
+  * @tsk: target task
+  *
+  * Allows cgroup operations to synchronize against threadgroup changes
+- * using a percpu_rw_semaphore.
++ * using a legacy_percpu_rw_semaphore.
+  */
+ static inline void cgroup_threadgroup_change_begin(struct task_struct *tsk)
+ {
+-	percpu_down_read(&cgroup_threadgroup_rwsem);
++	legacy_percpu_down_read(&cgroup_threadgroup_rwsem);
+ }
+ 
+ /**
+@@ -787,7 +787,7 @@ static inline void cgroup_threadgroup_change_begin(struct task_struct *tsk)
+  */
+ static inline void cgroup_threadgroup_change_end(struct task_struct *tsk)
+ {
+-	percpu_up_read(&cgroup_threadgroup_rwsem);
++	legacy_percpu_up_read(&cgroup_threadgroup_rwsem);
+ }
+ 
+ struct cgroup_subsys_state *cgroup_tryget_css(struct cgroup *cgrp,
+diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c
+index 5129ca4c66b4..4b02c02a8cf5 100644
+--- a/kernel/cgroup/cgroup-v1.c
++++ b/kernel/cgroup/cgroup-v1.c
+@@ -58,7 +58,7 @@ int cgroup_attach_task_all(struct task_struct *from, struct task_struct *tsk)
+ 
+ 	mutex_lock(&cgroup_mutex);
+ 	cpus_read_lock();
+-	percpu_down_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_down_write(&cgroup_threadgroup_rwsem);
+ 	for_each_root(root) {
+ 		struct cgroup *from_cgrp;
+ 
+@@ -73,7 +73,7 @@ int cgroup_attach_task_all(struct task_struct *from, struct task_struct *tsk)
+ 		if (retval)
+ 			break;
+ 	}
+-	percpu_up_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_up_write(&cgroup_threadgroup_rwsem);
+ 	cpus_read_unlock();
+ 	mutex_unlock(&cgroup_mutex);
+ 
+@@ -109,7 +109,7 @@ int cgroup_transfer_tasks(struct cgroup *to, struct cgroup *from)
+ 
+ 	mutex_lock(&cgroup_mutex);
+ 
+-	percpu_down_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_down_write(&cgroup_threadgroup_rwsem);
+ 
+ 	/* all tasks in @from are being moved, all csets are source */
+ 	spin_lock_irq(&css_set_lock);
+@@ -145,7 +145,7 @@ int cgroup_transfer_tasks(struct cgroup *to, struct cgroup *from)
+ 	} while (task && !ret);
+ out_err:
+ 	cgroup_migrate_finish(&mgctx);
+-	percpu_up_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_up_write(&cgroup_threadgroup_rwsem);
+ 	mutex_unlock(&cgroup_mutex);
+ 	return ret;
+ }
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 9b869db2cfa8..8eb81ca2d298 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -44,7 +44,7 @@
+ #include <linux/sched/task.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+-#include <linux/percpu-rwsem.h>
++#include <linux/legacy-percpu-rwsem.h>
+ #include <linux/string.h>
+ #include <linux/hashtable.h>
+ #include <linux/idr.h>
+@@ -103,7 +103,7 @@ static DEFINE_SPINLOCK(cgroup_idr_lock);
+  */
+ static DEFINE_SPINLOCK(cgroup_file_kn_lock);
+ 
+-DEFINE_PERCPU_RWSEM(cgroup_threadgroup_rwsem);
++DEFINE_LEGACY_PERCPU_RWSEM(cgroup_threadgroup_rwsem);
+ 
+ #define cgroup_assert_mutex_or_rcu_locked()				\
+ 	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&			\
+@@ -2357,7 +2357,7 @@ static void cgroup_attach_lock(bool lock_threadgroup)
+ {
+ 	cpus_read_lock();
+ 	if (lock_threadgroup)
+-		percpu_down_write(&cgroup_threadgroup_rwsem);
++		legacy_percpu_down_write(&cgroup_threadgroup_rwsem);
+ }
+ 
+ /**
+@@ -2367,7 +2367,7 @@ static void cgroup_attach_lock(bool lock_threadgroup)
+ static void cgroup_attach_unlock(bool lock_threadgroup)
+ {
+ 	if (lock_threadgroup)
+-		percpu_up_write(&cgroup_threadgroup_rwsem);
++		legacy_percpu_up_write(&cgroup_threadgroup_rwsem);
+ 	cpus_read_unlock();
+ }
+ 
+@@ -2924,7 +2924,7 @@ void cgroup_move_task_to_root(struct task_struct *tsk)
+ 	struct cgroup *cpu_root_cgrp;
+ 
+ 	mutex_lock(&cgroup_mutex);
+-	percpu_down_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_down_write(&cgroup_threadgroup_rwsem);
+ 
+ 	spin_lock_irq(&css_set_lock);
+ 	css = task_css_set(tsk);
+@@ -2933,7 +2933,7 @@ void cgroup_move_task_to_root(struct task_struct *tsk)
+ 	spin_unlock_irq(&css_set_lock);
+ 
+ 	(void)cgroup_attach_task(cpu_root_cgrp, tsk, false);
+-	percpu_up_write(&cgroup_threadgroup_rwsem);
++	legacy_percpu_up_write(&cgroup_threadgroup_rwsem);
+ 	mutex_unlock(&cgroup_mutex);
+ }
+ #endif
+-- 
+2.17.1
+

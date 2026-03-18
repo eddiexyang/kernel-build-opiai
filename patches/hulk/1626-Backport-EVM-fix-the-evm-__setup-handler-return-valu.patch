@@ -1,0 +1,67 @@
+From 21d062b169691276d3a3d9f9d99a41514282ca6a Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Tue, 22 Feb 2022 13:45:18 -0800
+Subject: [PATCH 1626/2065] [Backport] EVM: fix the evm= __setup handler return
+ value
+
+stable inclusion
+from stable-v5.10.110
+commit d788ad472f83fc92df76deb7fff738d4d69329a2
+bugzilla: https://gitee.com/openeuler/kernel/issues/I574AL
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d788ad472f83fc92df76deb7fff738d4d69329a2
+
+--------------------------------
+
+[ Upstream commit f2544f5e6c691679d56bb38637d2f347075b36fa ]
+
+__setup() handlers should return 1 if the parameter is handled.
+Returning 0 causes the entire string to be added to init's
+environment strings (limited to 32 strings), unnecessarily polluting it.
+
+Using the documented string "evm=fix" causes an Unknown parameter message:
+  Unknown kernel command line parameters
+  "BOOT_IMAGE=/boot/bzImage-517rc5 evm=fix", will be passed to user space.
+
+and that string is added to init's environment string space:
+  Run /sbin/init as init process
+    with arguments:
+     /sbin/init
+    with environment:
+     HOME=/
+     TERM=linux
+     BOOT_IMAGE=/boot/bzImage-517rc5
+     evm=fix
+
+With this change, using "evm=fix" acts as expected and an invalid
+option ("evm=evm") causes a warning to be printed:
+  evm: invalid "evm" mode
+but init's environment is not polluted with this string, as expected.
+
+Fixes: 7102ebcd65c1 ("evm: permit only valid security.evm xattrs to be updated")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reported-by: Igor Zhbanov <i.zhbanov@omprussia.ru>
+Link: lore.kernel.org/r/64644a2f-4a20-bab3-1e15-3b2cdd0defe3@omprussia.ru
+Signed-off-by: Mimi Zohar <zohar@linux.ibm.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ security/integrity/evm/evm_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/security/integrity/evm/evm_main.c b/security/integrity/evm/evm_main.c
+index f3dd2641d29a..cddfc0e43a80 100644
+--- a/security/integrity/evm/evm_main.c
++++ b/security/integrity/evm/evm_main.c
+@@ -70,7 +70,7 @@ static int __init evm_set_param(char *str)
+ 	else
+ 		pr_err("invalid \"%s\" mode", str);
+ 
+-	return 0;
++	return 1;
+ }
+ __setup("evm=", evm_set_param);
+ 
+-- 
+2.17.1
+

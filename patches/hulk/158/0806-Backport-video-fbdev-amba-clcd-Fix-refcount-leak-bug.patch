@@ -1,0 +1,88 @@
+From 2c50a80ba93dd341c03d135a7f2e7a97ec6f92e9 Mon Sep 17 00:00:00 2001
+From: Liang He <windhl@126.com>
+Date: Tue, 19 Jul 2022 16:25:46 +0800
+Subject: [PATCH 0806/1076] [Backport] video: fbdev: amba-clcd: Fix refcount
+ leak bugs
+
+stable inclusion
+from stable-v5.10.137
+commit da276dc288bf838ea0fd778b5441ec0f601c69f7
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=da276dc288bf838ea0fd778b5441ec0f601c69f7
+
+--------------------------------
+
+[ Upstream commit 26c2b7d9fac42eb8317f3ceefa4c1a9a9170ca69 ]
+
+In clcdfb_of_init_display(), we should call of_node_put() for the
+references returned by of_graph_get_next_endpoint() and
+of_graph_get_remote_port_parent() which have increased the refcount.
+
+Besides, we should call of_node_put() both in fail path or when
+the references are not used anymore.
+
+Fixes: d10715be03bd ("video: ARM CLCD: Add DT support")
+Signed-off-by: Liang He <windhl@126.com>
+Signed-off-by: Helge Deller <deller@gmx.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/video/fbdev/amba-clcd.c | 24 ++++++++++++++++++------
+ 1 file changed, 18 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/video/fbdev/amba-clcd.c b/drivers/video/fbdev/amba-clcd.c
+index 79efefd224f4..6252cd59673e 100644
+--- a/drivers/video/fbdev/amba-clcd.c
++++ b/drivers/video/fbdev/amba-clcd.c
+@@ -711,16 +711,18 @@ static int clcdfb_of_init_display(struct clcd_fb *fb)
+ 		return -ENODEV;
+ 
+ 	panel = of_graph_get_remote_port_parent(endpoint);
+-	if (!panel)
+-		return -ENODEV;
++	if (!panel) {
++		err = -ENODEV;
++		goto out_endpoint_put;
++	}
+ 
+ 	err = clcdfb_of_get_backlight(&fb->dev->dev, fb->panel);
+ 	if (err)
+-		return err;
++		goto out_panel_put;
+ 
+ 	err = clcdfb_of_get_mode(&fb->dev->dev, panel, fb->panel);
+ 	if (err)
+-		return err;
++		goto out_panel_put;
+ 
+ 	err = of_property_read_u32(fb->dev->dev.of_node, "max-memory-bandwidth",
+ 			&max_bandwidth);
+@@ -749,11 +751,21 @@ static int clcdfb_of_init_display(struct clcd_fb *fb)
+ 
+ 	if (of_property_read_u32_array(endpoint,
+ 			"arm,pl11x,tft-r0g0b0-pads",
+-			tft_r0b0g0, ARRAY_SIZE(tft_r0b0g0)) != 0)
+-		return -ENOENT;
++			tft_r0b0g0, ARRAY_SIZE(tft_r0b0g0)) != 0) {
++		err = -ENOENT;
++		goto out_panel_put;
++	}
++
++	of_node_put(panel);
++	of_node_put(endpoint);
+ 
+ 	return clcdfb_of_init_tft_panel(fb, tft_r0b0g0[0],
+ 					tft_r0b0g0[1],  tft_r0b0g0[2]);
++out_panel_put:
++	of_node_put(panel);
++out_endpoint_put:
++	of_node_put(endpoint);
++	return err;
+ }
+ 
+ static int clcdfb_of_vram_setup(struct clcd_fb *fb)
+-- 
+2.17.1
+

@@ -1,0 +1,44 @@
+From a04c11b794341eac03b3c3d8380d61f73a22ddee Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Wed, 12 Oct 2022 11:28:06 +0800
+Subject: [PATCH 0604/1076] [Huawei] Revert "[Huawei] ext4: Fix dir corruption
+ when ext4_dx_add_entry() fails"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187586
+
+--------------------------------
+
+This reverts commit a370f672d28976624b7f8891f4b241bc98f2c115.
+Replace it with mainline solution, goto
+https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
+and search commit 7177dd009c7c04290891e9a534cd47d1b620bd04.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/namei.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index a1b5208b7c6a..e704d2489fac 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -2513,13 +2513,6 @@ static int ext4_dx_add_entry(handle_t *handle, struct ext4_filename *fname,
+ 	 */
+ 	if (restart && err == 0)
+ 		goto again;
+-	/*
+-	 * Even if the dx_add_entry failed, we have to properly write
+-	 * out all the changes we did so far. Otherwise we can end up
+-	 * with corrupted filesystem.
+-	 */
+-	if (err)
+-		ext4_mark_inode_dirty(handle, dir);
+ 	return err;
+ }
+ 
+-- 
+2.17.1
+

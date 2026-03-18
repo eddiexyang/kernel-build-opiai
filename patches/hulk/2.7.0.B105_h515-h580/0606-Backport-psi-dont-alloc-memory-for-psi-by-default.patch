@@ -1,0 +1,161 @@
+From 943ba6edced8e24eceb944131c27d1357cbc12f3 Mon Sep 17 00:00:00 2001
+From: Chen Wandun <chenwandun@huawei.com>
+Date: Thu, 26 May 2022 20:26:56 +0800
+Subject: [PATCH 606/780] [Backport] psi: dont alloc memory for psi by default
+
+mainline inclusion
+from mainline-v6.0-rc1
+commit 5f69a6577bc33d8f6d6bbe02bccdeb357b287f56
+category: feature
+bugzilla: 188780
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=5f69a6577bc33d8f6d6bbe02bccdeb357b287f56
+
+--------------------------------
+
+Memory about struct psi_group is allocated by default for
+each cgroup even if psi_disabled is true, in this case, these
+allocated memory is waste, so alloc memory for struct psi_group
+only when psi_disabled is false.
+
+Signed-off-by: Chen Wandun <chenwandun@huawei.com>
+Acked-by: Johannes Weiner <hannes@cmpxchg.org>
+Signed-off-by: Tejun Heo <tj@kernel.org>
+Conflict:
+	include/linux/cgroup-defs.h
+	include/linux/cgroup.h
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ include/linux/cgroup-defs.h |  6 +++---
+ include/linux/cgroup.h      |  2 +-
+ kernel/cgroup/cgroup.c      | 10 +++++-----
+ kernel/sched/psi.c          | 19 +++++++++++++------
+ 4 files changed, 22 insertions(+), 15 deletions(-)
+
+diff --git a/include/linux/cgroup-defs.h b/include/linux/cgroup-defs.h
+index 05faeb221bf8..fc5371be60a4 100644
+--- a/include/linux/cgroup-defs.h
++++ b/include/linux/cgroup-defs.h
+@@ -492,9 +492,9 @@ struct cgroup {
+ 	/*
+ 	 * It is accessed only the cgroup core code and so changes made to
+ 	 * the cgroup structure should not affect third-party kernel modules.
++	 * The member is unused now.
+ 	 */
+-	struct psi_group psi;
+-
++	KABI_DEPRECATE(struct psi_group, psi)
+ 	/* used to store eBPF programs */
+ 	struct cgroup_bpf bpf;
+ 
+@@ -504,7 +504,7 @@ struct cgroup {
+ 	/* Used to store internal freezer state */
+ 	struct cgroup_freezer_state freezer;
+ 
+-	KABI_RESERVE(1)
++	KABI_USE(1, struct psi_group *psi)
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 
+diff --git a/include/linux/cgroup.h b/include/linux/cgroup.h
+index 4e6b66d833b1..410fc0b45792 100644
+--- a/include/linux/cgroup.h
++++ b/include/linux/cgroup.h
+@@ -674,7 +674,7 @@ static inline void pr_cont_cgroup_path(struct cgroup *cgrp)
+ 
+ static inline struct psi_group *cgroup_psi(struct cgroup *cgrp)
+ {
+-	return &cgrp->psi;
++	return cgrp->psi;
+ }
+ 
+ static inline void cgroup_init_kthreadd(void)
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 1b9f6fc07583..1bb3e00d3763 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -3677,21 +3677,21 @@ static int cpu_stat_show(struct seq_file *seq, void *v)
+ static int cgroup_io_pressure_show(struct seq_file *seq, void *v)
+ {
+ 	struct cgroup *cgrp = seq_css(seq)->cgroup;
+-	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
++	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : cgrp->psi;
+ 
+ 	return psi_show(seq, psi, PSI_IO);
+ }
+ static int cgroup_memory_pressure_show(struct seq_file *seq, void *v)
+ {
+ 	struct cgroup *cgrp = seq_css(seq)->cgroup;
+-	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
++	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : cgrp->psi;
+ 
+ 	return psi_show(seq, psi, PSI_MEM);
+ }
+ static int cgroup_cpu_pressure_show(struct seq_file *seq, void *v)
+ {
+ 	struct cgroup *cgrp = seq_css(seq)->cgroup;
+-	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
++	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : cgrp->psi;
+ 
+ 	return psi_show(seq, psi, PSI_CPU);
+ }
+@@ -3717,7 +3717,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 		return -EBUSY;
+ 	}
+ 
+-	psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
++	psi = cgroup_ino(cgrp) == 1 ? &psi_system : cgrp->psi;
+ 	new = psi_trigger_create(psi, buf, nbytes, res);
+ 	if (IS_ERR(new)) {
+ 		cgroup_put(cgrp);
+@@ -3755,7 +3755,7 @@ static ssize_t cgroup_cpu_pressure_write(struct kernfs_open_file *of,
+ static int cgroup_irq_pressure_show(struct seq_file *seq, void *v)
+ {
+ 	struct cgroup *cgrp = seq_css(seq)->cgroup;
+-	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
++	struct psi_group *psi = cgroup_ino(cgrp) == 1 ? &psi_system : cgrp->psi;
+ 
+ 	return psi_show(seq, psi, PSI_IRQ);
+ }
+diff --git a/kernel/sched/psi.c b/kernel/sched/psi.c
+index d96113d7ea52..55ffabe44c64 100644
+--- a/kernel/sched/psi.c
++++ b/kernel/sched/psi.c
+@@ -1031,10 +1031,16 @@ int psi_cgroup_alloc(struct cgroup *cgroup)
+ 	if (static_branch_likely(&psi_disabled))
+ 		return 0;
+ 
+-	cgroup->psi.pcpu = alloc_percpu(struct psi_group_cpu);
+-	if (!cgroup->psi.pcpu)
++	cgroup->psi = kmalloc(sizeof(struct psi_group), GFP_KERNEL);
++	if (!cgroup->psi)
+ 		return -ENOMEM;
+-	group_init(&cgroup->psi);
++
++	cgroup->psi->pcpu = alloc_percpu(struct psi_group_cpu);
++	if (!cgroup->psi->pcpu) {
++		kfree(cgroup->psi);
++		return -ENOMEM;
++	}
++	group_init(cgroup->psi);
+ 	return 0;
+ }
+ 
+@@ -1043,10 +1049,11 @@ void psi_cgroup_free(struct cgroup *cgroup)
+ 	if (static_branch_likely(&psi_disabled))
+ 		return;
+ 
+-	cancel_delayed_work_sync(&cgroup->psi.avgs_work);
+-	free_percpu(cgroup->psi.pcpu);
++	cancel_delayed_work_sync(&cgroup->psi->avgs_work);
++	free_percpu(cgroup->psi->pcpu);
+ 	/* All triggers must be removed by now */
+-	WARN_ONCE(cgroup->psi.poll_states, "psi: trigger leak\n");
++	WARN_ONCE(cgroup->psi->poll_states, "psi: trigger leak\n");
++	kfree(cgroup->psi);
+ }
+ 
+ /**
+-- 
+2.17.1
+

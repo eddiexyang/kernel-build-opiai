@@ -1,0 +1,42 @@
+From fc1eb5f030822672eac0ef916ca664c1d2e0a11b Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Tue, 10 May 2022 10:26:48 +0800
+Subject: [PATCH 3548/4585] [Huawei] mm: Update reliable flag in memory
+ allocaion for reliable task only in task context
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187270
+
+--------------------------------
+
+Since interrupt may occupy reliable task's context and its current->flags
+will have PF_RELIABLE and this will lead to redirect it's memory allocation
+to mirrored region.
+
+In order to solve this problem, update reliable task's gfp flag can only
+happen in normal task context by checking in_task().
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/page_alloc.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index edccc36bf266..d65dcde1381b 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -5182,6 +5182,9 @@ static inline void prepare_before_alloc(gfp_t *gfp_mask)
+ 	if (!zone_movable)
+ 		goto clear_flag;
+ 
++	if (!in_task())
++		return;
++
+ 	if ((current->flags & PF_RELIABLE) || is_global_init(current))
+ 		*gfp_mask |= GFP_RELIABLE;
+ 
+-- 
+2.17.1
+

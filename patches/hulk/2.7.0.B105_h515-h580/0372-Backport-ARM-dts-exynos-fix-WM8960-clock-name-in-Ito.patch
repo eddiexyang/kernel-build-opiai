@@ -1,0 +1,47 @@
+From 1ba2d97379ccb37b673620ca6d0d1a42e2d63b5f Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 17 Feb 2023 16:06:27 +0100
+Subject: [PATCH 372/780] [Backport] ARM: dts: exynos: fix WM8960 clock name in
+ Itop Elite
+
+stable inclusion
+from stable-v5.10.180
+commit fed6318e47222c88655b7c3a9b216fa94899a6e2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fed6318e47222c88655b7c3a9b216fa94899a6e2
+
+--------------------------------
+
+commit 6c950c20da38debf1ed531e0b972bd8b53d1c11f upstream.
+
+The WM8960 Linux driver expects the clock to be named "mclk".  Otherwise
+the clock will be ignored and not prepared/enabled by the driver.
+
+Cc: <stable@vger.kernel.org>
+Fixes: 339b2fb36a67 ("ARM: dts: exynos: Add TOPEET itop elite based board")
+Link: https://lore.kernel.org/r/20230217150627.779764-3-krzysztof.kozlowski@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/exynos4412-itop-elite.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/exynos4412-itop-elite.dts b/arch/arm/boot/dts/exynos4412-itop-elite.dts
+index f6d0a5f5d339..9a2a49420d4d 100644
+--- a/arch/arm/boot/dts/exynos4412-itop-elite.dts
++++ b/arch/arm/boot/dts/exynos4412-itop-elite.dts
+@@ -179,7 +179,7 @@
+ 		compatible = "wlf,wm8960";
+ 		reg = <0x1a>;
+ 		clocks = <&pmu_system_controller 0>;
+-		clock-names = "MCLK1";
++		clock-names = "mclk";
+ 		wlf,shared-lrclk;
+ 		#sound-dai-cells = <0>;
+ 	};
+-- 
+2.17.1
+

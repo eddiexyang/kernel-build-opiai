@@ -1,0 +1,53 @@
+From 9297f1ed56010066050830895ade14ec3fe110d1 Mon Sep 17 00:00:00 2001
+From: Douglas Raillard <douglas.raillard@arm.com>
+Date: Mon, 6 Mar 2023 12:27:43 +0000
+Subject: [PATCH 1569/1646] [Backport] rcu: Fix rcu_torture_read ftrace event
+
+stable inclusion
+from stable-v5.10.177
+commit a484f8bec8ee33e596d6936241bb397e76144ef8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a484f8bec8ee33e596d6936241bb397e76144ef8
+
+--------------------------------
+
+commit d18a04157fc171fd48075e3dc96471bd3b87f0dd upstream.
+
+Fix the rcutorturename field so that its size is correctly reported in
+the text format embedded in trace.dat files. As it stands, it is
+reported as being of size 1:
+
+    field:char rcutorturename[8];   offset:8;       size:1; signed:0;
+
+Signed-off-by: Douglas Raillard <douglas.raillard@arm.com>
+Reviewed-by: Mukesh Ojha <quic_mojha@quicinc.com>
+Cc: stable@vger.kernel.org
+Fixes: 04ae87a52074e ("ftrace: Rework event_create_dir()")
+Reviewed-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+[ boqun: Add "Cc" and "Fixes" tags per Steven ]
+Signed-off-by: Boqun Feng <boqun.feng@gmail.com>
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/trace/events/rcu.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/trace/events/rcu.h b/include/trace/events/rcu.h
+index 155b5cb43cfd..2d8790e40901 100644
+--- a/include/trace/events/rcu.h
++++ b/include/trace/events/rcu.h
+@@ -713,7 +713,7 @@ TRACE_EVENT_RCU(rcu_torture_read,
+ 	TP_ARGS(rcutorturename, rhp, secs, c_old, c),
+ 
+ 	TP_STRUCT__entry(
+-		__field(char, rcutorturename[RCUTORTURENAME_LEN])
++		__array(char, rcutorturename, RCUTORTURENAME_LEN)
+ 		__field(struct rcu_head *, rhp)
+ 		__field(unsigned long, secs)
+ 		__field(unsigned long, c_old)
+-- 
+2.17.1
+

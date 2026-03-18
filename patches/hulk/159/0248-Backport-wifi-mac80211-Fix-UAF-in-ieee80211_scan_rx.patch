@@ -1,0 +1,72 @@
+From 02edea0ab2e86cde9fc70ccc8ec18f66b6ef9e13 Mon Sep 17 00:00:00 2001
+From: Siddh Raman Pant <code@siddh.me>
+Date: Sat, 20 Aug 2022 01:33:40 +0530
+Subject: [PATCH 248/595] [Backport] wifi: mac80211: Fix UAF in
+ ieee80211_scan_rx()
+
+stable inclusion
+from stable-v5.10.142
+commit 4abc8c07a065ecf771827bde3c63fbbe4aa0c08b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5Z5BV
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4abc8c07a065ecf771827bde3c63fbbe4aa0c08b
+
+--------------------------------
+
+commit 60deb9f10eec5c6a20252ed36238b55d8b614a2c upstream.
+
+ieee80211_scan_rx() tries to access scan_req->flags after a
+null check, but a UAF is observed when the scan is completed
+and __ieee80211_scan_completed() executes, which then calls
+cfg80211_scan_done() leading to the freeing of scan_req.
+
+Since scan_req is rcu_dereference()'d, prevent the racing in
+__ieee80211_scan_completed() by ensuring that from mac80211's
+POV it is no longer accessed from an RCU read critical section
+before we call cfg80211_scan_done().
+
+Cc: stable@vger.kernel.org
+Link: https://syzkaller.appspot.com/bug?extid=f9acff9bf08a845f225d
+Reported-by: syzbot+f9acff9bf08a845f225d@syzkaller.appspotmail.com
+Suggested-by: Johannes Berg <johannes@sipsolutions.net>
+Signed-off-by: Siddh Raman Pant <code@siddh.me>
+Link: https://lore.kernel.org/r/20220819200340.34826-1-code@siddh.me
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/mac80211/scan.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/net/mac80211/scan.c b/net/mac80211/scan.c
+index edd84f367880..b241ff8c015a 100644
+--- a/net/mac80211/scan.c
++++ b/net/mac80211/scan.c
+@@ -463,16 +463,19 @@ static void __ieee80211_scan_completed(struct ieee80211_hw *hw, bool aborted)
+ 	scan_req = rcu_dereference_protected(local->scan_req,
+ 					     lockdep_is_held(&local->mtx));
+ 
+-	if (scan_req != local->int_scan_req) {
+-		local->scan_info.aborted = aborted;
+-		cfg80211_scan_done(scan_req, &local->scan_info);
+-	}
+ 	RCU_INIT_POINTER(local->scan_req, NULL);
+ 	RCU_INIT_POINTER(local->scan_sdata, NULL);
+ 
+ 	local->scanning = 0;
+ 	local->scan_chandef.chan = NULL;
+ 
++	synchronize_rcu();
++
++	if (scan_req != local->int_scan_req) {
++		local->scan_info.aborted = aborted;
++		cfg80211_scan_done(scan_req, &local->scan_info);
++	}
++
+ 	/* Set power back to normal operating levels. */
+ 	ieee80211_hw_config(local, 0);
+ 
+-- 
+2.17.1
+

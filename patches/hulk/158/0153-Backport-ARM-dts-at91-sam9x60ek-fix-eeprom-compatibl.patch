@@ -1,0 +1,53 @@
+From 4e2fba3cf0c1f9c40e4e2897a5cac31b0ba5d390 Mon Sep 17 00:00:00 2001
+From: Eugen Hristev <eugen.hristev@microchip.com>
+Date: Tue, 7 Jun 2022 12:04:54 +0300
+Subject: [PATCH 0153/1076] [Backport] ARM: dts: at91: sam9x60ek: fix eeprom
+ compatible and size
+
+stable inclusion
+from stable-v5.10.130
+commit 9b7d8e28b686d57e734c3f4877a7acd6f037cf59
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PO3W
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9b7d8e28b686d57e734c3f4877a7acd6f037cf59
+
+--------------------------------
+
+[ Upstream commit f2cbbc3f926316ccf8ef9363d8a60c1110afc1c7 ]
+
+The board has a microchip 24aa025e48 eeprom, which is a 2 Kbits memory,
+so it's compatible with at24c02 not at24c32.
+Also the size property is wrong, it's not 128 bytes, but 256 bytes.
+Thus removing and leaving it to the default (256).
+
+Fixes: 1e5f532c27371 ("ARM: dts: at91: sam9x60: add device tree for soc and board")
+Signed-off-by: Eugen Hristev <eugen.hristev@microchip.com>
+Reviewed-by: Claudiu Beznea <claudiu.beznea@microchip.com>
+Signed-off-by: Claudiu Beznea <claudiu.beznea@microchip.com>
+Link: https://lore.kernel.org/r/20220607090455.80433-1-eugen.hristev@microchip.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/arm/boot/dts/at91-sam9x60ek.dts | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/at91-sam9x60ek.dts b/arch/arm/boot/dts/at91-sam9x60ek.dts
+index b1068cca4228..fd8dc1183b3e 100644
+--- a/arch/arm/boot/dts/at91-sam9x60ek.dts
++++ b/arch/arm/boot/dts/at91-sam9x60ek.dts
+@@ -233,10 +233,9 @@
+ 		status = "okay";
+ 
+ 		eeprom@53 {
+-			compatible = "atmel,24c32";
++			compatible = "atmel,24c02";
+ 			reg = <0x53>;
+ 			pagesize = <16>;
+-			size = <128>;
+ 			status = "okay";
+ 		};
+ 	};
+-- 
+2.17.1
+

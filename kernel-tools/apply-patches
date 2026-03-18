@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# Given a series.conf file and a directory with patches, applies them to the
+# current directory.
+# Used by kernel-source.spec.in and kernel-binary.spec.in
+
+USAGE="$0 [--vanilla] <series.conf> <patchdir> [symbol ...]"
+
+set -e
+set -o pipefail
+
+if test "$1" == "--git"; then
+	APPLY_CMD="git am"
+	shift
+else
+	APPLY_CMD="patch -s -E -p1 --batch --no-backup-if-mismatch -i"
+fi
+
+vanilla=false
+if test "$1" == "--vanilla"; then
+	vanilla=true
+	shift
+fi
+if test $# -lt 2; then
+	echo "$USAGE" >&2
+	exit 1
+fi
+DIR="${0%/*}"
+SERIES_CONF=$1
+PATCH_DIR=$2
+shift 2
+
+trap 'rm -f "$series"' EXIT
+series=$(mktemp)
+# support for patches in patches.addon/series
+cp "$SERIES_CONF" "$series"
+if ! $vanilla && test -e "$PATCH_DIR/patches.addon/series"; then
+	# make it user-friendly and automatically prepend "patches.addon/"
+	# if there is no "/"
+	sed -r 's|^([[:space:]]*)([^#[:space:]][^/]*)$|\1patches.addon/\2|' \
+		"$PATCH_DIR/patches.addon/series" >>"$series"
+fi
+
+(
+	echo "trap 'echo \"*** patch \$_ failed ***\"' ERR"
+	echo "set -ex"
+	"$DIR"/guards "$@" <"$series" | \
+	if $vanilla; then
+		egrep '^patches\.(kernel\.org|rpmify)/'
+	else
+		cat
+	fi |\
+	sed "s|^|$APPLY_CMD $PATCH_DIR/|"
+) | /bin/bash
+

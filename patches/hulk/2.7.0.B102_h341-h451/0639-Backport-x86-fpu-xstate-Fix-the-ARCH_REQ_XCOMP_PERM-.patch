@@ -1,0 +1,52 @@
+From 2eaf991e14631e4d18c3bcb86b814be4dd8cb6c5 Mon Sep 17 00:00:00 2001
+From: Yang Zhong <yang.zhong@intel.com>
+Date: Sat, 29 Jan 2022 09:36:46 -0800
+Subject: [PATCH 0639/1646] [Backport] x86/fpu/xstate: Fix the
+ ARCH_REQ_XCOMP_PERM implementation
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 063452fd94d153d4eb38ad58f210f3d37a09cca4
+category: bugfix
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=063452fd94d153d4eb38ad58f210f3d37a09cca4
+
+--------------------------------
+
+ARCH_REQ_XCOMP_PERM is supposed to add the requested feature to the
+permission bitmap of thread_group_leader()->fpu. But the code overwrites
+the bitmap with the requested feature bit only rather than adding it.
+
+Fix the code to add the requested feature bit to the master bitmask.
+
+Fixes: db8268df0983 ("x86/arch_prctl: Add controls for dynamic XSTATE components")
+Signed-off-by: Yang Zhong <yang.zhong@intel.com>
+Signed-off-by: Chang S. Bae <chang.seok.bae@intel.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: Paolo Bonzini <bonzini@gnu.org>
+Cc: stable@vger.kernel.org
+Link: https://lore.kernel.org/r/20220129173647.27981-2-chang.seok.bae@intel.com
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kernel/fpu/xstate.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/fpu/xstate.c b/arch/x86/kernel/fpu/xstate.c
+index 98f27706d9e5..b66bb37f2bcf 100644
+--- a/arch/x86/kernel/fpu/xstate.c
++++ b/arch/x86/kernel/fpu/xstate.c
+@@ -1626,7 +1626,7 @@ static int __xstate_request_perm(u64 permitted, u64 requested)
+ 		return ret;
+ 
+ 	/* Pairs with the READ_ONCE() in xstate_get_group_perm() */
+-	WRITE_ONCE(fpu->perm.__state_perm, requested);
++	WRITE_ONCE(fpu->perm.__state_perm, mask);
+ 	/* Protected by sighand lock */
+ 	fpu->perm.__state_size = ksize;
+ 	fpu->perm.__user_state_size = usize;
+-- 
+2.17.1
+

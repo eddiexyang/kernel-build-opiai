@@ -1,0 +1,112 @@
+From 6b6f5018628bbb2cf081891e8d886cf141cafb74 Mon Sep 17 00:00:00 2001
+From: Xu Jia <xujia39@huawei.com>
+Date: Sat, 25 Jun 2022 16:54:26 +0800
+Subject: [PATCH 2626/4585] [Huawei] Revert "[Backport] net/sched: flower: fix
+ parsing of ethertype following VLAN header"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187072
+
+--------------------------------
+
+This reverts commit ff471b7866daedcda575a7b7adcc4a4ccc142d17.
+This commit breaks KABI and is hard to fix. Revert it to fix KABI.
+
+Signed-off-by: Xu Jia <xujia39@huawei.com>
+---
+ include/net/flow_dissector.h |  2 --
+ net/core/flow_dissector.c    |  1 -
+ net/sched/cls_flower.c       | 18 +++++-------------
+ 3 files changed, 5 insertions(+), 16 deletions(-)
+
+diff --git a/include/net/flow_dissector.h b/include/net/flow_dissector.h
+index 537f9f45c6b3..31a748a52c90 100644
+--- a/include/net/flow_dissector.h
++++ b/include/net/flow_dissector.h
+@@ -60,8 +60,6 @@ struct flow_dissector_key_vlan {
+ 		__be16	vlan_tci;
+ 	};
+ 	__be16	vlan_tpid;
+-	__be16	vlan_eth_type;
+-	u16	padding;
+ };
+ 
+ struct flow_dissector_mpls_lse {
+diff --git a/net/core/flow_dissector.c b/net/core/flow_dissector.c
+index f9baa9b1c77f..813c709c61cf 100644
+--- a/net/core/flow_dissector.c
++++ b/net/core/flow_dissector.c
+@@ -1171,7 +1171,6 @@ bool __skb_flow_dissect(const struct net *net,
+ 					 VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT;
+ 			}
+ 			key_vlan->vlan_tpid = saved_vlan_tpid;
+-			key_vlan->vlan_eth_type = proto;
+ 		}
+ 
+ 		fdret = FLOW_DISSECT_RET_PROTO_AGAIN;
+diff --git a/net/sched/cls_flower.c b/net/sched/cls_flower.c
+index 35ee6d8226e6..8ff6945b9f8f 100644
+--- a/net/sched/cls_flower.c
++++ b/net/sched/cls_flower.c
+@@ -998,7 +998,6 @@ static int fl_set_key_mpls(struct nlattr **tb,
+ static void fl_set_key_vlan(struct nlattr **tb,
+ 			    __be16 ethertype,
+ 			    int vlan_id_key, int vlan_prio_key,
+-			    int vlan_next_eth_type_key,
+ 			    struct flow_dissector_key_vlan *key_val,
+ 			    struct flow_dissector_key_vlan *key_mask)
+ {
+@@ -1017,11 +1016,6 @@ static void fl_set_key_vlan(struct nlattr **tb,
+ 	}
+ 	key_val->vlan_tpid = ethertype;
+ 	key_mask->vlan_tpid = cpu_to_be16(~0);
+-	if (tb[vlan_next_eth_type_key]) {
+-		key_val->vlan_eth_type =
+-			nla_get_be16(tb[vlan_next_eth_type_key]);
+-		key_mask->vlan_eth_type = cpu_to_be16(~0);
+-	}
+ }
+ 
+ static void fl_set_key_flag(u32 flower_key, u32 flower_mask,
+@@ -1503,9 +1497,8 @@ static int fl_set_key(struct net *net, struct nlattr **tb,
+ 
+ 		if (eth_type_vlan(ethertype)) {
+ 			fl_set_key_vlan(tb, ethertype, TCA_FLOWER_KEY_VLAN_ID,
+-					TCA_FLOWER_KEY_VLAN_PRIO,
+-					TCA_FLOWER_KEY_VLAN_ETH_TYPE,
+-					&key->vlan, &mask->vlan);
++					TCA_FLOWER_KEY_VLAN_PRIO, &key->vlan,
++					&mask->vlan);
+ 
+ 			if (tb[TCA_FLOWER_KEY_VLAN_ETH_TYPE]) {
+ 				ethertype = nla_get_be16(tb[TCA_FLOWER_KEY_VLAN_ETH_TYPE]);
+@@ -1513,7 +1506,6 @@ static int fl_set_key(struct net *net, struct nlattr **tb,
+ 					fl_set_key_vlan(tb, ethertype,
+ 							TCA_FLOWER_KEY_CVLAN_ID,
+ 							TCA_FLOWER_KEY_CVLAN_PRIO,
+-							TCA_FLOWER_KEY_CVLAN_ETH_TYPE,
+ 							&key->cvlan, &mask->cvlan);
+ 					fl_set_key_val(tb, &key->basic.n_proto,
+ 						       TCA_FLOWER_KEY_CVLAN_ETH_TYPE,
+@@ -2869,13 +2861,13 @@ static int fl_dump_key(struct sk_buff *skb, struct net *net,
+ 		goto nla_put_failure;
+ 
+ 	if (mask->basic.n_proto) {
+-		if (mask->cvlan.vlan_eth_type) {
++		if (mask->cvlan.vlan_tpid) {
+ 			if (nla_put_be16(skb, TCA_FLOWER_KEY_CVLAN_ETH_TYPE,
+ 					 key->basic.n_proto))
+ 				goto nla_put_failure;
+-		} else if (mask->vlan.vlan_eth_type) {
++		} else if (mask->vlan.vlan_tpid) {
+ 			if (nla_put_be16(skb, TCA_FLOWER_KEY_VLAN_ETH_TYPE,
+-					 key->vlan.vlan_eth_type))
++					 key->basic.n_proto))
+ 				goto nla_put_failure;
+ 		}
+ 	}
+-- 
+2.17.1
+

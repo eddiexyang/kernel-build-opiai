@@ -1,0 +1,42 @@
+From 82a22253c7edb563e77c9893734949946cfecf52 Mon Sep 17 00:00:00 2001
+From: Chao Liu <liuchao173@huawei.com>
+Date: Tue, 31 May 2022 23:19:47 +0800
+Subject: [PATCH 2963/4585] [Backport] config: change CONFIG_DMATEST from y to
+ m
+
+euler inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I59Q07
+
+Reference: https://gitee.com/openeuler/kernel/commit/34722d01b271bc1c48921e29f1672bdc3aa73042
+
+--------------------------------
+
+Simple DMA test client. Say N unless you're debugging a DMA Device driver.
+It doesn't need to be compiled into the vmlinux, change it to m.
+
+Signed-off-by: Chao Liu <liuchao173@huawei.com>
+Reviewed-by: Kai Liu <kai.liu@suse.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/x86/configs/openeuler_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index e90a0dbea93a..3cbfd7ddb89d 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -6371,7 +6371,7 @@ CONFIG_HSU_DMA=y
+ # DMA Clients
+ #
+ CONFIG_ASYNC_TX_DMA=y
+-CONFIG_DMATEST=y
++CONFIG_DMATEST=m
+ CONFIG_DMA_ENGINE_RAID=y
+ 
+ #
+-- 
+2.17.1
+

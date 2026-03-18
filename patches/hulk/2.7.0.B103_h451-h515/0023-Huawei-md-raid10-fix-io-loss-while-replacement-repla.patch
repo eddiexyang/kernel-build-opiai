@@ -1,0 +1,76 @@
+From 6553607ecf433846acd446b1c097ae8978af7412 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Wed, 17 May 2023 19:49:55 +0800
+Subject: [PATCH 023/263] [Huawei] md/raid10: fix io loss while replacement
+ replace rdev
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188787
+
+--------------------------------
+
+When we remove a disk which has replacement, first set rdev to NULL
+and then set replacement to rdev, finally set replacement to NULL (see
+raid10_remove_disk()). If io is submitted during the same time, it might
+read both rdev and replacement as NULL, and io will not be submitted.
+
+  rdev -> NULL
+                        read rdev
+  replacement -> NULL
+                        read replacement
+
+Fix it by reading replacement first and rdev later, meanwhile, use smp_mb()
+to prevent memory reordering.
+
+Fixes: 475b0321a4df ("md/raid10: writes should get directed to replacement as well as original.")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/raid10.c | 22 ++++++++++++++++++----
+ 1 file changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index 522a23d4549e..b226f8b4f6e6 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -758,8 +758,16 @@ static struct md_rdev *read_balance(struct r10conf *conf,
+ 		rdev = rcu_dereference(conf->mirrors[disk].replacement);
+ 		if (rdev == NULL || test_bit(Faulty, &rdev->flags) ||
+ 		    test_bit(WantRemove, &rdev->flags) ||
+-		    r10_bio->devs[slot].addr + sectors > rdev->recovery_offset)
++		    r10_bio->devs[slot].addr + sectors >
++		    rdev->recovery_offset) {
++			/*
++			 * Read replacement first to prevent reading both rdev
++			 * and replacement as NULL during replacement replace
++			 * rdev
++			 */
++			smp_mb();
+ 			rdev = rcu_dereference(conf->mirrors[disk].rdev);
++		}
+ 		if (rdev == NULL ||
+ 		    test_bit(WantRemove, &rdev->flags) ||
+ 		    test_bit(Faulty, &rdev->flags))
+@@ -1359,9 +1367,15 @@ static void raid10_write_request(struct mddev *mddev, struct bio *bio,
+ 
+ 	for (i = 0;  i < conf->copies; i++) {
+ 		int d = r10_bio->devs[i].devnum;
+-		struct md_rdev *rdev = rcu_dereference(conf->mirrors[d].rdev);
+-		struct md_rdev *rrdev = rcu_dereference(
+-			conf->mirrors[d].replacement);
++		struct md_rdev *rrdev, *rdev;
++
++		rrdev = rcu_dereference(conf->mirrors[d].replacement);
++		/*
++		 * Read replacement first to Prevent reading both rdev and
++		 * replacement as NULL during replacement replace rdev.
++		 */
++		smp_mb();
++		rdev = rcu_dereference(conf->mirrors[d].rdev);
+ 		if (rdev == rrdev)
+ 			rrdev = NULL;
+ 		if (rdev && unlikely(test_bit(Blocked, &rdev->flags))) {
+-- 
+2.17.1
+

@@ -1,0 +1,50 @@
+From ffbfa7afff6d2c9efbca5dc2e620b26bd3d6b738 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Fri, 2 Dec 2022 01:38:50 -0800
+Subject: [PATCH 489/905] [Backport] mcb: mcb-parse: fix error handing in
+ chameleon_parse_gdd()
+
+stable inclusion
+from stable-v5.10.163
+commit 7b289b791a59386dc23a00d3cf17a0db984b40d3
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7b289b791a59386dc23a00d3cf17a0db984b40d3
+
+--------------------------------
+
+[ Upstream commit 728ac3389296caf68638628c987aeae6c8851e2d ]
+
+If mcb_device_register() returns error in chameleon_parse_gdd(), the refcount
+of bus and device name are leaked. Fix this by calling put_device() to give up
+the reference, so they can be released in mcb_release_dev() and kobject_cleanup().
+
+Fixes: 3764e82e5150 ("drivers: Introduce MEN Chameleon Bus")
+Reviewed-by: Johannes Thumshirn <jth@kernel.org>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Johannes Thumshirn <jth@kernel.org>
+Link: https://lore.kernel.org/r/ebfb06e39b19272f0197fa9136b5e4b6f34ad732.1669624063.git.johannes.thumshirn@wdc.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/mcb/mcb-parse.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/mcb/mcb-parse.c b/drivers/mcb/mcb-parse.c
+index 0266bfddfbe2..aa6938da0db8 100644
+--- a/drivers/mcb/mcb-parse.c
++++ b/drivers/mcb/mcb-parse.c
+@@ -108,7 +108,7 @@ static int chameleon_parse_gdd(struct mcb_bus *bus,
+ 	return 0;
+ 
+ err:
+-	mcb_free_dev(mdev);
++	put_device(&mdev->dev);
+ 
+ 	return ret;
+ }
+-- 
+2.17.1
+

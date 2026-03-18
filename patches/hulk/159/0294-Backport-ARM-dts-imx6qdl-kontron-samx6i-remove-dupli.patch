@@ -1,0 +1,54 @@
+From 78058e7b35f93345bc4a75437fbef17fd5b927a1 Mon Sep 17 00:00:00 2001
+From: Marco Felsch <m.felsch@pengutronix.de>
+Date: Tue, 26 Jul 2022 15:05:21 +0200
+Subject: [PATCH 294/595] [Backport] ARM: dts: imx6qdl-kontron-samx6i: remove
+ duplicated node
+
+stable inclusion
+from stable-v5.10.143
+commit bb4bee3eca783107101f5f3f55bbb35f14e6be39
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZG5T
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=bb4bee3eca783107101f5f3f55bbb35f14e6be39
+
+--------------------------------
+
+[ Upstream commit 204f67d86f55dd4fa757ed04757d7273f71a169c ]
+
+The regulator node 'regulator-3p3v-s0' was dupplicated. Remove it to
+clean the DTS.
+
+Fixes: 2a51f9dae13d ("ARM: dts: imx6qdl-kontron-samx6i: Add iMX6-based Kontron SMARC-sAMX6i module")
+Signed-off-by: Marco Felsch <m.felsch@pengutronix.de>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/imx6qdl-kontron-samx6i.dtsi | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6qdl-kontron-samx6i.dtsi b/arch/arm/boot/dts/imx6qdl-kontron-samx6i.dtsi
+index 92f9977d1482..e9a4115124eb 100644
+--- a/arch/arm/boot/dts/imx6qdl-kontron-samx6i.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-kontron-samx6i.dtsi
+@@ -51,16 +51,6 @@
+ 		vin-supply = <&reg_3p3v_s5>;
+ 	};
+ 
+-	reg_3p3v_s0: regulator-3p3v-s0 {
+-		compatible = "regulator-fixed";
+-		regulator-name = "V_3V3_S0";
+-		regulator-min-microvolt = <3300000>;
+-		regulator-max-microvolt = <3300000>;
+-		regulator-always-on;
+-		regulator-boot-on;
+-		vin-supply = <&reg_3p3v_s5>;
+-	};
+-
+ 	reg_3p3v_s5: regulator-3p3v-s5 {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "V_3V3_S5";
+-- 
+2.17.1
+

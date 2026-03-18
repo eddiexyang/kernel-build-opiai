@@ -1,0 +1,122 @@
+From e4365d5a6ff1d0f9c3e4002393f3fc14b7eeeb54 Mon Sep 17 00:00:00 2001
+From: Kumar Kartikeya Dwivedi <memxor@gmail.com>
+Date: Fri, 17 Dec 2021 07:20:24 +0530
+Subject: [PATCH 346/921] [Backport] bpf: Extend kfunc with PTR_TO_CTX,
+ PTR_TO_MEM argument support
+
+mainline inclusion
+from mainline-v5.13-rc4
+commit 3363bd0cfbb80dfcd25003cd3815b0ad8b68d0ff
+category: feature
+bugzilla: N/A
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3363bd0cfbb80dfcd25003cd3815b0ad8b68d0ff
+
+------------------------------------------------------
+
+Allow passing PTR_TO_CTX, if the kfunc expects a matching struct type,
+and punt to PTR_TO_MEM block if reg->type does not fall in one of
+PTR_TO_BTF_ID or PTR_TO_SOCK* types. This will be used by future commits
+to get access to XDP and TC PTR_TO_CTX, and pass various data (flags,
+l4proto, netns_id, etc.) encoded in opts struct passed as pointer to
+kfunc.
+
+For PTR_TO_MEM support, arguments are currently limited to pointer to
+scalar, or pointer to struct composed of scalars. This is done so that
+unsafe scenarios (like passing PTR_TO_MEM where PTR_TO_BTF_ID of
+in-kernel valid structure is expected, which may have pointers) are
+avoided. Since the argument checking happens basd on argument register
+type, it is not easy to ascertain what the expected type is. In the
+future, support for PTR_TO_MEM for kfunc can be extended to serve other
+usecases. The struct type whose pointer is passed in may have maximum
+nesting depth of 4, all recursively composed of scalars or struct with
+scalars.
+
+Future commits will add negative tests that check whether these
+restrictions imposed for kfunc arguments are duly rejected by BPF
+verifier or not.
+
+Signed-off-by: Kumar Kartikeya Dwivedi <memxor@gmail.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Link: https://lore.kernel.org/bpf/20211217015031.1278167-4-memxor@gmail.com
+
+Conflicts:
+	kernel/bpf/btf.c
+
+Signed-off-by: Yang Jihong <yangjihong1@huawei.com>
+---
+ kernel/bpf/btf.c | 35 ++++++++++++++++-------------------
+ 1 file changed, 16 insertions(+), 19 deletions(-)
+
+diff --git a/kernel/bpf/btf.c b/kernel/bpf/btf.c
+index 2a24e956a871..eae7a042c15a 100644
+--- a/kernel/bpf/btf.c
++++ b/kernel/bpf/btf.c
+@@ -5148,6 +5148,7 @@ static int btf_check_func_arg_match(struct bpf_verifier_env *env,
+ 				    struct bpf_reg_state *regs)
+ {
+ 	struct bpf_verifier_log *log = &env->log;
++	bool is_kfunc = btf->kernel_btf;
+ 	const char *func_name, *ref_tname;
+ 	const struct btf_type *t, *ref_t;
+ 	const struct btf_param *args;
+@@ -5204,7 +5205,20 @@ static int btf_check_func_arg_match(struct bpf_verifier_env *env,
+ 
+ 		ref_t = btf_type_skip_modifiers(btf, t->type, &ref_id);
+ 		ref_tname = btf_name_by_offset(btf, ref_t->name_off);
+-		if (btf->kernel_btf) {
++		if (btf_get_prog_ctx_type(log, btf, t,
++					  env->prog->type, i)) {
++			/* If function expects ctx type in BTF check that caller
++			 * is passing PTR_TO_CTX.
++			 */
++			if (reg->type != PTR_TO_CTX) {
++				bpf_log(log,
++					"arg#%d expected pointer to ctx, but got %s\n",
++					i, btf_type_str(t));
++				return -EINVAL;
++			}
++			if (check_ptr_off_reg(env, reg, regno))
++				return -EINVAL;
++		} else if (is_kfunc && (reg->type == PTR_TO_BTF_ID || reg2btf_ids[reg->type])) {
+ 			const struct btf_type *reg_ref_t;
+ 			const struct btf *reg_btf;
+ 			const char *reg_ref_tname;
+@@ -5220,14 +5234,9 @@ static int btf_check_func_arg_match(struct bpf_verifier_env *env,
+ 			if (reg->type == PTR_TO_BTF_ID) {
+ 				reg_btf = btf_vmlinux;
+ 				reg_ref_id = reg->btf_id;
+-			} else if (reg2btf_ids[reg->type]) {
++			} else {
+ 				reg_btf = btf_vmlinux;
+ 				reg_ref_id = *reg2btf_ids[reg->type];
+-			} else {
+-				bpf_log(log, "kernel function %s args#%d expected pointer to %s %s but R%d is not a pointer to btf_id\n",
+-					func_name, i,
+-					btf_type_str(ref_t), ref_tname, i + 1);
+-				return -EINVAL;
+ 			}
+ 
+ 			reg_ref_t = btf_type_skip_modifiers(reg_btf, reg_ref_id,
+@@ -5242,18 +5251,6 @@ static int btf_check_func_arg_match(struct bpf_verifier_env *env,
+ 					i + 1, btf_type_str(reg_ref_t),
+ 					reg_ref_tname);
+ 			}
+-		} else if (btf_get_prog_ctx_type(log, btf, t, env->prog->type, i)) {
+-			/* If function expects ctx type in BTF check that caller
+-			 * is passing PTR_TO_CTX.
+-			 */
+-			if (reg->type != PTR_TO_CTX) {
+-				bpf_log(log,
+-					"arg#%d expected pointer to ctx, but got %s\n",
+-					i, btf_type_str(t));
+-				return -EINVAL;
+-			}
+-			if (check_ptr_off_reg(env, reg, regno))
+-				return -EINVAL;
+ 		}
+ 	}
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,41 @@
+From d62faac9d39f1e5161b384a1a3fac2f92f4c102f Mon Sep 17 00:00:00 2001
+From: Yu Jiahua <yujiahua1@huawei.com>
+Date: Sun, 8 Aug 2021 22:43:31 -0800
+Subject: [PATCH 3312/4585] [Huawei] sched: Access control for
+ sysctl_update_load_latency
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 175551
+
+--------------------------------
+
+Add access control for sysctl_update_load_latency
+
+Signed-off-by: Yu Jiahua <yujiahua1@huawei.com>
+Reviewed-by: Chen Hui <judy.chenhui@huawei.com>
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+Patchwork Links: http://patchwork.huawei.com/project/hulk5.10/list/?series=17763
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ kernel/sched/fair.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 06497312e130..022ac0addabc 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -59,6 +59,9 @@ int sysctl_update_load_latency(struct ctl_table *table, int write,
+ 	int latency = sysctl_load_tracking_latency;
+ 	struct ctl_table t;
+ 
++	if (write && !capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
+ 	t = *table;
+ 	t.data = &latency;
+ 	t.extra1 = &min;
+-- 
+2.17.1
+

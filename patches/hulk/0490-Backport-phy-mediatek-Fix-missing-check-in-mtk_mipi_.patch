@@ -1,0 +1,47 @@
+From 74a66690cc04b2109dddee112c0a68491b85b558 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Wed, 27 Apr 2022 11:16:01 +0800
+Subject: [PATCH 0490/2065] [Backport] phy: mediatek: Fix missing check in
+ mtk_mipi_tx_probe
+
+stable inclusion
+from stable-v5.10.94
+commit 082ff9e12b4a1c40142a1710f0534e65c48f1d51
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=082ff9e12b4a1c40142a1710f0534e65c48f1d51
+
+--------------------------------
+
+[ Upstream commit 399c91c3f30531593e5ff6ca7b53f47092128669 ]
+
+The of_device_get_match_data() function may return NULL.
+Add check to prevent potential null dereference.
+
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Link: https://lore.kernel.org/r/20211224082103.7658-1-linmq006@gmail.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/gpu/drm/mediatek/mtk_mipi_tx.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/mediatek/mtk_mipi_tx.c b/drivers/gpu/drm/mediatek/mtk_mipi_tx.c
+index 8cee2591e728..ccc742dc78bd 100644
+--- a/drivers/gpu/drm/mediatek/mtk_mipi_tx.c
++++ b/drivers/gpu/drm/mediatek/mtk_mipi_tx.c
+@@ -147,6 +147,8 @@ static int mtk_mipi_tx_probe(struct platform_device *pdev)
+ 		return -ENOMEM;
+ 
+ 	mipi_tx->driver_data = of_device_get_match_data(dev);
++	if (!mipi_tx->driver_data)
++		return -ENODEV;
+ 
+ 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	mipi_tx->regs = devm_ioremap_resource(dev, mem);
+-- 
+2.17.1
+

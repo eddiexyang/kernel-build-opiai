@@ -1,0 +1,50 @@
+From 8e90a5e5cf8ae15fa13427bc9bce52aeec441d4c Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Tue, 9 May 2023 16:35:53 +0000
+Subject: [PATCH 419/780] [Backport] net: annotate sk->sk_err write from
+ do_recvmmsg()
+
+stable inclusion
+from stable-v5.10.181
+commit 1b33bdd76635cf4f1de30ef48be87fca309c9e25
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1b33bdd76635cf4f1de30ef48be87fca309c9e25
+
+--------------------------------
+
+[ Upstream commit e05a5f510f26607616fecdd4ac136310c8bea56b ]
+
+do_recvmmsg() can write to sk->sk_err from multiple threads.
+
+As said before, many other points reading or writing sk_err
+need annotations.
+
+Fixes: 34b88a68f26a ("net: Fix use after free in the recvmmsg exit path")
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Reported-by: syzbot <syzkaller@googlegroups.com>
+Reviewed-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/socket.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/socket.c b/net/socket.c
+index 15976433d5e0..9314e581e86f 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -2768,7 +2768,7 @@ static int do_recvmmsg(int fd, struct mmsghdr __user *mmsg,
+ 		 * error to return on the next call or if the
+ 		 * app asks about it using getsockopt(SO_ERROR).
+ 		 */
+-		sock->sk->sk_err = -err;
++		WRITE_ONCE(sock->sk->sk_err, -err);
+ 	}
+ out_put:
+ 	fput_light(sock->file, fput_needed);
+-- 
+2.17.1
+

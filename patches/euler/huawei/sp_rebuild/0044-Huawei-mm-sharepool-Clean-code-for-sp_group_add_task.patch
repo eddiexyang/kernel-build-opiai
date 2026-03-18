@@ -1,0 +1,113 @@
+From df6b5d617826e3c8605e58b1f1a591ab58eba19b Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Thu, 4 May 2023 12:47:34 +0000
+Subject: [PATCH 44/53] [Huawei] mm/sharepool: Clean code for
+ sp_group_add_task()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We don't need the sp_global_lock for the mapping procedure of the
+existing spa. Release the write lock before it.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 49 +++++++++++++++----------------------------------
+ 1 file changed, 15 insertions(+), 34 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index abc878c8ff50..43b94002b522 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -979,18 +979,6 @@ static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id)
+ 	return spg;
+ }
+ 
+-/* user must call sp_group_put() after use */
+-static struct sp_group *sp_group_get_locked(int spg_id)
+-{
+-	struct sp_group *spg;
+-
+-	spg = idr_find(&sp_group_idr, spg_id);
+-	if (!spg || !atomic_inc_not_zero(&spg->use_count))
+-		return NULL;
+-
+-	return spg;
+-}
+-
+ /**
+  * mp_sp_group_id_by_pid() - Get the sp_group ID array of a process.
+  * @tgid: tgid of target process.
+@@ -1170,13 +1158,12 @@ static struct sp_group *sp_group_create(int spg_id)
+ }
+ 
+ /* the caller must hold sp_global_sem */
+-static struct sp_group *find_or_alloc_sp_group(int spg_id)
++static struct sp_group *sp_group_get_or_alloc(int spg_id)
+ {
+ 	struct sp_group *spg;
+ 
+-	spg = sp_group_get_locked(spg_id);
+-
+-	if (!spg) {
++	spg = idr_find(&sp_group_idr, spg_id);
++	if (!spg || !atomic_inc_not_zero(&spg->use_count)) {
+ 		spg = sp_group_create(spg_id);
+ 	} else {
+ 		down_read(&spg->rw_lock);
+@@ -1399,17 +1386,22 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		return ret;
+ 
+ 	down_write(&sp_global_sem);
+-
+-	spg = find_or_alloc_sp_group(spg_id);
++	spg = sp_group_get_or_alloc(spg_id);
+ 	if (IS_ERR(spg)) {
+ 		up_write(&sp_global_sem);
+-		ret = PTR_ERR(spg);
+-		goto out_put_mm;
++		mmput(mm);
++		return PTR_ERR(spg);
+ 	}
++	/* save spg_id before we release sp_global_sem, or UAF may occur */
++	spg_id = spg->id;
+ 
+ 	ret = sp_group_link_task(mm, spg, prot);
+-	if (ret)
+-		goto out_drop_group;
++	up_write(&sp_global_sem);
++	if (ret < 0) {
++		sp_group_put(spg);
++		mmput(mm);
++		return ret;
++	}
+ 
+ 	/*
+ 	 * create mappings of existing shared memory segments into this
+@@ -1431,18 +1423,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	}
+ 	up_read(&spg->rw_lock);
+ 
+-out_drop_group:
+-	if (unlikely(ret)) {
+-		up_write(&sp_global_sem);
+-		sp_group_put(spg);
+-	} else
+-		up_write(&sp_global_sem);
+-out_put_mm:
+-	/* No need to put the mm if the sp group adds this mm successfully */
+-	if (unlikely(ret))
+-		mmput(mm);
+-
+-	return ret == 0 ? spg->id : ret;
++	return spg_id;
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_group_add_task);
+ 
+-- 
+2.17.1
+

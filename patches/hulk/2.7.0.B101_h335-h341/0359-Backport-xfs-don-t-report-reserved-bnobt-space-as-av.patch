@@ -1,0 +1,66 @@
+From d3f6ce12c37b678bcd49ec91acccdad3be0af43b Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Wed, 16 Mar 2022 13:38:43 -0700
+Subject: [PATCH 359/921] [Backport] xfs: don't report reserved bnobt space as
+ available
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 85bcfa26f9a3782be37d4feafd49668b98b8bdbe
+category: bugfix
+bugzilla: 188575
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=85bcfa26f9a3782be37d4feafd49668b98b8bdbe
+
+--------------------------------
+
+On a modern filesystem, we don't allow userspace to allocate blocks for
+data storage from the per-AG space reservations, the user-controlled
+reservation pool that prevents ENOSPC in the middle of internal
+operations, or the internal per-AG set-aside that prevents unwanted
+filesystem shutdowns due to ENOSPC during a bmap btree split.
+
+Since we now consider freespace btree blocks as unavailable for
+allocation for data storage, we shouldn't report those blocks via statfs
+either.  This makes the numbers that we return via the statfs f_bavail
+and f_bfree fields a more conservative estimate of actual free space.
+
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Brian Foster <bfoster@redhat.com>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/xfs/xfs_fsops.c | 2 +-
+ fs/xfs/xfs_super.c | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/fs/xfs/xfs_fsops.c b/fs/xfs/xfs_fsops.c
+index 81cb2b3b20f2..0e899eafbc16 100644
+--- a/fs/xfs/xfs_fsops.c
++++ b/fs/xfs/xfs_fsops.c
+@@ -291,7 +291,7 @@ xfs_fs_counts(
+ 	cnt->allocino = percpu_counter_read_positive(&mp->m_icount);
+ 	cnt->freeino = percpu_counter_read_positive(&mp->m_ifree);
+ 	cnt->freedata = percpu_counter_read_positive(&mp->m_fdblocks) -
+-						mp->m_alloc_set_aside;
++						xfs_fdblocks_unavailable(mp);
+ 
+ 	spin_lock(&mp->m_sb_lock);
+ 	cnt->freertx = mp->m_sb.sb_frextents;
+diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c
+index 47509d20a4aa..535662d83202 100644
+--- a/fs/xfs/xfs_super.c
++++ b/fs/xfs/xfs_super.c
+@@ -812,7 +812,8 @@ xfs_fs_statfs(
+ 	spin_unlock(&mp->m_sb_lock);
+ 
+ 	/* make sure statp->f_bfree does not underflow */
+-	statp->f_bfree = max_t(int64_t, fdblocks - mp->m_alloc_set_aside, 0);
++	statp->f_bfree = max_t(int64_t, 0,
++				fdblocks - xfs_fdblocks_unavailable(mp));
+ 	statp->f_bavail = statp->f_bfree;
+ 
+ 	fakeinos = XFS_FSB_TO_INO(mp, statp->f_bfree);
+-- 
+2.17.1
+

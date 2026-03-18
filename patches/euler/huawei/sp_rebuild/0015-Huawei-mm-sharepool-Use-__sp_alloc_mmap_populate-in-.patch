@@ -1,0 +1,125 @@
+From b21968c7f68b79b42cb17c4fa0cae5dd49f7668c Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 10:38:28 +0800
+Subject: [PATCH 15/53] [Huawei] mm/sharepool: Use __sp_alloc_mmap_populate()
+ in add_task
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We need to mmap the old spa of a group to the new task, and this
+is just what __sp_alloc_mmap_populate() does. Use the wrap function
+to simplify the source code.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 60 ++++++++++++++-----------------------------------
+ 1 file changed, 17 insertions(+), 43 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 49adac5d7321..961aef7dd4dd 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -847,10 +847,19 @@ static inline bool check_aoscore_process(struct task_struct *tsk)
+ 		return false;
+ }
+ 
+-static unsigned long sp_mmap(struct mm_struct *mm, struct file *file,
+-			     struct sp_area *spa, unsigned long *populate,
+-			     unsigned long prot);
+-static void sp_munmap(struct mm_struct *mm, unsigned long addr, unsigned long size);
++struct sp_alloc_context {
++	struct sp_group *spg;
++	unsigned long size;
++	unsigned long size_aligned;
++	unsigned long sp_flags;
++	nodemask_t *nodemask;
++	int preferred_node_id;
++	bool have_mbind;
++	enum spa_type type;
++};
++
++static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
++				    unsigned long prot, struct sp_alloc_context *ac);
+ 
+ #define K2U_NORMAL	0
+ #define K2U_COREDUMP	1
+@@ -1460,8 +1469,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	spin_lock(&sp_area_lock);
+ 
+ 	list_for_each_entry(spa, &spg->spa_list, link) {
+-		unsigned long populate = 0;
+-		struct file *file = spa_file(spa);
+ 		unsigned long addr;
+ 
+ 		__sp_area_drop_locked(prev);
+@@ -1483,32 +1490,10 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 			continue;
+ 		}
+ 
+-		down_write(&mm->mmap_lock);
+-		if (unlikely(mm->core_state)) {
+-			up_write(&mm->mmap_lock);
+-			pr_warn("add group: encountered coredump\n");
+-			spin_lock(&sp_area_lock);
+-			continue;
+-		}
+-
+-		addr = sp_mmap(mm, file, spa, &populate, prot);
+-		if (IS_ERR_VALUE(addr)) {
+-			up_write(&mm->mmap_lock);
+-			pr_warn("add group: sp mmap failed %ld\n", (long)addr);
+-			spin_lock(&sp_area_lock);
+-			continue;
+-		}
+-		up_write(&mm->mmap_lock);
+-
+-		ret = do_mm_populate(mm, spa->va_start, populate, 0);
++		ret = __sp_alloc_mmap_populate(mm, spa, prot, NULL);
+ 		if (ret) {
+-			if (unlikely(fatal_signal_pending(current)))
+-				pr_warn_ratelimited("add group failed, current thread is killed\n");
+-			else
+-				pr_warn_ratelimited("add group failed, mm populate failed (potential no enough memory when -12): %d, spa type is %d\n",
+-						ret, spa->type);
+-			spin_lock(&sp_area_lock);
+-			continue;
++			pr_warn("mmap old spa to new task failed, %d\n", ret);
++			ret = 0;
+ 		}
+ 
+ 		spin_lock(&sp_area_lock);
+@@ -2105,17 +2090,6 @@ static unsigned long sp_mmap(struct mm_struct *mm, struct file *file,
+ 	return addr;
+ }
+ 
+-struct sp_alloc_context {
+-	struct sp_group *spg;
+-	unsigned long size;
+-	unsigned long size_aligned;
+-	unsigned long sp_flags;
+-	nodemask_t *nodemask;
+-	int preferred_node_id;
+-	bool have_mbind;
+-	enum spa_type type;
+-};
+-
+ static int sp_alloc_prepare(unsigned long size, unsigned long sp_flags,
+ 	int spg_id, struct sp_alloc_context *ac)
+ {
+@@ -2246,7 +2220,7 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 
+ 	up_write(&mm->mmap_lock);
+ 
+-	if (!ac->have_mbind) {
++	if (ac && !ac->have_mbind) {
+ 		ret = sp_mbind(mm, spa->va_start, spa->real_size, ac->nodemask);
+ 		if (ret < 0) {
+ 			pr_err("cannot bind the memory range to node[%*pbl], err:%d\n",
+-- 
+2.17.1
+

@@ -1,0 +1,46 @@
+From 201268e7fc60322dd2f3522d61f31783e0841946 Mon Sep 17 00:00:00 2001
+From: Kai Ye <yekai13@huawei.com>
+Date: Wed, 30 Nov 2022 18:23:15 +0800
+Subject: [PATCH 1182/1646] [Backport] crypto: hisilicon/qm - delete redundancy
+ check
+
+mainline inclusion
+from mainline-v6.2-rc1
+commit 8f82f4ae8946d665f1e38da8e2b39b929d2435b1
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZHPY
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8f82f4ae8946d665f1e38da8e2b39b929d2435b1
+
+--------------------------------
+
+Because the permission on the VF debugfs file is "0444". So
+the VF function checking is redundant in qos writing api.
+
+Signed-off-by: Kai Ye <yekai13@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 5afe1b410595..104114d3896d 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -4632,9 +4632,6 @@ static ssize_t qm_algqos_write(struct file *filp, const char __user *buf,
+ 	unsigned long val;
+ 	int len, ret;
+ 
+-	if (qm->fun_type == QM_HW_VF)
+-		return -EINVAL;
+-
+ 	if (*pos != 0)
+ 		return 0;
+ 
+-- 
+2.17.1
+

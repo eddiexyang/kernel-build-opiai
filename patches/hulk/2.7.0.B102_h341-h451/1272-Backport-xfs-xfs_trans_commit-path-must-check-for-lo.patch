@@ -1,0 +1,185 @@
+From 01e547aa40ceea195c2a66b8e7b00f5a5a525906 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Tue, 29 Mar 2022 18:22:01 -0700
+Subject: [PATCH 1272/1646] [Backport] xfs: xfs_trans_commit() path must check
+ for log shutdown
+
+mainline inclusion
+from mainline-v5.17-rc6
+commit 3c4cb76bce4380aee99c275b3920049350939e47
+category: bugfix
+bugzilla: 188220
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3c4cb76bce4380aee99c275b3920049350939e47
+
+--------------------------------
+
+If a shut races with xfs_trans_commit() and we have shut down the
+filesystem but not the log, we will still cancel the transaction.
+This can result in aborting dirty log items instead of committing and
+pinning them whilst the log is still running. Hence we can end up
+with dirty, unlogged metadata that isn't in the AIL in memory that
+can be flushed to disk via writeback clustering.
+
+This was discovered from a g/388 trace where an inode log item was
+having IO completed on it and it wasn't in the AIL, hence tripping
+asserts xfs_ail_check(). Inode cluster writeback started long after
+the filesystem shutdown started, and long after the transaction
+containing the dirty inode was aborted and the log item marked
+XFS_LI_ABORTED. The inode was seen as dirty and unpinned, so it
+was flushed. IO completion tried to remove the inode from the AIL,
+at which point stuff went bad:
+
+ XFS (pmem1): Log I/O Error (0x6) detected at xfs_fs_goingdown+0xa3/0xf0 (fs/xfs/xfs_fsops.c:500).  Shutting down filesystem.
+ XFS: Assertion failed: in_ail, file: fs/xfs/xfs_trans_ail.c, line: 67
+ XFS (pmem1): Please unmount the filesystem and rectify the problem(s)
+ Workqueue: xfs-buf/pmem1 xfs_buf_ioend_work
+ RIP: 0010:assfail+0x27/0x2d
+ Call Trace:
+  <TASK>
+  xfs_ail_check+0xa8/0x180
+  xfs_ail_delete_one+0x3b/0xf0
+  xfs_buf_inode_iodone+0x329/0x3f0
+  xfs_buf_ioend+0x1f8/0x530
+  xfs_buf_ioend_work+0x15/0x20
+  process_one_work+0x1ac/0x390
+  worker_thread+0x56/0x3c0
+  kthread+0xf6/0x120
+  ret_from_fork+0x1f/0x30
+  </TASK>
+
+xfs_trans_commit() needs to check log state for shutdown, not mount
+state. It cannot abort dirty log items while the log is still
+running as dirty items must remained pinned in memory until they are
+either committed to the journal or the log has shut down and they
+can be safely tossed away. Hence if the log has not shut down, the
+xfs_trans_commit() path must allow completed transactions to commit
+to the CIL and pin the dirty items even if a mount shutdown has
+started.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_trans.c | 48 +++++++++++++++++++++++++++++++---------------
+ 1 file changed, 33 insertions(+), 15 deletions(-)
+
+diff --git a/fs/xfs/xfs_trans.c b/fs/xfs/xfs_trans.c
+index 23cddfec03ef..b29f60cf1909 100644
+--- a/fs/xfs/xfs_trans.c
++++ b/fs/xfs/xfs_trans.c
+@@ -837,6 +837,7 @@ __xfs_trans_commit(
+ 	bool			regrant)
+ {
+ 	struct xfs_mount	*mp = tp->t_mountp;
++	struct xlog		*log = mp->m_log;
+ 	xfs_csn_t		commit_seq = 0;
+ 	int			error = 0;
+ 	int			sync = tp->t_flags & XFS_TRANS_SYNC;
+@@ -865,7 +866,13 @@ __xfs_trans_commit(
+ 	if (!(tp->t_flags & XFS_TRANS_DIRTY))
+ 		goto out_unreserve;
+ 
+-	if (xfs_is_shutdown(mp)) {
++	/*
++	 * We must check against log shutdown here because we cannot abort log
++	 * items and leave them dirty, inconsistent and unpinned in memory while
++	 * the log is active. This leaves them open to being written back to
++	 * disk, and that will lead to on-disk corruption.
++	 */
++	if (xlog_is_shutdown(log)) {
+ 		error = -EIO;
+ 		goto out_unreserve;
+ 	}
+@@ -879,7 +886,7 @@ __xfs_trans_commit(
+ 		xfs_trans_apply_sb_deltas(tp);
+ 	xfs_trans_apply_dquot_deltas(tp);
+ 
+-	xlog_cil_commit(mp->m_log, tp, &commit_seq, regrant);
++	xlog_cil_commit(log, tp, &commit_seq, regrant);
+ 
+ 	xfs_trans_free(tp);
+ 
+@@ -906,10 +913,10 @@ __xfs_trans_commit(
+ 	 */
+ 	xfs_trans_unreserve_and_mod_dquots(tp);
+ 	if (tp->t_ticket) {
+-		if (regrant && !xlog_is_shutdown(mp->m_log))
+-			xfs_log_ticket_regrant(mp->m_log, tp->t_ticket);
++		if (regrant && !xlog_is_shutdown(log))
++			xfs_log_ticket_regrant(log, tp->t_ticket);
+ 		else
+-			xfs_log_ticket_ungrant(mp->m_log, tp->t_ticket);
++			xfs_log_ticket_ungrant(log, tp->t_ticket);
+ 		tp->t_ticket = NULL;
+ 	}
+ 	xfs_trans_free_items(tp, !!error);
+@@ -927,18 +934,27 @@ xfs_trans_commit(
+ }
+ 
+ /*
+- * Unlock all of the transaction's items and free the transaction.
+- * The transaction must not have modified any of its items, because
+- * there is no way to restore them to their previous state.
++ * Unlock all of the transaction's items and free the transaction.  If the
++ * transaction is dirty, we must shut down the filesystem because there is no
++ * way to restore them to their previous state.
+  *
+- * If the transaction has made a log reservation, make sure to release
+- * it as well.
++ * If the transaction has made a log reservation, make sure to release it as
++ * well.
++ *
++ * This is a high level function (equivalent to xfs_trans_commit()) and so can
++ * be called after the transaction has effectively been aborted due to the mount
++ * being shut down. However, if the mount has not been shut down and the
++ * transaction is dirty we will shut the mount down and, in doing so, that
++ * guarantees that the log is shut down, too. Hence we don't need to be as
++ * careful with shutdown state and dirty items here as we need to be in
++ * xfs_trans_commit().
+  */
+ void
+ xfs_trans_cancel(
+ 	struct xfs_trans	*tp)
+ {
+ 	struct xfs_mount	*mp = tp->t_mountp;
++	struct xlog		*log = mp->m_log;
+ 	bool			dirty = (tp->t_flags & XFS_TRANS_DIRTY);
+ 
+ 	trace_xfs_trans_cancel(tp, _RET_IP_);
+@@ -947,16 +963,18 @@ xfs_trans_cancel(
+ 		xfs_defer_cancel(tp);
+ 
+ 	/*
+-	 * See if the caller is relying on us to shut down the
+-	 * filesystem.  This happens in paths where we detect
+-	 * corruption and decide to give up.
++	 * See if the caller is relying on us to shut down the filesystem. We
++	 * only want an error report if there isn't already a shutdown in
++	 * progress, so we only need to check against the mount shutdown state
++	 * here.
+ 	 */
+ 	if (dirty && !xfs_is_shutdown(mp)) {
+ 		XFS_ERROR_REPORT("xfs_trans_cancel", XFS_ERRLEVEL_LOW, mp);
+ 		xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
+ 	}
+ #ifdef DEBUG
+-	if (!dirty && !xfs_is_shutdown(mp)) {
++	/* Log items need to be consistent until the log is shut down. */
++	if (!dirty && !xlog_is_shutdown(log)) {
+ 		struct xfs_log_item *lip;
+ 
+ 		list_for_each_entry(lip, &tp->t_items, li_trans)
+@@ -967,7 +985,7 @@ xfs_trans_cancel(
+ 	xfs_trans_unreserve_and_mod_dquots(tp);
+ 
+ 	if (tp->t_ticket) {
+-		xfs_log_ticket_ungrant(mp->m_log, tp->t_ticket);
++		xfs_log_ticket_ungrant(log, tp->t_ticket);
+ 		tp->t_ticket = NULL;
+ 	}
+ 
+-- 
+2.17.1
+

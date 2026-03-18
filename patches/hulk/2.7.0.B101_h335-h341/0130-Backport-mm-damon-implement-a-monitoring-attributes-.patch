@@ -1,0 +1,56 @@
+From fee260345372346e31301d07a3c1fbac5872e06e Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 13 Sep 2022 17:44:36 +0000
+Subject: [PATCH 130/921] [Backport] mm/damon: implement a monitoring
+ attributes module parameters generator macro
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit b3c28d886329d8df66679f72f3f3c81c0dd21e88
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b3c28d886329d8df66679f72f3f3c81c0dd21e88
+
+--------------------------------
+
+DAMON_RECLAIM and DAMON_LRU_SORT have module parameters for monitoring
+attributes that having same names.  This commot implements a macro for
+generating such module parameters so that we can reuse later.
+
+Link: https://lkml.kernel.org/r/20220913174449.50645-10-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/modules-common.h | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+ create mode 100644 mm/damon/modules-common.h
+
+diff --git a/mm/damon/modules-common.h b/mm/damon/modules-common.h
+new file mode 100644
+index 000000000000..0abd0636bc64
+--- /dev/null
++++ b/mm/damon/modules-common.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Common Primitives for DAMON Modules
++ *
++ * Author: SeongJae Park <sj@kernel.org>
++ */
++
++#include <linux/moduleparam.h>
++
++#define DEFINE_DAMON_MODULES_MON_ATTRS_PARAMS(attrs)			\
++	module_param_named(sample_interval, attrs.sample_interval,	\
++			ulong, 0600);					\
++	module_param_named(aggr_interval, attrs.aggr_interval, ulong,	\
++			0600);						\
++	module_param_named(min_nr_regions, attrs.min_nr_regions, ulong,	\
++			0600);						\
++	module_param_named(max_nr_regions, attrs.max_nr_regions, ulong,	\
++			0600);
+-- 
+2.17.1
+

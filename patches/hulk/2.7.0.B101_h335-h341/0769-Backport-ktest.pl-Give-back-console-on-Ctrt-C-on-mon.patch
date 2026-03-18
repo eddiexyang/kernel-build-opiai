@@ -1,0 +1,51 @@
+From 2c2a1100a148ff1ca8c4aefcc713cecc3472ed01 Mon Sep 17 00:00:00 2001
+From: Steven Rostedt <rostedt@goodmis.org>
+Date: Wed, 18 Jan 2023 16:32:13 -0500
+Subject: [PATCH 769/921] [Backport] ktest.pl: Give back console on Ctrt^C on
+ monitor
+
+stable inclusion
+from stable-v5.10.173
+commit 0dfb3f4588bc03d344e4ca4a70a06f24cf0cf6ec
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0dfb3f4588bc03d344e4ca4a70a06f24cf0cf6ec
+
+--------------------------------
+
+commit 83d29d439cd3ef23041570d55841f814af2ecac0 upstream.
+
+When monitoring the console output, the stdout is being redirected to do
+so. If Ctrl^C is hit during this mode, the stdout is not back to the
+console, the user does not see anything they type (no echo).
+
+Add "end_monitor" to the SIGINT interrupt handler to give back the console
+on Ctrl^C.
+
+Cc: stable@vger.kernel.org
+Fixes: 9f2cdcbbb90e7 ("ktest: Give console process a dedicated tty")
+Signed-off-by: Steven Rostedt <rostedt@goodmis.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ tools/testing/ktest/ktest.pl | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/tools/testing/ktest/ktest.pl b/tools/testing/ktest/ktest.pl
+index 8b1e3ae8fe50..a9fb5a48751e 100755
+--- a/tools/testing/ktest/ktest.pl
++++ b/tools/testing/ktest/ktest.pl
+@@ -4283,6 +4283,9 @@ sub send_email {
+ }
+ 
+ sub cancel_test {
++    if ($monitor_cnt) {
++	end_monitor;
++    }
+     if ($email_when_canceled) {
+ 	my $name = get_test_name;
+         send_email("KTEST: Your [$name] test was cancelled",
+-- 
+2.17.1
+

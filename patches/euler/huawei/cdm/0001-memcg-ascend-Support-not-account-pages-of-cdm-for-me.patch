@@ -1,0 +1,70 @@
+From 324c56a62723680e3a1c973a85580772ad516f0e Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 12 Sep 2022 09:21:33 +0000
+Subject: [PATCH] memcg/ascend: Support not account pages of cdm for memcg
+
+ascend inclusion
+category: feature
+bugzilla: NA
+CVE: NA
+
+------------------------------------------------------------------
+
+Normally, pages can not be allocated from CDM node(explicit allocation
+requests from kernel or user process MPOL_BIND policy which has CDM
+nodes).
+
+This situation may happen. Within the limit bytes range of the memcg,
+the CDM nodes have a large amount of free memory, and other nodes
+have no available free memory. Then, the kernel or user process can not
+get required memory resources normally.
+
+For example:
+    size of CMD : A mbytes
+    size of non CMD : B mbytes
+limit mbytes of memcg : C mbytes. A,B < C < (A + B).
+If app(user app and OS service app) used up non CMD memory, but a large
+amount of CDM memory is available. Since OS service app can't get pages
+from CDM node, the allocating of pages should be failed. This is not
+what we expect. We hope that the memcg can be used to restrict the
+memory used by some user apps to ensure that certain memory is available
+for system services.
+
+Therefore, the CDM memory does not need to be charged in the memcg. The
+total size of CDM is already a limit.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/memcontrol.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index fda321322..96dc7ffcb 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3053,6 +3053,11 @@ int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order)
+ 
+ 	objcg = get_obj_cgroup_from_current();
+ 	if (objcg) {
++		if (!mem_cgroup_is_root(objcg->memcg) && is_cdm_node(page_to_nid(page))) {
++			obj_cgroup_put(objcg);
++			return 0;
++		}
++
+ 		ret = obj_cgroup_charge_pages(objcg, gfp, 1 << order);
+ 		if (!ret) {
+ 			page->memcg_data = (unsigned long)objcg |
+@@ -7061,6 +7066,9 @@ int mem_cgroup_charge(struct page *page, struct mm_struct *mm, gfp_t gfp_mask)
+ 	if (!memcg)
+ 		memcg = get_mem_cgroup_from_mm(mm);
+ 
++	if (!mem_cgroup_is_root(memcg) && is_cdm_node(page_to_nid(page)))
++		goto out;
++
+ 	ret = try_charge(memcg, gfp_mask, nr_pages);
+ 	if (ret)
+ 		goto out_put;
+-- 
+2.17.1
+

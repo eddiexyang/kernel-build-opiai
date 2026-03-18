@@ -1,0 +1,192 @@
+From e061adf488559211c1aa8e20f1620e0a0f8c5fe4 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Sat, 20 May 2023 17:04:30 +0800
+Subject: [PATCH 233/780] [Huawei] sched: Track time running together on
+ Hyper-Threading
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188931
+
+--------------------------------
+
+Introduce percpu variable smt_util_stat to record time which running
+together on Hyper-Threading, update time in the following scenarios:
+task switch and interrupt context.
+
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ include/linux/vtime.h | 10 ++++++
+ kernel/sched/core.c   | 84 +++++++++++++++++++++++++++++++++++++++++++
+ kernel/sched/sched.h  | 10 ++++++
+ 3 files changed, 104 insertions(+)
+
+diff --git a/include/linux/vtime.h b/include/linux/vtime.h
+index 2cdeca062db3..fa9d6e55ac30 100644
+--- a/include/linux/vtime.h
++++ b/include/linux/vtime.h
+@@ -103,16 +103,26 @@ extern void irqtime_account_irq(struct task_struct *tsk);
+ static inline void irqtime_account_irq(struct task_struct *tsk) { }
+ #endif
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++extern void update_sibling_normalize_runtime(bool enter);
++#endif
++
+ static inline void account_irq_enter_time(struct task_struct *tsk)
+ {
+ 	vtime_account_irq_enter(tsk);
+ 	irqtime_account_irq(tsk);
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	update_sibling_normalize_runtime(true);
++#endif
+ }
+ 
+ static inline void account_irq_exit_time(struct task_struct *tsk)
+ {
+ 	vtime_account_irq_exit(tsk);
+ 	irqtime_account_irq(tsk);
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	update_sibling_normalize_runtime(false);
++#endif
+ }
+ 
+ #endif /* _LINUX_KERNEL_VTIME_H */
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1d1eac933415..658fe7ad45bc 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -4097,6 +4097,80 @@ void scheduler_tick(void)
+ #endif
+ }
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++DEFINE_PER_CPU(struct smt_peer_stat, smt_util_stat);
++void __init init_normalize_util(int cpu)
++{
++	struct smt_peer_stat *stat = &per_cpu(smt_util_stat, cpu);
++
++	stat->sum = 0;
++	stat->last_update_time = 0;
++	stat->is_idle = true;
++	raw_spin_lock_init(&stat->lock);
++}
++
++static void update_local_normalize_runtime(struct task_struct *tsk, int cpu)
++{
++	s64 delta;
++	struct rq *rq = NULL;
++	struct smt_peer_stat *stat = NULL;
++
++	rq = cpu_rq(cpu);
++	stat = &per_cpu(smt_util_stat, cpu);
++	raw_spin_lock(&stat->lock);
++	if (stat->last_update_time) {
++		delta = rq_clock_task(rq) - stat->last_update_time;
++		if (likely(delta > 0))
++			stat->sum += delta;
++	}
++
++	if (tsk == rq->idle) {
++		stat->is_idle = true;
++		stat->last_update_time = 0;
++	} else {
++		stat->is_idle = false;
++		stat->last_update_time = rq_clock_task(rq);
++	}
++	raw_spin_unlock(&stat->lock);
++}
++
++void update_sibling_normalize_runtime(bool enter)
++{
++	int sibling;
++	s64 delta;
++	struct rq_flags rf;
++	struct rq *sibling_rq = NULL;
++	struct smt_peer_stat *pstat = NULL;
++
++	sibling = this_cpu_read(cpu_sibling);
++	if (unlikely(!sched_smt_active() || sibling == -1 ||
++		     cpu_is_offline(sibling)))
++		return;
++
++	sibling_rq = cpu_rq(sibling);
++	rq_lock(sibling_rq, &rf);
++	pstat = &per_cpu(smt_util_stat, sibling);
++	raw_spin_lock(&pstat->lock);
++	if (pstat->is_idle) {
++		raw_spin_unlock(&pstat->lock);
++		rq_unlock(sibling_rq, &rf);
++		return;
++	}
++
++	update_rq_clock(sibling_rq);
++	if (enter && pstat->last_update_time > 0) {
++		delta = rq_clock_task(sibling_rq) - pstat->last_update_time;
++		pstat->last_update_time = 0;
++		if (likely(delta > 0))
++			pstat->sum += delta;
++	} else {
++		pstat->last_update_time = rq_clock_task(sibling_rq);
++	}
++	raw_spin_unlock(&pstat->lock);
++	rq_unlock(sibling_rq, &rf);
++}
++#endif
++
+ #ifdef CONFIG_NO_HZ_FULL
+ 
+ struct tick_work {
+@@ -4172,6 +4246,9 @@ static void sched_tick_remote(struct work_struct *work)
+ 	}
+ 	curr->sched_class->task_tick(rq, curr, 0);
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	update_local_normalize_runtime(curr, cpu);
++#endif
+ 	calc_load_nohz_remote(rq);
+ out_unlock:
+ 	rq_unlock_irq(rq, &rf);
+@@ -4584,6 +4661,9 @@ static void __sched notrace __schedule(bool preempt)
+ 	clear_preempt_need_resched();
+ 
+ 	if (likely(prev != next)) {
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++		update_local_normalize_runtime(next, cpu);
++#endif
+ 		rq->nr_switches++;
+ 		/*
+ 		 * RCU users of rcu_dereference(rq->curr) may not see
+@@ -7495,6 +7575,10 @@ void __init sched_init(void)
+ 
+ 		INIT_CSD(&rq->nohz_csd, nohz_csd_func, rq);
+ #endif
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++		init_normalize_util(i);
++#endif
+ #endif /* CONFIG_SMP */
+ 		hrtick_rq_init(rq);
+ 		atomic_set(&rq->nr_iowait, 0);
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index 68384935de27..a4cc308b6956 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -2760,3 +2760,13 @@ extern void cputime_cpu_init(int cpu);
+ #else
+ static inline void cputime_cpu_init(int cpu) {}
+ #endif
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++struct smt_peer_stat {
++	u64 sum;
++	u64 last_update_time;
++	bool is_idle;
++	raw_spinlock_t lock;
++};
++DECLARE_PER_CPU(struct smt_peer_stat, smt_util_stat);
++#endif
+-- 
+2.17.1
+

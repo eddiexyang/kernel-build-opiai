@@ -1,0 +1,55 @@
+From 60105f4b5e1c1f3a2a5f8faac0048b7501f080e5 Mon Sep 17 00:00:00 2001
+From: Przemyslaw Patynowski <przemyslawx.patynowski@intel.com>
+Date: Tue, 15 Nov 2022 09:49:25 +0100
+Subject: [PATCH 1328/1398] [Backport] i40e: Disallow ip4 and ip6 l4_4_bytes
+
+stable inclusion
+from stable-v5.10.159
+commit a2506b19d7a33c0dc2686368876f1d563430421f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68ZEA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a2506b19d7a33c0dc2686368876f1d563430421f
+
+--------------------------------
+
+[ Upstream commit d64aaf3f7869f915fd120763d75f11d6b116424d ]
+
+Return -EOPNOTSUPP, when user requests l4_4_bytes for raw IP4 or
+IP6 flow director filters. Flow director does not support filtering
+on l4 bytes for PCTYPEs used by IP4 and IP6 filters.
+Without this patch, user could create filters with l4_4_bytes fields,
+which did not do any filtering on L4, but only on L3 fields.
+
+Fixes: 36777d9fa24c ("i40e: check current configured input set when adding ntuple filters")
+Signed-off-by: Przemyslaw Patynowski <przemyslawx.patynowski@intel.com>
+Signed-off-by: Kamil Maziarz  <kamil.maziarz@intel.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Tested-by: Gurucharan G <gurucharanx.g@intel.com> (A Contingent worker at Intel)
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/intel/i40e/i40e_ethtool.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/i40e/i40e_ethtool.c b/drivers/net/ethernet/intel/i40e/i40e_ethtool.c
+index 112d8204e49c..60791a481046 100644
+--- a/drivers/net/ethernet/intel/i40e/i40e_ethtool.c
++++ b/drivers/net/ethernet/intel/i40e/i40e_ethtool.c
+@@ -4246,11 +4246,7 @@ static int i40e_check_fdir_input_set(struct i40e_vsi *vsi,
+ 			return -EOPNOTSUPP;
+ 
+ 		/* First 4 bytes of L4 header */
+-		if (usr_ip4_spec->l4_4_bytes == htonl(0xFFFFFFFF))
+-			new_mask |= I40E_L4_SRC_MASK | I40E_L4_DST_MASK;
+-		else if (!usr_ip4_spec->l4_4_bytes)
+-			new_mask &= ~(I40E_L4_SRC_MASK | I40E_L4_DST_MASK);
+-		else
++		if (usr_ip4_spec->l4_4_bytes)
+ 			return -EOPNOTSUPP;
+ 
+ 		/* Filtering on Type of Service is not supported. */
+-- 
+2.17.1
+

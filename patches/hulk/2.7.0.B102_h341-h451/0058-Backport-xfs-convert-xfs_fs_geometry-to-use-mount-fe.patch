@@ -1,0 +1,173 @@
+From c9ad58e4cd441e4b448df40d2db71aebbdb045ef Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Wed, 18 Aug 2021 18:46:54 -0700
+Subject: [PATCH 0058/1646] [Backport] xfs: convert xfs_fs_geometry to use
+ mount feature checks
+
+mainline inclusion
+from mainline-v5.14-rc4
+commit 03288b19093b9bcff72f0d5f90c578daf053f759
+category: bugfix
+bugzilla: 188220
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=03288b19093b9bcff72f0d5f90c578daf053f759
+
+--------------------------------
+
+Reporting filesystem features to userspace is currently superblock
+based. Now we have a general mount-based feature infrastructure,
+switch to using the xfs_mount rather than the superblock directly.
+
+This reduces the size of the function by over 300 bytes.
+
+$ size -t fs/xfs/built-in.a
+	text    data     bss     dec     hex filename
+before	1127855  311352     484 1439691  15f7cb (TOTALS)
+after	1127535  311352     484 1439371  15f68b (TOTALS)
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+
+Conflicts:
+	fs/xfs/libxfs/xfs_sb.c
+
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/libxfs/xfs_sb.c | 44 ++++++++++++++++++++++--------------------
+ fs/xfs/libxfs/xfs_sb.h |  2 +-
+ fs/xfs/xfs_ioctl.c     |  2 +-
+ fs/xfs/xfs_ioctl32.c   |  2 +-
+ 4 files changed, 26 insertions(+), 24 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_sb.c b/fs/xfs/libxfs/xfs_sb.c
+index 3de22560fc1c..1a468afcff0b 100644
+--- a/fs/xfs/libxfs/xfs_sb.c
++++ b/fs/xfs/libxfs/xfs_sb.c
+@@ -1151,10 +1151,12 @@ xfs_sync_sb_buf(
+ 
+ void
+ xfs_fs_geometry(
+-	struct xfs_sb		*sbp,
++	struct xfs_mount	*mp,
+ 	struct xfs_fsop_geom	*geo,
+ 	int			struct_version)
+ {
++	struct xfs_sb		*sbp = &mp->m_sb;
++
+ 	memset(geo, 0, sizeof(struct xfs_fsop_geom));
+ 
+ 	geo->blocksize = sbp->sb_blocksize;
+@@ -1185,49 +1187,49 @@ xfs_fs_geometry(
+ 	geo->flags = XFS_FSOP_GEOM_FLAGS_NLINK |
+ 		     XFS_FSOP_GEOM_FLAGS_DIRV2 |
+ 		     XFS_FSOP_GEOM_FLAGS_EXTFLG;
+-	if (xfs_sb_version_hasattr(sbp))
++	if (xfs_has_attr(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_ATTR;
+-	if (xfs_sb_version_hasquota(sbp))
++	if (xfs_has_quota(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_QUOTA;
+-	if (xfs_sb_version_hasalign(sbp))
++	if (xfs_has_align(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_IALIGN;
+-	if (xfs_sb_version_hasdalign(sbp))
++	if (xfs_has_dalign(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_DALIGN;
+-	if (xfs_sb_version_hassector(sbp))
+-		geo->flags |= XFS_FSOP_GEOM_FLAGS_SECTOR;
+-	if (xfs_sb_version_hasasciici(sbp))
++	if (xfs_has_asciici(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_DIRV2CI;
+-	if (xfs_sb_version_haslazysbcount(sbp))
++	if (xfs_has_lazysbcount(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_LAZYSB;
+-	if (xfs_sb_version_hasattr2(sbp))
++	if (xfs_has_attr2(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_ATTR2;
+-	if (xfs_sb_version_hasprojid32(sbp))
++	if (xfs_has_projid32(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_PROJID32;
+-	if (xfs_sb_version_hascrc(sbp))
++	if (xfs_has_crc(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_V5SB;
+-	if (xfs_sb_version_hasftype(sbp))
++	if (xfs_has_ftype(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_FTYPE;
+-	if (xfs_sb_version_hasfinobt(sbp))
++	if (xfs_has_finobt(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_FINOBT;
+-	if (xfs_sb_version_hassparseinodes(sbp))
++	if (xfs_has_sparseinodes(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_SPINODES;
+-	if (xfs_sb_version_hasrmapbt(sbp))
++	if (xfs_has_rmapbt(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_RMAPBT;
+-	if (xfs_sb_version_hasreflink(sbp))
++	if (xfs_has_reflink(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_REFLINK;
+-	if (xfs_sb_version_hasbigtime(sbp))
++	if (xfs_has_bigtime(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_BIGTIME;
+-	if (xfs_sb_version_hassector(sbp))
++	if (xfs_has_sector(mp)) {
++		geo->flags |= XFS_FSOP_GEOM_FLAGS_SECTOR;
+ 		geo->logsectsize = sbp->sb_logsectsize;
+-	else
++	} else {
+ 		geo->logsectsize = BBSIZE;
++	}
+ 	geo->rtsectsize = sbp->sb_blocksize;
+ 	geo->dirblocksize = xfs_dir2_dirblock_bytes(sbp);
+ 
+ 	if (struct_version < 4)
+ 		return;
+ 
+-	if (xfs_sb_version_haslogv2(sbp))
++	if (xfs_has_logv2(mp))
+ 		geo->flags |= XFS_FSOP_GEOM_FLAGS_LOGV2;
+ 
+ 	geo->logsunit = sbp->sb_logsunit;
+diff --git a/fs/xfs/libxfs/xfs_sb.h b/fs/xfs/libxfs/xfs_sb.h
+index 3c51c2b4e1df..9c555df9f8c6 100644
+--- a/fs/xfs/libxfs/xfs_sb.h
++++ b/fs/xfs/libxfs/xfs_sb.h
+@@ -34,7 +34,7 @@ extern uint64_t	xfs_sb_version_to_features(struct xfs_sb *sbp);
+ extern int	xfs_update_secondary_sbs(struct xfs_mount *mp);
+ 
+ #define XFS_FS_GEOM_MAX_STRUCT_VER	(4)
+-extern void	xfs_fs_geometry(struct xfs_sb *sbp, struct xfs_fsop_geom *geo,
++extern void	xfs_fs_geometry(struct xfs_mount *mp, struct xfs_fsop_geom *geo,
+ 				int struct_version);
+ extern int	xfs_sb_read_secondary(struct xfs_mount *mp,
+ 				struct xfs_trans *tp, xfs_agnumber_t agno,
+diff --git a/fs/xfs/xfs_ioctl.c b/fs/xfs/xfs_ioctl.c
+index dcb68ae40c83..62faeb6d29f7 100644
+--- a/fs/xfs/xfs_ioctl.c
++++ b/fs/xfs/xfs_ioctl.c
+@@ -1005,7 +1005,7 @@ xfs_ioc_fsgeometry(
+ 	struct xfs_fsop_geom	fsgeo;
+ 	size_t			len;
+ 
+-	xfs_fs_geometry(&mp->m_sb, &fsgeo, struct_version);
++	xfs_fs_geometry(mp, &fsgeo, struct_version);
+ 
+ 	if (struct_version <= 3)
+ 		len = sizeof(struct xfs_fsop_geom_v1);
+diff --git a/fs/xfs/xfs_ioctl32.c b/fs/xfs/xfs_ioctl32.c
+index 4d05f3eaa99b..d6b494355d82 100644
+--- a/fs/xfs/xfs_ioctl32.c
++++ b/fs/xfs/xfs_ioctl32.c
+@@ -50,7 +50,7 @@ xfs_compat_ioc_fsgeometry_v1(
+ {
+ 	struct xfs_fsop_geom	  fsgeo;
+ 
+-	xfs_fs_geometry(&mp->m_sb, &fsgeo, 3);
++	xfs_fs_geometry(mp, &fsgeo, 3);
+ 	/* The 32-bit variant simply has some padding at the end */
+ 	if (copy_to_user(arg32, &fsgeo, sizeof(struct compat_xfs_fsop_geom_v1)))
+ 		return -EFAULT;
+-- 
+2.17.1
+

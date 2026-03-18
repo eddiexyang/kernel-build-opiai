@@ -1,0 +1,38 @@
+From 2b99fd8dc4c7e229e237f8ec60913a53110fb071 Mon Sep 17 00:00:00 2001
+From: Xu Jia <xujia39@huawei.com>
+Date: Sat, 25 Jun 2022 12:32:05 +0800
+Subject: [PATCH 2625/4585] [Huawei] ipv6: fix kabi for ip6_rt_gc_expire in
+ struct netns_ipv6
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187072
+
+--------------------------------
+
+Making ip6_rt_gc_expire atomic breaks the KABI of struct netns_ipv6.
+This patch uses KABI_REPLACE to fix it.
+
+Fixes: a9eb456fc9b1 ("[Backport] ipv6: make ip6_rt_gc_expire an atomic_t")
+Signed-off-by: Xu Jia <xujia39@huawei.com>
+---
+ include/net/netns/ipv6.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/net/netns/ipv6.h b/include/net/netns/ipv6.h
+index 35e0c4a6c71f..31d0cf3c7377 100644
+--- a/include/net/netns/ipv6.h
++++ b/include/net/netns/ipv6.h
+@@ -79,7 +79,7 @@ struct netns_ipv6 {
+ 	struct dst_ops		ip6_dst_ops;
+ 	rwlock_t		fib6_walker_lock;
+ 	spinlock_t		fib6_gc_lock;
+-	atomic_t		ip6_rt_gc_expire;
++	KABI_REPLACE(unsigned int ip6_rt_gc_expire, atomic_t ip6_rt_gc_expire)
+ 	unsigned long		ip6_rt_last_gc;
+ #ifdef CONFIG_IPV6_MULTIPLE_TABLES
+ 	unsigned int		fib6_rules_require_fldissect;
+-- 
+2.17.1
+

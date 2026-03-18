@@ -1,0 +1,65 @@
+From d570488358139f1bd6c7bc4260d68ea0ad8d1db0 Mon Sep 17 00:00:00 2001
+From: Claudiu Beznea <claudiu.beznea@microchip.com>
+Date: Tue, 14 Feb 2023 17:18:25 +0200
+Subject: [PATCH 301/780] [Backport] dmaengine: at_xdmac: do not enable all
+ cyclic channels
+
+stable inclusion
+from stable-v5.10.180
+commit 08012d9edc521e8ed66de6ba7cb49d73862d4b98
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=08012d9edc521e8ed66de6ba7cb49d73862d4b98
+
+--------------------------------
+
+[ Upstream commit f8435befd81dd85b7b610598551fadf675849bc1 ]
+
+Do not global enable all the cyclic channels in at_xdmac_resume(). Instead
+save the global status in at_xdmac_suspend() and re-enable the cyclic
+channel only if it was active before suspend.
+
+Fixes: e1f7c9eee707 ("dmaengine: at_xdmac: creation of the atmel eXtended DMA Controller driver")
+Signed-off-by: Claudiu Beznea <claudiu.beznea@microchip.com>
+Link: https://lore.kernel.org/r/20230214151827.1050280-6-claudiu.beznea@microchip.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/dma/at_xdmac.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/dma/at_xdmac.c b/drivers/dma/at_xdmac.c
+index b5d691ae45dc..1fe006cc643e 100644
+--- a/drivers/dma/at_xdmac.c
++++ b/drivers/dma/at_xdmac.c
+@@ -212,6 +212,7 @@ struct at_xdmac {
+ 	int			irq;
+ 	struct clk		*clk;
+ 	u32			save_gim;
++	u32			save_gs;
+ 	struct dma_pool		*at_xdmac_desc_pool;
+ 	struct at_xdmac_chan	chan[];
+ };
+@@ -1910,6 +1911,7 @@ static int atmel_xdmac_suspend(struct device *dev)
+ 		}
+ 	}
+ 	atxdmac->save_gim = at_xdmac_read(atxdmac, AT_XDMAC_GIM);
++	atxdmac->save_gs = at_xdmac_read(atxdmac, AT_XDMAC_GS);
+ 
+ 	at_xdmac_off(atxdmac);
+ 	clk_disable_unprepare(atxdmac->clk);
+@@ -1946,7 +1948,8 @@ static int atmel_xdmac_resume(struct device *dev)
+ 			at_xdmac_chan_write(atchan, AT_XDMAC_CNDC, atchan->save_cndc);
+ 			at_xdmac_chan_write(atchan, AT_XDMAC_CIE, atchan->save_cim);
+ 			wmb();
+-			at_xdmac_write(atxdmac, AT_XDMAC_GE, atchan->mask);
++			if (atxdmac->save_gs & atchan->mask)
++				at_xdmac_write(atxdmac, AT_XDMAC_GE, atchan->mask);
+ 		}
+ 	}
+ 	return 0;
+-- 
+2.17.1
+

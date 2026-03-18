@@ -1,0 +1,59 @@
+From a6ce122cc3f67b58316015db37dd95beed43f898 Mon Sep 17 00:00:00 2001
+From: Kan Liang <kan.liang@linux.intel.com>
+Date: Wed, 30 Jun 2021 14:08:29 -0700
+Subject: [PATCH 0438/1646] [Backport] perf/x86/intel/uncore: Add Sapphire
+ Rapids server M2PCIe support
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit f85ef898f8842b2a9a8f51a64eaf45ee2a8bb1f7
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=f85ef898f8842b2a9a8f51a64eaf45ee2a8bb1f7
+
+--------------------------------
+
+M2PCIe* blocks manage the interface between the mesh and each IIO stack.
+
+The layout of the control registers for a M2PCIe uncore unit is similar
+to a IRP uncore unit.
+
+Signed-off-by: Kan Liang <kan.liang@linux.intel.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Reviewed-by: Andi Kleen <ak@linux.intel.com>
+Link: https://lore.kernel.org/r/1625087320-194204-6-git-send-email-kan.liang@linux.intel.com
+Signed-off-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/events/intel/uncore_snbep.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/events/intel/uncore_snbep.c b/arch/x86/events/intel/uncore_snbep.c
+index 54ca16b22992..1b085340d168 100644
+--- a/arch/x86/events/intel/uncore_snbep.c
++++ b/arch/x86/events/intel/uncore_snbep.c
+@@ -5514,13 +5514,18 @@ static struct intel_uncore_type spr_uncore_irp = {
+ 
+ };
+ 
++static struct intel_uncore_type spr_uncore_m2pcie = {
++	SPR_UNCORE_COMMON_FORMAT(),
++	.name			= "m2pcie",
++};
++
+ #define UNCORE_SPR_NUM_UNCORE_TYPES		12
+ 
+ static struct intel_uncore_type *spr_uncores[UNCORE_SPR_NUM_UNCORE_TYPES] = {
+ 	&spr_uncore_chabox,
+ 	&spr_uncore_iio,
+ 	&spr_uncore_irp,
+-	NULL,
++	&spr_uncore_m2pcie,
+ 	NULL,
+ 	NULL,
+ 	NULL,
+-- 
+2.17.1
+

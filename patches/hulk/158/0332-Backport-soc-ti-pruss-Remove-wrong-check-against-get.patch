@@ -1,0 +1,58 @@
+From 01b80e6e6b2f4ba3502042e76e82b61d347cc04f Mon Sep 17 00:00:00 2001
+From: Grzegorz Jaszczyk <grzegorz.jaszczyk@linaro.org>
+Date: Sat, 21 Nov 2020 19:22:25 -0800
+Subject: [PATCH 0332/1076] [Backport] soc: ti: pruss: Remove wrong check
+ against *get_match_data return value
+
+mainline inclusion
+from mainline-v5.11-rc1
+commit 8465c7d1001a86e87f03124dc4a35760e731af62
+category: bugfix
+bugzilla: 187744
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8465c7d1001a86e87f03124dc4a35760e731af62
+
+--------------------------------
+
+Since the of_device_get_match_data() doesn't return error code, remove
+wrong IS_ERR test. Proper check against NULL pointer is already done
+later before usage: if (data && data->...).
+
+Additionally, proceeding with empty device data is valid (e.g. in case
+of "ti,am3356-pruss").
+
+Reported-by: Wei Yongjun <weiyongjun1@huawei.com>
+Signed-off-by: Grzegorz Jaszczyk <grzegorz.jaszczyk@linaro.org>
+Signed-off-by: Santosh Shilimkar <santosh.shilimkar@oracle.com>
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ drivers/soc/ti/pruss.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/soc/ti/pruss.c b/drivers/soc/ti/pruss.c
+index 30695172a508..aa3aba80dbc6 100644
+--- a/drivers/soc/ti/pruss.c
++++ b/drivers/soc/ti/pruss.c
+@@ -126,8 +126,6 @@ static int pruss_clk_init(struct pruss *pruss, struct device_node *cfg_node)
+ 	int ret = 0;
+ 
+ 	data = of_device_get_match_data(dev);
+-	if (IS_ERR(data))
+-		return -ENODEV;
+ 
+ 	clks_np = of_get_child_by_name(cfg_node, "clocks");
+ 	if (!clks_np) {
+@@ -175,10 +173,6 @@ static int pruss_probe(struct platform_device *pdev)
+ 	const char *mem_names[PRUSS_MEM_MAX] = { "dram0", "dram1", "shrdram2" };
+ 
+ 	data = of_device_get_match_data(&pdev->dev);
+-	if (IS_ERR(data)) {
+-		dev_err(dev, "missing private data\n");
+-		return -ENODEV;
+-	}
+ 
+ 	ret = dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
+ 	if (ret) {
+-- 
+2.17.1
+

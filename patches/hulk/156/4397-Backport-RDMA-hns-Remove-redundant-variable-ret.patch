@@ -1,0 +1,57 @@
+From 10af9bb3c13e42f2b55f00aaa4d1fe15485d1248 Mon Sep 17 00:00:00 2001
+From: Guofeng Yue <yueguofeng@hisilicon.com>
+Date: Tue, 5 Jul 2022 17:56:27 +0800
+Subject: [PATCH 4397/4585] [Backport] RDMA/hns: Remove redundant variable
+ "ret"
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 601cdd861cf551e330c85c4dfa6d25bef3b8d554
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5CHIG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=601cdd861cf551e330c85c4dfa6d25bef3b8d554
+
+--------------------------------
+
+It is completely redundant for this function to use "ret" to store the
+return value of the subfunction.
+
+Link: https://lore.kernel.org/r/20220409083254.9696-4-liangwenpeng@huawei.com
+Signed-off-by: Guofeng Yue <yueguofeng@hisilicon.com>
+Signed-off-by: Wenpeng Liang <liangwenpeng@huawei.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Zhengfeng Luo <luozhengfeng@h-partners.com>
+Reviewed-by: Yangyang Li <liyangyang20@huawei.com>
+Reviewed-by: Yue Haibing <yuehaibing@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ drivers/infiniband/hw/hns/hns_roce_hw_v2.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+index 59b1956671e5..242c6d0f8d2f 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+@@ -3045,7 +3045,6 @@ static int hns_roce_v2_write_mtpt(struct hns_roce_dev *hr_dev,
+ 				  void *mb_buf, struct hns_roce_mr *mr)
+ {
+ 	struct hns_roce_v2_mpt_entry *mpt_entry;
+-	int ret;
+ 
+ 	mpt_entry = mb_buf;
+ 	memset(mpt_entry, 0, sizeof(*mpt_entry));
+@@ -3084,9 +3083,7 @@ static int hns_roce_v2_write_mtpt(struct hns_roce_dev *hr_dev,
+ 		     to_hr_hw_page_shift(mr->pbl_mtr.hem_cfg.ba_pg_shift));
+ 	hr_reg_enable(mpt_entry, MPT_INNER_PA_VLD);
+ 
+-	ret = set_mtpt_pbl(hr_dev, mpt_entry, mr);
+-
+-	return ret;
++	return set_mtpt_pbl(hr_dev, mpt_entry, mr);
+ }
+ 
+ static int hns_roce_v2_rereg_write_mtpt(struct hns_roce_dev *hr_dev,
+-- 
+2.17.1
+

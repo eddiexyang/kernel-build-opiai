@@ -1,0 +1,172 @@
+From a32b1f6f0edc0835d142dbd9368ee2504646b48b Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Thu, 11 May 2023 11:02:56 +0800
+Subject: [PATCH 214/263] [Huawei] mm/dpool: Use helper function to lock/unlock
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Use helper function to lock/unlock hugetlb related locks.
+
+No function changed.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/dynamic_hugetlb.c | 80 +++++++++++++++++++++++++++++++-------------
+ 1 file changed, 56 insertions(+), 24 deletions(-)
+
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index ac3ad3e79280..303bd1fead03 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -30,6 +30,53 @@ DEFINE_STATIC_KEY_FALSE(dpool_enabled_key);
+ /* current only one hpool is supported for dpool, store here */
+ static struct dhugetlb_pool *dpool_global_hpool;
+ 
++/*
++ * Lock this to prevert any page allocation from percpu pool.
++ *
++ * Before we lock percpu_pool, must be sure hpool lock is released.
++ */
++static inline void dhugetlb_percpu_pool_lock_all(struct dhugetlb_pool *hpool)
++{
++	int i;
++
++	for (i = 0; i < NR_PERCPU_POOL; i++)
++		spin_lock(&hpool->percpu_pool[i].lock);
++}
++
++static inline void dhugetlb_percpu_pool_unlock_all(struct dhugetlb_pool *hpool)
++{
++	int i;
++
++	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
++		spin_unlock(&hpool->percpu_pool[i].lock);
++}
++
++/*
++ * Lock all before r/w percpu_pool.
++ *
++ * Each percpu_pool lock is used to block page allocated/freed by others.
++ * The hpool lock is used to block page allocated/freed by percpu_pool.
++ *
++ * We need to lock all in following situation:
++ * a) when merging pages, we have to make sure no one can alloc page from
++     each pool.
++ * b) when get the accurate pagecount.
++ * hpool->lock & all percpu_pool lock must be released before this.
++ */
++static inline void dhugetlb_lock_all(struct dhugetlb_pool *hpool)
++{
++	dhugetlb_percpu_pool_lock_all(hpool);
++	spin_lock(&hpool->lock);
++}
++
++static inline void dhugetlb_unlock_all(struct dhugetlb_pool *hpool)
++{
++	lockdep_assert_held(&hpool->lock);
++
++	spin_unlock(&hpool->lock);
++	dhugetlb_percpu_pool_unlock_all(hpool);
++}
++
+ #define hugepage_index(pfn)	((pfn) >> (PUD_SHIFT - PAGE_SHIFT))
+ static void add_new_page_to_pool(struct dhugetlb_pool *hpool, struct page *page, int hpages_pool_idx)
+ {
+@@ -242,9 +289,7 @@ static int hpool_merge_page(struct dhugetlb_pool *hpool, int hpages_pool_idx, bo
+ 		 */
+ 		if (hpages_pool_idx == HUGE_PAGES_POOL_2M) {
+ 			spin_unlock(&hpool->lock);
+-			for (i = 0; i < NR_PERCPU_POOL; i++)
+-				spin_lock(&hpool->percpu_pool[i].lock);
+-			spin_lock(&hpool->lock);
++			dhugetlb_lock_all(hpool);
+ 			for (i = 0; i < NR_PERCPU_POOL; i++) {
+ 				percpu_pool = &hpool->percpu_pool[i];
+ 				reclaim_pages_from_percpu_pool(hpool, percpu_pool,
+@@ -262,14 +307,12 @@ static int hpool_merge_page(struct dhugetlb_pool *hpool, int hpages_pool_idx, bo
+ 					goto migrate;
+ 			}
+ 		}
+-		if (hpages_pool_idx == HUGE_PAGES_POOL_2M) {
++		if (hpages_pool_idx == HUGE_PAGES_POOL_2M)
+ 			/*
+ 			 * All target 4K page are in src_hpages_pool, we
+ 			 * can unlock percpu pool.
+ 			 */
+-			for (i = 0; i < NR_PERCPU_POOL; i++)
+-				spin_unlock(&hpool->percpu_pool[i].lock);
+-		}
++			dhugetlb_percpu_pool_unlock_all(hpool);
+ 
+ 		list_del(&split_page->head_pages);
+ 		hpages_pool->split_normal_pages--;
+@@ -304,8 +347,7 @@ static int hpool_merge_page(struct dhugetlb_pool *hpool, int hpages_pool_idx, bo
+ next:
+ 		if (hpages_pool_idx == HUGE_PAGES_POOL_2M) {
+ 			/* Unlock percpu pool before try next */
+-			for (i = 0; i < NR_PERCPU_POOL; i++)
+-				spin_unlock(&hpool->percpu_pool[i].lock);
++			dhugetlb_percpu_pool_unlock_all(hpool);
+ 		}
+ 		continue;
+ migrate:
+@@ -324,9 +366,7 @@ static int hpool_merge_page(struct dhugetlb_pool *hpool, int hpages_pool_idx, bo
+ 		}
+ 
+ 		/* Unlock and try migration. */
+-		for (i = 0; i < NR_PERCPU_POOL; i++)
+-			spin_unlock(&hpool->percpu_pool[i].lock);
+-		spin_unlock(&hpool->lock);
++		dhugetlb_unlock_all(hpool);
+ 
+ 		for (i = 0; i < nr_pages; i+= block_size) {
+ 			p = pfn_to_page(split_page->start_pfn + i);
+@@ -1187,9 +1227,7 @@ static inline void hugetlb_sum_normal_pages(struct dhugetlb_pool *hpool,
+ 	if (!get_hpool_unless_zero(hpool))
+ 		return;
+ 
+-	for (i = 0; i < NR_PERCPU_POOL; i++)
+-		spin_lock(&hpool->percpu_pool[i].lock);
+-	spin_lock(&hpool->lock);
++	dhugetlb_lock_all(hpool);
+ 
+ 	*free_pages = hpool->hpages_pool[HUGE_PAGES_POOL_4K].free_normal_pages;
+ 	for (i = 0; i < NR_PERCPU_POOL; i++) {
+@@ -1197,9 +1235,7 @@ static inline void hugetlb_sum_normal_pages(struct dhugetlb_pool *hpool,
+ 		*used_pages += hpool->percpu_pool[i].used_pages;
+ 	}
+ 
+-	spin_unlock(&hpool->lock);
+-	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
+-		spin_unlock(&hpool->percpu_pool[i].lock);
++	dhugetlb_unlock_all(hpool);
+ 	put_hpool(hpool);
+ }
+ 
+@@ -1358,16 +1394,12 @@ static int test_percpu_pool_empty(struct dhugetlb_pool *hpool)
+ 	/* unlock first */
+ 	spin_unlock(&hpool->lock);
+ 
+-	for (i = 0; i < NR_PERCPU_POOL; i++)
+-		spin_lock(&hpool->percpu_pool[i].lock);
+-	spin_lock(&hugetlb_lock);
++	dhugetlb_lock_all(hpool);
+ 
+ 	for (i = 0; i < NR_PERCPU_POOL; i++)
+ 		nr_used_pages += hpool->percpu_pool[i].used_pages;
+ 
+-	spin_unlock(&hugetlb_lock);
+-	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
+-		spin_unlock(&hpool->percpu_pool[i].lock);
++	dhugetlb_unlock_all(hpool);
+ 
+ 	/* lock again */
+ 	spin_lock(&hpool->lock);
+-- 
+2.17.1
+

@@ -1,0 +1,72 @@
+From b8124524c416f62b2902853d6b09fea1619bf0d2 Mon Sep 17 00:00:00 2001
+From: Robert Hancock <robert.hancock@calian.com>
+Date: Wed, 27 Apr 2022 11:17:16 +0800
+Subject: [PATCH 0565/2065] [Backport] net: axienet: increase reset timeout
+
+stable inclusion
+from stable-v5.10.94
+commit 34942a228aec23ce65fbf4969f091f0f31803880
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=34942a228aec23ce65fbf4969f091f0f31803880
+
+--------------------------------
+
+commit 2e5644b1bab2ccea9cfc7a9520af95b94eb0dbf1 upstream.
+
+The previous timeout of 1ms was too short to handle some cases where the
+core is reset just after the input clocks were started, which will
+be introduced in an upcoming patch. Increase the timeout to 50ms. Also
+simplify the reset timeout checking to use read_poll_timeout.
+
+Fixes: 8a3b7a252dca9 ("drivers/net/ethernet/xilinx: added Xilinx AXI Ethernet driver")
+Signed-off-by: Robert Hancock <robert.hancock@calian.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ .../net/ethernet/xilinx/xilinx_axienet_main.c | 19 +++++++++----------
+ 1 file changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/ethernet/xilinx/xilinx_axienet_main.c b/drivers/net/ethernet/xilinx/xilinx_axienet_main.c
+index 89ef84402187..3ec95fabf25b 100644
+--- a/drivers/net/ethernet/xilinx/xilinx_axienet_main.c
++++ b/drivers/net/ethernet/xilinx/xilinx_axienet_main.c
+@@ -496,7 +496,8 @@ static void axienet_setoptions(struct net_device *ndev, u32 options)
+ 
+ static int __axienet_device_reset(struct axienet_local *lp)
+ {
+-	u32 timeout;
++	u32 value;
++	int ret;
+ 
+ 	/* Reset Axi DMA. This would reset Axi Ethernet core as well. The reset
+ 	 * process of Axi DMA takes a while to complete as all pending
+@@ -506,15 +507,13 @@ static int __axienet_device_reset(struct axienet_local *lp)
+ 	 * they both reset the entire DMA core, so only one needs to be used.
+ 	 */
+ 	axienet_dma_out32(lp, XAXIDMA_TX_CR_OFFSET, XAXIDMA_CR_RESET_MASK);
+-	timeout = DELAY_OF_ONE_MILLISEC;
+-	while (axienet_dma_in32(lp, XAXIDMA_TX_CR_OFFSET) &
+-				XAXIDMA_CR_RESET_MASK) {
+-		udelay(1);
+-		if (--timeout == 0) {
+-			netdev_err(lp->ndev, "%s: DMA reset timeout!\n",
+-				   __func__);
+-			return -ETIMEDOUT;
+-		}
++	ret = read_poll_timeout(axienet_dma_in32, value,
++				!(value & XAXIDMA_CR_RESET_MASK),
++				DELAY_OF_ONE_MILLISEC, 50000, false, lp,
++				XAXIDMA_TX_CR_OFFSET);
++	if (ret) {
++		dev_err(lp->dev, "%s: DMA reset timeout!\n", __func__);
++		return ret;
+ 	}
+ 
+ 	return 0;
+-- 
+2.17.1
+

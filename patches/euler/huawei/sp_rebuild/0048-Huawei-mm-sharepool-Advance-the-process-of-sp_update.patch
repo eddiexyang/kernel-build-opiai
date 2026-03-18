@@ -1,0 +1,190 @@
+From fc76df2dbaeef64c9b19bef11249a2c92d858fb6 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 31 May 2023 14:56:44 +0800
+Subject: [PATCH 48/53] [Huawei] mm/sharepool: Advance the process of
+ sp_update_process_stat
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We update the process stat in sp_alloc/free before we drop the rw_lock
+of the sp_group. This avoids another try for the global sp_global_sem
+and reduces competition for sp_global_sem.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 66 +++++++++++++++++++------------------------------
+ 1 file changed, 26 insertions(+), 40 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 285997242921..06eabcd8f0b4 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -804,32 +804,6 @@ static void update_mem_usage(unsigned long size, bool inc, bool is_hugepage,
+ 	}
+ }
+ 
+-static struct sp_group_node *find_spg_node_by_spg(struct mm_struct *mm,
+-		struct sp_group *spg)
+-{
+-	struct sp_group_node *spg_node;
+-
+-	list_for_each_entry(spg_node, &mm->sp_group_master->group_head, group_node) {
+-		if (spg_node->spg == spg)
+-			return spg_node;
+-	}
+-	return NULL;
+-}
+-
+-static void sp_update_process_stat(struct task_struct *tsk, bool inc,
+-	struct sp_area *spa)
+-{
+-	struct sp_group_node *spg_node;
+-	unsigned long size = spa->real_size;
+-	enum spa_type type = spa->type;
+-
+-	down_read(&sp_global_sem);
+-	spg_node = find_spg_node_by_spg(tsk->mm, spa->spg);
+-	if (spg_node != NULL)
+-		update_mem_usage(size, inc, spa->is_hugepage, spg_node, type);
+-	up_read(&sp_global_sem);
+-}
+-
+ static inline void check_interrupt_context(void)
+ {
+ 	if (unlikely(in_interrupt()))
+@@ -943,7 +917,12 @@ static bool is_process_in_group(struct sp_group *spg,
+ 	return false;
+ }
+ 
+-static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id)
++/*
++ * Get the sp_group from the mm and return the associated sp_group_node.
++ * The caller should promise the @mm would not be deleted from the @spg.
++ */
++static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id,
++					     struct sp_group_node **pnode)
+ {
+ 	struct sp_group *spg = NULL;
+ 	struct sp_group_node *spg_node;
+@@ -959,14 +938,19 @@ static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id)
+ 
+ 	if (spg_id == SPG_ID_DEFAULT) {
+ 		atomic_inc(&master->local->use_count);
++		/* There is only one task in the local group */
++		*pnode = list_first_entry(&master->local->proc_head,
++					  struct sp_group_node, proc_node);
+ 		up_read(&sp_global_sem);
+ 		return master->local;
+ 	}
+ 
+ 	list_for_each_entry(spg_node, &master->group_head, group_node)
+ 		if (spg_node->spg->id == spg_id) {
+-			if (atomic_inc_not_zero(&spg_node->spg->use_count))
++			if (atomic_inc_not_zero(&spg_node->spg->use_count)) {
+ 				spg = spg_node->spg;
++				*pnode = spg_node;
++			}
+ 			break;
+ 		}
+ 	up_read(&sp_global_sem);
+@@ -1843,12 +1827,13 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 	int ret = 0;
+ 	struct sp_area *spa;
+ 	struct sp_group *spg;
++	struct sp_group_node *spg_node;
+ 	const char *str = is_sp_free ? "sp_free" : "unshare_uva";
+ 
+ 	if (!current->mm)
+ 		spg = sp_group_get_from_idr(spg_id);
+ 	else
+-		spg = sp_group_get_from_mm(current->mm, spg_id);
++		spg = sp_group_get_from_mm(current->mm, spg_id, &spg_node);
+ 	if (!spg) {
+ 		pr_err("%s, get group failed %d\n", str, spg_id);
+ 		return -EINVAL;
+@@ -1886,10 +1871,10 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 		vmalloc_area_clr_flag(spa->kva, VM_SHAREPOOL);
+ 		spa->kva = 0;
+ 	}
+-	up_write(&spg->rw_lock);
+ 
+-	if (current->mm != NULL)
+-		sp_update_process_stat(current, false, spa);
++	if (current->mm)
++		update_mem_usage(spa_size(spa), false, spa->is_hugepage, spg_node, spa->type);
++	up_write(&spg->rw_lock);
+ 
+ drop_spa:
+ 	sp_area_put(spa);
+@@ -2195,6 +2180,7 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	struct sp_group *spg;
+ 	nodemask_t __nodemask;
+ 	struct sp_alloc_context ac;
++	struct sp_group_node *spg_node;
+ 
+ 	ret = sp_alloc_prepare(size, sp_flags, spg_id, &ac);
+ 	if (ret)
+@@ -2207,7 +2193,7 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	} else /* mg_sp_alloc_nodemask */
+ 		ac.nodemask = nodemask;
+ 
+-	spg = sp_group_get_from_mm(current->mm, spg_id);
++	spg = sp_group_get_from_mm(current->mm, spg_id, &spg_node);
+ 	if (!spg) {
+ 		pr_err("allocation failed, can't find group(%d)\n", spg_id);
+ 		return ERR_PTR(-ENODEV);
+@@ -2229,11 +2215,12 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	if (ret == -ENOMEM && sp_alloc_fallback(spa, &ac))
+ 		goto try_again;
+ 
+-	up_write(&spg->rw_lock);
+ 	if (!ret)
+-		sp_update_process_stat(current, true, spa);
++		update_mem_usage(spa_size(spa), true, spa->is_hugepage, spg_node, spa->type);
+ 
++	up_write(&spg->rw_lock);
+ 	sp_area_put(spa);
++
+ out:
+ 	sp_group_put(spg);
+ 	if (ret)
+@@ -2446,14 +2433,14 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 	struct sp_area *spa;
+ 	struct sp_group *spg;
+ 	struct sp_k2u_context kc;
+-	struct sp_group_node *spg_node;
++	struct sp_group_node *spg_node, *ori_node;
+ 
+ 	spg_id = (spg_id == SPG_ID_NONE) ? SPG_ID_DEFAULT : spg_id;
+ 	ret = sp_k2u_prepare(kva, size, sp_flags, spg_id, &kc);
+ 	if (ret)
+ 		return ERR_PTR(ret);
+ 
+-	spg = sp_group_get_from_mm(current->mm, spg_id);
++	spg = sp_group_get_from_mm(current->mm, spg_id, &ori_node);
+ 	if (!spg) {
+ 		pr_err("k2u failed, can't find group(%d)\n", spg_id);
+ 		return ERR_PTR(-ENODEV);
+@@ -2485,12 +2472,11 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 		ret = mmap_ret;
+ 	}
+ 
+-	up_write(&spg->rw_lock);
+ 	if (!ret) {
+-		sp_update_process_stat(current, true, spa);
++		update_mem_usage(spa_size(spa), true, spa->is_hugepage, ori_node, spa->type);
+ 		vmalloc_area_set_flag(kc.kva_aligned, VM_SHAREPOOL);
+ 	}
+-
++	up_write(&spg->rw_lock);
+ 	sp_area_put(spa);
+ 	sp_group_put(spg);
+ 
+-- 
+2.17.1
+

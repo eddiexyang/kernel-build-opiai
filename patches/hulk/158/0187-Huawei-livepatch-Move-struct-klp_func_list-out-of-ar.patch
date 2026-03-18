@@ -1,0 +1,146 @@
+From 0e680c44deb5d73772c8b155c707e8b4aab7b208 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Fri, 12 Aug 2022 11:27:42 +0000
+Subject: [PATCH 0187/1076] [Huawei] livepatch: Move 'struct klp_func_list' out
+ of arch
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187517
+
+--------------------------------
+
+We need an interface to check calltrace of a certain task to find if
+the task is running in the old function that ready to be patched.
+
+Since klp_check_calltrace() do the similar thing except that it checks
+all tasks, We can do little refactor on it to extract a function like
+klp_check_task_calltrace().
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/arm/kernel/livepatch.c        | 8 --------
+ arch/arm64/kernel/livepatch.c      | 8 --------
+ arch/powerpc/kernel/livepatch_32.c | 8 --------
+ arch/powerpc/kernel/livepatch_64.c | 8 --------
+ arch/x86/kernel/livepatch.c        | 8 --------
+ include/linux/livepatch.h          | 7 +++++++
+ 6 files changed, 7 insertions(+), 40 deletions(-)
+
+diff --git a/arch/arm/kernel/livepatch.c b/arch/arm/kernel/livepatch.c
+index b4d26474ba33..4a5366edade5 100644
+--- a/arch/arm/kernel/livepatch.c
++++ b/arch/arm/kernel/livepatch.c
+@@ -64,14 +64,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct klp_func_list {
+-	struct klp_func_list *next;
+-	unsigned long func_addr;
+-	unsigned long func_size;
+-	const char *func_name;
+-	int force;
+-};
+-
+ struct walk_stackframe_args {
+ 	int enable;
+ 	struct klp_func_list *check_funcs;
+diff --git a/arch/arm64/kernel/livepatch.c b/arch/arm64/kernel/livepatch.c
+index 6b5bcb491125..e4070c55b8ed 100644
+--- a/arch/arm64/kernel/livepatch.c
++++ b/arch/arm64/kernel/livepatch.c
+@@ -57,14 +57,6 @@ static inline bool offset_in_range(unsigned long pc, unsigned long addr,
+ 		((le32_to_cpu(insn) & 0xfc000000) == 0x94000000) || \
+ 		((le32_to_cpu(insn) & 0xfefff800) == 0xd63f0800))
+ 
+-struct klp_func_list {
+-	struct klp_func_list *next;
+-	unsigned long func_addr;
+-	unsigned long func_size;
+-	const char *func_name;
+-	int force;
+-};
+-
+ struct walk_stackframe_args {
+ 	int enable;
+ 	struct klp_func_list *check_funcs;
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index 7b4ed23bf2ca..52356621934b 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -54,14 +54,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct klp_func_list {
+-	struct klp_func_list *next;
+-	unsigned long func_addr;
+-	unsigned long func_size;
+-	const char *func_name;
+-	int force;
+-};
+-
+ struct walk_stackframe_args {
+ 	int enable;
+ 	struct klp_func_list *check_funcs;
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index a2ec7c8c1bad..f2b40da2e120 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -59,14 +59,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct klp_func_list {
+-	struct klp_func_list *next;
+-	unsigned long func_addr;
+-	unsigned long func_size;
+-	const char *func_name;
+-	int force;
+-};
+-
+ struct walk_stackframe_args {
+ 	int enable;
+ 	struct klp_func_list *check_funcs;
+diff --git a/arch/x86/kernel/livepatch.c b/arch/x86/kernel/livepatch.c
+index 0241e560bd2e..d34f618f2809 100644
+--- a/arch/x86/kernel/livepatch.c
++++ b/arch/x86/kernel/livepatch.c
+@@ -52,14 +52,6 @@ static bool is_jump_insn(u8 *insn)
+ 	return false;
+ }
+ 
+-struct klp_func_list {
+-	struct klp_func_list *next;
+-	unsigned long func_addr;
+-	unsigned long func_size;
+-	const char *func_name;
+-	int force;
+-};
+-
+ static inline unsigned long klp_size_to_check(unsigned long func_size,
+ 		int force)
+ {
+diff --git a/include/linux/livepatch.h b/include/linux/livepatch.h
+index 56ad1c1dd83e..23fb19d74311 100644
+--- a/include/linux/livepatch.h
++++ b/include/linux/livepatch.h
+@@ -259,6 +259,13 @@ int klp_compare_address(unsigned long pc, unsigned long func_addr,
+ void arch_klp_init(void);
+ int klp_module_delete_safety_check(struct module *mod);
+ 
++struct klp_func_list {
++	struct klp_func_list *next;
++	unsigned long func_addr;
++	unsigned long func_size;
++	const char *func_name;
++	int force;
++};
+ #endif
+ 
+ int klp_apply_section_relocs(struct module *pmod, Elf_Shdr *sechdrs,
+-- 
+2.17.1
+

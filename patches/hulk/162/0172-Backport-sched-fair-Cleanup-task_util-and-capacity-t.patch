@@ -1,0 +1,57 @@
+From 552159557bd99d674a4f49e7110426cb158db1a1 Mon Sep 17 00:00:00 2001
+From: Vincent Donnefort <vincent.donnefort@arm.com>
+Date: Tue, 7 Dec 2021 09:57:55 +0000
+Subject: [PATCH 172/905] [Backport] sched/fair: Cleanup task_util and capacity
+ type
+
+stable inclusion
+from stable-v5.10.163
+commit ca9ef12bf7657687ef1c484584ce03e3c743561d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ca9ef12bf7657687ef1c484584ce03e3c743561d
+
+--------------------------------
+
+[ Upstream commit ef8df9798d469b7c45c66664550e93469749f1e8 ]
+
+task_util and capacity are comparable unsigned long values. There is no
+need for an intermidiate implicit signed cast.
+
+Signed-off-by: Vincent Donnefort <vincent.donnefort@arm.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20211207095755.859972-1-vincent.donnefort@arm.com
+Stable-dep-of: 48d5e9daa8b7 ("sched/uclamp: Fix relationship between uclamp and migration margin")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/sched/fair.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 2d780cbf16f5..60feda23bf04 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -4192,7 +4192,8 @@ static inline void util_est_update(struct cfs_rq *cfs_rq,
+ 	trace_sched_util_est_se_tp(&p->se);
+ }
+ 
+-static inline int task_fits_capacity(struct task_struct *p, long capacity)
++static inline int task_fits_capacity(struct task_struct *p,
++				     unsigned long capacity)
+ {
+ 	return fits_capacity(uclamp_task_util(p), capacity);
+ }
+@@ -6581,7 +6582,7 @@ select_idle_capacity(struct task_struct *p, struct sched_domain *sd, int target)
+ 	return best_cpu;
+ }
+ 
+-static inline bool asym_fits_capacity(int task_util, int cpu)
++static inline bool asym_fits_capacity(unsigned long task_util, int cpu)
+ {
+ 	if (static_branch_unlikely(&sched_asym_cpucapacity))
+ 		return fits_capacity(task_util, capacity_of(cpu));
+-- 
+2.17.1
+

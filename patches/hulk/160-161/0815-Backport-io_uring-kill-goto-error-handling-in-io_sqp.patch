@@ -1,0 +1,56 @@
+From 3650b3d6198df4a68227f53fddbe4bafa407c3e5 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Wed, 16 Nov 2022 09:43:39 +0100
+Subject: [PATCH 0815/1398] [Backport] io_uring: kill goto error handling in
+ io_sqpoll_wait_sq()
+
+stable inclusion
+from stable-v5.10.155
+commit 0f544353fec8e717d37724d95b92538e1de79e86
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64YCD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0f544353fec8e717d37724d95b92538e1de79e86
+
+--------------------------------
+
+Hunk extracted from commit 70aacfe66136809d7f080f89c492c278298719f4
+upstream.
+
+If the sqpoll thread has died, the out condition doesn't remove the
+waiting task from the waitqueue. The goto and check are not needed, just
+make it a break condition after setting the error value. That ensures
+that we always remove ourselves from sqo_sq_wait waitqueue.
+
+Reported-by: Xingyuan Mo <hdthky0@gmail.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ fs/io_uring.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index ff8cf27fccbb..1ddf4db1c3d9 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -9090,7 +9090,7 @@ static int io_sqpoll_wait_sq(struct io_ring_ctx *ctx)
+ 
+ 		if (unlikely(ctx->sqo_dead)) {
+ 			ret = -EOWNERDEAD;
+-			goto out;
++			break;
+ 		}
+ 
+ 		if (!io_sqring_full(ctx))
+@@ -9100,7 +9100,6 @@ static int io_sqpoll_wait_sq(struct io_ring_ctx *ctx)
+ 	} while (!signal_pending(current));
+ 
+ 	finish_wait(&ctx->sqo_sq_wait, &wait);
+-out:
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

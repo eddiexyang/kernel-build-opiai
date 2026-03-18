@@ -1,0 +1,39 @@
+From 6e87f3aa6c04e421d2deb14d5335f1ddccd26bc1 Mon Sep 17 00:00:00 2001
+From: GUO Zihua <guozihua@huawei.com>
+Date: Thu, 10 Nov 2022 15:43:57 +0800
+Subject: [PATCH 0021/1398] [Huawei] Control KABI reservation codes with config
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187957
+
+--------------------------------
+
+Control KABI reservation codes with CONFIG_KABI_RESERVE. Minimizing
+risk.
+
+Signed-off-by: GUO Zihua <guozihua@huawei.com>
+---
+ include/linux/proc_ns.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/linux/proc_ns.h b/include/linux/proc_ns.h
+index 81e99aa97cd7..737c98ebb7b3 100644
+--- a/include/linux/proc_ns.h
++++ b/include/linux/proc_ns.h
+@@ -16,7 +16,11 @@ struct inode;
+ struct proc_ns_operations {
+ 	const char *name;
+ 	const char *real_ns_name;
++#ifdef CONFIG_KABI_RESERVE
+ 	u64 type;
++#else
++	int type;
++#endif
+ 	struct ns_common *(*get)(struct task_struct *task);
+ 	void (*put)(struct ns_common *ns);
+ 	int (*install)(struct nsset *nsset, struct ns_common *ns);
+-- 
+2.17.1
+

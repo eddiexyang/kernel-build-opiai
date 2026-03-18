@@ -1,0 +1,50 @@
+From 8263157d38b1344c590cfe2642327fa4b354e050 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Thu, 2 Feb 2023 16:15:15 +0100
+Subject: [PATCH 673/921] [Backport] PM: EM: fix memory leak with using
+ debugfs_lookup()
+
+stable inclusion
+from stable-v5.10.173
+commit e974e8f1e37d22c0de07374f8ddc84073fef2f1d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e974e8f1e37d22c0de07374f8ddc84073fef2f1d
+
+--------------------------------
+
+[ Upstream commit a0e8c13ccd6a9a636d27353da62c2410c4eca337 ]
+
+When calling debugfs_lookup() the result must have dput() called on it,
+otherwise the memory will leak over time.  To make things simpler, just
+call debugfs_lookup_and_remove() instead which handles all of the logic
+at once.
+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/power/energy_model.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/kernel/power/energy_model.c b/kernel/power/energy_model.c
+index 119b929dcff0..334173fe6940 100644
+--- a/kernel/power/energy_model.c
++++ b/kernel/power/energy_model.c
+@@ -72,10 +72,7 @@ static void em_debug_create_pd(struct device *dev)
+ 
+ static void em_debug_remove_pd(struct device *dev)
+ {
+-	struct dentry *debug_dir;
+-
+-	debug_dir = debugfs_lookup(dev_name(dev), rootdir);
+-	debugfs_remove_recursive(debug_dir);
++	debugfs_lookup_and_remove(dev_name(dev), rootdir);
+ }
+ 
+ static int __init em_debug_init(void)
+-- 
+2.17.1
+

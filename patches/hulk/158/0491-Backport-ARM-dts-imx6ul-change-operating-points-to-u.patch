@@ -1,0 +1,73 @@
+From f33b0b25f336bf48dce2fefc4deb67702f07bea6 Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Mon, 13 Jun 2022 14:33:52 +0200
+Subject: [PATCH 0491/1076] [Backport] ARM: dts: imx6ul: change
+ operating-points to uint32-matrix
+
+stable inclusion
+from stable-v5.10.137
+commit 15af2deb19e430ace4d3bcea8cc6c469d1e1e002
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=15af2deb19e430ace4d3bcea8cc6c469d1e1e002
+
+--------------------------------
+
+[ Upstream commit edb67843983bbdf61b4c8c3c50618003d38bb4ae ]
+
+operating-points is a uint32-matrix as per opp-v1.yaml. Change it
+accordingly. While at it, change fsl,soc-operating-points as well,
+although there is no bindings file (yet). But they should have the same
+format. Fixes the dt_binding_check warning:
+cpu@0: operating-points:0: [696000, 1275000, 528000, 1175000, 396000,
+1025000, 198000, 950000] is too long
+cpu@0: operating-points:0: Additional items are not allowed (528000,
+1175000, 396000, 1025000, 198000, 950000 were unexpected)
+
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/imx6ul.dtsi | 22 ++++++++++------------
+ 1 file changed, 10 insertions(+), 12 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6ul.dtsi b/arch/arm/boot/dts/imx6ul.dtsi
+index 34eccc1db12c..02640c19c1ec 100644
+--- a/arch/arm/boot/dts/imx6ul.dtsi
++++ b/arch/arm/boot/dts/imx6ul.dtsi
+@@ -62,20 +62,18 @@
+ 			clock-frequency = <696000000>;
+ 			clock-latency = <61036>; /* two CLK32 periods */
+ 			#cooling-cells = <2>;
+-			operating-points = <
++			operating-points =
+ 				/* kHz	uV */
+-				696000	1275000
+-				528000	1175000
+-				396000	1025000
+-				198000	950000
+-			>;
+-			fsl,soc-operating-points = <
++				<696000	1275000>,
++				<528000	1175000>,
++				<396000	1025000>,
++				<198000	950000>;
++			fsl,soc-operating-points =
+ 				/* KHz	uV */
+-				696000	1275000
+-				528000	1175000
+-				396000	1175000
+-				198000	1175000
+-			>;
++				<696000	1275000>,
++				<528000	1175000>,
++				<396000	1175000>,
++				<198000	1175000>;
+ 			clocks = <&clks IMX6UL_CLK_ARM>,
+ 				 <&clks IMX6UL_CLK_PLL2_BUS>,
+ 				 <&clks IMX6UL_CLK_PLL2_PFD2>,
+-- 
+2.17.1
+

@@ -1,0 +1,49 @@
+From c61570c59648a701592465eec4cb54d4eee0be08 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Wed, 18 May 2022 11:47:13 +0800
+Subject: [PATCH 2094/2592] [Huawei] sched: fix undefined reference
+ DECLARE_STATIC_KEY_FALSE
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186787
+
+-------------------------------
+
+Add jump_label.h to avoid this compile error.
+
+ $ make -j64 ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
+ ./include/linux/sched/cputime.h:190:1: warning: data definition has no type or
+ storage class  DECLARE_STATIC_KEY_FALSE(use_sched_idle_time);
+
+ ./include/linux/sched/cputime.h:190:1: error: type defaults to ‘int’ in
+ declaration of ‘DECLARE_STATIC_KEY_FALSE’ [-Werror=implicit-int]
+ CC      kernel/power/console.o
+ ./include/linux/sched/cputime.h:190:1: warning: parameter names (without types)
+ in function declaration
+
+Fixes: f4d4791ab01e ("[Backport] sched/cputime: use sched idle time accounting")
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ include/linux/sched/cputime.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/linux/sched/cputime.h b/include/linux/sched/cputime.h
+index e05476ad88ae..77d513a1050b 100644
+--- a/include/linux/sched/cputime.h
++++ b/include/linux/sched/cputime.h
+@@ -3,6 +3,7 @@
+ #define _LINUX_SCHED_CPUTIME_H
+ 
+ #include <linux/sched/signal.h>
++#include <linux/jump_label.h>
+ 
+ /*
+  * cputime accounting APIs:
+-- 
+2.17.1
+

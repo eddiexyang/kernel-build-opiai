@@ -1,0 +1,123 @@
+From bb68f88c53c1790e7cc2a79ca6b9ba7d92eec131 Mon Sep 17 00:00:00 2001
+From: Kaixu Xia <kaixuxia@tencent.com>
+Date: Fri, 16 Sep 2022 23:20:35 +0800
+Subject: [PATCH 152/921] [Backport] mm/damon: return void from
+ damon_set_schemes()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit cc713520bdc1b84fc5394f6ac8649b93ad2c5dde
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=cc713520bdc1b84fc5394f6ac8649b93ad2c5dde
+
+--------------------------------
+
+There is no point in returning an int from damon_set_schemes().  It always
+returns 0 which is meaningless for the caller, so change it to return void
+directly.
+
+Link: https://lkml.kernel.org/r/1663341635-12675-1-git-send-email-kaixuxia@tencent.com
+Signed-off-by: Kaixu Xia <kaixuxia@tencent.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Reviewed-by: Muchun Song <songmuchun@bytedance.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ include/linux/damon.h | 2 +-
+ mm/damon/core.c       | 5 +----
+ mm/damon/dbgfs.c      | 8 +++-----
+ mm/damon/lru_sort.c   | 4 +---
+ mm/damon/reclaim.c    | 4 +---
+ 5 files changed, 7 insertions(+), 16 deletions(-)
+
+diff --git a/include/linux/damon.h b/include/linux/damon.h
+index 6cdb3af77659..f96f9515a4ee 100644
+--- a/include/linux/damon.h
++++ b/include/linux/damon.h
+@@ -541,7 +541,7 @@ unsigned int damon_nr_regions(struct damon_target *t);
+ struct damon_ctx *damon_new_ctx(void);
+ void damon_destroy_ctx(struct damon_ctx *ctx);
+ int damon_set_attrs(struct damon_ctx *ctx, struct damon_attrs *attrs);
+-int damon_set_schemes(struct damon_ctx *ctx,
++void damon_set_schemes(struct damon_ctx *ctx,
+ 			struct damos **schemes, ssize_t nr_schemes);
+ int damon_nr_running_ctxs(void);
+ bool damon_is_registered_ops(enum damon_ops_id id);
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index a843673c11cf..9c80c6eb00c2 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -454,10 +454,8 @@ int damon_set_attrs(struct damon_ctx *ctx, struct damon_attrs *attrs)
+  *
+  * This function should not be called while the kdamond of the context is
+  * running.
+- *
+- * Return: 0 if success, or negative error code otherwise.
+  */
+-int damon_set_schemes(struct damon_ctx *ctx, struct damos **schemes,
++void damon_set_schemes(struct damon_ctx *ctx, struct damos **schemes,
+ 			ssize_t nr_schemes)
+ {
+ 	struct damos *s, *next;
+@@ -467,7 +465,6 @@ int damon_set_schemes(struct damon_ctx *ctx, struct damos **schemes,
+ 		damon_destroy_scheme(s);
+ 	for (i = 0; i < nr_schemes; i++)
+ 		damon_add_scheme(ctx, schemes[i]);
+-	return 0;
+ }
+ 
+ /**
+diff --git a/mm/damon/dbgfs.c b/mm/damon/dbgfs.c
+index c00eba4448d8..6f0ae7d3ae39 100644
+--- a/mm/damon/dbgfs.c
++++ b/mm/damon/dbgfs.c
+@@ -307,11 +307,9 @@ static ssize_t dbgfs_schemes_write(struct file *file, const char __user *buf,
+ 		goto unlock_out;
+ 	}
+ 
+-	ret = damon_set_schemes(ctx, schemes, nr_schemes);
+-	if (!ret) {
+-		ret = count;
+-		nr_schemes = 0;
+-	}
++	damon_set_schemes(ctx, schemes, nr_schemes);
++	ret = count;
++	nr_schemes = 0;
+ 
+ unlock_out:
+ 	mutex_unlock(&ctx->kdamond_lock);
+diff --git a/mm/damon/lru_sort.c b/mm/damon/lru_sort.c
+index 4a40054ba03b..d7eb72b41cb6 100644
+--- a/mm/damon/lru_sort.c
++++ b/mm/damon/lru_sort.c
+@@ -203,9 +203,7 @@ static int damon_lru_sort_apply_parameters(void)
+ 	scheme = damon_lru_sort_new_hot_scheme(hot_thres);
+ 	if (!scheme)
+ 		return -ENOMEM;
+-	err = damon_set_schemes(ctx, &scheme, 1);
+-	if (err)
+-		return err;
++	damon_set_schemes(ctx, &scheme, 1);
+ 
+ 	cold_thres = cold_min_age / damon_lru_sort_mon_attrs.aggr_interval;
+ 	scheme = damon_lru_sort_new_cold_scheme(cold_thres);
+diff --git a/mm/damon/reclaim.c b/mm/damon/reclaim.c
+index 039fa55e0ae9..3d59ab11b7b3 100644
+--- a/mm/damon/reclaim.c
++++ b/mm/damon/reclaim.c
+@@ -155,9 +155,7 @@ static int damon_reclaim_apply_parameters(void)
+ 	scheme = damon_reclaim_new_scheme();
+ 	if (!scheme)
+ 		return -ENOMEM;
+-	err = damon_set_schemes(ctx, &scheme, 1);
+-	if (err)
+-		return err;
++	damon_set_schemes(ctx, &scheme, 1);
+ 
+ 	if (monitor_region_start > monitor_region_end)
+ 		return -EINVAL;
+-- 
+2.17.1
+

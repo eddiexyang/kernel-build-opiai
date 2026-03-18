@@ -1,0 +1,69 @@
+From c4931d77ea97f0ad788f71c65e87c093278772a3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Lindahl?= <marten.lindahl@axis.com>
+Date: Thu, 30 Mar 2023 11:32:14 +0200
+Subject: [PATCH 593/780] [Backport] ubifs: Free memory for tmpfile name
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.180
+commit b8f444a4fadfb5070ed7e298e0a5ceb4a18014f3
+category: bugfix
+bugzilla: 188964
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b8f444a4fadfb5070ed7e298e0a5ceb4a18014f3
+
+--------------------------------
+
+commit 1fb815b38bb31d6af9bd0540b8652a0d6fe6cfd3 upstream.
+
+When opening a ubifs tmpfile on an encrypted directory, function
+fscrypt_setup_filename allocates memory for the name that is to be
+stored in the directory entry, but after the name has been copied to the
+directory entry inode, the memory is not freed.
+
+When running kmemleak on it we see that it is registered as a leak. The
+report below is triggered by a simple program 'tmpfile' just opening a
+tmpfile:
+
+  unreferenced object 0xffff88810178f380 (size 32):
+    comm "tmpfile", pid 509, jiffies 4294934744 (age 1524.742s)
+    backtrace:
+      __kmem_cache_alloc_node
+      __kmalloc
+      fscrypt_setup_filename
+      ubifs_tmpfile
+      vfs_tmpfile
+      path_openat
+
+Free this memory after it has been copied to the inode.
+
+Signed-off-by: Mårten Lindahl <marten.lindahl@axis.com>
+Reviewed-by: Zhihao Cheng <chengzhihao1@huawei.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Richard Weinberger <richard@nod.at>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: ZhaoLong Wang <wangzhaolong1@huawei.com>
+
+Conflicts:
+    fs/ubifs/dir.c
+---
+ fs/ubifs/dir.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/ubifs/dir.c b/fs/ubifs/dir.c
+index aedd545886cb..4f75c802a02b 100644
+--- a/fs/ubifs/dir.c
++++ b/fs/ubifs/dir.c
+@@ -490,6 +490,7 @@ static int ubifs_tmpfile(struct inode *dir, struct dentry *dentry,
+ 	unlock_2_inodes(dir, inode);
+ 
+ 	ubifs_release_budget(c, &req);
++	fscrypt_free_filename(&nm);
+ 
+ 	return 0;
+ 
+-- 
+2.17.1
+

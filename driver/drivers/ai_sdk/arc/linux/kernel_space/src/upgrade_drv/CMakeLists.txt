@@ -1,0 +1,40 @@
+if( ${PRODUCT} STREQUAL ascend610)
+    set(drv_upgrade_depends drv_user_cfg drv_pkicms drv_ufs drv_devmng drv_fault)
+elseif ( ${PRODUCT} STREQUAL as31xm1)
+    set(drv_upgrade_depends drv_user_cfg drv_pkicms drv_ufs drv_devmng)
+elseif ( ${PRODUCT} STREQUAL bs9sx1a)
+    set(drv_upgrade_depends drv_user_cfg drv_pkicms drv_ufs drv_devmng drv_fault)
+elseif ( ${PRODUCT} STREQUAL ascend610Lite)
+    set(drv_upgrade_depends drv_user_cfg drv_pkicms drv_ufs drv_devmng drv_fault)
+elseif ( ${PRODUCT} STREQUAL ascend610Liteesl)
+set(drv_upgrade_depends drv_user_cfg drv_pkicms drv_ufs drv_devmng drv_fault)
+elseif ( ${PRODUCT} STREQUAL ascend310p)
+    set(drv_upgrade_depends drv_pkicms drv_user_cfg hsm_firmware_update hsm_flash hsm_heartbeat)
+elseif ( ${PRODUCT} STREQUAL ascend910B)
+    set(drv_upgrade_depends )
+elseif ( ${PRODUCT} STREQUAL ascend910)
+    set(drv_upgrade_depends drv_user_cfg drv_nor_flash drv_dfm tee_drv )
+elseif ( ${PRODUCT} STREQUAL ascend920esl)
+    set(drv_upgrade_depends )
+elseif ( ${PRODUCT} STREQUAL ascend920emu)
+    set(drv_upgrade_depends )
+elseif ( ${PRODUCT} STREQUAL ascend310)
+    set(drv_upgrade_depends drv_devmng drv_nor_flash tee_drv)
+elseif ( ${PRODUCT} STREQUAL ascend310rc)
+    set(drv_upgrade_depends )
+elseif ( ${PRODUCT} STREQUAL helper310p)
+    set(drv_upgrade_depends )
+elseif ( ${PRODUCT} STREQUAL ascend310B OR ${PRODUCT} STREQUAL ascend310Brc)
+    set(drv_upgrade_depends )
+else ()
+    set(drv_upgrade_depends drv_nor_flash tee_drv drv_dfm)
+endif ()
+
+list(APPEND MAKE_ARGS
+    KBUILD_MODPOST_WARN=1
+)
+
+add_device_ko(LOCAL_MODULE drv_upgrade
+    KO_SRC_FOLDER ${CMAKE_CURRENT_SOURCE_DIR}
+    MAKE_ARGS ${MAKE_ARGS}
+    TARGETE_DPENDS "${drv_upgrade_depends}")

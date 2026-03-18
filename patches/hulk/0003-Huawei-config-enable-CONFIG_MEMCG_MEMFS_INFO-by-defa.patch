@@ -1,0 +1,50 @@
+From e2a963bf76dd5a5d9303101373c85f90dfe0c124 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Thu, 7 Apr 2022 16:12:38 +0800
+Subject: [PATCH 0003/2065] [Huawei] config: enable CONFIG_MEMCG_MEMFS_INFO by
+ default
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186182
+
+--------------------------------
+
+enable CONFIG_MEMCG_MEMFS_INFO by default.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+Reviewed-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ arch/x86/configs/openeuler_defconfig   | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 5020f94eea34..770222a597e4 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -133,6 +133,7 @@ CONFIG_PAGE_COUNTER=y
+ CONFIG_MEMCG=y
+ CONFIG_MEMCG_SWAP=y
+ CONFIG_MEMCG_KMEM=y
++CONFIG_MEMCG_MEMFS_INFO=y
+ CONFIG_BLK_CGROUP=y
+ CONFIG_CGROUP_WRITEBACK=y
+ CONFIG_CGROUP_SCHED=y
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 351a89b54d7f..926dfe0628dc 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -152,6 +152,7 @@ CONFIG_PAGE_COUNTER=y
+ CONFIG_MEMCG=y
+ CONFIG_MEMCG_SWAP=y
+ CONFIG_MEMCG_KMEM=y
++CONFIG_MEMCG_MEMFS_INFO=y
+ CONFIG_BLK_CGROUP=y
+ CONFIG_CGROUP_WRITEBACK=y
+ CONFIG_CGROUP_SCHED=y
+-- 
+2.17.1
+

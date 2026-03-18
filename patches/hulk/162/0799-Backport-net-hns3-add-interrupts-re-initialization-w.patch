@@ -1,0 +1,53 @@
+From b9f49f8a2bcaa6b980c12bacb08c3de790382a64 Mon Sep 17 00:00:00 2001
+From: Jie Wang <wangjie125@huawei.com>
+Date: Thu, 22 Dec 2022 14:43:41 +0800
+Subject: [PATCH 799/905] [Backport] net: hns3: add interrupts
+ re-initialization while doing VF FLR
+
+stable inclusion
+from stable-v5.10.163
+commit 4226ce95a9349f44c48e78b1fce1912fc7f90771
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4226ce95a9349f44c48e78b1fce1912fc7f90771
+
+--------------------------------
+
+[ Upstream commit 09e6b30eeb254f1818a008cace3547159e908dfd ]
+
+Currently keep alive message between PF and VF may be lost and the VF is
+unalive in PF. So the VF will not do reset during PF FLR reset process.
+This would make the allocated interrupt resources of VF invalid and VF
+would't receive or respond to PF any more.
+
+So this patch adds VF interrupts re-initialization during VF FLR for VF
+recovery in above cases.
+
+Fixes: 862d969a3a4d ("net: hns3: do VF's pci re-initialization while PF doing FLR")
+Signed-off-by: Jie Wang <wangjie125@huawei.com>
+Signed-off-by: Hao Lan <lanhao@huawei.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
+index 32a7b467d79f..626d25d3443d 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
+@@ -2767,7 +2767,8 @@ static int hclgevf_pci_reset(struct hclgevf_dev *hdev)
+ 	struct pci_dev *pdev = hdev->pdev;
+ 	int ret = 0;
+ 
+-	if (hdev->reset_type == HNAE3_VF_FULL_RESET &&
++	if ((hdev->reset_type == HNAE3_VF_FULL_RESET ||
++	     hdev->reset_type == HNAE3_FLR_RESET) &&
+ 	    test_bit(HCLGEVF_STATE_IRQ_INITED, &hdev->state)) {
+ 		hclgevf_misc_irq_uninit(hdev);
+ 		hclgevf_uninit_msi(hdev);
+-- 
+2.17.1
+

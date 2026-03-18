@@ -1,0 +1,99 @@
+From 1a6e652fa37bf462eee4516f10464c61cee12854 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 27 Apr 2022 11:11:38 +0800
+Subject: [PATCH 0230/2065] [Backport] arm64: dts: qcom: c630: Fix soundcard
+ setup
+
+stable inclusion
+from stable-v5.10.94
+commit 6f20a5a98a906796572b14ea5c56373ef8a5384f
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6f20a5a98a906796572b14ea5c56373ef8a5384f
+
+--------------------------------
+
+[ Upstream commit c02b360ca67ebeb9de07b47b2fe53f964c2561d1 ]
+
+Currently Soundcard has 1 rx device for headset and SoundWire Speaker Playback.
+
+This setup has issues, ex if we try to play on headset the audio stream is
+also sent to SoundWire Speakers and we will hear sound in both headsets and speakers.
+
+Make a separate device for Speakers and Headset so that the streams are
+different and handled properly.
+
+Fixes: 45021d35fcb2 ("arm64: dts: qcom: c630: Enable audio support")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Tested-by: Steev Klimaszewski <steev@kali.org>
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+Link: https://lore.kernel.org/r/20211209175342.20386-2-srinivas.kandagatla@linaro.org
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ .../boot/dts/qcom/sdm850-lenovo-yoga-c630.dts | 27 +++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm850-lenovo-yoga-c630.dts b/arch/arm64/boot/dts/qcom/sdm850-lenovo-yoga-c630.dts
+index ad6561843ba2..e080c317b5e3 100644
+--- a/arch/arm64/boot/dts/qcom/sdm850-lenovo-yoga-c630.dts
++++ b/arch/arm64/boot/dts/qcom/sdm850-lenovo-yoga-c630.dts
+@@ -365,6 +365,10 @@
+ 	dai@1 {
+ 		reg = <1>;
+ 	};
++
++	dai@2 {
++		reg = <2>;
++	};
+ };
+ 
+ &sound {
+@@ -377,6 +381,7 @@
+ 		"SpkrLeft IN", "SPK1 OUT",
+ 		"SpkrRight IN", "SPK2 OUT",
+ 		"MM_DL1",  "MultiMedia1 Playback",
++		"MM_DL3",  "MultiMedia3 Playback",
+ 		"MultiMedia2 Capture", "MM_UL2";
+ 
+ 	mm1-dai-link {
+@@ -393,6 +398,13 @@
+ 		};
+ 	};
+ 
++	mm3-dai-link {
++		link-name = "MultiMedia3";
++		cpu {
++			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA3>;
++		};
++	};
++
+ 	slim-dai-link {
+ 		link-name = "SLIM Playback";
+ 		cpu {
+@@ -422,6 +434,21 @@
+ 			sound-dai = <&wcd9340 1>;
+ 		};
+ 	};
++
++	slim-wcd-dai-link {
++		link-name = "SLIM WCD Playback";
++		cpu {
++			sound-dai = <&q6afedai SLIMBUS_1_RX>;
++		};
++
++		platform {
++			sound-dai = <&q6routing>;
++		};
++
++		codec {
++			sound-dai =  <&wcd9340 2>;
++		};
++	};
+ };
+ 
+ &tlmm {
+-- 
+2.17.1
+

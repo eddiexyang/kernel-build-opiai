@@ -1,0 +1,68 @@
+From b1fdcf3e487fb1bc40b4a36bf0003d2fac74791b Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Tue, 10 Jan 2023 16:36:38 +0800
+Subject: [PATCH 1384/1398] [Huawei] md: fix uaf in md_wakeup_thread
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188227
+
+--------------------------------
+
+There is no lock protection in md_wakeup_thread() and sync_thread might be
+freed during wake up as below. Use pers_lock to protect it.
+
+T1			T2
+			md_start_sync
+			 md_register_thread
+			 md_wakeup_thread
+raid1d
+ md_check_recovery
+  md_reap_sync_thread
+   md_unregister_thread
+    kfree
+			  wake_up
+			   ->sync_thread was freed
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 8658e3df3b24..a010e3efa418 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -9179,11 +9179,10 @@ static int remove_and_add_spares(struct mddev *mddev,
+ static void md_start_sync(struct work_struct *ws)
+ {
+ 	struct mddev *mddev = container_of(ws, struct mddev, del_work);
++	struct md_thread *sync_thread;
+ 
+-	mddev->sync_thread = md_register_thread(md_do_sync,
+-						mddev,
+-						"resync");
+-	if (!mddev->sync_thread) {
++	sync_thread = md_register_thread(md_do_sync, mddev, "resync");
++	if (!sync_thread) {
+ 		pr_warn("%s: could not start resync thread...\n",
+ 			mdname(mddev));
+ 		/* leave the spares where they are, it shouldn't hurt */
+@@ -9197,8 +9196,12 @@ static void md_start_sync(struct work_struct *ws)
+ 				       &mddev->recovery))
+ 			if (mddev->sysfs_action)
+ 				sysfs_notify_dirent_safe(mddev->sysfs_action);
+-	} else
++	} else {
++		spin_lock(&pers_lock);
++		mddev->sync_thread = sync_thread;
+ 		md_wakeup_thread(mddev->sync_thread);
++		spin_unlock(&pers_lock);
++	}
+ 	sysfs_notify_dirent_safe(mddev->sysfs_action);
+ 	md_new_event(mddev);
+ }
+-- 
+2.17.1
+

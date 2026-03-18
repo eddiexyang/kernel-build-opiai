@@ -1,0 +1,50 @@
+From 68a1e5869fc69656ee0a47eb6f13cd71d8a9fadb Mon Sep 17 00:00:00 2001
+From: "Alexey V. Vissarionov" <gremlin@altlinux.org>
+Date: Wed, 15 Feb 2023 20:31:37 +0200
+Subject: [PATCH 165/780] [Backport] wifi: ath6kl: minor fix for allocation
+ size
+
+stable inclusion
+from stable-v5.10.180
+commit 129c3fb5795d062eb962453a84a84d6365194c48
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=129c3fb5795d062eb962453a84a84d6365194c48
+
+--------------------------------
+
+[ Upstream commit 778f83f889e7fca37780d9640fcbd0229ae38eaa ]
+
+Although the "param" pointer occupies more or equal space compared
+to "*param", the allocation size should use the size of variable
+itself.
+
+Found by Linux Verification Center (linuxtesting.org) with SVACE.
+
+Fixes: bdcd81707973cf8a ("Add ath6kl cleaned up driver")
+Signed-off-by: Alexey V. Vissarionov <gremlin@altlinux.org>
+Signed-off-by: Kalle Valo <quic_kvalo@quicinc.com>
+Link: https://lore.kernel.org/r/20230117110414.GC12547@altlinux.org
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/ath/ath6kl/bmi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/ath6kl/bmi.c b/drivers/net/wireless/ath/ath6kl/bmi.c
+index bde5a10d470c..af98e871199d 100644
+--- a/drivers/net/wireless/ath/ath6kl/bmi.c
++++ b/drivers/net/wireless/ath/ath6kl/bmi.c
+@@ -246,7 +246,7 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
+ 		return -EACCES;
+ 	}
+ 
+-	size = sizeof(cid) + sizeof(addr) + sizeof(param);
++	size = sizeof(cid) + sizeof(addr) + sizeof(*param);
+ 	if (size > ar->bmi.max_cmd_size) {
+ 		WARN_ON(1);
+ 		return -EINVAL;
+-- 
+2.17.1
+

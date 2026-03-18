@@ -1,0 +1,48 @@
+From a634140c1341d5c5f9631e911fa19aa297200438 Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Mon, 14 Nov 2022 11:37:17 +0800
+Subject: [PATCH 0056/1398] [Huawei] Revert "cgroup: fix compile error when
+ CONFIG_MEMCG = n"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187973
+
+-------------------------------
+
+This reverts commit 58824c83239b31c76f855366c03833deaeb4c982.
+
+A better solution of memcg async reclaim will be applied, just revert
+origin memcg kswapd patchset.
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ mm/vmscan.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 1ca84f05fab0..a397d19944c9 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -2835,7 +2835,6 @@ static inline bool should_continue_reclaim(struct pglist_data *pgdat,
+ 
+ static bool is_memcg_kswapd_stopped(struct scan_control *sc)
+ {
+-#ifdef CONFIG_MEMCG
+ 	struct mem_cgroup *memcg = sc->target_mem_cgroup;
+ 	bool is_stop = false;
+ 	unsigned long stop_flag = 0;
+@@ -2851,9 +2850,6 @@ static bool is_memcg_kswapd_stopped(struct scan_control *sc)
+ 	is_stop = page_counter_read(&memcg->memory) < stop_flag;
+ 
+ 	return (current_is_kswapd() && is_stop);
+-#else
+-	return false;
+-#endif
+ }
+ 
+ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
+-- 
+2.17.1
+

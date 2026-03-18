@@ -1,0 +1,47 @@
+From 8ebcb8ba0331f235cc88c39c9ec65066f5883a87 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Thu, 19 Jan 2023 15:17:34 -0800
+Subject: [PATCH 115/780] [Backport] drm/rockchip: Drop unbalanced obj unref
+
+stable inclusion
+from stable-v5.10.180
+commit ae784c3ed37384210a43529f7842c865581c1258
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ae784c3ed37384210a43529f7842c865581c1258
+
+--------------------------------
+
+[ Upstream commit 8ee3b0e85f6ccd9e6c527bc50eaba774c3bb18d0 ]
+
+In the error path, rockchip_drm_gem_object_mmap() is dropping an obj
+reference that it doesn't own.
+
+Fixes: 41315b793e13 ("drm/rockchip: use drm_gem_mmap helpers")
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Signed-off-by: Heiko Stuebner <heiko@sntech.de>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230119231734.2884543-1-robdclark@gmail.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/rockchip/rockchip_drm_gem.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_gem.c b/drivers/gpu/drm/rockchip/rockchip_drm_gem.c
+index 62e5d0970525..22ff4a592976 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_gem.c
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_gem.c
+@@ -250,9 +250,6 @@ static int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
+ 	else
+ 		ret = rockchip_drm_gem_object_mmap_dma(obj, vma);
+ 
+-	if (ret)
+-		drm_gem_vm_close(vma);
+-
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

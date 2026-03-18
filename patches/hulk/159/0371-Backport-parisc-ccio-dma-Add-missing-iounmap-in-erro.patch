@@ -1,0 +1,45 @@
+From 5da14061dea95ff64b8a6538316957bcb380edc5 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Wed, 24 Aug 2022 17:36:57 +0800
+Subject: [PATCH 371/595] [Backport] parisc: ccio-dma: Add missing iounmap in
+ error path in ccio_probe()
+
+stable inclusion
+from stable-v5.10.145
+commit 65dd251c516d200456e5c92398966223adfa21b3
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZLQK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=65dd251c516d200456e5c92398966223adfa21b3
+
+--------------------------------
+
+[ Upstream commit 38238be4e881a5d0abbe4872b4cd6ed790be06c8 ]
+
+Add missing iounmap() before return from ccio_probe(), if ccio_init_resources()
+fails.
+
+Fixes: d46c742f827f ("parisc: ccio-dma: Handle kmalloc failure in ccio_init_resources()")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Helge Deller <deller@gmx.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/parisc/ccio-dma.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/parisc/ccio-dma.c b/drivers/parisc/ccio-dma.c
+index ffd5000c23d3..be81b765858b 100644
+--- a/drivers/parisc/ccio-dma.c
++++ b/drivers/parisc/ccio-dma.c
+@@ -1546,6 +1546,7 @@ static int __init ccio_probe(struct parisc_device *dev)
+ 	}
+ 	ccio_ioc_init(ioc);
+ 	if (ccio_init_resources(ioc)) {
++		iounmap(ioc->ioc_regs);
+ 		kfree(ioc);
+ 		return -ENOMEM;
+ 	}
+-- 
+2.17.1
+

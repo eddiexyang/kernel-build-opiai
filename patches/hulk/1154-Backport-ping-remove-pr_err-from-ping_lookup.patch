@@ -1,0 +1,46 @@
+From 42a5e3b16ef9cc56965a6c01f2fe03ce2aed5ce0 Mon Sep 17 00:00:00 2001
+From: Xin Long <lucien.xin@gmail.com>
+Date: Wed, 23 Feb 2022 22:41:08 -0500
+Subject: [PATCH 1154/2065] [Backport] ping: remove pr_err from ping_lookup
+
+stable inclusion
+from stable-v5.10.103
+commit 5419b5be883bb5459192618c42d6c919906e16b1
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56NE7
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=5419b5be883bb5459192618c42d6c919906e16b1
+
+--------------------------------
+
+commit cd33bdcbead882c2e58fdb4a54a7bd75b610a452 upstream.
+
+As Jakub noticed, prints should be avoided on the datapath.
+Also, as packets would never come to the else branch in
+ping_lookup(), remove pr_err() from ping_lookup().
+
+Fixes: 35a79e64de29 ("ping: fix the dif and sdif check in ping_lookup")
+Reported-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Link: https://lore.kernel.org/r/1ef3f2fcd31bd681a193b1fcf235eee1603819bd.1645674068.git.lucien.xin@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ net/ipv4/ping.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c
+index 323cb231cb58..e60ca03543a5 100644
+--- a/net/ipv4/ping.c
++++ b/net/ipv4/ping.c
+@@ -187,7 +187,6 @@ static struct sock *ping_lookup(struct net *net, struct sk_buff *skb, u16 ident)
+ 			 (int)ident, &ipv6_hdr(skb)->daddr, dif);
+ #endif
+ 	} else {
+-		pr_err("ping: protocol(%x) is not supported\n", ntohs(skb->protocol));
+ 		return NULL;
+ 	}
+ 
+-- 
+2.17.1
+

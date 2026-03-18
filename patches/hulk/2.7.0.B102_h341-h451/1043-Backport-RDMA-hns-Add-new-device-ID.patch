@@ -1,0 +1,42 @@
+From 6a5380138024bdfdad7a4f83e7f93db60e03de4b Mon Sep 17 00:00:00 2001
+From: Ke Chen <chenke54@huawei.com>
+Date: Wed, 9 Nov 2022 14:36:35 +0800
+Subject: [PATCH 1043/1646] [Backport] RDMA/hns: Add new device ID
+
+driver inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5WKYW
+
+Reference: https://gitee.com/openeuler/kernel/commit/1c0878276243d5b9cfd1e31a61b8e839b52a78ed
+
+--------------------------------
+
+Add ROH device ID.
+
+Signed-off-by: Lang Cheng <chenglang@huawei.com>
+Signed-off-by: Ke Chen <chenke54@huawei.com>
+Reviewed-by: Yangyang Li <liyangyang20@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/infiniband/hw/hns/hns_roce_hw_v2.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+index 25800d5965bb..40ca7ec9162b 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+@@ -6850,6 +6850,11 @@ static const struct pci_device_id hns_roce_hw_v2_pci_tbl[] = {
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_200G_RDMA), 0},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_RDMA_DCB_PFC_VF),
+ 	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
++
++	{ PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_100G_ROH), 0 },
++	{ PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_200G_ROH), 0 },
++	{ PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_400G_ROH), 0 },
++
+ 	/* required last entry */
+ 	{0, }
+ };
+-- 
+2.17.1
+

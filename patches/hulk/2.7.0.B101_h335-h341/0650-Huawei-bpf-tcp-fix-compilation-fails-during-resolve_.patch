@@ -1,0 +1,65 @@
+From 43f2ae5eb7907b2393a5c60cccc41800f9eed1e8 Mon Sep 17 00:00:00 2001
+From: Yang Jihong <yangjihong1@huawei.com>
+Date: Fri, 31 Mar 2023 09:29:39 +0800
+Subject: [PATCH 650/921] [Huawei] bpf: tcp: fix compilation fails during
+ resolve_btfids when pahole version < 12
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188608
+
+-------------------------------
+
+commit 63695db417a9 ("[Backport] bpf: tcp: Put some tcp cong functions in
+allowlist for bpf-tcp-cc") puts some tcp cong helper functions, into the
+allowlist for the bpf-tcp-cc program.
+
+The pahole version must be later than 1.21 (see [1]).
+Otherwise, compilation fails:
+
+    LD      .tmp_vmlinux.kallsyms1
+    KSYMS   .tmp_vmlinux.kallsyms1.S
+    AS      .tmp_vmlinux.kallsyms1.S
+    LD      .tmp_vmlinux.kallsyms2
+    KSYMS   .tmp_vmlinux.kallsyms2.S
+    AS      .tmp_vmlinux.kallsyms2.S
+    LD      vmlinux
+    BTFIDS  vmlinux
+  FAILED unresolved symbol cubictcp_state
+  make: *** [Makefile:1191: vmlinux] Error 255
+
+The actual pahole version we use is 1.17, add pahole verion flags to move
+out functions.
+
+[1]: https://lore.kernel.org/dwarves/20210506015824.2335125-1-kafai@fb.com/
+
+Fixes: e78aea8b2170 ("bpf: tcp: Put some tcp cong functions in allowlist for bpf-tcp-cc")
+Signed-off-by: Yang Jihong <yangjihong1@huawei.com>
+---
+ net/ipv4/bpf_tcp_ca.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv4/bpf_tcp_ca.c b/net/ipv4/bpf_tcp_ca.c
+index 575245276f76..94863facecd7 100644
+--- a/net/ipv4/bpf_tcp_ca.c
++++ b/net/ipv4/bpf_tcp_ca.c
+@@ -187,6 +187,7 @@ BTF_ID(func, tcp_slow_start)
+ BTF_ID(func, tcp_cong_avoid_ai)
+ #ifdef CONFIG_X86
+ #ifdef CONFIG_DYNAMIC_FTRACE
++#if CONFIG_PAHOLE_VERSION >= 120
+ #if IS_BUILTIN(CONFIG_TCP_CONG_CUBIC)
+ BTF_ID(func, cubictcp_init)
+ BTF_ID(func, cubictcp_recalc_ssthresh)
+@@ -213,6 +214,7 @@ BTF_ID(func, bbr_ssthresh)
+ BTF_ID(func, bbr_min_tso_segs)
+ BTF_ID(func, bbr_set_state)
+ #endif
++#endif	/* CONFIG_PAHOLE_VERSION */
+ #endif  /* CONFIG_DYNAMIC_FTRACE */
+ #endif	/* CONFIG_X86 */
+ BTF_SET_END(bpf_tcp_ca_check_kfunc_ids)
+-- 
+2.17.1
+

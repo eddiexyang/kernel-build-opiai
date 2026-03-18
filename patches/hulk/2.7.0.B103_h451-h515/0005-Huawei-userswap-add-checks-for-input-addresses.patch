@@ -1,0 +1,89 @@
+From 98d62161d91bbc97108fea218d47665c8de5bbfb Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Tue, 9 May 2023 11:50:22 +0800
+Subject: [PATCH 005/263] [Huawei] userswap: add checks for input addresses
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Add checks for new_addr in uswap_mremap() and src_addr in
+uswap_check_copy_mode(), including user mode checks, overlapping
+checks, etc.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ include/linux/userswap.h | 18 +++++++++++++++---
+ mm/userfaultfd.c         |  2 +-
+ mm/userswap.c            |  9 ++++++++-
+ 3 files changed, 24 insertions(+), 5 deletions(-)
+
+diff --git a/include/linux/userswap.h b/include/linux/userswap.h
+index a3b43e0b2176..43b419f9813f 100644
+--- a/include/linux/userswap.h
++++ b/include/linux/userswap.h
+@@ -36,10 +36,22 @@ bool uswap_adjust_uffd_range(struct uffdio_register *uffdio_register,
+ bool do_uswap_page(swp_entry_t entry, struct vm_fault *vmf,
+ 		   struct vm_area_struct *vma, vm_fault_t *ret);
+ 
+-static inline bool uswap_check_copy_mode(struct vm_area_struct *vma, __u64 mode)
++static inline bool uswap_check_copy(struct vm_area_struct *vma,
++				    unsigned long src_addr,
++				    unsigned long len, __u64 mode)
+ {
+-	if (!(vma->vm_flags & VM_USWAP) && (mode & UFFDIO_COPY_MODE_DIRECT_MAP))
+-		return false;
++	if (vma->vm_flags & VM_USWAP) {
++		if (!(mode & UFFDIO_COPY_MODE_DIRECT_MAP))
++			return false;
++		if (offset_in_page(src_addr))
++			return false;
++		if (src_addr > TASK_SIZE || src_addr > TASK_SIZE - len)
++			return false;
++	} else {
++		if (mode & UFFDIO_COPY_MODE_DIRECT_MAP)
++			return false;
++	}
++
+ 	return true;
+ }
+ 
+diff --git a/mm/userfaultfd.c b/mm/userfaultfd.c
+index acb5e7bcc033..b534df4bbcb8 100644
+--- a/mm/userfaultfd.c
++++ b/mm/userfaultfd.c
+@@ -512,7 +512,7 @@ static __always_inline ssize_t __mcopy_atomic(struct mm_struct *dst_mm,
+ 
+ 	err = -EINVAL;
+ #ifdef CONFIG_USERSWAP
+-	if (!uswap_check_copy_mode(dst_vma, mode))
++	if (!uswap_check_copy(dst_vma, src_addr, len, mode))
+ 		goto out_unlock;
+ #endif
+ 	/*
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 55fb88044298..3fcec18a354b 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -364,7 +364,14 @@ unsigned long uswap_mremap(unsigned long old_addr, unsigned long old_len,
+ 	unsigned long i;
+ 
+ 	if (!len || old_len != new_len || offset_in_page(old_addr) ||
+-	    (len % PAGE_SIZE))
++	    offset_in_page(new_addr) || (len % PAGE_SIZE))
++		return ret;
++
++	if (new_len > TASK_SIZE || new_addr > TASK_SIZE - new_len)
++		return ret;
++
++	/* Ensure the old/new locations do not overlap */
++	if (old_addr + old_len > new_addr && new_addr + new_len > old_addr)
+ 		return ret;
+ 
+ 	down_read(&mm->mmap_lock);
+-- 
+2.17.1
+

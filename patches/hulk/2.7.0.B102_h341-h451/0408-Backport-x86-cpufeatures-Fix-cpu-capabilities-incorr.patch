@@ -1,0 +1,79 @@
+From 0adfc225af99985b57c403ff4abae36bd2ebd235 Mon Sep 17 00:00:00 2001
+From: Xie Haocheng <haocheng.xie@amd.com>
+Date: Tue, 10 Jan 2023 15:48:41 +0800
+Subject: [PATCH 0408/1646] [Backport] x86/cpufeatures: Fix cpu capabilities
+ incorrect detection.
+
+amd inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6A0G7
+
+Reference: https://gitee.com/openeuler/kernel/commit/43e0f91fe2e86dfcbce68d0128feb913776250ca
+
+--------------------------------
+
+Below AMD platform features are incorrect detected:
+
+X86_FEATURE_SME,
+X86_FEATURE_SEV,
+X86_FEATURE_VM_PAGE_FLUSH,
+X86_FEATURE_SEV_ES,
+X86_FEATURE_SME_COHERENT
+
+This bug is introduced by commit ac376dd8c1af55049b89ae745cdc8e6f5953f55b.
+The definition and use of CPUID_8000_001F_EAX will cause c.x86_capability
+get a conflict wrong value.
+
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/include/asm/cpufeature.h | 1 -
+ arch/x86/kernel/cpu/common.c      | 3 ---
+ arch/x86/kernel/cpu/scattered.c   | 5 +++++
+ 3 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/include/asm/cpufeature.h b/arch/x86/include/asm/cpufeature.h
+index 3aceba454d1d..f4cbc01c0bc4 100644
+--- a/arch/x86/include/asm/cpufeature.h
++++ b/arch/x86/include/asm/cpufeature.h
+@@ -31,7 +31,6 @@ enum cpuid_leafs
+ 	CPUID_7_ECX,
+ 	CPUID_8000_0007_EBX,
+ 	CPUID_7_EDX,
+-	CPUID_8000_001F_EAX,
+ };
+ 
+ #ifdef CONFIG_X86_FEATURE_NAMES
+diff --git a/arch/x86/kernel/cpu/common.c b/arch/x86/kernel/cpu/common.c
+index 980f9b2e51c2..0333887152ce 100644
+--- a/arch/x86/kernel/cpu/common.c
++++ b/arch/x86/kernel/cpu/common.c
+@@ -967,9 +967,6 @@ void get_cpu_cap(struct cpuinfo_x86 *c)
+ 	if (c->extended_cpuid_level >= 0x8000000a)
+ 		c->x86_capability[CPUID_8000_000A_EDX] = cpuid_edx(0x8000000a);
+ 
+-	if (c->extended_cpuid_level >= 0x8000001f)
+-		c->x86_capability[CPUID_8000_001F_EAX] = cpuid_eax(0x8000001f);
+-
+ 	init_scattered_cpuid_features(c);
+ 	init_speculation_control(c);
+ 
+diff --git a/arch/x86/kernel/cpu/scattered.c b/arch/x86/kernel/cpu/scattered.c
+index c0cdd8ddde66..b8c775d3c7d3 100644
+--- a/arch/x86/kernel/cpu/scattered.c
++++ b/arch/x86/kernel/cpu/scattered.c
+@@ -44,6 +44,11 @@ static const struct cpuid_bit cpuid_bits[] = {
+ 	{ X86_FEATURE_PROC_FEEDBACK,    CPUID_EDX, 11, 0x80000007, 0 },
+ 	{ X86_FEATURE_MBA,		CPUID_EBX,  6, 0x80000008, 0 },
+ 	{ X86_FEATURE_PERFMON_V2,	CPUID_EAX,  0, 0x80000022, 0 },
++	{ X86_FEATURE_SME,              CPUID_EAX,  0, 0x8000001f, 0 },
++	{ X86_FEATURE_SEV,              CPUID_EAX,  1, 0x8000001f, 0 },
++	{ X86_FEATURE_VM_PAGE_FLUSH,    CPUID_EAX,  2, 0x8000001f, 0 },
++	{ X86_FEATURE_SEV_ES,           CPUID_EAX,  3, 0x8000001f, 0 },
++	{ X86_FEATURE_SME_COHERENT,     CPUID_EAX, 10, 0x8000001f, 0 },
+ 	{ 0, 0, 0, 0, 0 }
+ };
+ 
+-- 
+2.17.1
+

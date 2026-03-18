@@ -1,0 +1,128 @@
+From 8ff75c9b93d35660f781f368b6753fbdd6668314 Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Thu, 15 Sep 2022 11:17:37 +0000
+Subject: [PATCH 1366/1398] [Huawei] mm: sharepool: Charge Buddy hugepage to
+ memcg
+
+Offering: HULK
+ascend inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6A3YT
+
+-------------------------------------------------
+
+Charge buddy hugepage to memcg when kmemcg is disabled. If kmemcg
+is enabled, we can also use kmemcg to charge buddy hugepages.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ mm/hugetlb.c             |  2 ++
+ mm/share_pool.c          | 14 ++++++++++++--
+ mm/share_pool_internal.h | 22 ++++++++++++++++++++++
+ 3 files changed, 36 insertions(+), 2 deletions(-)
+ create mode 100644 mm/share_pool_internal.h
+
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index e890a1a9f897..19bec924686e 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -46,6 +46,7 @@
+ #include <linux/dynamic_hugetlb.h>
+ #include "internal.h"
+ #include "hugetlb_vmemmap.h"
++#include "share_pool_internal.h"
+ 
+ int hugetlb_max_hstate __read_mostly;
+ unsigned int default_hstate_idx;
+@@ -1627,6 +1628,7 @@ void free_huge_page(struct page *page)
+ 		h->resv_huge_pages++;
+ 
+ 	if (HPageTemporary(page)) {
++		sp_memcg_uncharge_hpage(page);
+ 		remove_hugetlb_page(h, page, false);
+ 		spin_unlock_irqrestore(&hugetlb_lock, flags);
+ 		update_and_free_page(h, page, true);
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 40ddf08b8ff7..1c63ab2f7d18 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -4235,6 +4235,7 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 	int err;
+ 	int node_id;
+ 	struct sp_area *spa;
++	bool charge_hpage;
+ 
+ 	spa = vma->vm_private_data;
+ 	if (!spa) {
+@@ -4250,12 +4251,15 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 		if (idx >= size)
+ 			goto out;
+ 
++		charge_hpage = false;
+ 		page = alloc_huge_page(vma, haddr, 0);
+ 		if (IS_ERR(page)) {
+ 			page = hugetlb_alloc_hugepage(node_id,
+ 					HUGETLB_ALLOC_BUDDY | HUGETLB_ALLOC_NORECLAIM);
+ 			if (!page)
+ 				page = ERR_PTR(-ENOMEM);
++			else if (!PageMemcgKmem(page))
++				charge_hpage = true;
+ 		}
+ 		if (IS_ERR(page)) {
+ 			ptl = huge_pte_lock(h, mm, ptep);
+@@ -4268,6 +4272,13 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 			ret = vmf_error(PTR_ERR(page));
+ 			goto out;
+ 		}
++
++		if (charge_hpage && mem_cgroup_charge(page, vma->vm_mm, GFP_KERNEL)) {
++			put_page(page);
++			ret = vmf_error(-ENOMEM);
++			goto out;
++		}
++
+ 		__SetPageUptodate(page);
+ 		new_page = true;
+ 
+@@ -4300,9 +4311,8 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 
+ 	spin_unlock(ptl);
+ 
+-	if (new_page) {
++	if (new_page)
+ 		SetPagePrivate(&page[1]);
+-	}
+ 
+ 	unlock_page(page);
+ out:
+diff --git a/mm/share_pool_internal.h b/mm/share_pool_internal.h
+new file mode 100644
+index 000000000000..222993618dca
+--- /dev/null
++++ b/mm/share_pool_internal.h
+@@ -0,0 +1,22 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef SHARE_POOL_INTERNAL_H
++#define SHARE_POOL_INTERNAL_H
++
++#include <linux/hugetlb.h>
++#include <linux/memcontrol.h>
++
++#ifdef CONFIG_ASCEND_SHARE_POOL
++static inline void sp_memcg_uncharge_hpage(struct page *page)
++{
++	if (!sp_is_enabled())
++		return;
++
++	mem_cgroup_uncharge(page);
++}
++#else
++static inline void sp_memcg_uncharge_hpage(struct page *page)
++{
++}
++#endif
++
++#endif
+-- 
+2.17.1
+

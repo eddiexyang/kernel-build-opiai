@@ -1,0 +1,48 @@
+From 107e07b2b275d5fc4cd9244fcc1648dea6f5a091 Mon Sep 17 00:00:00 2001
+From: Jim Mattson <jmattson@google.com>
+Date: Wed, 2 Feb 2022 17:48:13 -0800
+Subject: [PATCH 1107/2065] [Backport] KVM: x86/pmu: Use AMD64_RAW_EVENT_MASK
+ for PERF_TYPE_RAW
+
+stable inclusion
+from stable-v5.10.102
+commit fb00319afb72be8f7b2661b91293f005af00d775
+bugzilla: https://gitee.com/openeuler/kernel/issues/I567K6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fb00319afb72be8f7b2661b91293f005af00d775
+
+--------------------------------
+
+[ Upstream commit 710c476514313c74045c41c0571bb5178fd16e3d ]
+
+AMD's event select is 3 nybbles, with the high nybble in bits 35:32 of
+a PerfEvtSeln MSR. Don't mask off the high nybble when configuring a
+RAW perf event.
+
+Fixes: ca724305a2b0 ("KVM: x86/vPMU: Implement AMD vPMU code for KVM")
+Signed-off-by: Jim Mattson <jmattson@google.com>
+Message-Id: <20220203014813.2130559-2-jmattson@google.com>
+Reviewed-by: David Dunn <daviddunn@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/x86/kvm/pmu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index 6be8ad555042..f2c3869475d9 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -214,7 +214,7 @@ void reprogram_gp_counter(struct kvm_pmc *pmc, u64 eventsel)
+ 	}
+ 
+ 	if (type == PERF_TYPE_RAW)
+-		config = eventsel & X86_RAW_EVENT_MASK;
++		config = eventsel & AMD64_RAW_EVENT_MASK;
+ 
+ 	if (pmc->current_config == eventsel && pmc_resume_counter(pmc))
+ 		return;
+-- 
+2.17.1
+

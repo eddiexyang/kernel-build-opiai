@@ -1,0 +1,47 @@
+From 1e49ebfdccdf9fca821f33972b39a79bdd0f56a3 Mon Sep 17 00:00:00 2001
+From: Sven Schnelle <svens@linux.ibm.com>
+Date: Tue, 9 Feb 2021 16:07:11 +0100
+Subject: [PATCH 0455/1646] [Backport] uprobes: (Re)add missing get_uprobe() in
+ __find_uprobe()
+
+mainline inclusion
+from mainline-v5.12-rc1-dontuse
+commit b0d6d4789677d128b1933af023083054f0973574
+category: bugfix
+bugzilla: https://gitee.com/src-openeuler/bpftrace/issues/I5RUM5
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b0d6d4789677d128b1933af023083054f0973574
+
+--------------------------------
+
+commit c6bc9bd06dff ("rbtree, uprobes: Use rbtree helpers")
+accidentally removed the refcount increase. Add it again.
+
+Fixes: c6bc9bd06dff ("rbtree, uprobes: Use rbtree helpers")
+Signed-off-by: Sven Schnelle <svens@linux.ibm.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Link: https://lkml.kernel.org/r/20210209150711.36778-1-svens@linux.ibm.com
+Signed-off-by: Jason Zeng <jason.zeng@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ kernel/events/uprobes.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/events/uprobes.c b/kernel/events/uprobes.c
+index 26674fe5a586..ff3d7b8f09ef 100644
+--- a/kernel/events/uprobes.c
++++ b/kernel/events/uprobes.c
+@@ -663,7 +663,7 @@ static struct uprobe *__find_uprobe(struct inode *inode, loff_t offset)
+ 	struct rb_node *node = rb_find(&key, &uprobes_tree, __uprobe_cmp_key);
+ 
+ 	if (node)
+-		return __node_2_uprobe(node);
++		return get_uprobe(__node_2_uprobe(node));
+ 
+ 	return NULL;
+ }
+-- 
+2.17.1
+

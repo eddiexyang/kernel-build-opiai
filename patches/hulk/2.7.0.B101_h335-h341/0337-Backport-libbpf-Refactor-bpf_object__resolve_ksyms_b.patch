@@ -1,0 +1,161 @@
+From 686a21b5c7b9a398964ecb934eb7de1df7cf327a Mon Sep 17 00:00:00 2001
+From: Martin KaFai Lau <kafai@fb.com>
+Date: Wed, 24 Mar 2021 18:52:07 -0700
+Subject: [PATCH 337/921] [Backport] libbpf: Refactor
+ bpf_object__resolve_ksyms_btf_id
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit 933d1aa32409ef4209c8065ee4ede68236659cd2
+category: feature
+bugzilla: N/A
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=933d1aa32409ef4209c8065ee4ede68236659cd2
+
+------------------------------------------------------
+
+This patch refactors most of the logic from
+bpf_object__resolve_ksyms_btf_id() into a new function
+bpf_object__resolve_ksym_var_btf_id().
+It is to get ready for a later patch adding
+bpf_object__resolve_ksym_func_btf_id() which resolves
+a kernel function to the running kernel btf_id.
+
+Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Acked-by: Andrii Nakryiko <andrii@kernel.org>
+Link: https://lore.kernel.org/bpf/20210325015207.1546749-1-kafai@fb.com
+
+Conflicts:
+	tools/lib/bpf/libbpf.c
+
+Signed-off-by: Yang Jihong <yangjihong1@huawei.com>
+---
+ tools/lib/bpf/libbpf.c | 102 ++++++++++++++++++++++-------------------
+ 1 file changed, 54 insertions(+), 48 deletions(-)
+
+diff --git a/tools/lib/bpf/libbpf.c b/tools/lib/bpf/libbpf.c
+index 015ed8253f73..63b3fd6ffe75 100644
+--- a/tools/lib/bpf/libbpf.c
++++ b/tools/lib/bpf/libbpf.c
+@@ -7169,63 +7169,69 @@ static int bpf_object__read_kallsyms_file(struct bpf_object *obj)
+ 	return err;
+ }
+ 
++static int bpf_object__resolve_ksym_var_btf_id(struct bpf_object *obj,
++					       struct extern_desc *ext)
++{
++	const struct btf_type *targ_var, *targ_type;
++	__u32 targ_type_id, local_type_id;
++	const char *targ_var_name;
++	int id, err;
++	struct btf *btf;
++
++	btf = obj->btf_vmlinux;
++	id = btf__find_by_name_kind(btf, ext->name, BTF_KIND_VAR);
++	if (id <= 0) {
++		pr_warn("extern (ksym) '%s': failed to find BTF ID in vmlinux BTF.\n",
++			ext->name);
++		return -ESRCH;
++	}
++
++	/* find local type_id */
++	local_type_id = ext->ksym.type_id;
++
++	/* find target type_id */
++	targ_var = btf__type_by_id(btf, id);
++	targ_var_name = btf__name_by_offset(btf, targ_var->name_off);
++	targ_type = skip_mods_and_typedefs(btf, targ_var->type, &targ_type_id);
++
++	err = bpf_core_types_are_compat(obj->btf, local_type_id,
++					btf, targ_type_id);
++	if (err <= 0) {
++		const struct btf_type *local_type;
++		const char *targ_name, *local_name;
++
++		local_type = btf__type_by_id(obj->btf, local_type_id);
++		local_name = btf__name_by_offset(obj->btf, local_type->name_off);
++		targ_name = btf__name_by_offset(btf, targ_type->name_off);
++
++		pr_warn("extern (ksym) '%s': incompatible types, expected [%d] %s %s, but kernel has [%d] %s %s\n",
++			ext->name, local_type_id,
++			btf_kind_str(local_type), local_name, targ_type_id,
++			btf_kind_str(targ_type), targ_name);
++		return -EINVAL;
++	}
++
++	ext->is_set = true;
++	ext->ksym.vmlinux_btf_id = id;
++	pr_debug("extern (ksym) '%s': resolved to [%d] %s %s\n",
++		 ext->name, id, btf_kind_str(targ_var), targ_var_name);
++
++	return 0;
++}
++
+ static int bpf_object__resolve_ksyms_btf_id(struct bpf_object *obj)
+ {
+ 	struct extern_desc *ext;
+-	int i, id;
++	int i, err;
+ 
+ 	for (i = 0; i < obj->nr_extern; i++) {
+-		const struct btf_type *targ_var, *targ_type;
+-		__u32 targ_type_id, local_type_id;
+-		const char *targ_var_name;
+-		int ret;
+-
+ 		ext = &obj->externs[i];
+ 		if (ext->type != EXT_KSYM || !ext->ksym.type_id)
+ 			continue;
+ 
+-		id = btf__find_by_name_kind(obj->btf_vmlinux, ext->name,
+-					    BTF_KIND_VAR);
+-		if (id <= 0) {
+-			pr_warn("extern (ksym) '%s': failed to find BTF ID in vmlinux BTF.\n",
+-				ext->name);
+-			return -ESRCH;
+-		}
+-
+-		/* find local type_id */
+-		local_type_id = ext->ksym.type_id;
+-
+-		/* find target type_id */
+-		targ_var = btf__type_by_id(obj->btf_vmlinux, id);
+-		targ_var_name = btf__name_by_offset(obj->btf_vmlinux,
+-						    targ_var->name_off);
+-		targ_type = skip_mods_and_typedefs(obj->btf_vmlinux,
+-						   targ_var->type,
+-						   &targ_type_id);
+-
+-		ret = bpf_core_types_are_compat(obj->btf, local_type_id,
+-						obj->btf_vmlinux, targ_type_id);
+-		if (ret <= 0) {
+-			const struct btf_type *local_type;
+-			const char *targ_name, *local_name;
+-
+-			local_type = btf__type_by_id(obj->btf, local_type_id);
+-			local_name = btf__name_by_offset(obj->btf,
+-							 local_type->name_off);
+-			targ_name = btf__name_by_offset(obj->btf_vmlinux,
+-							targ_type->name_off);
+-
+-			pr_warn("extern (ksym) '%s': incompatible types, expected [%d] %s %s, but kernel has [%d] %s %s\n",
+-				ext->name, local_type_id,
+-				btf_kind_str(local_type), local_name, targ_type_id,
+-				btf_kind_str(targ_type), targ_name);
+-			return -EINVAL;
+-		}
+-
+-		ext->is_set = true;
+-		ext->ksym.vmlinux_btf_id = id;
+-		pr_debug("extern (ksym) '%s': resolved to [%d] %s %s\n",
+-			 ext->name, id, btf_kind_str(targ_var), targ_var_name);
++		err = bpf_object__resolve_ksym_var_btf_id(obj, ext);
++		if (err)
++			return err;
+ 	}
+ 	return 0;
+ }
+-- 
+2.17.1
+

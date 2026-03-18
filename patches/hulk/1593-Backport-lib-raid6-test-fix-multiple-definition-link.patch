@@ -1,0 +1,55 @@
+From 7267c24172a5619324638b6daacf1cc40167f6e0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Dirk=20M=C3=BCller?= <dmueller@suse.de>
+Date: Tue, 8 Feb 2022 17:50:50 +0100
+Subject: [PATCH 1593/2065] [Backport] lib/raid6/test: fix multiple definition
+ linking error
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.110
+commit b02d33171dfb26a7285f6cb131d4159685395296
+bugzilla: https://gitee.com/openeuler/kernel/issues/I574AL
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b02d33171dfb26a7285f6cb131d4159685395296
+
+--------------------------------
+
+commit a5359ddd052860bacf957e65fe819c63e974b3a6 upstream.
+
+GCC 10+ defaults to -fno-common, which enforces proper declaration of
+external references using "extern". without this change a link would
+fail with:
+
+  lib/raid6/test/algos.c:28: multiple definition of `raid6_call';
+  lib/raid6/test/test.c:22: first defined here
+
+the pq.h header that is included already includes an extern declaration
+so we can just remove the redundant one here.
+
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Dirk Müller <dmueller@suse.de>
+Reviewed-by: Paul Menzel <pmenzel@molgen.mpg.de>
+Signed-off-by: Song Liu <song@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ lib/raid6/test/test.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/lib/raid6/test/test.c b/lib/raid6/test/test.c
+index a3cf071941ab..841a55242aba 100644
+--- a/lib/raid6/test/test.c
++++ b/lib/raid6/test/test.c
+@@ -19,7 +19,6 @@
+ #define NDISKS		16	/* Including P and Q */
+ 
+ const char raid6_empty_zero_page[PAGE_SIZE] __attribute__((aligned(PAGE_SIZE)));
+-struct raid6_calls raid6_call;
+ 
+ char *dataptrs[NDISKS];
+ char data[NDISKS][PAGE_SIZE] __attribute__((aligned(PAGE_SIZE)));
+-- 
+2.17.1
+

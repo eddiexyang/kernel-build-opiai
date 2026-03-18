@@ -1,0 +1,118 @@
+From 8d0027f57d3c21decf7f6ad8849373ac93ca6de9 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Tue, 16 Aug 2022 16:28:54 +0000
+Subject: [PATCH 0202/1076] [Huawei] livepatch/ppc64: Adjust instruction
+ replace order for KLP_STACK_OPTIMIZE mode
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187517
+
+--------------------------------
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/powerpc/kernel/livepatch_64.c | 13 +++++--------
+ arch/powerpc/kernel/module_64.c    | 29 ++++++++++++++++++++---------
+ 2 files changed, 25 insertions(+), 17 deletions(-)
+
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index 3c412ea51dc9..c4bce597b69b 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -402,20 +402,17 @@ void arch_klp_unpatch_func(struct klp_func *func)
+ 	struct klp_func_node *func_node;
+ 	struct klp_func *next_func;
+ 	unsigned long pc;
+-	int i;
+ 	int ret;
+ 
+ 	func_node = func->func_node;
+ 	pc = (unsigned long)func_node->old_func;
+ 	list_del_rcu(&func->stack_node);
+ 	if (list_empty(&func_node->func_stack)) {
+-		for (i = 0; i < LJMP_INSN_SIZE; i++) {
+-			ret = patch_instruction((struct ppc_inst *)((u32 *)pc + i),
+-						ppc_inst(func_node->arch_data.old_insns[i]));
+-			if (ret) {
+-				pr_err("restore instruction %d failed, ret=%d\n", i, ret);
+-				break;
+-			}
++		ret = klp_patch_text((u32 *)pc, func_node->arch_data.old_insns,
++				     LJMP_INSN_SIZE);
++		if (ret) {
++			pr_err("restore instruction failed, ret=%d\n", ret);
++			return;
+ 		}
+ 
+ 		pr_debug("[%s %d] restore insns at 0x%lx\n", __func__, __LINE__, pc);
+diff --git a/arch/powerpc/kernel/module_64.c b/arch/powerpc/kernel/module_64.c
+index ef093691f606..d0e4581b0cf0 100644
+--- a/arch/powerpc/kernel/module_64.c
++++ b/arch/powerpc/kernel/module_64.c
+@@ -817,17 +817,18 @@ int module_finalize_ftrace(struct module *mod, const Elf_Shdr *sechdrs)
+  * Patch jump stub to reference trampoline
+  * without saved the old R2 and load the new R2.
+  */
+-static int livepatch_create_bstub(struct ppc64_klp_bstub_entry *entry,
++static int livepatch_create_bstub(void *pc,
+ 				  unsigned long addr,
+ 				  struct module *me)
+ {
+ 	long reladdr;
+ 	unsigned long my_r2;
+ 	unsigned long stub_start, stub_end, stub_size;
++	struct ppc64_klp_bstub_entry entry;
+ 
+ 	/* Stub uses address relative to r2. */
+ 	my_r2 = me ? me->arch.toc : kernel_toc_addr();
+-	reladdr = (unsigned long)entry - my_r2;
++	reladdr = (unsigned long)pc - my_r2;
+ 	if (reladdr > 0x7FFFFFFF || reladdr < -(0x80000000L)) {
+ 		pr_err("%s: Address %p of jump stub out of range of %p.\n",
+ 		       me ? me->name : "kernel",
+@@ -839,15 +840,25 @@ static int livepatch_create_bstub(struct ppc64_klp_bstub_entry *entry,
+ 	stub_start = ppc_function_entry((void *)livepatch_branch_stub);
+ 	stub_end = ppc_function_entry((void *)livepatch_branch_stub_end);
+ 	stub_size = stub_end - stub_start;
+-	memcpy(entry->jump, (u32 *)stub_start, stub_size);
++	memcpy(entry.jump, (u32 *)stub_start, stub_size);
++
++	entry.jump[0] |= PPC_HA(reladdr);
++	entry.jump[1] |= PPC_LO(reladdr);
++	entry.magic = BRANCH_STUB_MAGIC;
++	entry.trampoline = addr;
+ 
+-	entry->jump[0] |= PPC_HA(reladdr);
+-	entry->jump[1] |= PPC_LO(reladdr);
+-	entry->magic = BRANCH_STUB_MAGIC;
+-	entry->trampoline = addr;
+ 
++	/* skip breakpoint at first */
++	memcpy(pc + PPC64_INSN_SIZE, (void *)&entry + PPC64_INSN_SIZE,
++	       sizeof(entry) - PPC64_INSN_SIZE);
++	/*
++	 * Avoid compile optimization, make sure that instructions
++	 * except first breakpoint has been patched.
++	 */
++	barrier();
++	memcpy(pc, (void *)&entry, PPC64_INSN_SIZE);
+ 	pr_debug("Create livepatch branch stub 0x%px with reladdr 0x%lx r2 0x%lx to trampoline 0x%lx\n",
+-		(void *)entry, reladdr, my_r2, addr);
++		pc, reladdr, my_r2, addr);
+ 
+ 	return 1;
+ }
+@@ -898,7 +909,7 @@ int livepatch_create_branch(unsigned long pc,
+ #endif
+ 
+ 	/* Create stub to trampoline */
+-	if (!livepatch_create_bstub((struct ppc64_klp_bstub_entry *)pc, trampoline, me))
++	if (!livepatch_create_bstub((void *)pc, trampoline, me))
+ 		return -EINVAL;
+ 
+ 	return 0;
+-- 
+2.17.1
+

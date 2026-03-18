@@ -1,0 +1,38 @@
+From 58f38d6414d7248d1d8c11e9526a81a44bb000e2 Mon Sep 17 00:00:00 2001
+From: Wenchao Hao <haowenchao2@huawei.com>
+Date: Fri, 7 Apr 2023 15:08:40 +0800
+Subject: [PATCH 0010/1646] [Huawei] scsi: using kabi reserved field for
+ EulerOS's error handler
+
+Offering: HULK
+euleros inclusion
+category: bugfix
+bugzilla: 188541
+
+--------------------------------
+
+EulerOS developed a feature which need to use scsi_cmnd's kabi field,
+which could not be changed once released. So this field is declared here
+to be used by downstream to avoid conflict in future.
+
+Signed-off-by: Wenchao Hao <haowenchao2@huawei.com>
+---
+ include/scsi/scsi_cmnd.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/scsi/scsi_cmnd.h b/include/scsi/scsi_cmnd.h
+index d4dbbd3e58dd..1b2d464a7d9a 100644
+--- a/include/scsi/scsi_cmnd.h
++++ b/include/scsi/scsi_cmnd.h
+@@ -144,7 +144,7 @@ struct scsi_cmnd {
+ 	unsigned char tag;	/* SCSI-II queued command tag */
+ 	unsigned int extra_len;	/* length of alignment and padding */
+ 
+-	KABI_RESERVE(1)
++	KABI_RESERVE_VENDOR(1)	/* Used by VENDOR */
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+-- 
+2.17.1
+

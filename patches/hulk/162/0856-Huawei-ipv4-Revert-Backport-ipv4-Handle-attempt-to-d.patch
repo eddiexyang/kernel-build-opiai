@@ -1,0 +1,48 @@
+From 1530bec8aca9043f4ff2b1b9c30d3b83309289f0 Mon Sep 17 00:00:00 2001
+From: Wang Hai <wanghai38@huawei.com>
+Date: Wed, 8 Feb 2023 18:04:18 +0800
+Subject: [PATCH 856/905] [Huawei] ipv4: Revert "[Backport] ipv4: Handle
+ attempt to delete multipath route when fib_info contains an nh reference"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188217
+
+--------------------------------
+
+This reverts commit 959889ba115337b2e1d87b725d9603289e985576.
+
+Roll back this patch and use stable's patch. The difference
+between the two is that the stable patch adds some new test cases.
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv4/fib_semantics.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index 35298b5b8abf..ab7f6dd16c69 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -888,13 +888,13 @@ int fib_nh_match(struct net *net, struct fib_config *cfg, struct fib_info *fi,
+ 		return 1;
+ 	}
+ 
+-	/* cannot match on nexthop object attributes */
+-	if (fi->nh)
+-		return 1;
+-
+ 	if (cfg->fc_oif || cfg->fc_gw_family) {
+ 		struct fib_nh *nh;
+ 
++		/* cannot match on nexthop object attributes */
++		if (fi->nh)
++			return 1;
++
+ 		nh = fib_info_nh(fi, 0);
+ 		if (cfg->fc_encap) {
+ 			if (fib_encap_match(net, cfg->fc_encap_type,
+-- 
+2.17.1
+

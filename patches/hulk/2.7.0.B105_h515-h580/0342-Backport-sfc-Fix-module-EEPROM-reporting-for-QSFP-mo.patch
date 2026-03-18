@@ -1,0 +1,69 @@
+From 74147506641230adad7b102d942e67f2313eb643 Mon Sep 17 00:00:00 2001
+From: Andy Moreton <andy.moreton@amd.com>
+Date: Fri, 28 Apr 2023 12:33:33 +0100
+Subject: [PATCH 342/780] [Backport] sfc: Fix module EEPROM reporting for QSFP
+ modules
+
+stable inclusion
+from stable-v5.10.180
+commit 9291aba0ffa0bd15fe3d2677a437328689c15c94
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9291aba0ffa0bd15fe3d2677a437328689c15c94
+
+--------------------------------
+
+[ Upstream commit 281900a923d4c50df109b52a22ae3cdac150159b ]
+
+The sfc driver does not report QSFP module EEPROM contents correctly
+as only the first page is fetched from hardware.
+
+Commit 0e1a2a3e6e7d ("ethtool: Add SFF-8436 and SFF-8636 max EEPROM
+length definitions") added ETH_MODULE_SFF_8436_MAX_LEN for the overall
+size of the EEPROM info, so use that to report the full EEPROM contents.
+
+Fixes: 9b17010da57a ("sfc: Add ethtool -m support for QSFP modules")
+Signed-off-by: Andy Moreton <andy.moreton@amd.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/sfc/mcdi_port_common.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/sfc/mcdi_port_common.c b/drivers/net/ethernet/sfc/mcdi_port_common.c
+index c4fe3c48ac46..eccb97a5d938 100644
+--- a/drivers/net/ethernet/sfc/mcdi_port_common.c
++++ b/drivers/net/ethernet/sfc/mcdi_port_common.c
+@@ -974,12 +974,15 @@ static u32 efx_mcdi_phy_module_type(struct efx_nic *efx)
+ 
+ 	/* A QSFP+ NIC may actually have an SFP+ module attached.
+ 	 * The ID is page 0, byte 0.
++	 * QSFP28 is of type SFF_8636, however, this is treated
++	 * the same by ethtool, so we can also treat them the same.
+ 	 */
+ 	switch (efx_mcdi_phy_get_module_eeprom_byte(efx, 0, 0)) {
+-	case 0x3:
++	case 0x3: /* SFP */
+ 		return MC_CMD_MEDIA_SFP_PLUS;
+-	case 0xc:
+-	case 0xd:
++	case 0xc: /* QSFP */
++	case 0xd: /* QSFP+ */
++	case 0x11: /* QSFP28 */
+ 		return MC_CMD_MEDIA_QSFP_PLUS;
+ 	default:
+ 		return 0;
+@@ -1077,7 +1080,7 @@ int efx_mcdi_phy_get_module_info(struct efx_nic *efx, struct ethtool_modinfo *mo
+ 
+ 	case MC_CMD_MEDIA_QSFP_PLUS:
+ 		modinfo->type = ETH_MODULE_SFF_8436;
+-		modinfo->eeprom_len = ETH_MODULE_SFF_8436_LEN;
++		modinfo->eeprom_len = ETH_MODULE_SFF_8436_MAX_LEN;
+ 		break;
+ 
+ 	default:
+-- 
+2.17.1
+

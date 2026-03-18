@@ -1,0 +1,56 @@
+From 42264888fe0372aca1511a125e4757feeadd9945 Mon Sep 17 00:00:00 2001
+From: Ravi Bangoria <ravi.bangoria@amd.com>
+Date: Wed, 28 Sep 2022 15:27:55 +0530
+Subject: [PATCH 0402/1646] [Backport] perf/x86/amd: Support PERF_SAMPLE_ADDR
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit cb2bb85f7ed8740ab5fc06bbec386faa39ba44ef
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I601MP
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=cb2bb85f7ed8740ab5fc06bbec386faa39ba44ef
+
+--------------------------------
+
+IBS_DC_LINADDR provides the linear data address for the tagged load/
+store operation. Populate perf sample address using it.
+
+Signed-off-by: Ravi Bangoria <ravi.bangoria@amd.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20220928095805.596-6-ravi.bangoria@amd.com
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/events/amd/ibs.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/events/amd/ibs.c b/arch/x86/events/amd/ibs.c
+index 2aedb1183ea2..9f5f95a50345 100644
+--- a/arch/x86/events/amd/ibs.c
++++ b/arch/x86/events/amd/ibs.c
+@@ -994,6 +994,11 @@ static void perf_ibs_parse_ld_st_data(__u64 sample_type,
+ 		}
+ 		data->sample_flags |= PERF_SAMPLE_WEIGHT_TYPE;
+ 	}
++
++	if (sample_type & PERF_SAMPLE_ADDR && op_data3.dc_lin_addr_valid) {
++		data->addr = ibs_data->regs[ibs_op_msr_idx(MSR_AMD64_IBSDCLINAD)];
++		data->sample_flags |= PERF_SAMPLE_ADDR;
++	}
+ }
+ 
+ static int perf_ibs_get_offset_max(struct perf_ibs *perf_ibs, u64 sample_type,
+@@ -1002,7 +1007,8 @@ static int perf_ibs_get_offset_max(struct perf_ibs *perf_ibs, u64 sample_type,
+ 	if (sample_type & PERF_SAMPLE_RAW ||
+ 	    (perf_ibs == &perf_ibs_op &&
+ 	     (sample_type & PERF_SAMPLE_DATA_SRC ||
+-	      sample_type & PERF_SAMPLE_WEIGHT_TYPE)))
++	      sample_type & PERF_SAMPLE_WEIGHT_TYPE ||
++	      sample_type & PERF_SAMPLE_ADDR)))
+ 		return perf_ibs->offset_max;
+ 	else if (check_rip)
+ 		return 3;
+-- 
+2.17.1
+

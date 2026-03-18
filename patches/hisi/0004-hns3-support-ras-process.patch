@@ -1,0 +1,193 @@
+From f6712b9c09183ef4f0d0c6b41f6bc47dea7d5904 Mon Sep 17 00:00:00 2001
+Date: Tue, 13 Jun 2023 13:28:54 +0800
+Subject: [PATCH] hns3-supportras-process
+
+---
+ .../hisilicon/hns3/hns3pf/hclge_err.c         | 59 +++++++++++++++++--
+ .../hisilicon/hns3/hns3pf/hclge_err.h         | 17 +++++-
+ .../hisilicon/hns3/hns3pf/hclge_main.c        |  3 -
+ 3 files changed, 69 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
+index e7946dd..f326d88 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
+@@ -1278,6 +1278,15 @@ static const struct hclge_hw_module_id hclge_hw_module_id_st[] = {
+ 	}, {
+ 		.module_id = MODULE_ROH_MAC,
+ 		.msg = "MODULE_ROH_MAC"
++	}, {
++		.module_id = MODULE_ROH_HDLC,
++		.msg = "MODULE_ROH_HDLC"
++	}, {
++		.module_id = MODULE_ROH_HPCS,
++		.msg = "MODULE_ROH_HPCS"
++	}, {
++		.module_id = MODULE_DISP_NIC,
++		.msg = "MODULE_DISP_NIC"
+ 	}
+ };
+ 
+@@ -1336,6 +1345,27 @@ static const struct hclge_hw_type_id hclge_hw_type_id_st[] = {
+ 	}, {
+ 		.type_id = ROCEE_BUS_ERR,
+ 		.msg = "rocee_bus_error"
++	}, {
++		.type_id = DISP_DATA_RAM_MBECC,
++		.msg = "disp_data_ram_mbecc"
++	}, {
++		.type_id = DISP_COMMAND_RAM_MBECC,
++		.msg = "disp_command_ram_mbecc"
++	}, {
++		.type_id = DISP_NCDIR_MBECC,
++		.msg = "disp_ncdir_mbecc"
++	}, {
++		.type_id = DISP_DATA_RAM_SBECC,
++		.msg = "disp_data_ram_sbecc"
++	}, {
++		.type_id = DISP_NCDIR_SBECC,
++		.msg = "disp_ncdir_sbecc"
++	}, {
++		.type_id = DISP_ERR_RSP_PORT,
++		.msg = "disp_err_rsp_port"
++	}, {
++		.type_id = DISP_ERR_REP,
++		.msg = "disp_err_rep"
+ 	}, {
+ 		.type_id = ROH_ERR,
+ 		.msg = "roh_error"
+@@ -2763,21 +2793,37 @@ void hclge_handle_occurred_error(struct hclge_dev *hdev)
+ 		hclge_handle_error_info_log(ae_dev);
+ }
+ 
++static void hclge_report_event(struct hclge_dev *hdev, u8 type_id, u8 dms_err_type)
++{
++#define RAS_ERROR_TYPE_OFFSET 8
++	hclge_fault_report_excep_fun hclge_fault_report_excep =
++	(hclge_fault_report_excep_fun)(uintptr_t)symbol_get(hclge_fault_report_excep);
++
++	if (!hclge_fault_report_excep) {
++		dev_err(&hdev->pdev->dev, "Fail to report, hclge_fault_report_excep syms not found\n");
++		return;
++	}
++
++	hclge_fault_report_excep(hdev->device_id, ((u32)dms_err_type << RAS_ERROR_TYPE_OFFSET) | (u32)type_id);
++}
++
+ static void
+-hclge_handle_error_type_reg_log(struct device *dev,
++hclge_handle_error_type_reg_log(struct hclge_dev *hdev,
+ 				struct hclge_mod_err_info *mod_info,
+ 				struct hclge_type_reg_err_info *type_reg_info)
+ {
+ #define HCLGE_ERR_TYPE_MASK 0x7F
+ #define HCLGE_ERR_TYPE_IS_RAS_OFFSET 7
+ 
+-	u8 mod_id, total_module, type_id, total_type, i, is_ras;
++	u8 mod_id, total_module, type_id, dms_err_type, total_type, i, is_ras;
++	struct device *dev = &hdev->pdev->dev;
+ 	u8 index_module = MODULE_NONE;
+ 	u8 index_type = NONE_ERROR;
+ 
+ 	mod_id = mod_info->mod_id;
+ 	type_id = type_reg_info->type_id & HCLGE_ERR_TYPE_MASK;
+ 	is_ras = type_reg_info->type_id >> HCLGE_ERR_TYPE_IS_RAS_OFFSET;
++	dms_err_type = type_reg_info->dms_err_type;
+ 
+ 	total_module = ARRAY_SIZE(hclge_hw_module_id_st);
+ 	total_type = ARRAY_SIZE(hclge_hw_type_id_st);
+@@ -2796,15 +2842,18 @@ hclge_handle_error_type_reg_log(struct device *dev,
+ 		}
+ 	}
+ 
+-	if (index_module != MODULE_NONE && index_type != NONE_ERROR)
++	if (index_module != MODULE_NONE && index_type != NONE_ERROR) {
+ 		dev_err(dev,
+ 			"found %s %s, is %s error.\n",
+ 			hclge_hw_module_id_st[index_module].msg,
+ 			hclge_hw_type_id_st[index_type].msg,
+ 			is_ras ? "ras" : "msix");
+-	else
++
++		hclge_report_event(hdev, type_id, dms_err_type);
++	} else {
+ 		dev_err(dev,
+ 			"unknown module[%u] or type[%u].\n", mod_id, type_id);
++	}
+ 
+ 	dev_err(dev, "reg_value:\n");
+ 	for (i = 0; i < type_reg_info->reg_num; i++)
+@@ -2847,7 +2896,7 @@ static void hclge_handle_error_module_log(struct hnae3_ae_dev *ae_dev,
+ 
+ 			type_reg_info = (struct hclge_type_reg_err_info *)
+ 					    &buf[offset++];
+-			hclge_handle_error_type_reg_log(dev, mod_info,
++			hclge_handle_error_type_reg_log(hdev, mod_info,
+ 							type_reg_info);
+ 
+ 			offset += type_reg_info->reg_num;
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.h b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.h
+index 0c5b27f..3fad84f 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.h
+@@ -151,8 +151,11 @@ enum hclge_mod_name_list {
+ 	MODULE_ROCEE_QMM	= 48,
+ 	MODULE_ROCEE_LSAN	= 49,
+ 	/* add new MODULE NAME for RoCEE here in order */
+-	MODULE_ROH_MAC		= 80
++	MODULE_ROH_MAC		= 80,
++	MODULE_ROH_HDLC		= 81,
++	MODULE_ROH_HPCS		= 82,
+ 	/* add new MODULE NAME for ROH here in order */
++	MODULE_DISP_NIC		= 100
+ };
+ 
+ enum hclge_err_type_list {
+@@ -176,6 +179,14 @@ enum hclge_err_type_list {
+ 	ROCEE_OVF_ERR		= 41,
+ 	ROCEE_BUS_ERR		= 42,
+ 	/* add new ERROR TYPE for ROCEE here in order */
++    DISP_DATA_RAM_MBECC = 60,
++    DISP_COMMAND_RAM_MBECC = 61,
++    DISP_NCDIR_MBECC = 62,
++    DISP_DATA_RAM_SBECC = 63,
++    DISP_COMMAND_RAM_SBECC = 64,
++    DISP_NCDIR_SBECC = 65,
++    DISP_ERR_RSP_PORT = 66,
++    DISP_ERR_REP = 67,
+ 	ROH_ERR			= 80
+ 	/* add new ERROR TYPE for ROH here in order */
+ };
+@@ -217,7 +228,8 @@ struct hclge_mod_err_info {
+ struct hclge_type_reg_err_info {
+ 	u8 type_id;
+ 	u8 reg_num;
+-	u8 rsv[2];
++	u8 dms_err_type;
++	u8 rsv[1];
+ 	u32 hclge_reg[HCLGE_REG_NUM_MAX];
+ };
+ 
+@@ -232,4 +244,5 @@ int hclge_handle_hw_msix_error(struct hclge_dev *hdev,
+ 			       unsigned long *reset_requests);
+ int hclge_handle_error_info_log(struct hnae3_ae_dev *ae_dev);
+ int hclge_handle_mac_tnl(struct hclge_dev *hdev);
++typedef void (*hclge_fault_report_excep_fun)(u32 dev_id, u32 excep_id);
+ #endif
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 6f91641..74a569b 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -12073,9 +12073,6 @@ void hclge_sync_time_task(struct work_struct *work)
+ 		req->tv_usec = cpu_to_le64((kts.tv_nsec / HCLGE_NS_PER_US));	/* microseconds */
+ 		req->flag = cpu_to_le32((u32)SYNC_SET_FLAG);
+ 
+-		dev_info(&hdev->pdev->dev, "hclge sync time to firmware, tv_sec:%ld, tv_nsec:%ld, tz_minuteswest:%d\n",
+-			 kts.tv_sec, kts.tv_nsec, sys_tz.tz_minuteswest);
+-
+ 		ret = hclge_cmd_send(&hdev->hw, &desc, 1);
+ 		if (ret) {
+ 			dev_err(&hdev->pdev->dev, "sync time to firmware failed %d.\n", ret);
+-- 
+2.27.0
+

@@ -1,0 +1,75 @@
+From 5d29782564bc05eb8a6632c0f63d8722c3fbbf75 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Fri, 4 Nov 2022 16:51:09 +0800
+Subject: [PATCH 391/595] [Huawei] mm/dynamic_hugetlb: use DYNAMIC_HUGETLB and
+ KABI_RESERVE to isolate PG_pool flag
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187936
+
+--------------------------------
+
+This flags is used for dynamic hugetlb feature on X86_64 and is reserved
+on ARM64. Limit PG_pool to compile only on CONFIG_DYNAMIC_HUGETLB or
+CONFIG_KABI_RESERVE. And expose it only on CONFIG_DYNAMIC_HUGETLB.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ fs/proc/page.c                 | 2 +-
+ include/linux/page-flags.h     | 4 ++--
+ include/trace/events/mmflags.h | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/fs/proc/page.c b/fs/proc/page.c
+index 4c5bef99ec10..bd910efceb5d 100644
+--- a/fs/proc/page.c
++++ b/fs/proc/page.c
+@@ -220,7 +220,7 @@ u64 stable_page_flags(struct page *page)
+ #ifdef CONFIG_64BIT
+ 	u |= kpf_copy_bit(k, KPF_ARCH_2,	PG_arch_2);
+ #endif
+-#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	u |= kpf_copy_bit(k, KPF_POOL,		PG_pool);
+ #endif
+ 
+diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
+index 99a72d7d5cf5..ad899b389412 100644
+--- a/include/linux/page-flags.h
++++ b/include/linux/page-flags.h
+@@ -139,7 +139,7 @@ enum pageflags {
+ #ifdef CONFIG_64BIT
+ 	PG_arch_2,
+ #endif
+-#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
++#if defined(CONFIG_DYNAMIC_HUGETLB) || defined(CONFIG_KABI_RESERVE)
+ 	PG_pool,		/* Used to track page allocated from dynamic hugetlb pool */
+ #endif
+ #ifdef CONFIG_PIN_MEMORY
+@@ -547,7 +547,7 @@ __PAGEFLAG(Reported, reported, PF_NO_COMPOUND)
+ /*
+  * PagePool() is used to track page allocated from hpool.
+  */
+-#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ PAGEFLAG(Pool, pool, PF_NO_TAIL)
+ #else
+ PAGEFLAG_FALSE(Pool)
+diff --git a/include/trace/events/mmflags.h b/include/trace/events/mmflags.h
+index 46a0f7bc8e4c..c2309d0b84c4 100644
+--- a/include/trace/events/mmflags.h
++++ b/include/trace/events/mmflags.h
+@@ -87,7 +87,7 @@
+ #define IF_HAVE_PG_ARCH_2(flag,string)
+ #endif
+ 
+-#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
++#if defined(CONFIG_DYNAMIC_HUGETLB) || defined(CONFIG_KABI_RESERVE)
+ #define IF_HAVE_PG_POOL(flag,string) ,{1UL << flag, string}
+ #else
+ #define IF_HAVE_PG_POOL(flag,string)
+-- 
+2.17.1
+

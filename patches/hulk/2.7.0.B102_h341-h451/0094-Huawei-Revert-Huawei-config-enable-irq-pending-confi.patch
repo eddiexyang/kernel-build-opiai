@@ -1,0 +1,43 @@
+From 1bcbcf4870773f22de130dd9b211d9e1a1950fb9 Mon Sep 17 00:00:00 2001
+From: Yipeng Zou <zouyipeng@huawei.com>
+Date: Tue, 18 Apr 2023 15:22:28 +0000
+Subject: [PATCH 0094/1646] [Huawei] Revert "[Huawei] config: enable irq
+ pending config for openeuler"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6WPFT
+
+--------------------------------
+
+This reverts commit 2b3b74b15bfa83872dff291bb9e18081dab29bf4.
+
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index a101f59f58bc..f5095bb5c6d5 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -33,7 +33,6 @@ CONFIG_AUDITSYSCALL=y
+ CONFIG_GENERIC_IRQ_PROBE=y
+ CONFIG_GENERIC_IRQ_SHOW=y
+ CONFIG_GENERIC_IRQ_SHOW_LEVEL=y
+-CONFIG_GENERIC_PENDING_IRQ=y
+ CONFIG_GENERIC_IRQ_EFFECTIVE_AFF_MASK=y
+ CONFIG_GENERIC_IRQ_MIGRATION=y
+ CONFIG_GENERIC_IRQ_INJECTION=y
+@@ -50,7 +49,6 @@ CONFIG_IRQ_FORCED_THREADING=y
+ CONFIG_SPARSE_IRQ=y
+ CONFIG_IRQ_REENTRY_WARN=y
+ # CONFIG_GENERIC_IRQ_DEBUGFS is not set
+-CONFIG_GENERIC_PENDING_IRQ_FIX_KABI=y
+ # end of IRQ subsystem
+ 
+ CONFIG_GENERIC_IRQ_MULTI_HANDLER=y
+-- 
+2.17.1
+

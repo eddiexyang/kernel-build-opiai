@@ -1,0 +1,54 @@
+From 4f68802d6bf4d457c1c00c380cc1d0949c7aea9c Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Thu, 27 Jan 2022 07:31:53 -0800
+Subject: [PATCH 0855/1646] [Backport] KVM: x86: Add a helper to retrieve
+ userspace address from kvm_device_attr
+
+mainline inclusion
+from mainline-v5.17-rc2
+commit 56f289a8d23addfa4408a08f07f42fcfe2a7bd69
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=56f289a8d23addfa4408a08f07f42fcfe2a7bd69
+
+--------------------------------
+
+Add a helper to handle converting the u64 userspace address embedded in
+struct kvm_device_attr into a userspace pointer, it's all too easy to
+forget the intermediate "unsigned long" cast as well as the truncation
+check.
+
+No functional change intended.
+
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kvm/x86.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index c0e61a3d722e..abfe178a1bf6 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -4039,7 +4039,15 @@ int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
+ 		break;
+ 	}
+ 	return r;
++}
++
++static inline void __user *kvm_get_attr_addr(struct kvm_device_attr *attr)
++{
++	void __user *uaddr = (void __user*)(unsigned long)attr->addr;
+ 
++	if ((u64)(unsigned long)uaddr != attr->addr)
++		return ERR_PTR(-EFAULT);
++	return uaddr;
+ }
+ 
+ long kvm_arch_dev_ioctl(struct file *filp,
+-- 
+2.17.1
+

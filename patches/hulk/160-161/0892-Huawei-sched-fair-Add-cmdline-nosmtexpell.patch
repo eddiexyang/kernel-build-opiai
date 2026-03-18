@@ -1,0 +1,83 @@
+From d231b1b2bc18b26cf1168c9849265c82630744fd Mon Sep 17 00:00:00 2001
+From: Guan Jing <guanjing6@huawei.com>
+Date: Sun, 18 Dec 2022 19:23:08 +0800
+Subject: [PATCH 0892/1398] [Huawei] sched/fair: Add cmdline nosmtexpell
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188161
+
+-------------------------------
+
+Add cmdline nosmtexpell to disable qos_smt_expell when we want to close.
+
+Signed-off-by: Guan Jing <guanjing6@huawei.com>
+---
+ kernel/sched/fair.c | 28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 3b22085e82e6..e1f68a9b5872 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7799,6 +7799,15 @@ static bool qos_smt_expelled(int this_cpu)
+ #endif
+ 
+ #ifdef CONFIG_QOS_SCHED_SMT_EXPELLER
++DEFINE_STATIC_KEY_TRUE(qos_smt_expell_switch);
++
++static int __init qos_sched_smt_noexpell_setup(char *__unused)
++{
++	static_branch_disable(&qos_smt_expell_switch);
++	return 1;
++}
++__setup("nosmtexpell", qos_sched_smt_noexpell_setup);
++
+ static bool qos_smt_check_siblings_status(int this_cpu)
+ {
+ 	int cpu;
+@@ -7827,6 +7836,9 @@ static bool qos_sched_idle_cpu(int this_cpu)
+ 
+ static bool qos_smt_expelled(int this_cpu)
+ {
++	if (!static_branch_likely(&qos_smt_expell_switch))
++		return false;
++
+ 	/*
+ 	 * The qos_smt_status of siblings cpu is online, and current cpu only has
+ 	 * offline tasks enqueued, there is not suitable task,
+@@ -7883,15 +7895,29 @@ static void qos_smt_send_ipi(int this_cpu)
+ 
+ static void qos_smt_expel(int this_cpu, struct task_struct *p)
+ {
++	if (!static_branch_likely(&qos_smt_expell_switch))
++		return;
++
+ 	if (qos_smt_update_status(p))
+ 		qos_smt_send_ipi(this_cpu);
+ }
+ 
++static inline bool qos_smt_enabled(void)
++{
++	if (!static_branch_likely(&qos_smt_expell_switch))
++		return false;
++
++	if (!sched_smt_active())
++		return false;
++
++	return true;
++}
++
+ static bool _qos_smt_check_need_resched(int this_cpu, struct rq *rq)
+ {
+ 	int cpu;
+ 
+-	if (!sched_smt_active())
++	if (!qos_smt_enabled())
+ 		return false;
+ 
+ 	for_each_cpu(cpu, cpu_smt_mask(this_cpu)) {
+-- 
+2.17.1
+

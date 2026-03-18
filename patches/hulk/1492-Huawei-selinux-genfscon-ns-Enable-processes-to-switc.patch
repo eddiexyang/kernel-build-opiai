@@ -1,0 +1,281 @@
+From 5f4300d116cfdd810d77f67a8095e75e65fc41d1 Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Fri, 21 Jan 2022 10:29:24 +0800
+Subject: [PATCH 1492/2065] [Huawei] selinux: genfscon ns: Enable processes to
+ switch namespace
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186697
+
+----------------------------------------
+
+Add mechanism for creating and freeing namespace dynamically, which
+involves a refcount to manage the timing of releasing namespace's
+memory. Meanwile, add an interface called "ns" in selinuxfs to make
+processes able to switch and query their own namespace.
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c            | 76 +++++++++++++++++++++++++++++
+ security/selinux/include/security.h |  6 +++
+ security/selinux/selinuxfs.c        | 75 +++++++++++++++++++++++++++-
+ 3 files changed, 156 insertions(+), 1 deletion(-)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 72a3b5239654..2094b324110a 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -194,6 +194,19 @@ static int __init selinux_ns_fs_setup(char *str)
+ }
+ __setup("selinux_ns_fs=", selinux_ns_fs_setup);
+ 
++static inline struct selinux_ns *get_selinux_ns(struct selinux_ns *ns)
++{
++	if (ns != &init_selinux_ns)
++		refcount_inc(&ns->count);
++	return ns;
++}
++
++void put_selinux_ns(struct selinux_ns *ns)
++{
++	if (ns != &init_selinux_ns && refcount_dec_and_test(&ns->count))
++		schedule_work(&ns->work);
++}
++
+ static struct inode_security_struct *isec_alloc(struct inode *inode)
+ {
+ 	struct inode_security_struct *isec = kmem_cache_zalloc(
+@@ -3991,6 +4004,24 @@ static int selinux_task_alloc(struct task_struct *task,
+ 			    sid, sid, SECCLASS_PROCESS, PROCESS__FORK, NULL);
+ }
+ 
++static int selinux_cred_alloc_blank(struct cred *cred, gfp_t gfp)
++{
++	struct task_security_struct *tsec = selinux_cred(cred);
++
++	tsec->ns = get_selinux_ns(current_selinux_ns);
++	return 0;
++}
++
++/*
++ * put the cred's ns when being freed
++ */
++static void selinux_cred_free(struct cred *cred)
++{
++	struct task_security_struct *tsec = selinux_cred(cred);
++
++	put_selinux_ns(tsec->ns);
++}
++
+ /*
+  * prepare a new set of credentials for modification
+  */
+@@ -4001,6 +4032,7 @@ static int selinux_cred_prepare(struct cred *new, const struct cred *old,
+ 	struct task_security_struct *tsec = selinux_cred(new);
+ 
+ 	*tsec = *old_tsec;
++	tsec->ns = get_selinux_ns(old_tsec->ns);
+ 	return 0;
+ }
+ 
+@@ -4013,6 +4045,7 @@ static void selinux_cred_transfer(struct cred *new, const struct cred *old)
+ 	struct task_security_struct *tsec = selinux_cred(new);
+ 
+ 	*tsec = *old_tsec;
++	tsec->ns = get_selinux_ns(old_tsec->ns);
+ }
+ 
+ static void selinux_cred_getsecid(const struct cred *c, u32 *secid)
+@@ -7141,6 +7174,8 @@ static struct security_hook_list selinux_hooks[] __lsm_ro_after_init = {
+ 	LSM_HOOK_INIT(file_open, selinux_file_open),
+ 
+ 	LSM_HOOK_INIT(task_alloc, selinux_task_alloc),
++	LSM_HOOK_INIT(cred_alloc_blank, selinux_cred_alloc_blank),
++	LSM_HOOK_INIT(cred_free, selinux_cred_free),
+ 	LSM_HOOK_INIT(cred_prepare, selinux_cred_prepare),
+ 	LSM_HOOK_INIT(cred_transfer, selinux_cred_transfer),
+ 	LSM_HOOK_INIT(cred_getsecid, selinux_cred_getsecid),
+@@ -7531,3 +7566,44 @@ int selinux_disable(struct selinux_state *state)
+ 	return 0;
+ }
+ #endif
++
++static void selinux_ns_free(struct work_struct *work)
++{
++	struct selinux_ns *ns = container_of(work, struct selinux_ns, work);
++
++	kfree(ns->name);
++	kfree(ns);
++}
++
++static int selinux_ns_create_name(struct selinux_ns *newns, const char *name)
++{
++	newns->name = kstrdup(name, GFP_KERNEL);
++	if (!newns->name)
++		return -ENOMEM;
++	return 0;
++}
++
++struct selinux_ns *selinux_ns_create(char *name)
++{
++	int rc;
++	struct selinux_ns *new_ns;
++
++	new_ns = kzalloc(sizeof(struct selinux_ns), GFP_KERNEL);
++	if (!new_ns)
++		return ERR_PTR(-ENOMEM);
++	rc = selinux_ns_create_name(new_ns, name);
++	if (rc < 0) {
++		kfree(new_ns);
++		return ERR_PTR(rc);
++	}
++
++	/*
++	 * Parent can only point to root in the current design. Note that when
++	 * creating root ns, init_selinux_ns is NULL, which is okay.
++	 */
++	new_ns->parent = &init_selinux_ns;
++	INIT_WORK(&new_ns->work, selinux_ns_free);
++	refcount_set(&new_ns->count, 1);
++
++	return new_ns;
++}
+diff --git a/security/selinux/include/security.h b/security/selinux/include/security.h
+index 63e5c31f0922..2ce7dc3c4153 100644
+--- a/security/selinux/include/security.h
++++ b/security/selinux/include/security.h
+@@ -106,6 +106,8 @@ struct selinux_state {
+ 	struct mutex policy_mutex;
+ } __randomize_layout;
+ 
++extern const char *SELINUX_NS_INIT_NAME;
++
+ struct selinux_ns {
+ 	refcount_t count;
+ 	struct work_struct work;
+@@ -113,7 +115,11 @@ struct selinux_ns {
+ 	struct selinux_ns *parent;
+ };
+ 
++#define current_selinux_ns ((selinux_cred(current_cred()))->ns)
++
+ void selinux_avc_init(struct selinux_avc **avc);
++struct selinux_ns *selinux_ns_create(char *name);
++void put_selinux_ns(struct selinux_ns *ns);
+ 
+ extern struct selinux_state selinux_state;
+ extern bool selinux_ns_enabled;
+diff --git a/security/selinux/selinuxfs.c b/security/selinux/selinuxfs.c
+index 09df13a656df..d12fc541f692 100644
+--- a/security/selinux/selinuxfs.c
++++ b/security/selinux/selinuxfs.c
+@@ -63,6 +63,7 @@ enum sel_inos {
+ 	SEL_STATUS,	/* export current status using mmap() */
+ 	SEL_POLICY,	/* allow userspace to read the in kernel policy */
+ 	SEL_VALIDATE_TRANS, /* compute validatetrans decision */
++	SEL_NS,		/* namespace */
+ 	SEL_INO_NEXT,	/* The next inode number to use */
+ };
+ 
+@@ -333,6 +334,75 @@ static const struct file_operations sel_disable_ops = {
+ 	.llseek		= generic_file_llseek,
+ };
+ 
++static ssize_t sel_write_ns(struct file *file, const char __user *buf,
++			    size_t count, loff_t *ppos)
++{
++	char *page, *ptr;
++	char c;
++	ssize_t length;
++	struct selinux_ns *new_ns;
++
++	if (count >= PAGE_SIZE)
++		return -ENOMEM;
++
++	page = memdup_user_nul(buf, count);
++	if (IS_ERR(page))
++		return PTR_ERR(page);
++	/* strip any trailing newline */
++	if (page[strlen(page) - 1] == '\n')
++		page[strlen(page) - 1] = 0;
++	/* cannot be the same name as init_ns */
++	if (!strcmp(page, SELINUX_NS_INIT_NAME)) {
++		length = -EINVAL;
++		goto err_out;
++	}
++	/* Not support ns nesting or switching */
++	if (current_selinux_ns->parent != NULL) {
++		length = -EPERM;
++		goto err_out;
++	}
++	/* only allow [0-9A-Za-z_] in ns's name */
++	for (ptr = page; *ptr != '\0'; ++ptr) {
++		c = *ptr;
++		if (isalnum(c) || (c == '_'))
++			continue;
++		length = -EINVAL;
++		goto err_out;
++	}
++
++	new_ns = selinux_ns_create(page);
++	if (IS_ERR(new_ns)) {
++		length = PTR_ERR(new_ns);
++		goto err_out;
++	}
++	audit_log(audit_context(), GFP_KERNEL, AUDIT_MAC_STATUS,
++		  "ns_switch: ns_name=%s old_ns_name=%s auid=%u ses=%u lsm=selinux",
++		  new_ns->name, current_selinux_ns->name,
++		  from_kuid(&init_user_ns, audit_get_loginuid(current)),
++		  audit_get_sessionid(current));
++	put_selinux_ns(current_selinux_ns);
++	current_selinux_ns = new_ns;
++
++	length = count;
++err_out:
++	kfree(page);
++	return length;
++}
++
++static ssize_t sel_read_ns(struct file *file, char __user *buf,
++			   size_t count, loff_t *ppos)
++{
++	const char *name = current_selinux_ns->name;
++
++	return simple_read_from_buffer(buf, count, ppos, name, strlen(name));
++}
++
++static const struct file_operations sel_ns_ops = {
++	.write	= sel_write_ns,
++	.read	= sel_read_ns,
++	.llseek	= generic_file_llseek,
++};
++
+ static ssize_t sel_read_policyvers(struct file *filp, char __user *buf,
+ 				   size_t count, loff_t *ppos)
+ {
+@@ -2057,7 +2127,7 @@ static int sel_fill_super(struct super_block *sb, struct fs_context *fc)
+ 	struct inode *inode;
+ 	struct inode_security_struct *isec;
+ 
+-	static const struct tree_descr selinux_files[] = {
++	static struct tree_descr selinux_files[] = {
+ 		[SEL_LOAD] = {"load", &sel_load_ops, S_IRUSR|S_IWUSR},
+ 		[SEL_ENFORCE] = {"enforce", &sel_enforce_ops, S_IRUGO|S_IWUSR},
+ 		[SEL_CONTEXT] = {"context", &transaction_ops, S_IRUGO|S_IWUGO},
+@@ -2077,8 +2147,11 @@ static int sel_fill_super(struct super_block *sb, struct fs_context *fc)
+ 		[SEL_POLICY] = {"policy", &sel_policy_ops, S_IRUGO},
+ 		[SEL_VALIDATE_TRANS] = {"validatetrans", &sel_transition_ops,
+ 					S_IWUGO},
++		[SEL_NS] = {"ns", &sel_ns_ops, 0644},
+ 		/* last one */ {""}
+ 	};
++	if (!selinux_ns_enabled)
++		selinux_files[SEL_NS].name = "";
+ 
+ 	ret = selinux_fs_info_create(sb);
+ 	if (ret)
+-- 
+2.17.1
+

@@ -1,0 +1,110 @@
+From 142f2c03e8180af6921fa1c785f3a458dbd42baa Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Fri, 15 Oct 2021 03:16:41 +0200
+Subject: [PATCH 0573/1646] [Backport] x86/fpu: Provide a proper function for
+ ex_handler_fprestore()
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 079ec41b22b952cdf3126527d735e373c9125f6d
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=079ec41b22b952cdf3126527d735e373c9125f6d
+
+--------------------------------
+
+To make upcoming changes for support of dynamically enabled features
+simpler, provide a proper function for the exception handler which removes
+exposure of FPU internals.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20211015011540.053515012@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/fpu/api.h | 4 +---
+ arch/x86/kernel/fpu/core.c     | 5 +++++
+ arch/x86/kernel/fpu/internal.h | 2 ++
+ arch/x86/mm/extable.c          | 5 ++---
+ 4 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/arch/x86/include/asm/fpu/api.h b/arch/x86/include/asm/fpu/api.h
+index ced6a3f8bac0..a1f197ff401b 100644
+--- a/arch/x86/include/asm/fpu/api.h
++++ b/arch/x86/include/asm/fpu/api.h
+@@ -86,6 +86,7 @@ static inline void update_pasid(void) { }
+ /* Trap handling */
+ extern int  fpu__exception_code(struct fpu *fpu, int trap_nr);
+ extern void fpu_sync_fpstate(struct fpu *fpu);
++extern void fpu_reset_from_exception_fixup(void);
+ 
+ /* Boot, hotplug and resume */
+ extern void fpu__init_cpu(void);
+@@ -102,9 +103,6 @@ static inline void fpstate_init_soft(struct swregs_state *soft) {}
+ /* State tracking */
+ DECLARE_PER_CPU(struct fpu *, fpu_fpregs_owner_ctx);
+ 
+-/* fpstate */
+-extern union fpregs_state init_fpstate;
+-
+ /* fpstate-related functions which are exported to KVM */
+ extern void fpu_init_fpstate_user(struct fpu *fpu);
+ 
+diff --git a/arch/x86/kernel/fpu/core.c b/arch/x86/kernel/fpu/core.c
+index 9bb0c1c45e27..79f2e8ddd10c 100644
+--- a/arch/x86/kernel/fpu/core.c
++++ b/arch/x86/kernel/fpu/core.c
+@@ -155,6 +155,11 @@ void restore_fpregs_from_fpstate(union fpregs_state *fpstate, u64 mask)
+ 	}
+ }
+ 
++void fpu_reset_from_exception_fixup(void)
++{
++	restore_fpregs_from_fpstate(&init_fpstate, xfeatures_mask_fpstate());
++}
++
+ #if IS_ENABLED(CONFIG_KVM)
+ void fpu_swap_kvm_fpu(struct fpu *save, struct fpu *rstor, u64 restore_mask)
+ {
+diff --git a/arch/x86/kernel/fpu/internal.h b/arch/x86/kernel/fpu/internal.h
+index bd7f813242dd..479f2db6e160 100644
+--- a/arch/x86/kernel/fpu/internal.h
++++ b/arch/x86/kernel/fpu/internal.h
+@@ -2,6 +2,8 @@
+ #ifndef __X86_KERNEL_FPU_INTERNAL_H
+ #define __X86_KERNEL_FPU_INTERNAL_H
+ 
++extern union fpregs_state init_fpstate;
++
+ /* CPU feature check wrappers */
+ static __always_inline __pure bool use_xsave(void)
+ {
+diff --git a/arch/x86/mm/extable.c b/arch/x86/mm/extable.c
+index 5cca4f0c51b1..ffe58c07c68d 100644
+--- a/arch/x86/mm/extable.c
++++ b/arch/x86/mm/extable.c
+@@ -4,8 +4,7 @@
+ #include <linux/sched/debug.h>
+ #include <xen/xen.h>
+ 
+-#include <asm/fpu/signal.h>
+-#include <asm/fpu/xstate.h>
++#include <asm/fpu/api.h>
+ #include <asm/sev-es.h>
+ #include <asm/traps.h>
+ #include <asm/kdebug.h>
+@@ -66,7 +65,7 @@ __visible bool ex_handler_fprestore(const struct exception_table_entry *fixup,
+ 	WARN_ONCE(1, "Bad FPU state detected at %pB, reinitializing FPU registers.",
+ 		  (void *)instruction_pointer(regs));
+ 
+-	restore_fpregs_from_fpstate(&init_fpstate, xfeatures_mask_fpstate());
++	fpu_reset_from_exception_fixup();
+ 	return true;
+ }
+ EXPORT_SYMBOL_GPL(ex_handler_fprestore);
+-- 
+2.17.1
+

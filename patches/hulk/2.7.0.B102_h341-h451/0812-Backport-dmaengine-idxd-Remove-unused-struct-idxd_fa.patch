@@ -1,0 +1,48 @@
+From dd0246eb8625ed87d84b800acaa335a4c2db9487 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Wed, 28 Sep 2022 01:47:47 +0000
+Subject: [PATCH 0812/1646] [Backport] dmaengine: idxd: Remove unused struct
+ idxd_fault
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit d1083fd04302a95bc4dcf1c059537da87b39bd9a
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d1083fd04302a95bc4dcf1c059537da87b39bd9a
+
+--------------------------------
+
+Since fault processing code has been removed, struct idxd_fault is not used any
+more and can be removed as well.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+Link: https://lore.kernel.org/r/20220928014747.106808-1-yuancan@huawei.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/dma/idxd/irq.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/dma/idxd/irq.c b/drivers/dma/idxd/irq.c
+index 5927d371493c..aa314ebec587 100644
+--- a/drivers/dma/idxd/irq.c
++++ b/drivers/dma/idxd/irq.c
+@@ -17,12 +17,6 @@ enum irq_work_type {
+ 	IRQ_WORK_PROCESS_FAULT,
+ };
+ 
+-struct idxd_fault {
+-	struct work_struct work;
+-	u64 addr;
+-	struct idxd_device *idxd;
+-};
+-
+ struct idxd_resubmit {
+ 	struct work_struct work;
+ 	struct idxd_desc *desc;
+-- 
+2.17.1
+

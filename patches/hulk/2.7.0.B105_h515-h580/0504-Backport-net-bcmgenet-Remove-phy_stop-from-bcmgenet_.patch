@@ -1,0 +1,47 @@
+From d9559d5e2ae0e46e23ec4d382b36e89a52b2377b Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Thu, 4 May 2023 16:07:27 -0700
+Subject: [PATCH 504/780] [Backport] net: bcmgenet: Remove phy_stop() from
+ bcmgenet_netif_stop()
+
+stable inclusion
+from stable-v5.10.181
+commit e92727ed9e8b6798efc1e7ae44bbe7c44c453670
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e92727ed9e8b6798efc1e7ae44bbe7c44c453670
+
+--------------------------------
+
+[ Upstream commit 93e0401e0fc0c54b0ac05b687cd135c2ac38187c ]
+
+The call to phy_stop() races with the later call to phy_disconnect(),
+resulting in concurrent phy_suspend() calls being run from different
+CPUs. The final call to phy_disconnect() ensures that the PHY is
+stopped and suspended, too.
+
+Fixes: c96e731c93ff ("net: bcmgenet: connect and disconnect from the PHY state machine")
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/broadcom/genet/bcmgenet.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/broadcom/genet/bcmgenet.c b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+index 5c5bea495f04..bae5971c3c6a 100644
+--- a/drivers/net/ethernet/broadcom/genet/bcmgenet.c
++++ b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+@@ -3416,7 +3416,6 @@ static void bcmgenet_netif_stop(struct net_device *dev)
+ 	/* Disable MAC transmit. TX DMA disabled must be done before this */
+ 	umac_enable_set(priv, CMD_TX_EN, false);
+ 
+-	phy_stop(dev->phydev);
+ 	bcmgenet_disable_rx_napi(priv);
+ 	bcmgenet_intr_disable(priv);
+ 
+-- 
+2.17.1
+

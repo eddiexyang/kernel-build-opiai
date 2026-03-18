@@ -1,0 +1,56 @@
+From 13e0478dcff2dff9f92e7682ffb4bda79407ff99 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Fri, 14 Jan 2022 06:28:40 +0000
+Subject: [PATCH 1695/2065] [Backport] soc: ti: wkup_m3_ipc: Fix IRQ check in
+ wkup_m3_ipc_probe
+
+stable inclusion
+from stable-v5.10.110
+commit 77406ac6efe44aba8601ea13a39bc6c5037c0897
+bugzilla: https://gitee.com/openeuler/kernel/issues/I574AL
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=77406ac6efe44aba8601ea13a39bc6c5037c0897
+
+--------------------------------
+
+[ Upstream commit c3d66a164c726cc3b072232d3b6d87575d194084 ]
+
+platform_get_irq() returns negative error number instead 0 on failure.
+And the doc of platform_get_irq() provides a usage example:
+
+    int irq = platform_get_irq(pdev, 0);
+    if (irq < 0)
+        return irq;
+
+Fix the check of return value to catch errors correctly.
+
+Fixes: cdd5de500b2c ("soc: ti: Add wkup_m3_ipc driver")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Signed-off-by: Nishanth Menon <nm@ti.com>
+Acked-by: Dave Gerlach <d-gerlach@ti.com>
+Link: https://lore.kernel.org/r/20220114062840.16620-1-linmq006@gmail.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/soc/ti/wkup_m3_ipc.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/soc/ti/wkup_m3_ipc.c b/drivers/soc/ti/wkup_m3_ipc.c
+index e9ece45d7a33..ef3f95fefab5 100644
+--- a/drivers/soc/ti/wkup_m3_ipc.c
++++ b/drivers/soc/ti/wkup_m3_ipc.c
+@@ -447,9 +447,9 @@ static int wkup_m3_ipc_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	irq = platform_get_irq(pdev, 0);
+-	if (!irq) {
++	if (irq < 0) {
+ 		dev_err(&pdev->dev, "no irq resource\n");
+-		return -ENXIO;
++		return irq;
+ 	}
+ 
+ 	ret = devm_request_irq(dev, irq, wkup_m3_txev_handler,
+-- 
+2.17.1
+

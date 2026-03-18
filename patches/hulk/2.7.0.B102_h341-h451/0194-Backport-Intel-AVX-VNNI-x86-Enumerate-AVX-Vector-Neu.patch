@@ -1,0 +1,58 @@
+From 2fa69363890970868de146d483972666fda5c107 Mon Sep 17 00:00:00 2001
+From: Kyung Min Park <kyung.min.park@intel.com>
+Date: Thu, 16 Jun 2022 14:56:12 +0300
+Subject: [PATCH 0194/1646] [Backport] Intel: AVX VNNI: x86: Enumerate AVX
+ Vector Neural Network instructions
+
+mainline inclusion
+from mainline-v5.12-rc1
+commit b85a0425d8056f3bd8d0a94ecdddf2a39d32a801
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596EH
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b85a0425d8056f3bd8d0a94ecdddf2a39d32a801
+
+----------------------------
+
+Add AVX version of the Vector Neural Network (VNNI) Instructions.
+A processor supports AVX VNNI instructions if CPUID.0x07.0x1:EAX[4] is
+present. The following instructions are available when this feature is
+present.
+1. VPDPBUS: Multiply and Add Unsigned and Signed Bytes
+2. VPDPBUSDS: Multiply and Add Unsigned and Signed Bytes with Saturation
+3. VPDPWSSD: Multiply and Add Signed Word Integers
+4. VPDPWSSDS: Multiply and Add Signed Integers with Saturation
+
+The only in-kernel usage of this is kvm passthrough. The CPU feature
+flag is shown as "avx_vnni" in /proc/cpuinfo.
+
+This instruction is currently documented in the latest "extensions"
+manual (ISE). It will appear in the "main" manual (SDM) in the future.
+
+Signed-off-by: Kyung Min Park <kyung.min.park@intel.com>
+Signed-off-by: Yang Zhong <yang.zhong@intel.com>
+Reviewed-by: Tony Luck <tony.luck@intel.com>
+Message-Id: <20210105004909.42000-2-yang.zhong@intel.com>
+Acked-by: Borislav Petkov <bp@suse.de>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Luming Yu <luming.yu@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/cpufeatures.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/include/asm/cpufeatures.h b/arch/x86/include/asm/cpufeatures.h
+index 502af40bf1be..e8d988ee3eac 100644
+--- a/arch/x86/include/asm/cpufeatures.h
++++ b/arch/x86/include/asm/cpufeatures.h
+@@ -306,6 +306,7 @@
+ #define X86_FEATURE_SGX2		(11*32+ 9) /* "" SGX Enclave Dynamic Memory Management (EDMM) */
+ 
+ /* Intel-defined CPU features, CPUID level 0x00000007:1 (EAX), word 12 */
++#define X86_FEATURE_AVX_VNNI		(12*32+ 4) /* AVX VNNI instructions */
+ #define X86_FEATURE_AVX512_BF16		(12*32+ 5) /* AVX512 BFLOAT16 instructions */
+ 
+ /* AMD-defined CPU features, CPUID level 0x80000008 (EBX), word 13 */
+-- 
+2.17.1
+

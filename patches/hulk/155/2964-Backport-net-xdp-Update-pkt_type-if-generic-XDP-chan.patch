@@ -1,0 +1,89 @@
+From 4e40df2979da62a7e2b5f04ce1ee5de5410fc0d3 Mon Sep 17 00:00:00 2001
+From: Martin Willi <martin@strongswan.org>
+Date: Tue, 31 May 2022 23:20:01 +0800
+Subject: [PATCH 2964/4585] [Backport] net, xdp: Update pkt_type if generic XDP
+ changes unicast MAC
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit 22b6034323fd736f260e00b9ea85c634abeb3446
+category: bugfix
+bugzilla: 186880 https://gitee.com/openeuler/kernel/issues/I5A7W4
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=22b6034323fd736f260e00b9ea85c634abeb3446
+
+--------------------------------
+
+If a generic XDP program changes the destination MAC address from/to
+multicast/broadcast, the skb->pkt_type is updated to properly handle
+the packet when passed up the stack. When changing the MAC from/to
+the NICs MAC, PACKET_HOST/OTHERHOST is not updated, though, making
+the behavior different from that of native XDP.
+
+Remember the PACKET_HOST/OTHERHOST state before calling the program
+in generic XDP, and update pkt_type accordingly if the destination
+MAC address has changed. As eth_type_trans() assumes a default
+pkt_type of PACKET_HOST, restore that before calling it.
+
+The use case for this is when a XDP program wants to push received
+packets up the stack by rewriting the MAC to the NICs MAC, for
+example by cluster nodes sharing MAC addresses.
+
+Fixes: 297249569932 ("net: fix generic XDP to handle if eth header was mangled")
+Signed-off-by: Martin Willi <martin@strongswan.org>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Toke Høiland-Jørgensen <toke@redhat.com>
+Link: https://lore.kernel.org/bpf/20210419141559.8611-1-martin@strongswan.org
+
+Signed-off-by: Zhengchao Shao <shaozhengchao@huawei.com>
+Conflict:
+	net/core/dev.c
+Reviewed-by: Wei Yongjun <weiyongjun1@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/core/dev.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/net/core/dev.c b/net/core/dev.c
+index b4e0f450f518..12089c484b30 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -4622,9 +4622,9 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
+ 	struct netdev_rx_queue *rxqueue;
+ 	void *orig_data, *orig_data_end;
+ 	u32 metalen, act = XDP_DROP;
++	bool orig_bcast, orig_host;
+ 	__be16 orig_eth_type;
+ 	struct ethhdr *eth;
+-	bool orig_bcast;
+ 	int hlen, off;
+ 	u32 mac_len;
+ 
+@@ -4671,6 +4671,7 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
+ 	orig_data_end = xdp->data_end;
+ 	orig_data = xdp->data;
+ 	eth = (struct ethhdr *)xdp->data;
++	orig_host = ether_addr_equal_64bits(eth->h_dest, skb->dev->dev_addr);
+ 	orig_bcast = is_multicast_ether_addr_64bits(eth->h_dest);
+ 	orig_eth_type = eth->h_proto;
+ 
+@@ -4701,8 +4702,11 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
+ 	/* check if XDP changed eth hdr such SKB needs update */
+ 	eth = (struct ethhdr *)xdp->data;
+ 	if ((orig_eth_type != eth->h_proto) ||
++	    (orig_host != ether_addr_equal_64bits(eth->h_dest,
++						  skb->dev->dev_addr)) ||
+ 	    (orig_bcast != is_multicast_ether_addr_64bits(eth->h_dest))) {
+ 		__skb_push(skb, ETH_HLEN);
++		skb->pkt_type = PACKET_HOST;
+ 		skb->protocol = eth_type_trans(skb, skb->dev);
+ 	}
+ 
+-- 
+2.17.1
+

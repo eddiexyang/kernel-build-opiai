@@ -1,0 +1,44 @@
+From 1408bd2d1143d7d5fea8100af23055b406f6713f Mon Sep 17 00:00:00 2001
+From: Liu Jian <liujian56@huawei.com>
+Date: Thu, 13 Jan 2022 22:35:20 +0800
+Subject: [PATCH 1008/2065] [Huawei] bpf: Access bpf_sock's src_ip4 and
+ sorc_port in BPF_CGROUP_INET_SOCK_RELEASE hook
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186640
+
+--------------------------------
+
+Access bpf_sock's src_ip4 and sorc_port in BPF_CGROUP_INET_SOCK_RELEASE
+hook.
+
+Signed-off-by: Liu Jian <liujian56@huawei.com>
+---
+ net/core/filter.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 61cb3f94bd03..fa473a58d1be 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -7742,6 +7742,7 @@ static bool __sock_filter_check_attach_type(int off,
+ 	case bpf_ctx_range(struct bpf_sock, src_ip4):
+ 		switch (attach_type) {
+ 		case BPF_CGROUP_INET4_POST_BIND:
++		case BPF_CGROUP_INET_SOCK_RELEASE:
+ 			goto read_only;
+ 		default:
+ 			return false;
+@@ -7757,6 +7758,7 @@ static bool __sock_filter_check_attach_type(int off,
+ 		switch (attach_type) {
+ 		case BPF_CGROUP_INET4_POST_BIND:
+ 		case BPF_CGROUP_INET6_POST_BIND:
++		case BPF_CGROUP_INET_SOCK_RELEASE:
+ 			goto read_only;
+ 		default:
+ 			return false;
+-- 
+2.17.1
+

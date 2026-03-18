@@ -1,0 +1,50 @@
+From 46d8325206d14e6731c6a66eae4e95b1d3a10037 Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Thu, 1 Jun 2023 18:19:19 -0700
+Subject: [PATCH 752/780] [Backport] KVM: x86: Account fastpath-only VM-Exits
+ in vCPU stats
+
+stable inclusion
+from stable-v5.10.183
+commit 3295dc04af33a3f1126a5dc9e276701b372c92b7
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3295dc04af33a3f1126a5dc9e276701b372c92b7
+
+--------------------------------
+
+commit 8b703a49c9df5e74870381ad7ba9c85d8a74ed2c upstream.
+
+Increment vcpu->stat.exits when handling a fastpath VM-Exit without
+going through any part of the "slow" path.  Not bumping the exits stat
+can result in wildly misleading exit counts, e.g. if the primary reason
+the guest is exiting is to program the TSC deadline timer.
+
+Fixes: 404d5d7bff0d ("KVM: X86: Introduce more exit_fastpath_completion enum values")
+Cc: stable@vger.kernel.org
+Link: https://lore.kernel.org/r/20230602011920.787844-2-seanjc@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/x86/kvm/x86.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 08e457edc84c..71d869690602 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -1661,6 +1661,9 @@ bool kvm_msr_allowed(struct kvm_vcpu *vcpu, u32 index, u32 type)
+ 			allowed = !!test_bit(index - start, bitmap);
+ 			break;
+ 		}
++
++		/* Note, VM-Exits that go down the "slow" path are accounted below. */
++		++vcpu->stat.exits;
+ 	}
+ 
+ out:
+-- 
+2.17.1
+

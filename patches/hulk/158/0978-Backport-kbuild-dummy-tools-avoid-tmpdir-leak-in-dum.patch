@@ -1,0 +1,53 @@
+From 4181885ed0a4f301f1360a4f8f956c4df1d0fbc3 Mon Sep 17 00:00:00 2001
+From: Ondrej Mosnacek <omosnace@redhat.com>
+Date: Mon, 11 Jul 2022 14:09:23 +0200
+Subject: [PATCH 0978/1076] [Backport] kbuild: dummy-tools: avoid tmpdir leak
+ in dummy gcc
+
+stable inclusion
+from stable-v5.10.139
+commit 37c7f25fe2b79184f3a7a9f15fdcfbcf8f46913c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5VP9D
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=37c7f25fe2b79184f3a7a9f15fdcfbcf8f46913c
+
+--------------------------------
+
+commit aac289653fa5adf9e9985e4912c1d24a3e8cbab2 upstream.
+
+When passed -print-file-name=plugin, the dummy gcc script creates a
+temporary directory that is never cleaned up. To avoid cluttering
+$TMPDIR, instead use a static directory included in the source tree.
+
+Fixes: 76426e238834 ("kbuild: add dummy toolchains to enable all cc-option etc. in Kconfig")
+Signed-off-by: Ondrej Mosnacek <omosnace@redhat.com>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ scripts/dummy-tools/gcc | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/scripts/dummy-tools/gcc b/scripts/dummy-tools/gcc
+index 0d0589cf8184..346757a87dbc 100755
+--- a/scripts/dummy-tools/gcc
++++ b/scripts/dummy-tools/gcc
+@@ -77,12 +77,8 @@ fi
+ 
+ # To set GCC_PLUGINS
+ if arg_contain -print-file-name=plugin "$@"; then
+-	plugin_dir=$(mktemp -d)
+-
+-	mkdir -p $plugin_dir/include
+-	touch $plugin_dir/include/plugin-version.h
+-
+-	echo $plugin_dir
++	# Use $0 to find the in-tree dummy directory
++	echo "$(dirname "$(readlink -f "$0")")/dummy-plugin-dir"
+ 	exit 0
+ fi
+ 
+-- 
+2.17.1
+

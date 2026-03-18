@@ -1,0 +1,377 @@
+From 56304bf29990261a3fbd348694b7fffcfea91180 Mon Sep 17 00:00:00 2001
+From: yangjunyi <yangjunyi5@huawei.com>
+Date: Tue, 22 Nov 2022 21:18:32 +0800
+Subject: [PATCH 0864/1398] [Huawei] drivers: hooks: add igb driver vendor
+ hooks
+
+Offering: HULK
+starry inclusion
+category: bugfix
+bugzilla: 187991
+
+----------------------------------
+
+Allow vendor modules to attach igb driver hooks.
+This patch introduce igb hook example.
+
+Usage:
+
+  static void vendor_igb_foo(
+			void *data, struct spi_nor *nor, unsigned int *size)
+  {
+          pr_info("%s\n", __func__);
+  }
+
+  static int __init vendor_init(void)
+  {
+	int ret = 0;
+	ret += register_trace_vendor_igb_example(&vendor_igb_foo, NULL);
+
+	return ret;
+  }
+
+  static void __exit vendor_exit(void)
+  {
+	unregister_trace_vendor_igb_example(&vendor_igb_foo, NULL);
+  }
+
+  module_init(vendor_init);
+  module_exit(vendor_exit);
+
+Signed-off-by: yangjunyi <yangjunyi5@huawei.com>
+---
+ drivers/hooks/Kconfig                      |   9 ++
+ drivers/hooks/vendor_hooks.c               |  14 +++
+ drivers/net/ethernet/intel/igb/e1000_phy.c |   2 +
+ drivers/net/ethernet/intel/igb/igb.h       |   3 +
+ drivers/net/ethernet/intel/igb/igb_main.c  |  27 ++++-
+ include/trace/hooks/igb.h                  | 121 +++++++++++++++++++++
+ 6 files changed, 174 insertions(+), 2 deletions(-)
+ create mode 100644 include/trace/hooks/igb.h
+
+diff --git a/drivers/hooks/Kconfig b/drivers/hooks/Kconfig
+index 2f21c8032c06..338bff92ef87 100644
+--- a/drivers/hooks/Kconfig
++++ b/drivers/hooks/Kconfig
+@@ -40,4 +40,13 @@ config VENDOR_SPINOR_HOOKS
+             Allow vendor modules to attach spinor driver hooks defined via
+             DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
+ 
++config VENDOR_IGB_HOOKS
++            bool "Igb driver Vendor Hooks"
++            depends on VENDOR_HOOKS && IGB
++            default n
++            help
++              Enable igb driver vendor hooks
++              Allow vendor modules to attach igb driver hooks defined via
++              DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
++
+ endmenu
+diff --git a/drivers/hooks/vendor_hooks.c b/drivers/hooks/vendor_hooks.c
+index 7899bb1487e8..0b6e7c9aab49 100644
+--- a/drivers/hooks/vendor_hooks.c
++++ b/drivers/hooks/vendor_hooks.c
+@@ -11,6 +11,7 @@
+ #include <trace/hooks/bonding.h>
+ #include <trace/hooks/libata.h>
+ #include <trace/hooks/spinor.h>
++#include <trace/hooks/igb.h>
+ 
+ /*
+  * Export tracepoints that act as a bare tracehook (ie: have no trace event
+@@ -31,3 +32,16 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_spinor_erase_size);
+ /* return default info table to do sfdp */
+ EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_spi_nor_read_id);
+ #endif
++
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_init);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_random_mac);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_eth_name);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_remove);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_open);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_close);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_get_skb);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_ioctl);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_set_spd_dplx);
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_phy_force_speed_duplex_setup);
++#endif
+diff --git a/drivers/net/ethernet/intel/igb/e1000_phy.c b/drivers/net/ethernet/intel/igb/e1000_phy.c
+index 8c8eb82e6272..34138abec8dd 100644
+--- a/drivers/net/ethernet/intel/igb/e1000_phy.c
++++ b/drivers/net/ethernet/intel/igb/e1000_phy.c
+@@ -3,6 +3,7 @@
+ 
+ #include <linux/if_ether.h>
+ #include <linux/delay.h>
++#include <trace/hooks/igb.h>
+ 
+ #include "e1000_mac.h"
+ #include "e1000_phy.h"
+@@ -1370,6 +1371,7 @@ static void igb_phy_force_speed_duplex_setup(struct e1000_hw *hw,
+ 		*phy_ctrl |= MII_CR_SPEED_10;
+ 		*phy_ctrl &= ~(MII_CR_SPEED_1000 | MII_CR_SPEED_100);
+ 		hw_dbg("Forcing 10mb\n");
++		trace_vendor_igb_phy_force_speed_duplex_setup(mac, &ctrl, phy_ctrl);
+ 	}
+ 
+ 	igb_config_collision_dist(hw);
+diff --git a/drivers/net/ethernet/intel/igb/igb.h b/drivers/net/ethernet/intel/igb/igb.h
+index e6d2800a8abc..5de387ad8ddb 100644
+--- a/drivers/net/ethernet/intel/igb/igb.h
++++ b/drivers/net/ethernet/intel/igb/igb.h
+@@ -666,6 +666,9 @@ struct igb_adapter {
+ 	struct vf_mac_filter *vf_mac_list;
+ 	/* lock for VF resources */
+ 	spinlock_t vfs_lock;
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++	void *vendor_data;
++#endif
+ };
+ 
+ /* flags controlling PTP/1588 function */
+diff --git a/drivers/net/ethernet/intel/igb/igb_main.c b/drivers/net/ethernet/intel/igb/igb_main.c
+index 7b56e3c29893..7f12a19852b6 100644
+--- a/drivers/net/ethernet/intel/igb/igb_main.c
++++ b/drivers/net/ethernet/intel/igb/igb_main.c
+@@ -38,6 +38,7 @@
+ #include <linux/dca.h>
+ #endif
+ #include <linux/i2c.h>
++#include <trace/hooks/igb.h>
+ #include "igb.h"
+ 
+ enum queue_mode {
+@@ -3365,6 +3366,7 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 		goto err_eeprom;
+ 	}
+ 
++	trace_vendor_igb_random_mac(netdev, hw);
+ 	igb_set_default_mac_filter(adapter);
+ 
+ 	/* get firmware version for ethtool -i */
+@@ -3491,6 +3493,7 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	igb_get_hw_control(adapter);
+ 
+ 	strcpy(netdev->name, "eth%d");
++	trace_vendor_igb_eth_name(netdev, pdev->bus->number);
+ 	err = register_netdev(netdev);
+ 	if (err)
+ 		goto err_register;
+@@ -3602,6 +3605,7 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	dev_pm_set_driver_flags(&pdev->dev, DPM_FLAG_NO_DIRECT_COMPLETE);
+ 
+ 	pm_runtime_put_noidle(&pdev->dev);
++	trace_vendor_igb_init(adapter);
+ 	return 0;
+ 
+ err_register:
+@@ -3786,6 +3790,7 @@ static void igb_remove(struct pci_dev *pdev)
+ 	struct igb_adapter *adapter = netdev_priv(netdev);
+ 	struct e1000_hw *hw = &adapter->hw;
+ 
++	trace_vendor_igb_remove(netdev);
+ 	pm_runtime_get_noresume(&pdev->dev);
+ #ifdef CONFIG_IGB_HWMON
+ 	igb_sysfs_exit(adapter);
+@@ -4102,6 +4107,12 @@ static int __igb_open(struct net_device *netdev, bool resuming)
+ 	if (err)
+ 		goto err_set_queues;
+ 
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++	trace_vendor_igb_open(adapter, &err);
++	if (err)
++		goto err_set_queues;
++#endif
++
+ 	/* From here on the code is the same as igb_up() */
+ 	clear_bit(__IGB_DOWN, &adapter->state);
+ 
+@@ -4189,6 +4200,7 @@ static int __igb_close(struct net_device *netdev, bool suspending)
+ 
+ int igb_close(struct net_device *netdev)
+ {
++	trace_vendor_igb_close(netdev);
+ 	if (netif_device_present(netdev) || netdev->dismantle)
+ 		return __igb_close(netdev, false);
+ 	return 0;
+@@ -8700,6 +8712,9 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
+ 	unsigned int xdp_xmit = 0;
+ 	struct xdp_buff xdp;
+ 	int rx_buf_pgcnt;
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++	int ret_continue = 0;
++#endif
+ 
+ 	xdp.rxq = &rx_ring->xdp_rxq;
+ 
+@@ -8788,7 +8803,11 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
+ 
+ 		/* probably a little skewed due to removing CRC */
+ 		total_bytes += skb->len;
+-
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++		trace_vendor_igb_get_skb(adapter, &skb, &total_packets, &ret_continue);
++		if (ret_continue)
++			continue;
++#endif
+ 		/* populate checksum, timestamp, VLAN, and protocol */
+ 		igb_process_skb_fields(rx_ring, rx_desc, skb);
+ 
+@@ -8976,6 +8995,8 @@ static int igb_mii_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
+  **/
+ static int igb_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
+ {
++	int ret = -EOPNOTSUPP;
++
+ 	switch (cmd) {
+ 	case SIOCGMIIPHY:
+ 	case SIOCGMIIREG:
+@@ -8986,7 +9007,8 @@ static int igb_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
+ 	case SIOCSHWTSTAMP:
+ 		return igb_ptp_set_ts_config(netdev, ifr);
+ 	default:
+-		return -EOPNOTSUPP;
++		trace_vendor_igb_ioctl(netdev, ifr, cmd, &ret);
++		return ret;
+ 	}
+ }
+ 
+@@ -9137,6 +9159,7 @@ int igb_set_spd_dplx(struct igb_adapter *adapter, u32 spd, u8 dplx)
+ 	case SPEED_1000 + DUPLEX_FULL:
+ 		mac->autoneg = 1;
+ 		adapter->hw.phy.autoneg_advertised = ADVERTISE_1000_FULL;
++		trace_vendor_igb_set_spd_dplx(mac);
+ 		break;
+ 	case SPEED_1000 + DUPLEX_HALF: /* not supported */
+ 	default:
+diff --git a/include/trace/hooks/igb.h b/include/trace/hooks/igb.h
+new file mode 100644
+index 000000000000..c63e5bb780c2
+--- /dev/null
++++ b/include/trace/hooks/igb.h
+@@ -0,0 +1,121 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: Igb driver Vendor Hooks
++ */
++
++#ifdef CONFIG_VENDOR_IGB_HOOKS
++
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM igb
++
++#define TRACE_INCLUDE_PATH trace/hooks
++#if !defined(_TRACE_HOOK_IGB_HOOKS_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_HOOK_IGB_HOOKS_H
++#include <linux/tracepoint.h>
++#include <trace/hooks/vendor_hooks.h>
++
++struct net_device;
++struct e1000_hw;
++struct igb_adapter;
++struct sk_buff;
++struct ifreq;
++struct e1000_mac_info;
++
++DECLARE_HOOK(vendor_igb_remove,
++	TP_PROTO(struct net_device *netdev),
++	TP_ARGS(netdev));
++
++DECLARE_HOOK(vendor_igb_init,
++	TP_PROTO(struct igb_adapter *adapter),
++	TP_ARGS(adapter));
++
++DECLARE_HOOK(vendor_igb_open,
++	TP_PROTO(struct igb_adapter *adapter, int *retval),
++	TP_ARGS(adapter, retval));
++
++DECLARE_HOOK(vendor_igb_close,
++	TP_PROTO(struct net_device *netdev),
++	TP_ARGS(netdev));
++
++DECLARE_HOOK(vendor_igb_random_mac,
++	TP_PROTO(struct net_device *netdev, struct e1000_hw *hw),
++	TP_ARGS(netdev, hw));
++
++DECLARE_HOOK(vendor_igb_eth_name,
++	TP_PROTO(struct net_device *netdev, unsigned int bus_num),
++	TP_ARGS(netdev, bus_num));
++
++DECLARE_HOOK(vendor_igb_get_skb,
++	TP_PROTO(struct igb_adapter *adapter, struct sk_buff **skb,
++			 unsigned int *packets, unsigned int *retval),
++	TP_ARGS(adapter, skb, packets, retval));
++
++DECLARE_HOOK(vendor_igb_ioctl,
++	TP_PROTO(struct net_device *netdev, struct ifreq *ifr, int cmd, int *retval),
++	TP_ARGS(netdev, ifr, cmd, retval));
++
++DECLARE_HOOK(vendor_igb_set_spd_dplx,
++	TP_PROTO(struct e1000_mac_info *mac),
++	TP_ARGS(mac));
++
++DECLARE_HOOK(vendor_igb_phy_force_speed_duplex_setup,
++	TP_PROTO(struct e1000_mac_info *mac, unsigned int *ctrl, unsigned short *phy),
++	TP_ARGS(mac, ctrl, phy));
++
++#endif
++/* This part must be outside protection */
++#include <trace/define_trace.h>
++
++#else
++
++#include <linux/tracepoint.h>
++struct net_device;
++struct e1000_hw;
++struct igb_adapter;
++struct sk_buff;
++struct ifreq;
++struct e1000_mac_info;
++
++DECLARE_EVENT_NOP(vendor_igb_remove,
++	TP_PROTO(struct net_device *netdev),
++	TP_ARGS(netdev));
++
++DECLARE_EVENT_NOP(vendor_igb_init,
++	TP_PROTO(struct igb_adapter *adapter),
++	TP_ARGS(adapter));
++
++DECLARE_EVENT_NOP(vendor_igb_open,
++	TP_PROTO(struct igb_adapter *adapter, int *retval),
++	TP_ARGS(adapter, retval));
++
++DECLARE_EVENT_NOP(vendor_igb_close,
++	TP_PROTO(struct net_device *netdev),
++	TP_ARGS(netdev));
++
++DECLARE_EVENT_NOP(vendor_igb_random_mac,
++	TP_PROTO(struct net_device *netdev, struct e1000_hw *hw),
++	TP_ARGS(netdev, hw));
++
++DECLARE_EVENT_NOP(vendor_igb_eth_name,
++	TP_PROTO(struct net_device *netdev, unsigned int bus_num),
++	TP_ARGS(netdev, bus_num));
++
++DECLARE_EVENT_NOP(vendor_igb_get_skb,
++	TP_PROTO(struct igb_adapter *adapter, struct sk_buff **skb,
++			 unsigned int *packets, unsigned int *retval),
++	TP_ARGS(adapter, skb, packets, retval));
++
++DECLARE_EVENT_NOP(vendor_igb_ioctl,
++	TP_PROTO(struct net_device *netdev, struct ifreq *ifr, int cmd, int *retval),
++	TP_ARGS(netdev, ifr, cmd, retval));
++
++DECLARE_EVENT_NOP(vendor_igb_set_spd_dplx,
++	TP_PROTO(struct e1000_mac_info *mac),
++	TP_ARGS(mac));
++
++DECLARE_EVENT_NOP(vendor_igb_phy_force_speed_duplex_setup,
++	TP_PROTO(struct e1000_mac_info *mac, unsigned int *ctrl, unsigned short *phy),
++	TP_ARGS(mac, ctrl, phy));
++
++#endif
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From 7115d06678b9ea774b1a47b596cd379046d30fac Mon Sep 17 00:00:00 2001
+From: Claudiu Beznea <claudiu.beznea@microchip.com>
+Date: Mon, 27 Feb 2023 12:59:31 +0200
+Subject: [PATCH 272/780] [Backport] clk: at91: clk-sam9x60-pll: fix return
+ value check
+
+stable inclusion
+from stable-v5.10.180
+commit ab8646c9a0b11a0fdb319592f786a64045ae8d25
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ab8646c9a0b11a0fdb319592f786a64045ae8d25
+
+--------------------------------
+
+[ Upstream commit 1bd8e27fd0db0fe7f489213836dcbab92934f8fa ]
+
+sam9x60_frac_pll_compute_mul_frac() can't return zero. Remove the check
+against zero to reflect this.
+
+Fixes: 43b1bb4a9b3e ("clk: at91: clk-sam9x60-pll: re-factor to support plls with multiple outputs")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Claudiu Beznea <claudiu.beznea@microchip.com>
+Link: https://lore.kernel.org/r/20230227105931.2812412-1-claudiu.beznea@microchip.com
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/clk/at91/clk-sam9x60-pll.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/at91/clk-sam9x60-pll.c b/drivers/clk/at91/clk-sam9x60-pll.c
+index 5a9daa3643a7..5fe50ba173a8 100644
+--- a/drivers/clk/at91/clk-sam9x60-pll.c
++++ b/drivers/clk/at91/clk-sam9x60-pll.c
+@@ -452,7 +452,7 @@ sam9x60_clk_register_frac_pll(struct regmap *regmap, spinlock_t *lock,
+ 
+ 		ret = sam9x60_frac_pll_compute_mul_frac(&frac->core, FCORE_MIN,
+ 							parent_rate, true);
+-		if (ret <= 0) {
++		if (ret < 0) {
+ 			hw = ERR_PTR(ret);
+ 			goto free;
+ 		}
+-- 
+2.17.1
+

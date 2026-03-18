@@ -1,0 +1,48 @@
+From 54624e06258de04c24be6382835a1996bbdada24 Mon Sep 17 00:00:00 2001
+From: Jason Zeng <jason.zeng@intel.com>
+Date: Mon, 15 Aug 2022 16:54:40 +0800
+Subject: [PATCH 0459/1646] [Backport] Enable Intel PMT support for default
+ config
+
+Intel inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5MJBR
+
+Reference: https://gitee.com/openeuler/kernel/commit/45dc848c442abe37873d9cb1227c3d19eb966871
+
+--------------------------------------------
+
+Enable necessary kernel configs for Intel PMT in openeuler_defconfig.
+
+Signed-off-by: Jason Zeng <jason.zeng@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/configs/openeuler_defconfig | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 6917752982b0..f6360e181b94 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -4242,6 +4242,7 @@ CONFIG_MFD_INTEL_LPSS=y
+ CONFIG_MFD_INTEL_LPSS_ACPI=y
+ CONFIG_MFD_INTEL_LPSS_PCI=y
+ # CONFIG_MFD_INTEL_PMC_BXT is not set
++CONFIG_MFD_INTEL_PMT=m
+ # CONFIG_MFD_IQS62X is not set
+ # CONFIG_MFD_JANZ_CMODIO is not set
+ # CONFIG_MFD_KEMPLD is not set
+@@ -6573,6 +6574,9 @@ CONFIG_INTEL_SPEED_SELECT_INTERFACE=m
+ CONFIG_INTEL_TURBO_MAX_3=y
+ # CONFIG_INTEL_UNCORE_FREQ_CONTROL is not set
+ CONFIG_INTEL_PMC_CORE=m
++CONFIG_INTEL_PMT_CLASS=m
++CONFIG_INTEL_PMT_TELEMETRY=m
++CONFIG_INTEL_PMT_CRASHLOG=m
+ # CONFIG_INTEL_PUNIT_IPC is not set
+ # CONFIG_INTEL_SCU_PCI is not set
+ # CONFIG_INTEL_SCU_PLATFORM is not set
+-- 
+2.17.1
+

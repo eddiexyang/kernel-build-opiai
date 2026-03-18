@@ -1,0 +1,68 @@
+From 5ee0539ff9f28abd720eeabaac31b44022f53003 Mon Sep 17 00:00:00 2001
+From: "Gustavo A. R. Silva" <gustavoars@kernel.org>
+Date: Tue, 28 Sep 2021 14:31:07 -0500
+Subject: [PATCH 657/921] [Backport] net_sched: Use struct_size() and
+ flex_array_size() helpers
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 69508d43334e3b09c344f662272bcf24a5b508ed
+category: bugfix
+bugzilla: 188623
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=69508d43334e3b09c344f662272bcf24a5b508ed
+
+--------------------------------
+
+Make use of the struct_size() and flex_array_size() helpers instead of
+an open-coded version, in order to avoid any potential type mistakes
+or integer overflows that, in the worse scenario, could lead to heap
+overflows.
+
+Link: https://github.com/KSPP/linux/issues/160
+Signed-off-by: Gustavo A. R. Silva <gustavoars@kernel.org>
+Link: https://lore.kernel.org/r/20210928193107.GA262595@embeddedor
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+
+Conflicts:
+	net/sched/sch_api.c
+
+Signed-off-by: Zhengchao Shao <shaozhengchao@huawei.com>
+---
+ net/sched/sch_api.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/net/sched/sch_api.c b/net/sched/sch_api.c
+index 54e2309315eb..b12a3502fca5 100644
+--- a/net/sched/sch_api.c
++++ b/net/sched/sch_api.c
+@@ -507,7 +507,8 @@ static struct qdisc_size_table *qdisc_get_stab(struct nlattr *opt,
+ 	list_for_each_entry(stab, &qdisc_stab_list, list) {
+ 		if (memcmp(&stab->szopts, s, sizeof(*s)))
+ 			continue;
+-		if (tsize > 0 && memcmp(stab->data, tab, tsize * sizeof(u16)))
++		if (tsize > 0 &&
++		    memcmp(stab->data, tab, flex_array_size(stab, data, tsize)))
+ 			continue;
+ 		stab->refcnt++;
+ 		return stab;
+@@ -519,14 +520,14 @@ static struct qdisc_size_table *qdisc_get_stab(struct nlattr *opt,
+ 		return ERR_PTR(-EINVAL);
+ 	}
+ 
+-	stab = kmalloc(sizeof(*stab) + tsize * sizeof(u16), GFP_KERNEL);
++	stab = kmalloc(struct_size(stab, data, tsize), GFP_KERNEL);
+ 	if (!stab)
+ 		return ERR_PTR(-ENOMEM);
+ 
+ 	stab->refcnt = 1;
+ 	stab->szopts = *s;
+ 	if (tsize > 0)
+-		memcpy(stab->data, tab, tsize * sizeof(u16));
++		memcpy(stab->data, tab, flex_array_size(stab, data, tsize));
+ 
+ 	list_add_tail(&stab->list, &qdisc_stab_list);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,54 @@
+From 4ddaafc6cd14c33cfd510a8829a67aa14b1d229f Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Tue, 7 Mar 2023 15:36:14 +0800
+Subject: [PATCH 490/500] [Huawei] ext4: fix trying to write to read-only
+ block-device
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188471
+
+--------------------------------
+
+We commit the file system superblock unconditionally after loading the log.
+This triggers the alert "Trying to write to read-only block-device sda
+(partno 0)" when the block device is read-only. We fix this by determining
+if the block device is read-only before committing.
+
+Fixes: bd119e89cbf2 ("[Huawei] ext4: commit super block if fs record error when journal record without error")
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/super.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index c5c4a9f65319..1aebdad45660 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5554,7 +5554,6 @@ static int ext4_load_journal(struct super_block *sb,
+ 	if (!ext4_has_feature_journal_needs_recovery(sb))
+ 		err = jbd2_journal_wipe(journal, !really_read_only);
+ 	if (!err) {
+-		int err2;
+ 		char *save = kmalloc(EXT4_S_ERR_LEN, GFP_KERNEL);
+ 
+ 		if (save)
+@@ -5568,8 +5567,12 @@ static int ext4_load_journal(struct super_block *sb,
+ 		es->s_state |= cpu_to_le16(EXT4_SB(sb)->s_mount_state &
+ 					   EXT4_ERROR_FS);
+ 		/* Write out restored error information to the superblock */
+-		err2 = ext4_commit_super(sb);
+-		err = err ? : err2;
++		if (!bdev_read_only(sb->s_bdev)) {
++			int err2;
++
++			err2 = ext4_commit_super(sb);
++			err = err ? : err2;
++		}
+ 	}
+ 
+ 	if (err) {
+-- 
+2.17.1
+

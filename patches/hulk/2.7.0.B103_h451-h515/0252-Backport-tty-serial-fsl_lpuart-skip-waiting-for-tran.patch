@@ -1,0 +1,61 @@
+From d3ab98aa9592137c4b34c28de3a53db45036cc46 Mon Sep 17 00:00:00 2001
+From: Sherry Sun <sherry.sun@nxp.com>
+Date: Thu, 23 Feb 2023 17:39:41 +0800
+Subject: [PATCH 252/263] [Backport] tty: serial: fsl_lpuart: skip waiting for
+ transmission complete when UARTCTRL_SBK is asserted
+
+stable inclusion
+from stable-v5.10.176
+commit f5a5150c7066c6fc5d617e277cd432ebbb8f97b4
+category: bugfix
+bugzilla: 188217
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f5a5150c7066c6fc5d617e277cd432ebbb8f97b4
+
+--------------------------------
+
+commit 2411fd94ceaa6e11326e95d6ebf876cbfed28d23 upstream.
+
+According to LPUART RM, Transmission Complete Flag becomes 0 if queuing
+a break character by writing 1 to CTRL[SBK], so here need to skip
+waiting for transmission complete when UARTCTRL_SBK is asserted,
+otherwise the kernel may stuck here.
+And actually set_termios() adds transmission completion waiting to avoid
+data loss or data breakage when changing the baud rate, but we don't
+need to worry about this when queuing break characters.
+
+Signed-off-by: Sherry Sun <sherry.sun@nxp.com>
+Cc: stable <stable@kernel.org>
+Link: https://lore.kernel.org/r/20230223093941.31790-1-sherry.sun@nxp.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Weiyang <wangweiyang2@huawei.com>
+---
+ drivers/tty/serial/fsl_lpuart.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_lpuart.c b/drivers/tty/serial/fsl_lpuart.c
+index 2ab7799d628f..f481c260b704 100644
+--- a/drivers/tty/serial/fsl_lpuart.c
++++ b/drivers/tty/serial/fsl_lpuart.c
+@@ -2161,9 +2161,15 @@ lpuart32_set_termios(struct uart_port *port, struct ktermios *termios,
+ 	/* update the per-port timeout */
+ 	uart_update_timeout(port, termios->c_cflag, baud);
+ 
+-	/* wait transmit engin complete */
+-	lpuart32_write(&sport->port, 0, UARTMODIR);
+-	lpuart32_wait_bit_set(&sport->port, UARTSTAT, UARTSTAT_TC);
++	/*
++	 * LPUART Transmission Complete Flag may never be set while queuing a break
++	 * character, so skip waiting for transmission complete when UARTCTRL_SBK is
++	 * asserted.
++	 */
++	if (!(old_ctrl & UARTCTRL_SBK)) {
++		lpuart32_write(&sport->port, 0, UARTMODIR);
++		lpuart32_wait_bit_set(&sport->port, UARTSTAT, UARTSTAT_TC);
++	}
+ 
+ 	/* disable transmit and receive */
+ 	lpuart32_write(&sport->port, old_ctrl & ~(UARTCTRL_TE | UARTCTRL_RE),
+-- 
+2.17.1
+

@@ -1,0 +1,96 @@
+From 8dc81602f4a619aca009f2bedae8dce238aac378 Mon Sep 17 00:00:00 2001
+From: Zhipeng Xie <xiezhipeng1@huawei.com>
+Date: Thu, 20 Jun 2019 12:04:32 +0800
+Subject: [PATCH 2/3] livepatch: support ref_name and ref_offset symbol format
+
+symbols longer than KSYM_NAME_LEN will be truncated in strtab,
+we can not find them using original name, so we use a new format
+.klp.sym.objname-ref_name,ref_offset to find a unique symbol
+and add ref_offset to get the long name symbol address.
+
+Signed-off-by: Zhipeng Xie <xiezhipeng1@huawei.com>
+---
+ kernel/livepatch/Kconfig | 10 ++++++++++
+ kernel/livepatch/core.c  | 23 +++++++++++++++++++++++
+ 2 files changed, 33 insertions(+)
+
+diff --git a/kernel/livepatch/Kconfig b/kernel/livepatch/Kconfig
+index 03397ccb7..401cd2a93 100644
+--- a/kernel/livepatch/Kconfig
++++ b/kernel/livepatch/Kconfig
+@@ -121,5 +121,15 @@ config EULEROS_LIVEPATCH_FORCE_PATCH
+ 	  state forcedisabled to indicate the patch being disabled and
+ 	  could not being rmmod.
+ 
++config EULEROS_LIVEPATCH_LONG_SYMBOL
++        bool "support relocate symbol name whose length longer than 128 bytes"
++        depends on LIVEPATCH
++        default y
++        help
++          symbols longer than KSYM_NAME_LEN will be truncated in strtab,
++          we can not find them using original name, so we use a new format
++          .klp.sym.objname-ref_name,ref_offset to find a unique symbol
++          and add ref_offset to get the long name symbol address.
++
+ endmenu
+ endif
+diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
+index ace3cf3c8..e8a28e0a3 100644
+--- a/kernel/livepatch/core.c
++++ b/kernel/livepatch/core.c
+@@ -275,6 +275,9 @@ static int klp_resolve_symbols(Elf_Shdr *sechdrs, const char *strtab,
+ #endif
+ 	Elf_Sym *sym;
+ 	unsigned long sympos, addr;
++#ifdef CONFIG_EULEROS_LIVEPATCH_LONG_SYMBOL
++	long ref_offset;
++#endif
+ 	bool sym_vmlinux;
+ 	bool sec_vmlinux = !strcmp(sec_objname, "vmlinux");
+ 
+@@ -304,14 +307,30 @@ static int klp_resolve_symbols(Elf_Shdr *sechdrs, const char *strtab,
+ 			return -EINVAL;
+ 		}
+ 
++#ifdef CONFIG_EULEROS_LIVEPATCH_LONG_SYMBOL
++		ref_offset = 0;
++#endif
+ 		/* Format: .klp.sym.sym_objname.sym_name,sympos */
+ 		cnt = sscanf(strtab + sym->st_name,
+ 			     ".klp.sym.%55[^.].%127[^,],%lu",
+ 			     sym_objname, sym_name, &sympos);
+ 		if (cnt != 3) {
++#ifndef CONFIG_EULEROS_LIVEPATCH_LONG_SYMBOL
+ 			pr_err("symbol %s has an incorrectly formatted name\n",
+ 			       strtab + sym->st_name);
+ 			return -EINVAL;
++#else
++			/* Format: .klp.sym.objname-ref_name,ref_offset*/
++			cnt = sscanf(strtab + sym->st_name,
++					".klp.sym.%55[^-]-%127[^,],%ld",
++					sym_objname, sym_name, &ref_offset);
++			if (cnt != 3) {
++				pr_err("symbol %s has an incorrectly formatted name\n",
++						strtab + sym->st_name);
++				return -EINVAL;
++			}
++			sympos = 1;
++#endif
+ 		}
+ 
+ 		sym_vmlinux = !strcmp(sym_objname, "vmlinux");
+@@ -334,7 +353,11 @@ static int klp_resolve_symbols(Elf_Shdr *sechdrs, const char *strtab,
+ 		if (ret)
+ 			return ret;
+ 
++#ifndef CONFIG_EULEROS_LIVEPATCH_LONG_SYMBOL
+ 		sym->st_value = addr;
++#else
++		sym->st_value = addr + ref_offset;
++#endif
+ 	}
+ 
+ 	return 0;
+-- 
+2.27.0
+

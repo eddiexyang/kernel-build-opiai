@@ -1,0 +1,119 @@
+From 47eef8387cd85fdb6ff449eac143ad74d4bb4f26 Mon Sep 17 00:00:00 2001
+From: Xia Fukun <xiafukun@huawei.com>
+Date: Wed, 21 Jun 2023 16:29:38 +0800
+Subject: [PATCH 046/780] [Huawei] sched/fair: Restart cfs_bandwidth wakeup
+ timer to fix race condition
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188874
+
+--------------------------------
+
+The following hung task will be printed during low-power testing:
+
+  Call trace:
+   __switch_to+0xd4/0x160
+   __schedule+0x38c/0x8c4
+   __cond_resched+0x24/0x50
+   unmap_kernel_range_noflush+0x210/0x240
+   kretprobe_trampoline+0x0/0xc8
+   __vunmap+0x70/0x31c
+   __vfree+0x34/0x8c
+   vfree+0x40/0x58
+   free_vm_stack_cache+0x44/0x74
+   cpuhp_invoke_callback+0xc4/0x71c
+   _cpu_down+0x108/0x284
+   kretprobe_trampoline+0x0/0xc8
+   suspend_enter+0xd8/0x8ec
+   suspend_devices_and_enter+0x1f0/0x360
+   pm_suspend.part.1+0x428/0x53c
+   pm_suspend+0x3c/0xa0
+   devdrv_suspend_proc+0x148/0x248 [drv_devmng]
+   devdrv_manager_set_power_state+0x140/0x680 [drv_devmng]
+   devdrv_manager_ioctl+0xcc/0x210 [drv_devmng]
+   drv_ascend_intf_ioctl+0x84/0x248 [drv_davinci_intf]
+   __arm64_sys_ioctl+0xb4/0xf0
+   el0_svc_common.constprop.0+0x140/0x374
+   do_el0_svc+0x80/0xa0
+   el0_svc+0x1c/0x28
+   el0_sync_handler+0x90/0xf0
+   el0_sync+0x168/0x180
+
+It is caused by the following race condition:
+
+1) A task running on CPU1 is throttled for cfs bandwidth. CPU1 starts the
+hrtimer cfs_bandwidth 'period_timer' and enqueue the hrtimer on CPU1's
+rbtree.
+
+2) Then the task is migrated to CPU2 and starts to offline CPU1. CPU1
+starts CPUHP AP steps, and then the hrtimer 'period_timer' expires and
+re-enqueued on CPU1.
+
+3) CPU1 runs to take_cpu_down() and disable irq. After CPU1 finished
+CPUHP AP steps, CPU2 starts the rest CPUHP step.
+
+4) When CPU2 runs to free_vm_stack_cache(), it is sched out in
+__vunmap() because it run out of CPU quota. start_cfs_bandwidth() does
+not restart the hrtimer because 'cfs_b->period_active' is set.
+
+5) The task waits the hrtimer 'period_timer' to expire to wake itself up,
+but CPU1 has disabled irq and the hrtimer won't expire until it is
+migrated to CPU2 in hrtimers_dead_cpu(). But the task is blocked and
+cannot proceed to hrtimers_dead_cpu() step. So the task hungs.
+
+    CPU1                                           CPU2
+Task set cfs_quota
+start hrtimer cfs_bandwidth 'period_timer'
+						start to offline CPU1
+CPU1 start CPUHP AP step
+...
+'period_timer' expired and re-enqueued on CPU1
+...
+disable irq in take_cpu_down()
+...
+			                 CPU2 start the rest CPUHP steps
+					   ...
+				      sched out in free_vm_stack_cache()
+					 wait for 'period_timer' expires
+
+When the CPU where the timer was originally located is offline,
+force the timer to start on the current CPU to fix the problem.
+
+Fixes: 19659c59af52 ("fork: free vmapped stacks in cache when cpus are offline")
+Signed-off-by: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+Signed-off-by: Xia Fukun <xiafukun@huawei.com>
+---
+ kernel/sched/fair.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 4ffc48b13637..f216a532900b 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -5740,8 +5740,20 @@ void start_cfs_bandwidth(struct cfs_bandwidth *cfs_b)
+ {
+ 	lockdep_assert_held(&cfs_b->lock);
+ 
+-	if (cfs_b->period_active)
++	if (cfs_b->period_active) {
++		struct hrtimer_clock_base *clock_base = cfs_b->period_timer.base;
++		int cpu;
++
++		if (clock_base && clock_base->cpu_base) {
++			cpu = clock_base->cpu_base->cpu;
++			if (!cpu_active(cpu) && cpu != smp_processor_id()) {
++				hrtimer_cancel(&cfs_b->period_timer);
++				hrtimer_start_expires(&cfs_b->period_timer,
++						HRTIMER_MODE_ABS_PINNED);
++			}
++		}
+ 		return;
++	}
+ 
+ 	cfs_b->period_active = 1;
+ 	hrtimer_forward_now(&cfs_b->period_timer, cfs_b->period);
+-- 
+2.17.1
+

@@ -1,0 +1,115 @@
+From 2d58b50596afec3ce0bb8051771a4206c4372e0d Mon Sep 17 00:00:00 2001
+From: Lecopzer Chen <lecopzer.chen@mediatek.com>
+Date: Sat, 21 May 2022 12:19:10 +0800
+Subject: [PATCH 2234/2592] [Backport] arm64: kasan: don't populate vmalloc
+ area for CONFIG_KASAN_VMALLOC
+
+mainline inclusion
+from mainline-5.13-rc1
+commit 9a0732efa77418fc85b1bdc5ddee619e62f59545
+category: feature
+bugzilla: 186892
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9a0732efa77418fc85b1bdc5ddee619e62f59545
+
+--------------------------------
+
+Linux support KAsan for VMALLOC since commit 3c5c3cfb9ef4da9
+("kasan: support backing vmalloc space with real shadow memory")
+
+Like how the MODULES_VADDR does now, just not to early populate
+the VMALLOC_START between VMALLOC_END.
+
+Before:
+
+MODULE_VADDR: no mapping, no zero shadow at init
+VMALLOC_VADDR: backed with zero shadow at init
+
+After:
+
+MODULE_VADDR: no mapping, no zero shadow at init
+VMALLOC_VADDR: no mapping, no zero shadow at init
+
+Thus the mapping will get allocated on demand by the core function
+of KASAN_VMALLOC.
+
+  -----------  vmalloc_shadow_start
+ |           |
+ |           |
+ |           | <= non-mapping
+ |           |
+ |           |
+ |-----------|
+ |///////////|<- kimage shadow with page table mapping.
+ |-----------|
+ |           |
+ |           | <= non-mapping
+ |           |
+ ------------- vmalloc_shadow_end
+ |00000000000|
+ |00000000000| <= Zero shadow
+ |00000000000|
+ ------------- KASAN_SHADOW_END
+
+Signed-off-by: Lecopzer Chen <lecopzer.chen@mediatek.com>
+Acked-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Ard Biesheuvel <ardb@kernel.org>
+Link: https://lore.kernel.org/r/20210324040522.15548-2-lecopzer.chen@mediatek.com
+[catalin.marinas@arm.com: add a build check on VMALLOC_START != MODULES_END]
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+(cherry picked from commit 9a0732efa77418fc85b1bdc5ddee619e62f59545)
+Signed-off-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Signed-off-by: Peng Liu <liupeng256@huawei.com>
+---
+ arch/arm64/mm/kasan_init.c | 19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/mm/kasan_init.c b/arch/arm64/mm/kasan_init.c
+index b24e43d20667..e7267bff73e3 100644
+--- a/arch/arm64/mm/kasan_init.c
++++ b/arch/arm64/mm/kasan_init.c
+@@ -212,6 +212,7 @@ void __init kasan_init(void)
+ {
+ 	u64 kimg_shadow_start, kimg_shadow_end;
+ 	u64 mod_shadow_start, mod_shadow_end;
++	u64 vmalloc_shadow_end;
+ 	phys_addr_t pa_start, pa_end;
+ 	u64 i;
+ 
+@@ -221,6 +222,8 @@ void __init kasan_init(void)
+ 	mod_shadow_start = (u64)kasan_mem_to_shadow((void *)MODULES_VADDR);
+ 	mod_shadow_end = (u64)kasan_mem_to_shadow((void *)MODULES_END);
+ 
++	vmalloc_shadow_end = (u64)kasan_mem_to_shadow((void *)VMALLOC_END);
++
+ 	/*
+ 	 * We are going to perform proper setup of shadow memory.
+ 	 * At first we should unmap early shadow (clear_pgds() call below).
+@@ -239,12 +242,18 @@ void __init kasan_init(void)
+ 
+ 	kasan_populate_early_shadow(kasan_mem_to_shadow((void *)PAGE_END),
+ 				   (void *)mod_shadow_start);
+-	kasan_populate_early_shadow((void *)kimg_shadow_end,
+-				   (void *)KASAN_SHADOW_END);
+ 
+-	if (kimg_shadow_start > mod_shadow_end)
+-		kasan_populate_early_shadow((void *)mod_shadow_end,
+-					    (void *)kimg_shadow_start);
++	if (IS_ENABLED(CONFIG_KASAN_VMALLOC)) {
++		BUILD_BUG_ON(VMALLOC_START != MODULES_END);
++		kasan_populate_early_shadow((void *)vmalloc_shadow_end,
++					    (void *)KASAN_SHADOW_END);
++	} else {
++		kasan_populate_early_shadow((void *)kimg_shadow_end,
++					    (void *)KASAN_SHADOW_END);
++		if (kimg_shadow_start > mod_shadow_end)
++			kasan_populate_early_shadow((void *)mod_shadow_end,
++						    (void *)kimg_shadow_start);
++	}
+ 
+ 	for_each_mem_range(i, &pa_start, &pa_end) {
+ 		void *start = (void *)__phys_to_virt(pa_start);
+-- 
+2.17.1
+

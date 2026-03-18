@@ -1,0 +1,56 @@
+From 7501a899b4beccd3d012818feadf09bdbd3fc9ad Mon Sep 17 00:00:00 2001
+From: Damien Le Moal <damien.lemoal@opensource.wdc.com>
+Date: Mon, 6 Mar 2023 10:13:13 +0900
+Subject: [PATCH 1382/1646] [Backport] nvmet: avoid potential UAF in
+ nvmet_req_complete()
+
+stable inclusion
+from stable-v5.10.176
+commit a6317235da8aa7cb97529ebc8121cc2a4c4c437a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a6317235da8aa7cb97529ebc8121cc2a4c4c437a
+
+--------------------------------
+
+[ Upstream commit 6173a77b7e9d3e202bdb9897b23f2a8afe7bf286 ]
+
+An nvme target ->queue_response() operation implementation may free the
+request passed as argument. Such implementation potentially could result
+in a use after free of the request pointer when percpu_ref_put() is
+called in nvmet_req_complete().
+
+Avoid such problem by using a local variable to save the sq pointer
+before calling __nvmet_req_complete(), thus avoiding dereferencing the
+req pointer after that function call.
+
+Fixes: a07b4970f464 ("nvmet: add a generic NVMe target")
+Signed-off-by: Damien Le Moal <damien.lemoal@opensource.wdc.com>
+Reviewed-by: Chaitanya Kulkarni <kch@nvidia.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/nvme/target/core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/nvme/target/core.c b/drivers/nvme/target/core.c
+index bc88ff2912f5..a82a0796a614 100644
+--- a/drivers/nvme/target/core.c
++++ b/drivers/nvme/target/core.c
+@@ -749,8 +749,10 @@ static void __nvmet_req_complete(struct nvmet_req *req, u16 status)
+ 
+ void nvmet_req_complete(struct nvmet_req *req, u16 status)
+ {
++	struct nvmet_sq *sq = req->sq;
++
+ 	__nvmet_req_complete(req, status);
+-	percpu_ref_put(&req->sq->ref);
++	percpu_ref_put(&sq->ref);
+ }
+ EXPORT_SYMBOL_GPL(nvmet_req_complete);
+ 
+-- 
+2.17.1
+

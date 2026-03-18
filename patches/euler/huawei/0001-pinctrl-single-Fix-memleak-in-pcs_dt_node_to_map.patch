@@ -1,0 +1,265 @@
+From a042065dd476f21e89409a56dd0fb27b17d99fc2 Mon Sep 17 00:00:00 2001
+From: Guo Mengqi <guomengqi3@huawei.com>
+Date: Wed, 31 May 2023 14:27:52 +0800
+Subject: [PATCH] pinctrl: single: Fix memleak in pcs_dt_node_to_map
+
+If a pinctrl function or a pinctrl group already exists in pctldev,
+the resource pre-allocated are useless and should be freed.
+
+Fixes: 8b8b091bf07f ("pinctrl: Add one-register-per-pin type device tree based pinctrl driver")
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ drivers/pinctrl/pinctrl-single.c | 94 ++++++++++++++++++++++++--------
+ 1 file changed, 71 insertions(+), 23 deletions(-)
+
+diff --git a/drivers/pinctrl/pinctrl-single.c b/drivers/pinctrl/pinctrl-single.c
+index d139cd9..8489a9d 100644
+--- a/drivers/pinctrl/pinctrl-single.c
++++ b/drivers/pinctrl/pinctrl-single.c
+@@ -781,6 +781,7 @@ static int pcs_add_function(struct pcs_device *pcs,
+ {
+ 	struct pcs_function *function;
+ 	int selector;
++	int num_functions;
+ 
+ 	function = devm_kzalloc(pcs->dev, sizeof(*function), GFP_KERNEL);
+ 	if (!function)
+@@ -789,9 +790,17 @@ static int pcs_add_function(struct pcs_device *pcs,
+ 	function->vals = vals;
+ 	function->nvals = nvals;
+ 
++	num_functions = pcs->pctl->num_functions;
+ 	selector = pinmux_generic_add_function(pcs->pctl, name,
+ 					       pgnames, npgnames,
+ 					       function);
++	/* functions total number unchanged means we reused an existing one */
++	if (pcs->pctl->num_functions == num_functions) {
++		devm_kfree(pcs->dev, function);
++		WARN_ON(selector < 0);
++		return selector;
++	}
++
+ 	if (selector < 0) {
+ 		devm_kfree(pcs->dev, function);
+ 		*fcn = NULL;
+@@ -994,13 +1003,14 @@ static int pcs_parse_pinconf(struct pcs_device *pcs, struct device_node *np,
+ static int pcs_parse_one_pinctrl_entry(struct pcs_device *pcs,
+ 						struct device_node *np,
+ 						struct pinctrl_map **map,
+-						unsigned *num_maps,
+-						const char **pgnames)
++						unsigned *num_maps)
+ {
+ 	const char *name = "pinctrl-single,pins";
+ 	struct pcs_func_vals *vals;
+ 	int rows, *pins, found = 0, res = -ENOMEM, i, fsel, gsel;
+ 	struct pcs_function *function = NULL;
++	const char **pgnames;
++	int num_functions, num_groups;
+ 
+ 	rows = pinctrl_count_index_with_args(np, name);
+ 	if (rows <= 0) {
+@@ -1008,9 +1018,13 @@ static int pcs_parse_one_pinctrl_entry(struct pcs_device *pcs,
+ 		return -EINVAL;
+ 	}
+ 
++	pgnames = devm_kzalloc(pcs->dev, sizeof(*pgnames), GFP_KERNEL);
++	if (!pgnames)
++		return -ENOMEM;
++
+ 	vals = devm_kcalloc(pcs->dev, rows, sizeof(*vals), GFP_KERNEL);
+ 	if (!vals)
+-		return -ENOMEM;
++		goto free_pgnames;
+ 
+ 	pins = devm_kcalloc(pcs->dev, rows, sizeof(*pins), GFP_KERNEL);
+ 	if (!pins)
+@@ -1058,18 +1072,32 @@ static int pcs_parse_one_pinctrl_entry(struct pcs_device *pcs,
+ 
+ 	pgnames[0] = np->name;
+ 	mutex_lock(&pcs->mutex);
++	num_functions = pcs->pctl->num_functions;
+ 	fsel = pcs_add_function(pcs, &function, np->name, vals, found,
+ 				pgnames, 1);
+ 	if (fsel < 0) {
+ 		res = fsel;
+ 		goto free_pins;
+ 	}
++	/* functions total unchanged, which means an existing function is found */
++	if (pcs->pctl->num_functions == num_functions) {
++		devm_kfree(pcs->dev, vals);
++		devm_kfree(pcs->dev, pgnames);
++		vals = NULL;
++		pgnames = NULL;
++	}
+ 
++	num_groups = pcs->pctl->num_groups;
+ 	gsel = pinctrl_generic_add_group(pcs->pctl, np->name, pins, found, pcs);
+ 	if (gsel < 0) {
+ 		res = gsel;
+ 		goto free_function;
+ 	}
++	/* groups total unchanged, which means an existing group is found */
++	if (pcs->pctl->num_groups == num_groups) {
++		devm_kfree(pcs->dev, pins);
++		pins = NULL;
++	}
+ 
+ 	(*map)->type = PIN_MAP_TYPE_MUX_GROUP;
+ 	(*map)->data.mux.group = np->name;
+@@ -1097,10 +1125,15 @@ free_function:
+ 	pinmux_generic_remove_function(pcs->pctl, fsel);
+ free_pins:
+ 	mutex_unlock(&pcs->mutex);
+-	devm_kfree(pcs->dev, pins);
++	if (pins)
++		devm_kfree(pcs->dev, pins);
+ 
+ free_vals:
+-	devm_kfree(pcs->dev, vals);
++	if (vals)
++		devm_kfree(pcs->dev, vals);
++free_pgnames:
++	if (pgnames)
++		devm_kfree(pcs->dev, pgnames);
+ 
+ 	return res;
+ }
+@@ -1108,14 +1141,15 @@ free_vals:
+ static int pcs_parse_bits_in_pinctrl_entry(struct pcs_device *pcs,
+ 						struct device_node *np,
+ 						struct pinctrl_map **map,
+-						unsigned *num_maps,
+-						const char **pgnames)
++						unsigned *num_maps)
+ {
+ 	const char *name = "pinctrl-single,bits";
+ 	struct pcs_func_vals *vals;
+ 	int rows, *pins, found = 0, res = -ENOMEM, i, fsel, gsel;
+ 	int npins_in_row;
+ 	struct pcs_function *function = NULL;
++	const char **pgnames;
++	int num_functions, num_groups;
+ 
+ 	rows = pinctrl_count_index_with_args(np, name);
+ 	if (rows <= 0) {
+@@ -1123,13 +1157,17 @@ static int pcs_parse_bits_in_pinctrl_entry(struct pcs_device *pcs,
+ 		return -EINVAL;
+ 	}
+ 
++	pgnames = devm_kzalloc(pcs->dev, sizeof(*pgnames), GFP_KERNEL);
++	if (!pgnames)
++		return -ENOMEM;
++
+ 	npins_in_row = pcs->width / pcs->bits_per_pin;
+ 
+ 	vals = devm_kzalloc(pcs->dev,
+ 			    array3_size(rows, npins_in_row, sizeof(*vals)),
+ 			    GFP_KERNEL);
+ 	if (!vals)
+-		return -ENOMEM;
++		goto free_pgnames;
+ 
+ 	pins = devm_kzalloc(pcs->dev,
+ 			    array3_size(rows, npins_in_row, sizeof(*pins)),
+@@ -1203,18 +1241,32 @@ static int pcs_parse_bits_in_pinctrl_entry(struct pcs_device *pcs,
+ 
+ 	pgnames[0] = np->name;
+ 	mutex_lock(&pcs->mutex);
++	num_functions = pcs->pctl->num_functions;
+ 	fsel = pcs_add_function(pcs, &function, np->name, vals, found,
+ 				pgnames, 1);
+ 	if (fsel < 0) {
+ 		res = fsel;
+ 		goto free_pins;
+ 	}
++	/* functions total unchanged, which means an existing function is found */
++	if (pcs->pctl->num_functions == num_functions) {
++		devm_kfree(pcs->dev, vals);
++		devm_kfree(pcs->dev, pgnames);
++		vals = NULL;
++		pgnames = NULL;
++	}
+ 
++	num_groups = pcs->pctl->num_groups;
+ 	gsel = pinctrl_generic_add_group(pcs->pctl, np->name, pins, found, pcs);
+ 	if (gsel < 0) {
+ 		res = gsel;
+ 		goto free_function;
+ 	}
++	/* groups total unchanged, which means an existing group is found */
++	if (pcs->pctl->num_groups == num_groups) {
++		devm_kfree(pcs->dev, pins);
++		pins = NULL;
++	}
+ 
+ 	(*map)->type = PIN_MAP_TYPE_MUX_GROUP;
+ 	(*map)->data.mux.group = np->name;
+@@ -1238,10 +1290,15 @@ free_function:
+ 	pinmux_generic_remove_function(pcs->pctl, fsel);
+ free_pins:
+ 	mutex_unlock(&pcs->mutex);
+-	devm_kfree(pcs->dev, pins);
++	if (pins)
++		devm_kfree(pcs->dev, pins);
+ 
+ free_vals:
+-	devm_kfree(pcs->dev, vals);
++	if (vals)
++		devm_kfree(pcs->dev, vals);
++free_pgnames:
++	if (pgnames)
++		devm_kfree(pcs->dev, pgnames);
+ 
+ 	return res;
+ }
+@@ -1257,7 +1314,6 @@ static int pcs_dt_node_to_map(struct pinctrl_dev *pctldev,
+ 				struct pinctrl_map **map, unsigned *num_maps)
+ {
+ 	struct pcs_device *pcs;
+-	const char **pgnames;
+ 	int ret;
+ 
+ 	pcs = pinctrl_dev_get_drvdata(pctldev);
+@@ -1269,34 +1325,26 @@ static int pcs_dt_node_to_map(struct pinctrl_dev *pctldev,
+ 
+ 	*num_maps = 0;
+ 
+-	pgnames = devm_kzalloc(pcs->dev, sizeof(*pgnames), GFP_KERNEL);
+-	if (!pgnames) {
+-		ret = -ENOMEM;
+-		goto free_map;
+-	}
+-
+ 	if (pcs->bits_per_mux) {
+ 		ret = pcs_parse_bits_in_pinctrl_entry(pcs, np_config, map,
+-				num_maps, pgnames);
++				num_maps);
+ 		if (ret < 0) {
+ 			dev_err(pcs->dev, "no pins entries for %pOFn\n",
+ 				np_config);
+-			goto free_pgnames;
++			goto free_map;
+ 		}
+ 	} else {
+ 		ret = pcs_parse_one_pinctrl_entry(pcs, np_config, map,
+-				num_maps, pgnames);
++				num_maps);
+ 		if (ret < 0) {
+ 			dev_err(pcs->dev, "no pins entries for %pOFn\n",
+ 				np_config);
+-			goto free_pgnames;
++			goto free_map;
+ 		}
+ 	}
+ 
+ 	return 0;
+ 
+-free_pgnames:
+-	devm_kfree(pcs->dev, pgnames);
+ free_map:
+ 	devm_kfree(pcs->dev, *map);
+ 
+-- 
+2.17.1
+

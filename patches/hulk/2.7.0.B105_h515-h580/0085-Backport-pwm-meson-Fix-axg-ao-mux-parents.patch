@@ -1,0 +1,50 @@
+From 2ac2d12f189a9ead125c8c759fbb37e8d2f0429c Mon Sep 17 00:00:00 2001
+From: Heiner Kallweit <hkallweit1@gmail.com>
+Date: Sun, 9 Apr 2023 17:15:52 +0200
+Subject: [PATCH 085/780] [Backport] pwm: meson: Fix axg ao mux parents
+
+stable inclusion
+from stable-v5.10.180
+commit c1cabb10e07287019527132a74baa684df77af8b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c1cabb10e07287019527132a74baa684df77af8b
+
+--------------------------------
+
+commit eb411c0cf59ae6344b34bc6f0d298a22b300627e upstream.
+
+This fix is basically the same as 9bce02ef0dfa ("pwm: meson: Fix the
+G12A AO clock parents order"). Vendor driver referenced there has
+xtal as first parent also for axg ao. In addition fix the name
+of the aoclk81 clock. Apparently name aoclk81 as used by the vendor
+driver was changed when mainlining the axg clock driver.
+
+Fixes: bccaa3f917c9 ("pwm: meson: Add clock source configuration for Meson-AXG")
+Cc: stable@vger.kernel.org
+Signed-off-by: Heiner Kallweit <hkallweit1@gmail.com>
+Reviewed-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Signed-off-by: Thierry Reding <thierry.reding@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/pwm/pwm-meson.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pwm/pwm-meson.c b/drivers/pwm/pwm-meson.c
+index 237bb8e06593..1699d311e860 100644
+--- a/drivers/pwm/pwm-meson.c
++++ b/drivers/pwm/pwm-meson.c
+@@ -424,7 +424,7 @@ static const struct meson_pwm_data pwm_axg_ee_data = {
+ };
+ 
+ static const char * const pwm_axg_ao_parent_names[] = {
+-	"aoclk81", "xtal", "fclk_div4", "fclk_div5"
++	"xtal", "axg_ao_clk81", "fclk_div4", "fclk_div5"
+ };
+ 
+ static const struct meson_pwm_data pwm_axg_ao_data = {
+-- 
+2.17.1
+

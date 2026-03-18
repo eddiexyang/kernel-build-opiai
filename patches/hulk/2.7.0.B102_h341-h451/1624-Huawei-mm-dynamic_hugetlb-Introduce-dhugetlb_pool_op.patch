@@ -1,0 +1,124 @@
+From 3b9279aaec98bd917b4e9fc108150bf9df8f5cac Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 27 Mar 2023 19:31:40 +0800
+Subject: [PATCH 1624/1646] [Huawei] mm/dynamic_hugetlb: Introduce
+ dhugetlb_pool_ops to support multiple operations
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Use function pointers to extend the core functions or dynamic hugetlb to
+enhance scalability for future use.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ include/linux/dynamic_hugetlb.h |  5 +++++
+ mm/dynamic_hugetlb.c            | 30 +++++++++++++++++++++++-------
+ 2 files changed, 28 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/dynamic_hugetlb.h b/include/linux/dynamic_hugetlb.h
+index eff31669e210..b3dbf67d4eef 100644
+--- a/include/linux/dynamic_hugetlb.h
++++ b/include/linux/dynamic_hugetlb.h
+@@ -58,6 +58,9 @@ enum huge_pages_pool_type {
+ 	HUGE_PAGES_POOL_4K,
+ 	HUGE_PAGES_POOL_MAX,
+ };
++
++struct dhugetlb_pool_ops;
++
+ /*
+  * Dynamic hugetlb pool data structure. Each Dynamic hugetlb pool is
+  * associated with one memory cgroup and controls the allocation of memory
+@@ -82,6 +85,8 @@ struct dhugetlb_pool {
+ 	 */
+ 	KABI_EXTEND(struct mutex reserved_lock)
+ 
++	KABI_EXTEND(struct dhugetlb_pool_ops *ops)
++
+ 	/*
+ 	 * The percpu_pool[] should only be used by dynamic hugetlb core.
+ 	 * External kernel modules should not used it.
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 8199ef893f4a..85cdcd74b27a 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -16,6 +16,11 @@
+ #include <trace/events/dynamic_hugetlb.h>
+ #endif
+ 
++struct dhugetlb_pool_ops {
++	int (*free_pool)(struct dhugetlb_pool *hpool);
++	int (*merge_pages)(struct dhugetlb_pool *hpool);
++};
++
+ bool enable_dhugetlb = false;
+ DEFINE_STATIC_KEY_FALSE(dhugetlb_enabled_key);
+ 
+@@ -881,7 +886,8 @@ void hugetlb_pool_inherit(struct mem_cgroup *memcg, struct mem_cgroup *parent)
+ 	memcg->hpool = parent->hpool;
+ }
+ 
+-static int hugetlb_pool_create(struct mem_cgroup *memcg, unsigned long nid)
++static int hugetlb_pool_create(struct mem_cgroup *memcg, unsigned long nid,
++			       struct dhugetlb_pool_ops *ops)
+ {
+ 	struct dhugetlb_pool *hpool;
+ 	int i;
+@@ -908,6 +914,7 @@ static int hugetlb_pool_create(struct mem_cgroup *memcg, unsigned long nid)
+ 		INIT_LIST_HEAD(&hpool->percpu_pool[i].head_page);
+ 	}
+ 
++	hpool->ops = ops;
+ 	hpool->attach_memcg = memcg;
+ 	css_get(&memcg->css);
+ 	memcg->hpool = hpool;
+@@ -935,18 +942,27 @@ int hugetlb_pool_destroy(struct cgroup *cgrp)
+ 	mem_cgroup_force_empty(hpool->attach_memcg);
+ 
+ 	spin_lock(&hpool->lock);
+-	ret = hugetlb_pool_merge_all_pages(hpool);
+-	if (ret) {
+-		spin_unlock(&hpool->lock);
+-		return -ENOMEM;
++	if (hpool->ops->merge_pages) {
++		ret = hpool->ops->merge_pages(hpool);
++		if (ret) {
++			spin_unlock(&hpool->lock);
++			return -ENOMEM;
++		}
+ 	}
+-	ret = free_hugepage_to_hugetlb(hpool);
++
++	if (hpool->ops->free_pool)
++		ret = hpool->ops->free_pool(hpool);
+ 	memcg->hpool = NULL;
+ 	spin_unlock(&hpool->lock);
+ 	put_hpool(hpool);
+ 	return ret;
+ }
+ 
++static struct dhugetlb_pool_ops hugetlb_pool_ops = {
++	.free_pool = free_hugepage_to_hugetlb,
++	.merge_pages = hugetlb_pool_merge_all_pages,
++};
++
+ static int hugetlb_pool_update(struct mem_cgroup *memcg,
+ 			       unsigned long nid, unsigned long size)
+ {
+@@ -957,7 +973,7 @@ static int hugetlb_pool_update(struct mem_cgroup *memcg,
+ again:
+ 	hpool = memcg->hpool;
+ 	if (!hpool) {
+-		ret = hugetlb_pool_create(memcg, nid);
++		ret = hugetlb_pool_create(memcg, nid, &hugetlb_pool_ops);
+ 		if (ret)
+ 			return ret;
+ 		new_create = true;
+-- 
+2.17.1
+

@@ -1,0 +1,64 @@
+// ****************************************************************************** 
+// Copyright     :  Copyright (C) 2021, Hisilicon Technologies Co. Ltd.
+// File name     :  stars_conds_s_reg_reg_offset_field.h
+// Project line  :  Platform And Key Technologies Development
+// Department    :  CAD Development Department
+// Author        :  xxx
+// Version       :  1
+// Date          :  2020/04/01
+// Description   :  The description of xxx project
+// Others        :  Generated automatically by nManager V4.2 
+// History       :  xxx 2021/10/22 14:39:08 Create file
+// ******************************************************************************
+
+#ifndef __STARS_CONDS_S_REG_REG_OFFSET_FIELD_H__
+#define __STARS_CONDS_S_REG_REG_OFFSET_FIELD_H__
+
+#define STARS_CONDS_S_REG_CFG_POOL_SEC_LEN    1
+#define STARS_CONDS_S_REG_CFG_POOL_SEC_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_COMMON_AR_SSV_LEN           1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AR_SSV_OFFSET        13
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARPROT_NS_LEN        3
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARPROT_NS_OFFSET     10
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARPROT_S_LEN         3
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARPROT_S_OFFSET      7
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARSNOOP_LEN          1
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARSNOOP_OFFSET       6
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARCACHE_LEN          4
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARCACHE_OFFSET       2
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARNS_LEN             1
+#define STARS_CONDS_S_REG_CONDS_COMMON_ARNS_OFFSET          1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AR_IS_VIRTUAL_LEN    1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AR_IS_VIRTUAL_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_COMMON_AW_SSV_LEN           1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AW_SSV_OFFSET        13
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWPROT_NS_LEN        3
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWPROT_NS_OFFSET     10
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWPROT_S_LEN         3
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWPROT_S_OFFSET      7
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWSNOOP_LEN          1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWSNOOP_OFFSET       6
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWCACHE_LEN          4
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWCACHE_OFFSET       2
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWNS_LEN             1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AWNS_OFFSET          1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AW_IS_VIRTUAL_LEN    1
+#define STARS_CONDS_S_REG_CONDS_COMMON_AW_IS_VIRTUAL_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_SOFT_VA_LEN           1
+#define STARS_CONDS_S_REG_CONDS_SOFT_VA_OFFSET        1
+#define STARS_CONDS_S_REG_CONDS_SOFT_AUTHORITY_LEN    1
+#define STARS_CONDS_S_REG_CONDS_SOFT_AUTHORITY_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_ENABLE_CTRL_S_LEN    1
+#define STARS_CONDS_S_REG_CONDS_ENABLE_CTRL_S_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_DISABLE_CTRL_S_LEN    1
+#define STARS_CONDS_S_REG_CONDS_DISABLE_CTRL_S_OFFSET 0
+
+#define STARS_CONDS_S_REG_CONDS_ENABLED_STATUS0_S_LEN    1
+#define STARS_CONDS_S_REG_CONDS_ENABLED_STATUS0_S_OFFSET 0
+
+#endif // __STARS_CONDS_S_REG_REG_OFFSET_FIELD_H__

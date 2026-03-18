@@ -1,0 +1,51 @@
+From 3cd03457dabcb34bae70a1608fcc6d25013e2791 Mon Sep 17 00:00:00 2001
+From: Lu Wei <luwei32@huawei.com>
+Date: Fri, 21 Oct 2022 11:39:15 +0800
+Subject: [PATCH 036/595] [Backport] tcp: fix a signed-integer-overflow bug in
+ tcp_add_backlog()
+
+maillist inclusion
+category: bugfix
+bugzilla: 187785
+
+Reference: https://lore.kernel.org/lkml/20221021040622.815143-1-luwei32@huawei.com/t/
+
+--------------------------------
+
+The type of sk_rcvbuf and sk_sndbuf in struct sock is int, and
+in tcp_add_backlog(), the variable limit is caculated by adding
+sk_rcvbuf, sk_sndbuf and 64 * 1024, it may exceed the max value
+of int and overflow. This patch reduces the limit budget by
+halving the sndbuf to solve this issue since ACK packets are much
+smaller than the payload.
+
+Fixes: c9c3321257e1 ("tcp: add tcp_add_backlog()")
+Signed-off-by: Lu Wei <luwei32@huawei.com>
+Acked-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+
+conflict:
+	net/ipv4/tcp_ipv4.c
+
+Signed-off-by: Lu Wei <luwei32@huawei.com>
+---
+ net/ipv4/tcp_ipv4.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/ipv4/tcp_ipv4.c b/net/ipv4/tcp_ipv4.c
+index f3747aa5f3ef..30c7138ea333 100644
+--- a/net/ipv4/tcp_ipv4.c
++++ b/net/ipv4/tcp_ipv4.c
+@@ -1770,7 +1770,8 @@ int tcp_v4_early_demux(struct sk_buff *skb)
+ 
+ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
+ {
+-	u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
++	u32 limit = (u32)READ_ONCE(sk->sk_rcvbuf) +
++		    (u32)(READ_ONCE(sk->sk_sndbuf) >> 1);
+ 	u32 tail_gso_size, tail_gso_segs;
+ 	struct skb_shared_info *shinfo;
+ 	const struct tcphdr *th;
+-- 
+2.17.1
+

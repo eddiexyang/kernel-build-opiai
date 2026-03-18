@@ -1,0 +1,56 @@
+From ed05c836c0802d0a49ab3fb89b9c2617ca5f78dc Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Tue, 16 Aug 2022 10:30:28 +0800
+Subject: [PATCH 4584/4585] [Huawei] arm64: memmap: fix memmap_res leak in
+ request_memmap_resources
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187483
+
+--------------------------------
+
+If memmap_res does not invoke request_resource or return failure, we need
+to free memmap_res.
+
+Fixes: cc5af1959f6c ("arm64: memmap: fix request_resource return error")
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ arch/arm64/kernel/setup.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
+index bdb30011a426..940e237009e9 100644
+--- a/arch/arm64/kernel/setup.c
++++ b/arch/arm64/kernel/setup.c
+@@ -228,6 +228,9 @@ static void __init request_memmap_resources(struct resource *res)
+ 		if (!size)
+ 			continue;
+ 
++		if ((base < res->start) || (base + size - 1 > res->end))
++			continue;
++
+ 		memmap_res = memblock_alloc(sizeof(*memmap_res), SMP_CACHE_BYTES);
+ 		if (!memmap_res)
+ 			panic("%s: Failed to allocate memmap_res\n", __func__);
+@@ -236,10 +239,12 @@ static void __init request_memmap_resources(struct resource *res)
+ 		memmap_res->flags = IORESOURCE_MEM;
+ 		memmap_res->start = base;
+ 		memmap_res->end = base + size - 1;
+-		if (memmap_res->start >= res->start && memmap_res->end <= res->end) {
+-			if (request_resource(res, memmap_res))
+-				pr_warn("memmap reserve: [%llx, %llx] request resource fail\n",
+-					memmap_res->start, memmap_res->end);
++
++		if (request_resource(res, memmap_res)) {
++			pr_warn("memmap reserve: [%llx, %llx] request resource fail\n",
++				memmap_res->start, memmap_res->end);
++			memblock_free_early(virt_to_phys(memmap_res),
++					    sizeof(*memmap_res));
+ 		}
+ 	}
+ }
+-- 
+2.17.1
+

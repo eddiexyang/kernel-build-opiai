@@ -1,0 +1,96 @@
+From 1921460c9c7cdfc9e5f7c6f67b0fe073df946735 Mon Sep 17 00:00:00 2001
+From: Kaixu Xia <kaixuxia@tencent.com>
+Date: Tue, 13 Sep 2022 17:11:26 +0800
+Subject: [PATCH 146/921] [Backport] mm/damon/core: simplify the kdamond stop
+ mechanism by removing 'done'
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 29454cf6ab3c49bc5d3f443e1d1417feca3d0ce5
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=29454cf6ab3c49bc5d3f443e1d1417feca3d0ce5
+
+--------------------------------
+
+When the 'kdamond_wait_activation()' function or 'after_sampling()' or
+'after_aggregation()' DAMON callbacks return an error, it is unnecessary
+to use bool 'done' to check if kdamond should be finished.  This commit
+simplifies the kdamond stop mechanism by removing 'done' and break the
+while loop directly in the cases.
+
+Link: https://lkml.kernel.org/r/1663060287-30201-4-git-send-email-kaixuxia@tencent.com
+Signed-off-by: Kaixu Xia <kaixuxia@tencent.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core.c | 24 +++++++++---------------
+ 1 file changed, 9 insertions(+), 15 deletions(-)
+
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index 29635a82cb69..a843673c11cf 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -1152,30 +1152,25 @@ static int kdamond_fn(void *data)
+ 	struct damon_region *r, *next;
+ 	unsigned int max_nr_accesses = 0;
+ 	unsigned long sz_limit = 0;
+-	bool done = false;
+ 
+ 	pr_debug("kdamond (%d) starts\n", current->pid);
+ 
+ 	if (ctx->ops.init)
+ 		ctx->ops.init(ctx);
+ 	if (ctx->callback.before_start && ctx->callback.before_start(ctx))
+-		done = true;
++		goto done;
+ 
+ 	sz_limit = damon_region_sz_limit(ctx);
+ 
+-	while (!kdamond_need_stop(ctx) && !done) {
+-		if (kdamond_wait_activation(ctx)) {
+-			done = true;
+-			continue;
+-		}
++	while (!kdamond_need_stop(ctx)) {
++		if (kdamond_wait_activation(ctx))
++			break;
+ 
+ 		if (ctx->ops.prepare_access_checks)
+ 			ctx->ops.prepare_access_checks(ctx);
+ 		if (ctx->callback.after_sampling &&
+-				ctx->callback.after_sampling(ctx)) {
+-			done = true;
+-			continue;
+-		}
++				ctx->callback.after_sampling(ctx))
++			break;
+ 
+ 		kdamond_usleep(ctx->attrs.sample_interval);
+ 
+@@ -1187,10 +1182,8 @@ static int kdamond_fn(void *data)
+ 					max_nr_accesses / 10,
+ 					sz_limit);
+ 			if (ctx->callback.after_aggregation &&
+-					ctx->callback.after_aggregation(ctx)) {
+-				done = true;
+-				continue;
+-			}
++					ctx->callback.after_aggregation(ctx))
++				break;
+ 			kdamond_apply_schemes(ctx);
+ 			kdamond_reset_aggregated(ctx);
+ 			kdamond_split_regions(ctx);
+@@ -1204,6 +1197,7 @@ static int kdamond_fn(void *data)
+ 			sz_limit = damon_region_sz_limit(ctx);
+ 		}
+ 	}
++done:
+ 	damon_for_each_target(t, ctx) {
+ 		damon_for_each_region_safe(r, next, t)
+ 			damon_destroy_region(r, t);
+-- 
+2.17.1
+

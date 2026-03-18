@@ -1,0 +1,52 @@
+From 6919b41869185e2300f350920e591a1447ee9307 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Sat, 29 Oct 2022 19:44:27 +0800
+Subject: [PATCH 211/905] [Backport] clocksource/drivers/timer-ti-dm: Fix
+ missing clk_disable_unprepare in dmtimer_systimer_init_clock()
+
+stable inclusion
+from stable-v5.10.163
+commit 7bc9c5ad522b98d9c8744bb1a5651278b6cd02c2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7bc9c5ad522b98d9c8744bb1a5651278b6cd02c2
+
+--------------------------------
+
+[ Upstream commit 180d35a7c05d520314a590c99ad8643d0213f28b ]
+
+If clk_get_rate() fails which is called after clk_prepare_enable(),
+clk_disable_unprepare() need be called in error path to disable the
+clock in dmtimer_systimer_init_clock().
+
+Fixes: 52762fbd1c47 ("clocksource/drivers/timer-ti-dm: Add clockevent and clocksource support")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Tony Lindgren <tony@atomide.com>
+Link: https://lore.kernel.org/r/20221029114427.946520-1-yangyingliang@huawei.com
+Signed-off-by: Daniel Lezcano <daniel.lezcano@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/clocksource/timer-ti-dm-systimer.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/clocksource/timer-ti-dm-systimer.c b/drivers/clocksource/timer-ti-dm-systimer.c
+index 2737407ff069..632523c1232f 100644
+--- a/drivers/clocksource/timer-ti-dm-systimer.c
++++ b/drivers/clocksource/timer-ti-dm-systimer.c
+@@ -345,8 +345,10 @@ static int __init dmtimer_systimer_init_clock(struct dmtimer_systimer *t,
+ 		return error;
+ 
+ 	r = clk_get_rate(clock);
+-	if (!r)
++	if (!r) {
++		clk_disable_unprepare(clock);
+ 		return -ENODEV;
++	}
+ 
+ 	if (is_ick)
+ 		t->ick = clock;
+-- 
+2.17.1
+

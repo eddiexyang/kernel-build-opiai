@@ -1,0 +1,78 @@
+From cf776009868ab0ff4a30fddc114724e3df2b4bf8 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Tue, 8 Dec 2020 10:22:16 +0100
+Subject: [PATCH 194/263] [Backport] locking/rwsem: Better collate
+ rwsem_read_trylock()
+
+mainline inclusion
+from mainline-v5.11-rc1
+commit 3379116a0ca965b00e6522c7ea3f16c9dbd8f9f9
+category: bugfix
+bugzilla: 188209
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3379116a0ca965b00e6522c7ea3f16c9dbd8f9f9
+
+--------------------------------
+
+All users of rwsem_read_trylock() do rwsem_set_reader_owned(sem) on
+success, move it into rwsem_read_trylock() proper.
+
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20201207090243.GE3040@hirez.programming.kicks-ass.net
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+---
+ kernel/locking/rwsem.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/locking/rwsem.c b/kernel/locking/rwsem.c
+index 51413f89075b..15380f2133d8 100644
+--- a/kernel/locking/rwsem.c
++++ b/kernel/locking/rwsem.c
+@@ -274,9 +274,16 @@ static inline void rwsem_set_nonspinnable(struct rw_semaphore *sem)
+ static inline bool rwsem_read_trylock(struct rw_semaphore *sem)
+ {
+ 	long cnt = atomic_long_add_return_acquire(RWSEM_READER_BIAS, &sem->count);
++
+ 	if (WARN_ON_ONCE(cnt < 0))
+ 		rwsem_set_nonspinnable(sem);
+-	return !(cnt & RWSEM_READ_FAILED_MASK);
++
++	if (!(cnt & RWSEM_READ_FAILED_MASK)) {
++		rwsem_set_reader_owned(sem);
++		return true;
++	}
++
++	return false;
+ }
+ 
+ /*
+@@ -1343,8 +1350,6 @@ inline void __down_read(struct rw_semaphore *sem)
+ 	if (!rwsem_read_trylock(sem)) {
+ 		rwsem_down_read_slowpath(sem, TASK_UNINTERRUPTIBLE);
+ 		DEBUG_RWSEMS_WARN_ON(!is_rwsem_reader_owned(sem), sem);
+-	} else {
+-		rwsem_set_reader_owned(sem);
+ 	}
+ }
+ 
+@@ -1354,8 +1359,6 @@ static inline int __down_read_interruptible(struct rw_semaphore *sem)
+ 		if (IS_ERR(rwsem_down_read_slowpath(sem, TASK_INTERRUPTIBLE)))
+ 			return -EINTR;
+ 		DEBUG_RWSEMS_WARN_ON(!is_rwsem_reader_owned(sem), sem);
+-	} else {
+-		rwsem_set_reader_owned(sem);
+ 	}
+ 	return 0;
+ }
+@@ -1366,8 +1369,6 @@ static inline int __down_read_killable(struct rw_semaphore *sem)
+ 		if (IS_ERR(rwsem_down_read_slowpath(sem, TASK_KILLABLE)))
+ 			return -EINTR;
+ 		DEBUG_RWSEMS_WARN_ON(!is_rwsem_reader_owned(sem), sem);
+-	} else {
+-		rwsem_set_reader_owned(sem);
+ 	}
+ 	return 0;
+ }
+-- 
+2.17.1
+

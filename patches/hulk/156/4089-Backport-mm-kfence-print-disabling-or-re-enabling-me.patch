@@ -1,0 +1,64 @@
+From d5520bd051706e384ca8cbe2877ac54a3bae4eed Mon Sep 17 00:00:00 2001
+From: Jackie Liu <liuyun01@kylinos.cn>
+Date: Wed, 6 Jul 2022 18:05:11 +0800
+Subject: [PATCH 4089/4585] [Backport] mm/kfence: print disabling or
+ re-enabling message
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 83d7d04f9d2ef354858b2a8444aee38e41ec1699
+category: bugfix
+bugzilla: 187071, https://gitee.com/openeuler/kernel/issues/I5DLA7
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=83d7d04f9d2ef354858b2a8444aee38e41ec1699
+
+--------------------------------
+
+By printing information, we can friendly prompt the status change
+information of kfence by dmesg and record by syslog.
+
+Also, set kfence_enabled to false only when needed.
+
+Link: https://lkml.kernel.org/r/20220518073105.3160335-1-liu.yun@linux.dev
+Signed-off-by: Jackie Liu <liuyun01@kylinos.cn>
+Co-developed-by: Marco Elver <elver@google.com>
+Signed-off-by: Marco Elver <elver@google.com>
+Reviewed-by: Marco Elver <elver@google.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Conflicts:
+	mm/kfence/core.c
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+Reviewed-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ mm/kfence/core.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/mm/kfence/core.c b/mm/kfence/core.c
+index 7af797305fdd..d330b6c930c8 100644
+--- a/mm/kfence/core.c
++++ b/mm/kfence/core.c
+@@ -78,8 +78,11 @@ static int param_set_sample_interval(const char *val, const struct kernel_param
+ 	 */
+ 	num = max_t(long, 0, num);
+ 
+-	if (!num) /* Using 0 to indicate KFENCE is disabled. */
++	/* Using 0 to indicate KFENCE is disabled. */
++	if (!num && READ_ONCE(kfence_enabled)) {
++		pr_info("disabled\n");
+ 		WRITE_ONCE(kfence_enabled, false);
++	}
+ 
+ 	*((unsigned long *)kp->arg) = (unsigned long)num;
+ 
+@@ -1120,6 +1123,7 @@ static int kfence_enable_late(void)
+ 
+ 	WRITE_ONCE(kfence_enabled, true);
+ 	queue_delayed_work(system_unbound_wq, &kfence_timer, 0);
++	pr_info("re-enabled\n");
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

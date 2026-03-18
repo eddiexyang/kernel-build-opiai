@@ -1,0 +1,104 @@
+From f02c6744bb10330731e999777620e5372548345e Mon Sep 17 00:00:00 2001
+From: tanghui <tanghui20@huawei.com>
+Date: Wed, 16 Feb 2022 16:26:09 +0800
+Subject: [PATCH 0793/2065] [Huawei] sched: Add statistics for scheduler
+ dynamic affinity
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186575
+
+--------------------------------
+
+Signed-off-by: tanghui <tanghui20@huawei.com>
+---
+ include/linux/sched.h | 12 ++++++++++++
+ kernel/sched/debug.c  |  4 ++++
+ kernel/sched/fair.c   | 11 +++++++++--
+ 3 files changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 811cc287794d..69b7ef78e94e 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -461,11 +461,23 @@ struct sched_statistics {
+ 	u64				nr_wakeups_passive;
+ 	u64				nr_wakeups_idle;
+ 
++#if !defined(__GENKSYMS__)
++#if defined(CONFIG_QOS_SCHED_DYNAMIC_AFFINITY)
++	u64				nr_wakeups_preferred_cpus;
++	u64				nr_wakeups_force_preferred_cpus;
++#else
++	KABI_RESERVE(1)
++	KABI_RESERVE(2)
++#endif
++	KABI_RESERVE(3)
++	KABI_RESERVE(4)
++#else
+ 	KABI_RESERVE(1)
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+ #endif
++#endif
+ };
+ 
+ struct sched_entity {
+diff --git a/kernel/sched/debug.c b/kernel/sched/debug.c
+index 70a578272436..ad47089e5a4a 100644
+--- a/kernel/sched/debug.c
++++ b/kernel/sched/debug.c
+@@ -982,6 +982,10 @@ void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
+ 		P_SCHEDSTAT(se.statistics.nr_wakeups_affine_attempts);
+ 		P_SCHEDSTAT(se.statistics.nr_wakeups_passive);
+ 		P_SCHEDSTAT(se.statistics.nr_wakeups_idle);
++#ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
++		P_SCHEDSTAT(se.statistics.nr_wakeups_preferred_cpus);
++		P_SCHEDSTAT(se.statistics.nr_wakeups_force_preferred_cpus);
++#endif
+ 
+ 		avg_atom = p->se.sum_exec_runtime;
+ 		if (nr_switches)
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 6552766ef795..22373d2475d7 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -6939,6 +6939,8 @@ static void set_task_select_cpus(struct task_struct *p, int *idlest_cpu,
+ 		if (available_idle_cpu(cpu)) {
+ 			rcu_read_unlock();
+ 			p->select_cpus = p->prefer_cpus;
++			if (sd_flag & SD_BALANCE_WAKE)
++				schedstat_inc(p->se.statistics.nr_wakeups_preferred_cpus);
+ 			return;
+ 		}
+ 
+@@ -6948,8 +6950,11 @@ static void set_task_select_cpus(struct task_struct *p, int *idlest_cpu,
+ 	rcu_read_unlock();
+ 
+ 	if (tg_capacity > cpumask_weight(p->prefer_cpus) &&
+-	    util_avg_sum * 100 <= tg_capacity * sysctl_sched_util_low_pct)
++	    util_avg_sum * 100 <= tg_capacity * sysctl_sched_util_low_pct) {
+ 		p->select_cpus = p->prefer_cpus;
++		if (sd_flag & SD_BALANCE_WAKE)
++			schedstat_inc(p->se.statistics.nr_wakeups_preferred_cpus);
++	}
+ }
+ #endif
+ 
+@@ -7042,8 +7047,10 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
+ 	rcu_read_unlock();
+ 
+ #ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
+-	if (!cpumask_test_cpu(new_cpu, p->select_cpus))
++	if (!cpumask_test_cpu(new_cpu, p->select_cpus)) {
+ 		new_cpu = idlest_cpu;
++		schedstat_inc(p->se.statistics.nr_wakeups_force_preferred_cpus);
++	}
+ #endif
+ 
+ 	schedstat_end_time(cpu_rq(cpu), time);
+-- 
+2.17.1
+

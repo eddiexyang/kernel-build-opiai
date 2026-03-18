@@ -1,0 +1,105 @@
+From e0fce93be0446d364ce24f81a3cc7175ce9d2512 Mon Sep 17 00:00:00 2001
+From: Xu Qiang <xuqiang36@huawei.com>
+Date: Thu, 16 Feb 2023 06:41:59 +0000
+Subject: [PATCH 016/500] [Huawei] mm/sharepool: Delete redundant size and
+ alloc_size in sp_meminfo.
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6ET9W
+
+----------------------------------------------
+
+alloc_size can be obtained by adding alloc_nsize to alloc_hsize,
+and size can be obtained by adding alloc_nsize to alloc_hsize and
+k2u_size. Therefore, alloc_size and size are redundant
+and can be deleted.
+
+Signed-off-by: Xu Qiang <xuqiang36@huawei.com>
+---
+ mm/share_pool.c | 23 ++++++++++-------------
+ 1 file changed, 10 insertions(+), 13 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 8f15a18d3e87..61c33f15d690 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -105,14 +105,10 @@ do {						\
+ } while (0)
+ 
+ struct sp_meminfo {
+-	/* total size from sp_alloc and k2u */
+-	atomic64_t	size;
+ 	/* not huge page size from sp_alloc */
+ 	atomic64_t	alloc_nsize;
+ 	/* huge page size from sp_alloc */
+ 	atomic64_t	alloc_hsize;
+-	/* total size from sp_alloc */
+-	atomic64_t	alloc_size;
+ 	/* total size from sp_k2u */
+ 	atomic64_t	k2u_size;
+ };
+@@ -256,8 +252,6 @@ static void meminfo_init(struct sp_meminfo *meminfo)
+ 
+ static void meminfo_inc_usage(unsigned long size, bool huge, struct sp_meminfo *meminfo)
+ {
+-	atomic64_add(size, &meminfo->size);
+-	atomic64_add(size, &meminfo->alloc_size);
+ 	if (huge)
+ 		atomic64_add(size, &meminfo->alloc_hsize);
+ 	else
+@@ -266,8 +260,6 @@ static void meminfo_inc_usage(unsigned long size, bool huge, struct sp_meminfo *
+ 
+ static void meminfo_dec_usage(unsigned long size, bool huge, struct sp_meminfo *meminfo)
+ {
+-	atomic64_sub(size, &meminfo->size);
+-	atomic64_sub(size, &meminfo->alloc_size);
+ 	if (huge)
+ 		atomic64_sub(size, &meminfo->alloc_hsize);
+ 	else
+@@ -276,13 +268,11 @@ static void meminfo_dec_usage(unsigned long size, bool huge, struct sp_meminfo *
+ 
+ static void meminfo_inc_k2u(unsigned long size, struct sp_meminfo *meminfo)
+ {
+-	atomic64_add(size, &meminfo->size);
+ 	atomic64_add(size, &meminfo->k2u_size);
+ }
+ 
+ static void meminfo_dec_k2u(unsigned long size, struct sp_meminfo *meminfo)
+ {
+-	atomic64_sub(size, &meminfo->size);
+ 	atomic64_sub(size, &meminfo->k2u_size);
+ }
+ 
+@@ -302,6 +292,13 @@ static inline long meminfo_k2u_size(struct sp_meminfo *meminfo)
+ 	return byte2kb(atomic64_read(&meminfo->k2u_size));
+ }
+ 
++static inline long long meminfo_total_size(struct sp_meminfo *meminfo)
++{
++	return atomic64_read(&meminfo->alloc_nsize) +
++		atomic64_read(&meminfo->alloc_hsize) +
++		atomic64_read(&meminfo->k2u_size);
++}
++
+ static unsigned long sp_mapping_type(struct sp_mapping *spm)
+ {
+ 	return spm->type;
+@@ -3840,10 +3837,10 @@ static int spg_info_show(int id, void *p, void *data)
+ 	SEQ_printf(seq, "Group %6d ", id);
+ 
+ 	down_read(&spg->rw_lock);
+-	SEQ_printf(seq, "size: %lld KB, spa num: %d, total alloc: %lld KB, normal alloc: %lld KB, huge alloc: %lld KB\n",
+-			byte2kb(atomic64_read(&spg->meminfo.size)),
++	SEQ_printf(seq, "size: %lld KB, spa num: %d, total alloc: %ld KB, normal alloc: %lld KB, huge alloc: %lld KB\n",
++			byte2kb(meminfo_total_size(&spg->meminfo)),
+ 			atomic_read(&spg->spa_num),
+-			byte2kb(atomic64_read(&spg->meminfo.alloc_size)),
++			meminfo_alloc_sum_byKB(&spg->meminfo),
+ 			byte2kb(atomic64_read(&spg->meminfo.alloc_nsize)),
+ 			byte2kb(atomic64_read(&spg->meminfo.alloc_hsize)));
+ 	up_read(&spg->rw_lock);
+-- 
+2.17.1
+

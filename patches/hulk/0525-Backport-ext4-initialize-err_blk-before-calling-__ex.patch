@@ -1,0 +1,58 @@
+From 0f1aef1d733de61469c07296c30a6f2b481833ca Mon Sep 17 00:00:00 2001
+From: Harshad Shirwadkar <harshadshirwadkar@gmail.com>
+Date: Wed, 27 Apr 2022 11:16:36 +0800
+Subject: [PATCH 0525/2065] [Backport] ext4: initialize err_blk before calling
+ __ext4_get_inode_loc
+
+stable inclusion
+from stable-v5.10.94
+commit 720508dd118d04035875823f44bcd27388ff39b2
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=720508dd118d04035875823f44bcd27388ff39b2
+
+--------------------------------
+
+commit c27c29c6af4f3f4ce925a2111c256733c5a5b430 upstream.
+
+It is not guaranteed that __ext4_get_inode_loc will definitely set
+err_blk pointer when it returns EIO. To avoid using uninitialized
+variables, let's first set err_blk to 0.
+
+Reported-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Harshad Shirwadkar <harshadshirwadkar@gmail.com>
+Link: https://lore.kernel.org/r/20211201163421.2631661-1-harshads@google.com
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Cc: stable@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ fs/ext4/inode.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index 74f2504b939b..ec231170dae7 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -4532,7 +4532,7 @@ static int __ext4_get_inode_loc(struct super_block *sb, unsigned long ino,
+ static int __ext4_get_inode_loc_noinmem(struct inode *inode,
+ 					struct ext4_iloc *iloc)
+ {
+-	ext4_fsblk_t err_blk;
++	ext4_fsblk_t err_blk = 0;
+ 	int ret;
+ 
+ 	ret = __ext4_get_inode_loc(inode->i_sb, inode->i_ino, NULL, iloc,
+@@ -4547,7 +4547,7 @@ static int __ext4_get_inode_loc_noinmem(struct inode *inode,
+ 
+ int ext4_get_inode_loc(struct inode *inode, struct ext4_iloc *iloc)
+ {
+-	ext4_fsblk_t err_blk;
++	ext4_fsblk_t err_blk = 0;
+ 	int ret;
+ 
+ 	ret = __ext4_get_inode_loc(inode->i_sb, inode->i_ino, inode, iloc,
+-- 
+2.17.1
+

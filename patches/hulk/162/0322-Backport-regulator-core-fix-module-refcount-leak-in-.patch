@@ -1,0 +1,46 @@
+From dc5e219819ec0097d150cb4f11d1305769cd29d4 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Thu, 1 Dec 2022 20:27:05 +0800
+Subject: [PATCH 322/905] [Backport] regulator: core: fix module refcount leak
+ in set_supply()
+
+stable inclusion
+from stable-v5.10.163
+commit 6f25402d8a00a6b12ead75b96c03c5b7813f2aa8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6f25402d8a00a6b12ead75b96c03c5b7813f2aa8
+
+--------------------------------
+
+[ Upstream commit da46ee19cbd8344d6860816b4827a7ce95764867 ]
+
+If create_regulator() fails in set_supply(), the module refcount
+needs be put to keep refcount balanced.
+
+Fixes: e2c09ae7a74d ("regulator: core: Increase refcount for regulator supply's module")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Link: https://lore.kernel.org/r/20221201122706.4055992-2-yangyingliang@huawei.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/regulator/core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/regulator/core.c b/drivers/regulator/core.c
+index 1427913d1dd1..c3f07b44e51d 100644
+--- a/drivers/regulator/core.c
++++ b/drivers/regulator/core.c
+@@ -1474,6 +1474,7 @@ static int set_supply(struct regulator_dev *rdev,
+ 
+ 	rdev->supply = create_regulator(supply_rdev, &rdev->dev, "SUPPLY");
+ 	if (rdev->supply == NULL) {
++		module_put(supply_rdev->owner);
+ 		err = -ENOMEM;
+ 		return err;
+ 	}
+-- 
+2.17.1
+

@@ -1,0 +1,84 @@
+From fa306bda0b154e946c954d79f1a2d6cb746e951a Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Mon, 6 Jun 2022 18:23:07 +0000
+Subject: [PATCH 085/921] [Backport] mm/damon/reclaim: deduplicate
+ 'commit_inputs' handling
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit f25ab3bdfb6f8548a721d4592b2c56cb2ac90ce6
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=f25ab3bdfb6f8548a721d4592b2c56cb2ac90ce6
+
+--------------------------------
+
+DAMON_RECLAIM's handling of 'commit_inputs' parameter is duplicated in
+'after_aggregation()' and 'after_wmarks_check()' callbacks.  This commit
+deduplicates the code for better maintenance.
+
+Link: https://lkml.kernel.org/r/20220606182310.48781-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/reclaim.c | 27 ++++++++++++++-------------
+ 1 file changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/mm/damon/reclaim.c b/mm/damon/reclaim.c
+index 4b07c29effe9..c2ed962db23f 100644
+--- a/mm/damon/reclaim.c
++++ b/mm/damon/reclaim.c
+@@ -403,10 +403,21 @@ module_param_cb(enabled, &enabled_param_ops, &enabled, 0600);
+ MODULE_PARM_DESC(enabled,
+ 	"Enable or disable DAMON_RECLAIM (default: disabled)");
+ 
++static int damon_reclaim_handle_commit_inputs(void)
++{
++	int err;
++
++	if (!commit_inputs)
++		return 0;
++
++	err = damon_reclaim_apply_parameters();
++	commit_inputs = false;
++	return err;
++}
++
+ static int damon_reclaim_after_aggregation(struct damon_ctx *c)
+ {
+ 	struct damos *s;
+-	int err = 0;
+ 
+ 	/* update the stats parameter */
+ 	damon_for_each_scheme(s, c) {
+@@ -417,22 +428,12 @@ static int damon_reclaim_after_aggregation(struct damon_ctx *c)
+ 		nr_quota_exceeds = s->stat.qt_exceeds;
+ 	}
+ 
+-	if (commit_inputs) {
+-		err = damon_reclaim_apply_parameters();
+-		commit_inputs = false;
+-	}
+-	return err;
++	return damon_reclaim_handle_commit_inputs();
+ }
+ 
+ static int damon_reclaim_after_wmarks_check(struct damon_ctx *c)
+ {
+-	int err = 0;
+-
+-	if (commit_inputs) {
+-		err = damon_reclaim_apply_parameters();
+-		commit_inputs = false;
+-	}
+-	return err;
++	return damon_reclaim_handle_commit_inputs();
+ }
+ 
+ static int __init damon_reclaim_init(void)
+-- 
+2.17.1
+

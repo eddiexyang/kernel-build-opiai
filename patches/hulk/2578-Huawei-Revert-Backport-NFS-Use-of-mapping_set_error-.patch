@@ -1,0 +1,44 @@
+From 839488f27d4d3b82dab08f3bec28a9481f71444d Mon Sep 17 00:00:00 2001
+From: Luo Meng <luomeng12@huawei.com>
+Date: Tue, 14 Jun 2022 21:15:36 +0800
+Subject: [PATCH 2578/2592] [Huawei] Revert "[Backport] NFS: Use of
+ mapping_set_error() results in spurious errors"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186972
+
+----------------------------------------
+
+This reverts commit 7f3945b4ab586e3f128482a2a4b36c9f85642502.
+
+7f3945b4aab5 (NFS: Use of mapping_set_error() results in spurious errors)
+delete mappint->flags because of 67dd23f9e6fb (nfs: ensure correct writeback
+errors are returned on close()). However 67dd23f9e6fb has been reverted, use
+mappint->flags to return error.
+
+Signed-off-by: Luo Meng <luomeng12@huawei.com>
+---
+ fs/nfs/write.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/fs/nfs/write.c b/fs/nfs/write.c
+index 5d07799513a6..e8f6ce88b1fb 100644
+--- a/fs/nfs/write.c
++++ b/fs/nfs/write.c
+@@ -310,10 +310,7 @@ static void nfs_mapping_set_error(struct page *page, int error)
+ 	struct address_space *mapping = page_file_mapping(page);
+ 
+ 	SetPageError(page);
+-	filemap_set_wb_err(mapping, error);
+-	if (mapping->host)
+-		errseq_set(&mapping->host->i_sb->s_wb_err,
+-			   error == -ENOSPC ? -ENOSPC : -EIO);
++	mapping_set_error(mapping, error);
+ 	nfs_set_pageerror(mapping);
+ }
+ 
+-- 
+2.17.1
+

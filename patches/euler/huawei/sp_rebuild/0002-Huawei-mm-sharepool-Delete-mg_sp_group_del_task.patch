@@ -1,0 +1,171 @@
+From bdf7652a465d5ecfd14da7ac8a0e001a06a11d1b Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 24 May 2023 15:21:16 +0800
+Subject: [PATCH 02/53] [Huawei] mm/sharepool: Delete mg_sp_group_del_task
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+No one used it anymore.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ include/linux/share_pool.h |   6 --
+ mm/share_pool.c            | 113 -------------------------------------
+ 2 files changed, 119 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index 982f03387900..97c76cc21b1b 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -250,7 +250,6 @@ static inline void sp_init_mm(struct mm_struct *mm)
+  * Those interfaces are exported for modules
+  */
+ extern int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id);
+-extern int mg_sp_group_del_task(int tgid, int spg_id);
+ extern int mg_sp_group_id_by_pid(int tgid, int *spg_ids, int *num);
+ extern int proc_sp_group_state(struct seq_file *m, struct pid_namespace *ns,
+ 			struct pid *pid, struct task_struct *task);
+@@ -324,11 +323,6 @@ static inline int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	return -EPERM;
+ }
+ 
+-static inline int mg_sp_group_del_task(int tgid, int spg_id)
+-{
+-	return -EPERM;
+-}
+-
+ static inline int sp_group_exit(void)
+ {
+ 	return 0;
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 0ec643ae2b29..74871f4f30ac 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1560,119 +1560,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_group_add_task);
+ 
+-/**
+- * mg_sp_group_del_task() - delete a process from a sp group.
+- * @tgid: the tgid of the task to be deleted
+- * @spg_id: sharepool group id
+- *
+- * the group's spa list must be empty, or deletion will fail.
+- *
+- * Return:
+- * * if success, return 0.
+- * * -EINVAL, spg_id invalid or spa_lsit not emtpy or spg dead
+- * * -ESRCH, the task group of tgid is not in group / process dead
+- */
+-int mg_sp_group_del_task(int tgid, int spg_id)
+-{
+-	int ret = 0;
+-	struct sp_group *spg;
+-	struct sp_group_node *spg_node;
+-	struct task_struct *tsk = NULL;
+-	struct mm_struct *mm = NULL;
+-
+-	if (!sp_is_enabled())
+-		return -EOPNOTSUPP;
+-
+-	if (spg_id < SPG_ID_MIN || spg_id > SPG_ID_AUTO) {
+-		pr_err("del from group failed, invalid group id %d\n", spg_id);
+-		return -EINVAL;
+-	}
+-
+-	spg = sp_group_get(tgid, spg_id);
+-	if (!spg) {
+-		pr_err("spg not found or get task failed, tgid:%d, spg_id:%d\n",
+-			tgid, spg_id);
+-		return -EINVAL;
+-	}
+-	down_write(&sp_group_sem);
+-
+-	if (!spg_valid(spg)) {
+-		up_write(&sp_group_sem);
+-		pr_err("spg dead, spg_id:%d\n", spg_id);
+-		ret = -EINVAL;
+-		goto out;
+-	}
+-
+-	ret = get_task(tgid, &tsk);
+-	if (ret) {
+-		up_write(&sp_group_sem);
+-		pr_err("task is not found, tgid:%d\n", tgid);
+-		goto out;
+-	}
+-	mm = get_task_mm(tsk->group_leader);
+-	if (!mm) {
+-		up_write(&sp_group_sem);
+-		pr_err("mm is not found, tgid:%d\n", tgid);
+-		ret = -ESRCH;
+-		goto out_put_task;
+-	}
+-
+-	if (!mm->sp_group_master) {
+-		up_write(&sp_group_sem);
+-		pr_err("task(%d) is not in any group(%d)\n", tgid, spg_id);
+-		ret = -EINVAL;
+-		goto out_put_mm;
+-	}
+-
+-	if (mm->sp_group_master->tgid != tgid) {
+-		up_write(&sp_group_sem);
+-		pr_err("del: task(%d) is a vfork child of the original task(%d)\n",
+-			tgid, mm->sp_group_master->tgid);
+-		ret = -EINVAL;
+-		goto out_put_mm;
+-	}
+-
+-	spg_node = find_spg_node_by_spg(mm, spg);
+-	if (!spg_node) {
+-		up_write(&sp_group_sem);
+-		pr_err("task(%d) not in group(%d)\n", tgid, spg_id);
+-		ret = -ESRCH;
+-		goto out_put_mm;
+-	}
+-
+-	down_write(&spg->rw_lock);
+-
+-	if (!list_empty(&spg->spa_list)) {
+-		up_write(&spg->rw_lock);
+-		up_write(&sp_group_sem);
+-		pr_err("spa is not empty, task:%d, spg_id:%d\n", tgid, spg_id);
+-		ret = -EINVAL;
+-		goto out_put_mm;
+-	}
+-
+-	if (list_is_singular(&spg->procs))
+-		spg->is_alive = false;
+-	delete_spg_node(spg, spg_node);
+-	sp_group_put(spg);
+-	up_write(&spg->rw_lock);
+-
+-	list_del(&spg_node->group_node);
+-	mm->sp_group_master->count--;
+-	kfree(spg_node);
+-	atomic_dec(&mm->mm_users);
+-
+-	up_write(&sp_group_sem);
+-
+-out_put_mm:
+-	mmput(mm);
+-out_put_task:
+-	put_task_struct(tsk);
+-out:
+-	sp_group_put(spg); /* if spg dead, freed here */
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(mg_sp_group_del_task);
+-
+ int mg_sp_id_of_current(void)
+ {
+ 	int ret, spg_id;
+-- 
+2.17.1
+

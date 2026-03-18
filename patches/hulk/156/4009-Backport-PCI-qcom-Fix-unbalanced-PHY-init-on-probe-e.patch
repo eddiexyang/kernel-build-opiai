@@ -1,0 +1,57 @@
+From 96d9d6b0d9484b32f586ff54c6025276d4ecff6c Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Fri, 1 Apr 2022 15:38:54 +0200
+Subject: [PATCH 4009/4585] [Backport] PCI: qcom: Fix unbalanced PHY init on
+ probe errors
+
+stable inclusion
+from stable-v5.10.121
+commit 99fd821f567e169d9e7254d00cbb305d1be4842c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=99fd821f567e169d9e7254d00cbb305d1be4842c
+
+--------------------------------
+
+commit 83013631f0f9961416abd812e228c8efbc2f6069 upstream.
+
+Undo the PHY initialisation (e.g. balance runtime PM) if host
+initialisation fails during probe.
+
+Link: https://lore.kernel.org/r/20220401133854.10421-3-johan+linaro@kernel.org
+Fixes: 82a823833f4e ("PCI: qcom: Add Qualcomm PCIe controller driver")
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Signed-off-by: Lorenzo Pieralisi <lorenzo.pieralisi@arm.com>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Reviewed-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Stanimir Varbanov <svarbanov@mm-sol.com>
+Cc: stable@vger.kernel.org      # 4.5
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/pci/controller/dwc/pcie-qcom.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/pci/controller/dwc/pcie-qcom.c b/drivers/pci/controller/dwc/pcie-qcom.c
+index e71187b790e2..9c7cdc4e12f2 100644
+--- a/drivers/pci/controller/dwc/pcie-qcom.c
++++ b/drivers/pci/controller/dwc/pcie-qcom.c
+@@ -1451,11 +1451,13 @@ static int qcom_pcie_probe(struct platform_device *pdev)
+ 	ret = dw_pcie_host_init(pp);
+ 	if (ret) {
+ 		dev_err(dev, "cannot initialize host\n");
+-		goto err_pm_runtime_put;
++		goto err_phy_exit;
+ 	}
+ 
+ 	return 0;
+ 
++err_phy_exit:
++	phy_exit(pcie->phy);
+ err_pm_runtime_put:
+ 	pm_runtime_put(dev);
+ 	pm_runtime_disable(dev);
+-- 
+2.17.1
+

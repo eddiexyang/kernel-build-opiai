@@ -1,0 +1,56 @@
+From 22d0262549083e6fc48ae8f1ae92bce9efe0f2ab Mon Sep 17 00:00:00 2001
+From: Heiner Kallweit <hkallweit1@gmail.com>
+Date: Tue, 11 Apr 2023 07:34:11 +0200
+Subject: [PATCH 086/780] [Backport] pwm: meson: Fix g12a ao clk81 name
+
+stable inclusion
+from stable-v5.10.180
+commit dda1372c8d838e389c1a9fc805bdead96fa4d52b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=dda1372c8d838e389c1a9fc805bdead96fa4d52b
+
+--------------------------------
+
+commit 9e4fa80ab7ef9eb4f7b1ea9fc31e0eb040e85e25 upstream.
+
+Fix the name of the aoclk81 clock. Apparently name aoclk81 as used by
+the vendor driver was changed when mainlining the g12a clock driver.
+
+Fixes: f41efceb46e6 ("pwm: meson: Add clock source configuration for Meson G12A")
+Cc: stable@vger.kernel.org
+Signed-off-by: Heiner Kallweit <hkallweit1@gmail.com>
+Reviewed-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Signed-off-by: Thierry Reding <thierry.reding@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/pwm/pwm-meson.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/pwm/pwm-meson.c b/drivers/pwm/pwm-meson.c
+index 1699d311e860..0283163ddbe8 100644
+--- a/drivers/pwm/pwm-meson.c
++++ b/drivers/pwm/pwm-meson.c
+@@ -433,7 +433,7 @@ static const struct meson_pwm_data pwm_axg_ao_data = {
+ };
+ 
+ static const char * const pwm_g12a_ao_ab_parent_names[] = {
+-	"xtal", "aoclk81", "fclk_div4", "fclk_div5"
++	"xtal", "g12a_ao_clk81", "fclk_div4", "fclk_div5"
+ };
+ 
+ static const struct meson_pwm_data pwm_g12a_ao_ab_data = {
+@@ -442,7 +442,7 @@ static const struct meson_pwm_data pwm_g12a_ao_ab_data = {
+ };
+ 
+ static const char * const pwm_g12a_ao_cd_parent_names[] = {
+-	"xtal", "aoclk81",
++	"xtal", "g12a_ao_clk81",
+ };
+ 
+ static const struct meson_pwm_data pwm_g12a_ao_cd_data = {
+-- 
+2.17.1
+

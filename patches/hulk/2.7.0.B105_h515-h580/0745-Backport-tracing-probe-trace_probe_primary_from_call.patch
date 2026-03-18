@@ -1,0 +1,56 @@
+From c8211fbcaa21429155f57f507e9606d68866449f Mon Sep 17 00:00:00 2001
+From: Pietro Borrello <borrello@diag.uniroma1.it>
+Date: Sat, 28 Jan 2023 16:23:41 +0000
+Subject: [PATCH 745/780] [Backport] tracing/probe:
+ trace_probe_primary_from_call(): checked list_first_entry
+
+stable inclusion
+from stable-v5.10.183
+commit 57eb824b8cbb29156fb352153e18a91ac2ed0daa
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=57eb824b8cbb29156fb352153e18a91ac2ed0daa
+
+--------------------------------
+
+commit 81d0fa4cb4fc0e1a49c2b22f92c43d9fe972ebcf upstream.
+
+All callers of trace_probe_primary_from_call() check the return
+value to be non NULL. However, the function returns
+list_first_entry(&tpe->probes, ...) which can never be NULL.
+Additionally, it does not check for the list being possibly empty,
+possibly causing a type confusion on empty lists.
+Use list_first_entry_or_null() which solves both problems.
+
+Link: https://lore.kernel.org/linux-trace-kernel/20230128-list-entry-null-check-v1-1-8bde6a3da2ef@diag.uniroma1.it/
+
+Fixes: 60d53e2c3b75 ("tracing/probe: Split trace_event related data from trace_probe")
+Signed-off-by: Pietro Borrello <borrello@diag.uniroma1.it>
+Reviewed-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+Acked-by: Masami Hiramatsu (Google) <mhiramat@kernel.org>
+Acked-by: Mukesh Ojha <quic_mojha@quicinc.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Masami Hiramatsu (Google) <mhiramat@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/trace/trace_probe.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/trace/trace_probe.h b/kernel/trace/trace_probe.h
+index 6d41e20c47ce..d4a69b83902e 100644
+--- a/kernel/trace/trace_probe.h
++++ b/kernel/trace/trace_probe.h
+@@ -301,7 +301,7 @@ trace_probe_primary_from_call(struct trace_event_call *call)
+ {
+ 	struct trace_probe_event *tpe = trace_probe_event_from_call(call);
+ 
+-	return list_first_entry(&tpe->probes, struct trace_probe, list);
++	return list_first_entry_or_null(&tpe->probes, struct trace_probe, list);
+ }
+ 
+ static inline struct list_head *trace_probe_probe_list(struct trace_probe *tp)
+-- 
+2.17.1
+

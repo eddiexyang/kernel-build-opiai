@@ -1,0 +1,47 @@
+From 21f8b40794a8065ef9972d1d3d506361d71dbfa7 Mon Sep 17 00:00:00 2001
+From: Junhao He <hejunhao3@huawei.com>
+Date: Tue, 8 Nov 2022 14:38:32 +0800
+Subject: [PATCH 1129/1646] [Backport] openeuler_defconfig: Enable TRBE and TMC
+
+driver inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://gitee.com/openeuler/kernel/commit/a4e207c29dc7440b08966dcbdca14ed149b39f9c
+
+--------------------------------
+
+arm64: config: enable CONFIG_CORESIGHT_TRBE
+arm64: config: enable CONFIG_CORESIGHT_LINK_AND_SINK_TMC
+
+Signed-off-by: Junhao He <hejunhao3@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 5e34f1644fb0..fb5bf883c518 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -7270,7 +7270,7 @@ CONFIG_IO_STRICT_DEVMEM=y
+ # CONFIG_ARM64_RELOC_TEST is not set
+ CONFIG_CORESIGHT=m
+ CONFIG_CORESIGHT_LINKS_AND_SINKS=m
+-# CONFIG_CORESIGHT_LINK_AND_SINK_TMC is not set
++CONFIG_CORESIGHT_LINK_AND_SINK_TMC=m
+ # CONFIG_CORESIGHT_SINK_TPIU is not set
+ # CONFIG_CORESIGHT_SINK_ETBV10 is not set
+ CONFIG_CORESIGHT_SOURCE_ETM4X=m
+@@ -7278,7 +7278,7 @@ CONFIG_ETM4X_IMPDEF_FEATURE=y
+ # CONFIG_CORESIGHT_STM is not set
+ # CONFIG_CORESIGHT_CPU_DEBUG is not set
+ # CONFIG_CORESIGHT_CTI is not set
+-# CONFIG_CORESIGHT_TRBE is not set
++CONFIG_CORESIGHT_TRBE=m
+ CONFIG_ULTRASOC_SMB=m
+ # end of arm64 Debugging
+ 
+-- 
+2.17.1
+

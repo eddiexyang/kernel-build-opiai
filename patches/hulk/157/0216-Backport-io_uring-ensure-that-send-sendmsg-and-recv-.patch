@@ -1,0 +1,59 @@
+From f4e33d3cceed517fb29af649d34e02a71f18ac0c Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Thu, 30 Jun 2022 14:44:16 -0600
+Subject: [PATCH 216/261] [Backport] io_uring: ensure that send/sendmsg and
+ recv/recvmsg check sqe->ioprio
+
+stable inclusion
+from stable-v5.10.129
+commit c9fc52c1739e1d3d69660e30498f99b2b525de8f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PD6F
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c9fc52c1739e1d3d69660e30498f99b2b525de8f
+
+--------------------------------
+
+commit 73911426aaaadbae54fa72359b33a7b6a56947db upstream.
+
+All other opcodes correctly check if this is set and -EINVAL if it is
+and they don't support that field, for some reason the these were
+forgotten.
+
+This was unified a bit differently in the upstream tree, but had the
+same effect as making sure we error on this field. Rather than have
+a painful backport of the upstream commit, just fixup the mentioned
+opcodes.
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ fs/io_uring.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index cc9c72d050d7..69d079bfed67 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -4416,6 +4416,8 @@ static int io_sendmsg_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
+ 
+ 	if (unlikely(req->ctx->flags & IORING_SETUP_IOPOLL))
+ 		return -EINVAL;
++	if (unlikely(sqe->addr2 || sqe->splice_fd_in || sqe->ioprio))
++		return -EINVAL;
+ 
+ 	sr->msg_flags = READ_ONCE(sqe->msg_flags);
+ 	sr->umsg = u64_to_user_ptr(READ_ONCE(sqe->addr));
+@@ -4651,6 +4653,8 @@ static int io_recvmsg_prep(struct io_kiocb *req,
+ 
+ 	if (unlikely(req->ctx->flags & IORING_SETUP_IOPOLL))
+ 		return -EINVAL;
++	if (unlikely(sqe->addr2 || sqe->splice_fd_in || sqe->ioprio))
++		return -EINVAL;
+ 
+ 	sr->msg_flags = READ_ONCE(sqe->msg_flags);
+ 	sr->umsg = u64_to_user_ptr(READ_ONCE(sqe->addr));
+-- 
+2.17.1
+

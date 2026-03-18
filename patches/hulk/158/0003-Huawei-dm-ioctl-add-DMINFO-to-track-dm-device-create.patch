@@ -1,0 +1,55 @@
+From 25d4994156d058d720b0e86af9f84c695f72c9d9 Mon Sep 17 00:00:00 2001
+From: Luo Meng <luomeng12@huawei.com>
+Date: Thu, 8 Sep 2022 22:00:35 +0800
+Subject: [PATCH 0003/1076] [Huawei] dm ioctl: add DMINFO() to track dm device
+ create/remove
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187593
+
+--------------------------------
+
+Add DMINFO() to help tracking device creation/removal success.
+
+Signed-off-by: Luo Meng <luomeng12@huawei.com>
+---
+ drivers/md/dm-ioctl.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/md/dm-ioctl.c b/drivers/md/dm-ioctl.c
+index b839705654d4..ace4301b3a49 100644
+--- a/drivers/md/dm-ioctl.c
++++ b/drivers/md/dm-ioctl.c
+@@ -272,6 +272,9 @@ static struct dm_table *__hash_remove(struct hash_cell *hc)
+ 	table = NULL;
+ 	if (hc->new_map)
+ 		table = hc->new_map;
++
++	DMINFO("%s[%i]: %s (%s) is removed successfully",
++		current->comm, current->pid, hc->md->disk->disk_name, hc->name);
+ 	dm_put(hc->md);
+ 	free_cell(hc);
+ 
+@@ -773,6 +776,7 @@ static int dev_create(struct file *filp, struct dm_ioctl *param, size_t param_si
+ {
+ 	int r, m = DM_ANY_MINOR;
+ 	struct mapped_device *md;
++	struct hash_cell *hc;
+ 
+ 	r = check_name(param->name);
+ 	if (r)
+@@ -796,6 +800,9 @@ static int dev_create(struct file *filp, struct dm_ioctl *param, size_t param_si
+ 
+ 	__dev_status(md, param);
+ 
++	hc = dm_get_mdptr(md);
++	DMINFO("%s[%i]: %s (%s) is created successfully",
++		current->comm, current->pid, md->disk->disk_name, hc->name);
+ 	dm_put(md);
+ 
+ 	return 0;
+-- 
+2.17.1
+

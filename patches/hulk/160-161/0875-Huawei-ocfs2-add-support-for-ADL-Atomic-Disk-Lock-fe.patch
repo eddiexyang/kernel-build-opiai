@@ -1,0 +1,1309 @@
+From 28015e6cec979cbe296c097e0ffffcd9423c400e Mon Sep 17 00:00:00 2001
+From: Yang Shiyu <yangshiyu9@huawei.com>
+Date: Wed, 30 Nov 2022 15:55:31 +0800
+Subject: [PATCH 0875/1398] [Huawei] ocfs2: add support for ADL(Atomic Disk
+ Lock) feature: add lock manager
+
+Offering: HULK
+ocfs2 inclusion
+category: feature
+bugzilla: NA
+
+----------------------------------------
+
+Add lock manager module which implements
+basic locking and unlocking functions.
+
+Signed-off-by: Yang Shiyu <yangshiyu9@huawei.com>
+---
+ fs/ocfs2/adl/adllock.c | 1248 ++++++++++++++++++++++++++++++++++++++++
+ fs/ocfs2/adl/adllock.h |   22 +
+ 2 files changed, 1270 insertions(+)
+ create mode 100644 fs/ocfs2/adl/adllock.c
+ create mode 100644 fs/ocfs2/adl/adllock.h
+
+diff --git a/fs/ocfs2/adl/adllock.c b/fs/ocfs2/adl/adllock.c
+new file mode 100644
+index 000000000000..8d282b609094
+--- /dev/null
++++ b/fs/ocfs2/adl/adllock.c
+@@ -0,0 +1,1248 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++#include <linux/device-mapper.h>
++
++#include "cluster/tcp.h"
++#include "ocfs2.h"
++#include "adlcommon.h"
++#include "cdb.h"
++#include "cluster/heartbeat.h"
++
++#define MLOG_MASK_PREFIX ML_ADL
++#include "cluster/masklog.h"
++
++#define OCFS2_SECTOR_LEN	512
++#define COMPARE_AND_WRITE_BLOCK_LEN 512
++#define OCFS2_DISK_LOCK_BLOCKSIZE		4096
++#define OCFS2_SECTORS_PER_BLOCK (OCFS2_DISK_LOCK_BLOCKSIZE / COMPARE_AND_WRITE_BLOCK_LEN)
++
++#define MAX_RO_RETRY_TIMES 10
++#define RO_RETRY_TIME_MS 1000
++
++/* only called in the condition of ex_locked */
++static int adl_find_ex_index(struct ocfs2_adl_lock *lock)
++{
++	int index;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (host_id(lock, index) != O2NM_INVALID_NODE_NUM)
++			return index;
++	}
++
++	return index;
++}
++
++static void print_disk_lock(u64 level, u64 blkno, int offset, struct ocfs2_adl_lock *lock)
++{
++	int index;
++
++	mlog(level, "blkno %llu, offset %d, signature %s, generation %llu\n",
++			(unsigned long long)blkno, offset, lock->lk_signature,
++			le64_to_cpu(lock->lk_generation));
++	if (ex_locked(lock)) {
++		index = adl_find_ex_index(lock);
++		if (index < ADL_INVALID_INDEX)
++			mlog(level,
++				"EX locked, level %x, hostid = %u, hb_generation = 0x%x, flags = 0x%x\n",
++				lock_level(lock), host_id(lock, index),
++				host_hb_gen(lock, index), host_flags(lock, index));
++	} else if (pr_locked(lock)) {
++		mlog(level, "PR locked\n");
++		for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++			if (lock_locked(lock, index))
++				mlog(level, "hostid = %u, hb_generation = 0x%x, flags = 0x%x\n",
++						host_id(lock, index), host_hb_gen(lock, index),
++						host_flags(lock, index));
++		}
++	} else {
++		mlog(level, "No locks\n");
++		for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++			if (lock_locked(lock, index))
++				mlog(level, "hostid = %u, hb_generation = 0x%x, flags = 0x%x\n",
++						host_id(lock, index), host_hb_gen(lock, index),
++						host_flags(lock, index));
++		}
++	}
++	if (pending_host_id(lock) != O2NM_INVALID_NODE_NUM)
++		mlog(level, "Pending host: hostid = %u, hb_generation = 0x%x\n",
++				pending_host_id(lock), pending_host_hb_gen(lock));
++}
++
++/* find and clear my old locked lock.
++ * return value:  0 -- not found
++ *                1 -- found, and index is stored in old_slot
++ */
++static int adl_find_and_clear_my_lock(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int mode)
++{
++	int index, found = 0;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (host_id(lock, index) == adl->node_num) {
++			clear_lock_mode(lock, index, mode);
++			if (!lock_mode(lock, index)) {
++				clear_one_lock(adl, lock, index);
++				found = 1;
++			}
++
++			break;
++		}
++	}
++	return found;
++}
++
++/* clear all stale locks */
++static void adl_clear_stale_lock(struct adl_ctxt *adl, u64 blkno,
++		int offset, struct ocfs2_adl_lock *lock)
++{
++	int index;
++
++	/* clear stale locked lock */
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (lock_valid(adl, lock, index))
++			continue;
++
++		if (lock_locked(lock, index)) {
++			mlog(ML_NOTICE,
++				"%s: blkno %llu, offset %d, clear stale lock. hostid %u, valid %u, hb gen %x\n",
++				adl->name, (unsigned long long)blkno, offset,
++				host_id(lock, index), lock_locked(lock, index),
++				host_hb_gen(lock, index));
++			if (ex_locked(lock))
++				set_lock_level(lock, LKM_NLMODE);
++			clear_one_lock(adl, lock, index);
++		}
++	}
++	if (!lock_pending_valid(adl, lock) &&
++			(pending_host_id(lock) != O2NM_INVALID_NODE_NUM) &&
++			(pending_host_hb_gen(lock) != 0)) {
++		mlog(ML_NOTICE,
++			"%s: blkno %llu, offset %d, clear stale pending lock. hostid %u, hb gen %x\n",
++			adl->name, (unsigned long long)blkno, offset,
++			pending_host_id(lock),
++			pending_host_hb_gen(lock));
++		clear_pending_lock(lock);
++	}
++}
++
++static int other_holder_exists_nocheck(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int lock_mode)
++{
++	int index, exist = 0;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (host_id(lock, index) == adl->node_num &&
++				same_lock_mode(lock, index, lock_mode))
++			continue;
++
++		if (lock_locked(lock, index)) {
++			mlog(0, "%s: lock exist. index %d, host id %u, hb gen 0x%x\n",
++					adl->name, index, host_id(lock, index),
++					host_hb_gen(lock, index));
++			exist = 1;
++			break;
++		}
++	}
++	return exist;
++}
++
++static int other_holder_exists(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int lock_mode, int wait_recovery)
++{
++	int index, exist = 0;
++	lock_valid_func valid_func = wait_recovery ?
++			lock_valid_wait_for_recovery :
++			lock_valid;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (host_id(lock, index) == adl->node_num &&
++				same_lock_mode(lock, index, lock_mode))
++			continue;
++
++		if (lock_locked(lock, index) &&
++				valid_func(adl, lock, index)) {
++			mlog(0, "%s: lock exist. index %d, host id %u, hb gen 0x%x\n",
++					adl->name, index, host_id(lock, index),
++					host_hb_gen(lock, index));
++			exist = 1;
++			break;
++		}
++	}
++	return exist;
++}
++
++/* if find my lock and then used it, or else use first free index */
++static int adl_find_valid_index(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock)
++{
++	int index, valid_index = ADL_INVALID_INDEX;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if (lock_free(lock, index) &&
++				(valid_index == ADL_INVALID_INDEX)) {
++			valid_index = index;
++		} else if (host_id(lock, index) == adl->node_num) {
++			mlog(0, "%s: find my slot %d\n", adl->name, index);
++			valid_index = index;
++			break;
++		}
++	}
++	return valid_index;
++}
++
++/* incompatible:
++ * ex exist: request == pr or ex;
++ * pr exist: request == ex;
++ */
++static int adl_lock_compatible(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *exist, int request,
++		int lock_mode, int wait_recovery)
++{
++	int compatible = 1, index;
++	lock_valid_func valid_func = wait_recovery ?
++			lock_valid_wait_for_recovery :
++			lock_valid;
++
++	if (ex_locked(exist)) {
++		index = adl_find_ex_index(exist);
++		/* may get inconsistent data, ex locked, but no holders */
++		if (index == ADL_INVALID_INDEX)
++			compatible = 0;
++		else if (valid_func(adl, exist, index))
++			compatible = 0;
++	} else if (pr_locked(exist)) {
++		if (other_holder_exists(adl, exist, lock_mode, wait_recovery) &&
++				request == LKM_EXMODE)
++			compatible = 0;
++	} else {
++		/* may get inconsistent data: level = NL and lock exist */
++		for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++			if (valid_func(adl, exist, index)) {
++				compatible = 0;
++				break;
++			}
++		}
++	}
++
++	return compatible;
++}
++
++/* called by adl_unlock.
++ * update lock data and return new level that is going to write to disk.
++ * input value:
++ *      unlock_level: the level we want to set;
++ * return value:
++ *      new_level: >=0: the level going to write do disk
++ *				   <0 : error
++ */
++static int adl_update_lock_and_new_level(struct adl_ctxt *adl,
++		u64 blkno, int offset, struct ocfs2_adl_lock *exist,
++		int unlock_level, int lock_mode)
++{
++	int new_level = unlock_level;
++	int ret;
++
++	if (unlock_level == LKM_NLMODE &&
++			(!pr_locked(exist) &&
++				!ex_locked(exist))) {
++		mlog(ML_ERROR, "%s: blkno %llu, offset %d, unlock_level %d, exist_lock level %d\n",
++				adl->name, (unsigned long long)blkno, offset,
++				unlock_level, lock_level(exist));
++		print_disk_lock(ML_ERROR, blkno, offset, exist);
++		return -EINVAL;
++	}
++
++	if (unlock_level == LKM_PRMODE &&
++				!ex_locked(exist)) {
++		mlog(ML_ERROR, "%s: blkno %llu, offset %d, unlock_level %d, exist_lock level %d\n",
++				adl->name, blkno, offset, unlock_level, lock_level(exist));
++		print_disk_lock(ML_ERROR, blkno, offset, exist);
++		return -EINVAL;
++	}
++
++	/* PR --> NL
++	 * there may coexist kernel mode and user mode */
++	if (unlock_level == LKM_NLMODE && pr_locked(exist)) {
++		ret = adl_find_and_clear_my_lock(adl, exist, lock_mode);
++		if (!ret) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, unlock level %d, can not find my lock\n",
++				adl->name, blkno, offset, unlock_level);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		if (other_holder_exists_nocheck(adl, exist, lock_mode))
++			new_level = LKM_PRMODE;
++		else
++			new_level = LKM_NLMODE;
++		set_lock_level(exist, new_level);
++		goto out;
++	}
++
++	/* EX --> NL */
++	if (unlock_level == LKM_NLMODE && ex_locked(exist)) {
++		int index = adl_find_ex_index(exist);
++
++		if (index == ADL_INVALID_INDEX) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, unlock level %d, can not find my lock\n",
++				adl->name, blkno, offset, unlock_level);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		if (host_id(exist, index) != adl->node_num) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, hostid is not mine, ex_hostid %u, nodenum %u\n",
++				adl->name, blkno, offset, host_id(exist, index), adl->node_num);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		if (host_hb_gen(exist, index) != *adl->HBGen[adl->node_num]) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, host hb gen is not mine ex_hb_gen 0x%x, hb_gen 0x%x\n",
++				adl->name, blkno, offset, host_hb_gen(exist, index),
++				*adl->HBGen[adl->node_num]);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++
++		if (other_holder_exists_nocheck(adl, exist, lock_mode)) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, i want to convert to NL from EX, but other holders exist\n",
++				adl->name, blkno, offset);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++
++		new_level = LKM_NLMODE;
++		clear_one_lock(adl, exist, index);
++		set_lock_level(exist, new_level);
++		goto out;
++	}
++
++	/* EX --> PR */
++	if (unlock_level == LKM_PRMODE && ex_locked(exist)) {
++		int index = adl_find_ex_index(exist);
++
++		if (index == ADL_INVALID_INDEX) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, unlock level %d, can not find my lock\n",
++				adl->name, blkno, offset, unlock_level);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		if (host_id(exist, index) != adl->node_num) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, hostid is not mine, ex_hostid %u, nodenum %u\n",
++				adl->name, blkno, offset, host_id(exist, index), adl->node_num);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		if (host_hb_gen(exist, index) != *adl->HBGen[adl->node_num]) {
++			mlog(ML_ERROR,
++				"%s: blkno %llu, offset %d, host hb gen is not mine ex_hb_gen 0x%x, hb_gen 0x%x\n",
++				adl->name, blkno, offset, host_hb_gen(exist, index),
++				*adl->HBGen[adl->node_num]);
++			print_disk_lock(ML_ERROR, blkno, offset, exist);
++			return -EINVAL;
++		}
++		new_level = LKM_PRMODE;
++		set_lock_level(exist, new_level);
++	}
++
++out:
++	return new_level;
++}
++
++static int adl_locked(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int level, int lock_mode)
++{
++	int index, locked = 0;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if ((host_id(lock, index) == adl->node_num) &&
++				lock_locked(lock, index) &&
++				lock_valid(adl, lock, index) &&
++				(to_disk_level(level) == lock_level(lock)) &&
++				(test_lock_mode(lock, index, lock_mode))) {
++			locked = 1;
++			break;
++		}
++	}
++
++	return locked;
++}
++
++static int adl_unlocked(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int unlock_level, int lock_mode)
++{
++	int index, unlocked = 1;
++
++	for (index = 0; index < LOCK_MAX_HOLDERS; index++) {
++		if ((host_id(lock, index) == adl->node_num) &&
++				lock_locked(lock, index) &&
++				lock_valid(adl, lock, index) &&
++				(test_lock_mode(lock, index, lock_mode))) {
++			if (unlock_level == LKM_NLMODE ||
++					(unlock_level == LKM_PRMODE && ex_locked(lock))) {
++				unlocked = 0;
++				break;
++			}
++		}
++	}
++
++	return unlocked;
++}
++
++int adl_query_lock_request_handler(struct o2net_msg *msg, u32 len, void *data,
++		void **ret_data)
++{
++	struct adl_ctxt *adl = data;
++	struct adl_lock_packet *lock_packet = (struct adl_lock_packet *)msg->buf;
++	u64 blkno;
++	int sector_offset;
++	u16 node;
++
++	if (!adl_grab(adl))
++		return 0;
++
++	node = be16_to_cpu(lock_packet->sender_idx);
++	blkno = be64_to_cpu(lock_packet->blkno);
++	sector_offset = lock_packet->sector_offset;
++
++	mlog(0, "%s: blkno %llu, sector %d, receive query lock message from %u.\n",
++			adl->name, blkno, sector_offset, node);
++
++	adl_fire_callbacks(adl, ADL_QUERY_LOCK_CB, blkno, sector_offset);
++
++	adl_put(adl);
++	return 0;
++}
++
++int adl_unlock_lock_handler(struct o2net_msg *msg, u32 len, void *data,
++		void **ret_data)
++{
++	struct adl_ctxt *adl = data;
++	struct adl_lock_packet *lock_packet = (struct adl_lock_packet *)msg->buf;
++	u64 blkno;
++	int sector_offset;
++	u16 node;
++
++	if (!adl_grab(adl))
++		return 0;
++
++	node = be16_to_cpu(lock_packet->sender_idx);
++	blkno = be64_to_cpu(lock_packet->blkno);
++	sector_offset = lock_packet->sector_offset;
++
++	mlog(0, "%s: blkno %llu, sector %d, receive unlock lock message from %u.\n",
++			adl->name, blkno, sector_offset, node);
++
++	adl_fire_callbacks(adl, ADL_UNLOCK_LOCK_CB, blkno, sector_offset);
++
++	adl_put(adl);
++
++	return 0;
++}
++
++int adl_initialize_lock_block(struct ocfs2_super *osb,
++		u64 fe_lock_blkno)
++{
++	int ret = 0, i;
++	int lock_block_counts = osb->sb->s_blocksize / COMPARE_AND_WRITE_BLOCK_LEN;
++	struct ocfs2_adl_lock *lock = NULL;
++	struct buffer_head *fe_bh = NULL;
++
++	if (ocfs2_is_hard_readonly(osb)) {
++		ret = -EROFS;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	if (ocfs2_test_invalid_fs(osb)) {
++		ret = -EIO;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	fe_bh = sb_getblk(osb->sb, fe_lock_blkno);
++	if (!fe_bh) {
++		ret = -ENOMEM;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	for (i = 0; i < lock_block_counts; i++) {
++		lock = (struct ocfs2_adl_lock *)(fe_bh->b_data +
++				(i * COMPARE_AND_WRITE_BLOCK_LEN));
++		memset(lock, 0, COMPARE_AND_WRITE_BLOCK_LEN);
++		adl_lock_initialize(lock);
++	}
++
++	lock_buffer(fe_bh);
++	set_buffer_uptodate(fe_bh);
++
++	/* remove from dirty list before I/O. */
++	clear_buffer_dirty(fe_bh);
++
++	get_bh(fe_bh); /* for end_buffer_write_sync() */
++	fe_bh->b_end_io = end_buffer_write_sync;
++	submit_bh(REQ_OP_WRITE, 0, fe_bh);
++
++	wait_on_buffer(fe_bh);
++
++	if (!buffer_uptodate(fe_bh)) {
++		/* We don't need to remove the clustered uptodate
++		 * information for this bh as it's not marked locally
++		 * uptodate. */
++		ret = -EIO;
++		mlog(ML_ERROR, "%s: Error(%d), iblock(%llu), bh->state(0x%lx).\n",
++				osb->uuid_str, ret, (unsigned long long)fe_bh->b_blocknr,
++				fe_bh->b_state);
++		mlog_errno(ret);
++	}
++
++out:
++	brelse(fe_bh);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(adl_initialize_lock_block);
++
++struct bio_request {
++	int error;
++	struct completion rq_complete;
++};
++
++static void adl_bio_end_io(struct bio *bio)
++{
++	struct bio_request *bio_rq = bio->bi_private;
++
++	bio_rq->error = blk_status_to_errno(bio->bi_status);
++	complete(&bio_rq->rq_complete);
++	bio_put(bio);
++}
++
++static int adl_setup_one_bio(struct block_device *bdev,
++		u64 block, int offset, struct page *page, struct bio *bio)
++{
++	unsigned int sectors_per_cawblock =
++			(COMPARE_AND_WRITE_BLOCK_LEN / OCFS2_SECTOR_LEN);
++	int len;
++
++	/* Must put everything in 512 byte sectors for the bio... */
++	bio->bi_iter.bi_sector = (block * OCFS2_DISK_LOCK_BLOCKSIZE /
++			OCFS2_SECTOR_LEN) + (offset * sectors_per_cawblock);
++	bio_set_dev(bio, bdev);
++	bio->bi_end_io = adl_bio_end_io;
++
++	len = bio_add_page(bio, page, COMPARE_AND_WRITE_BLOCK_LEN, 0);
++	if (len != COMPARE_AND_WRITE_BLOCK_LEN) {
++		mlog(ML_ERROR,
++			"Adding page to bio failed, page %p, len %d, offset %d, bi_sector %llu\n",
++			page, len, 0, (unsigned long long)bio->bi_iter.bi_sector);
++		return -EIO;
++	}
++
++	return 0;
++}
++
++/* read or write lock block to disk */
++static int adl_operate_lock_block(struct block_device *bdev, u64 block,
++		int offset, struct page *page, int op, int op_flags)
++{
++	struct bio *bio;
++	struct bio_request bio_rq;
++	int err;
++
++	bio = bio_alloc(GFP_NOFS, 1);
++	if (!bio)
++		return -ENOMEM;
++
++	err = adl_setup_one_bio(bdev, block, offset, page, bio);
++	if (err) {
++		mlog(ML_ERROR,
++			"Setup bio for adl lock failed, lock block #%llu, offset %d, device %s\n",
++			(unsigned long long)block, offset, bdev->bd_disk->disk_name);
++		bio_put(bio);
++		return err;
++	}
++
++	bio_rq.error = 0;
++	init_completion(&bio_rq.rq_complete);
++	bio->bi_private = &bio_rq;
++	bio_set_op_attrs(bio, op, op_flags);
++
++	submit_bio(bio);
++	wait_for_completion(&bio_rq.rq_complete);
++
++	return bio_rq.error;
++}
++
++static int adl_validate_adl_block(struct block_device *bdev,
++				u64 blkno, int offset,
++				struct ocfs2_adl_lock *lock)
++{
++	int ret = 0, i;
++
++	if (strncmp(lock->lk_signature, LOCK_BLOCK_SIGNATURE,
++			sizeof(lock->lk_signature))) {
++		mlog(ML_ERROR,
++			"Invalid adl lock block #%llu, offset %d: signature = %.*s, block device: %s\n",
++			(unsigned long long)blkno, offset, 7, lock->lk_signature,
++				bdev->bd_disk->disk_name);
++		ret = -EROFS;
++		goto out;
++	}
++
++	for (i = 0; i < LOCK_MAX_HOLDERS; i++) {
++		if (host_id(lock, i) > O2NM_INVALID_NODE_NUM) {
++			mlog(ML_ERROR,
++				"Invalid adl lock block #%llu, offset %d: host_id = %u, block device: %s\n",
++				(unsigned long long)blkno, offset, host_id(lock, i),
++					bdev->bd_disk->disk_name);
++			ret = -EROFS;
++			goto out;
++		}
++
++		if (host_flags(lock, i) & ~ADL_LOCK_FLAGS_MASK) {
++			mlog(ML_ERROR,
++				"Invalid adl lock block #%llu, offset %d: host_flags = %u, block device: %s\n",
++				(unsigned long long)blkno, offset, host_flags(lock, i),
++				bdev->bd_disk->disk_name);
++			ret = -EROFS;
++			goto out;
++		}
++	}
++
++	/*validate pending lock */
++	if (pending_host_id(lock) > O2NM_INVALID_NODE_NUM) {
++		mlog(ML_ERROR,
++			"Invalid adl lock block #%llu, offset %d: pending_host_id = %u, block device: %s\n",
++			(unsigned long long)blkno, offset, pending_host_id(lock),
++			bdev->bd_disk->disk_name);
++		ret = -EROFS;
++	}
++
++out:
++	return ret;
++}
++
++/* @sector: the first block of the compare and write
++ * @nr_sectors: number of blocks to compare/write
++ * @xfer_len: number of bytes to transfer
++ * @xfer_data: compare and write buffer
++ */
++static int adl_compare_and_write(struct block_device *bdev, sector_t sector,
++		sector_t nr_sectors, char *xfer_data, unsigned int xfer_len)
++{
++	int ret;
++	sector_t last_seg_sectors = 0;
++	struct block_device *real_bdev = NULL;
++	struct dev_segment *dev_seg = NULL;
++	struct dev_segment *scsi_dev_seg = NULL;
++	struct list_head dev_list;
++	struct list_head scsi_dev_list;
++	struct caw_cdb cdb;
++
++	INIT_LIST_HEAD(&dev_list);
++	ret = dm_get_device_segment(bdev->bd_dev, &dev_list);
++	if (ret == -ENOENT) {
++		/* ocfs2 volume not a dm device */
++		ret = o2hb_get_dev_segment(bdev, &dev_list);
++	}
++	if (ret) {
++		mlog_errno(ret);
++		return ret;
++	}
++
++	/* handle multi lun case */
++	list_for_each_entry(dev_seg, &dev_list, list) {
++		sector = sector - last_seg_sectors;
++		last_seg_sectors = to_sector(dev_seg->len);
++
++		if (to_sector(dev_seg->len) <= sector)
++			continue;
++
++		INIT_LIST_HEAD(&scsi_dev_list);
++		ret = dm_get_device_segment(dev_seg->dvd, &scsi_dev_list);
++		if (ret == -ENOENT) {
++			/* map from multilun device to scsi device */
++			scsi_dev_seg = dev_seg;
++		} else if (ret) {
++			mlog_errno(ret);
++			goto out;
++		} else {
++			/*
++			 * first, map from multilun device to multipath device.
++			 * then, map from multipath device to scsi device.
++			 */
++			scsi_dev_seg = list_first_entry(&scsi_dev_list, typeof(*dev_seg), list);
++			if (scsi_dev_seg == NULL) {
++				ret = -EINVAL;
++				mlog_errno(ret);
++				goto out;
++			}
++		}
++
++		/* here, the scsi_dev_seg should be scsi device. */
++		if (!strncmp(scsi_dev_seg->disk_name, "dm", strlen("dm"))) {
++			if (scsi_dev_seg != dev_seg)
++				o2hb_free_device_list(&scsi_dev_list);
++
++			ret = -EINVAL;
++			mlog(ML_ERROR, "the device name is %s, it should not be dm device\n",
++					scsi_dev_seg->disk_name);
++			goto out;
++		}
++
++		real_bdev = bdget(scsi_dev_seg->dvd);
++		sector += to_sector(dev_seg->start);
++		if (scsi_dev_seg != dev_seg)
++			o2hb_free_device_list(&scsi_dev_list);
++		break;
++	}
++	if (!real_bdev) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	setup_compare_and_write_cmd(&cdb, sector, nr_sectors);
++
++	ret = cdb_exec(real_bdev, REQ_OP_SCSI_OUT, xfer_data, xfer_len, (u8 *)&cdb);
++
++out:
++	o2hb_free_device_list(&dev_list);
++	if (real_bdev)
++		bdput(real_bdev);
++	return ret;
++}
++
++/* update in-memory lock according to new lock policy&mode */
++static int adl_update_lock(struct adl_ctxt *adl, u64 blkno, int offset,
++		int level, struct ocfs2_adl_lock *lockp, enum caw_mode mode,
++		int lock_mode)
++{
++	int ret = 0, index;
++	u64 generation = le64_to_cpu(lockp->lk_generation);
++
++	mlog(0,
++		"%s: Updating lock blkno %llu, offset %d, level %d, caw mode %d, lock mode %d. generation %llu\n",
++		adl->name, (unsigned long long)blkno, offset, level, mode, lock_mode, generation);
++
++	if (mode == MODE_LOCK) {
++		adl_clear_stale_lock(adl, blkno, offset, lockp);
++		if (level == LKM_EXMODE &&
++				other_holder_exists_nocheck(adl, lockp, lock_mode)) {
++			mlog(ML_ERROR, "%s: blkno %llu, offset %d, other holders exist\n",
++				adl->name, (unsigned long long)blkno, offset);
++			ret = -EINVAL;
++			goto out;
++		}
++
++		index = adl_find_valid_index(adl, lockp);
++		if (index >= ADL_INVALID_INDEX) {
++			ret = -EINVAL;
++			mlog(ML_ERROR, "%s: blkno %llu, offset %d, exceed max holders\n",
++				adl->name, (unsigned long long)blkno, offset);
++			goto out;
++		}
++		set_lock_level(lockp, level);
++		add_locked_lock(adl, lockp, index, lock_mode);
++		clear_pending_lock(lockp);
++	} else if (mode == MODE_UNLOCK) {
++		int new_level;
++
++		new_level = adl_update_lock_and_new_level(adl, blkno, offset,
++				lockp, level, lock_mode);
++		if (new_level < 0) {
++			ret = new_level;
++			mlog_errno(ret);
++			goto out;
++		}
++		mlog(0,
++			"%s: blkno %llu, offset %d, unlock level %d, new level %d\n",
++			adl->name, (unsigned long long)blkno, offset, level, new_level);
++	} else {
++		add_pending_lock(adl, lockp);
++	}
++	lockp->lk_generation = cpu_to_le64(generation + 1);
++
++out:
++	return ret;
++}
++
++static int adl_do_caw_cmd(struct adl_ctxt *adl, u64 blkno,
++		int offset, int level, struct adl_lockstatus *lksb,
++		enum caw_mode mode, int lock_mode)
++{
++	int ret = 0;
++	struct ocfs2_adl_lock *old_lock, *new_lock;
++	sector_t sector;
++	void *xfer_data = page_address(lksb->page);
++
++	old_lock = xfer_data;
++	new_lock = xfer_data + COMPARE_AND_WRITE_BLOCK_LEN;
++	memcpy(new_lock, old_lock, sizeof(struct ocfs2_adl_lock));
++
++	new_lock->seqno = lksb->seqno;
++	ret = adl_update_lock(adl, blkno, offset, level, new_lock,
++			mode, lock_mode);
++	if (ret) {
++		mlog_errno(ret);
++		goto out;
++	}
++
++	if (adl_is_invalid(adl)) {
++		mlog(ML_ERROR, "%s: file system invalid\n", adl->name);
++		ret = -EIO;
++		goto out;
++	}
++
++	sector = blkno * OCFS2_SECTORS_PER_BLOCK + offset;
++	ret = adl_compare_and_write(adl->bdev, sector, 1,
++			(char *)xfer_data, COMPARE_AND_WRITE_BLOCK_LEN * 2);
++	if (ret && ret != -EAGAIN)
++		mlog_errno(ret);
++
++out:
++	return ret;
++}
++
++static void adl_do_unlock_notify(struct adl_ctxt *adl, u64 blkno,
++		int sector, struct ocfs2_adl_lock *old_lock, int lock_mode)
++{
++	int ret;
++	u16 to;
++	struct adl_lock_packet *packet;
++
++	if (!lock_pending_valid(adl, old_lock))
++		return;
++
++	/* other holders exist, do not send unlock notify */
++	if (other_holder_exists_nocheck(adl, old_lock, lock_mode))
++		return;
++
++	to = pending_host_id(old_lock);
++	if (to == adl->node_num) {
++		adl_fire_callbacks(adl, ADL_UNLOCK_LOCK_CB, blkno, sector);
++		return;
++	}
++
++	packet = kzalloc(sizeof(struct adl_lock_packet), GFP_NOFS);
++	if (!packet)
++		return;
++
++	packet->blkno = cpu_to_be64(blkno);
++	packet->sector_offset = sector;
++	packet->sender_idx = cpu_to_be16(adl->node_num);
++
++	mlog(0, "%s: send unlock notify to %u, blkno %llu, offset %d\n",
++			adl->name, to, blkno, sector);
++
++	ret = adl_send_async_msg(adl, ADL_UNLOCK_LOCK_MSG,
++			packet, sizeof(*packet), to, NULL);
++	if (ret)
++		kfree(packet);
++}
++
++static void adl_do_lock_request(struct adl_ctxt *adl, u64 blkno,
++		int sector, struct ocfs2_adl_lock *old_lock)
++{
++	u16 to;
++	struct adl_lock_packet *packet[MAX_HOSTS];
++	int i, ret;
++
++	if (ex_locked(old_lock)) {
++		i = adl_find_ex_index(old_lock);
++		if (i == ADL_INVALID_INDEX) {
++			mlog(ML_ERROR, "%s: blkno %llu, sector %d, ex locked, but no holders\n",
++					adl->name, blkno, sector);
++			return;
++		}
++
++		if (!lock_locked(old_lock, i) || !lock_valid(adl, old_lock, i))
++			return;
++
++		to = host_id(old_lock, i);
++
++		packet[0] = kzalloc(sizeof(struct adl_lock_packet), GFP_NOFS);
++		if (!packet[0])
++			return;
++		packet[0]->blkno = cpu_to_be64(blkno);
++		packet[0]->sector_offset = sector;
++		packet[0]->sender_idx = cpu_to_be16(adl->node_num);
++
++		mlog(0, "%s: send query lock to %u, blkno %llu, offset %d\n",
++			adl->name, to, blkno, sector);
++		ret = adl_send_async_msg(adl, ADL_QUERY_LOCK_MSG,
++				packet[0], sizeof(*packet[0]), to, NULL);
++		if (ret)
++			kfree(packet[0]);
++	} else if (pr_locked(old_lock)) {
++		for (i = 0; i < MAX_HOSTS; i++) {
++			if (!lock_locked(old_lock, i) || !lock_valid(adl, old_lock, i))
++				continue;
++
++			to = host_id(old_lock, i);
++			if (to == adl->node_num)
++				continue;
++
++			packet[i] = kzalloc(sizeof(struct adl_lock_packet), GFP_NOFS);
++			if (!packet[i])
++				continue;
++
++			packet[i]->blkno = cpu_to_be64(blkno);
++			packet[i]->sector_offset = sector;
++			packet[i]->sender_idx = cpu_to_be16(adl->node_num);
++
++			mlog(0, "%s: send query lock to %u, blkno %llu, offset %d\n",
++					adl->name, to, blkno, sector);
++			ret = adl_send_async_msg(adl, ADL_QUERY_LOCK_MSG,
++					packet[i], sizeof(*packet[i]), to, NULL);
++			if (ret)
++				kfree(packet[i]);
++		}
++	} else
++		mlog(ML_ERROR, "%s: blkno %llu, offset %d, neither ex nor pr locked\n",
++				adl->name, blkno, sector);
++}
++
++static void adl_decide_disposition(int ret, int *retry, int *retry_times)
++{
++	if (!ret)
++		return;
++
++	if (ret == -EAGAIN) {
++		*retry = 1;
++		*retry_times = 0;
++	} else
++		mlog_errno(ret);
++
++	if (ret == -EIO || ret == -ENOMEM) {
++		*retry = 1;
++		(*retry_times)++;
++	}
++}
++
++void adl_free_lock_lksb(struct adl_lockstatus *lksb)
++{
++	if (lksb->page) {
++		__free_page(lksb->page);
++		lksb->page = NULL;
++	}
++}
++EXPORT_SYMBOL_GPL(adl_free_lock_lksb);
++
++int adl_alloc_lock_lksb(struct adl_ctxt *adl, u64 block,
++		int offset, struct adl_lockstatus *lksb)
++{
++	int ret = 0;
++	struct page *page;
++
++	if (lksb->page) {
++		mlog(ML_ERROR, "page %p, lksb %p\n", lksb->page, lksb);
++		return -EINVAL;
++	}
++
++	page = alloc_page(GFP_NOFS);
++	if (!page) {
++		ret = -ENOMEM;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	lksb->page = page;
++out:
++	return ret;
++}
++EXPORT_SYMBOL_GPL(adl_alloc_lock_lksb);
++
++u32 adl_lock_seqno_get(struct adl_lockstatus *lksb)
++{
++	struct ocfs2_adl_lock *lock = page_address(lksb->page);
++
++	return lock->seqno;
++}
++EXPORT_SYMBOL_GPL(adl_lock_seqno_get);
++
++void adl_lock_seqno_set(struct adl_lockstatus *lksb, u32 seqno)
++{
++	lksb->seqno = seqno;
++}
++EXPORT_SYMBOL_GPL(adl_lock_seqno_set);
++
++int adl_lock(struct adl_ctxt *adl, u64 blkno, int offset,
++		struct adl_lockstatus *lksb, int level, int flags)
++{
++	int ret, retry, retry_times = 0, pending = -1;
++	struct ocfs2_adl_lock *old_lock = NULL;
++	int lock_mode = (flags & ADL_LKF_USER_MODE) ? ADL_LOCK_USER_MODE :
++			ADL_LOCK_KERNEL_MODE;
++	int wait_recovery = !!(flags & ADL_LKF_NEED_RECOVERY);
++	int ro_retrys = 0;
++
++	mlog(0, "%s: blkno %llu, sector %d, level %d, flags: 0x%x\n",
++			adl->name, (unsigned long long)blkno, offset,
++			level, flags);
++
++	if (level != LKM_PRMODE && level != LKM_EXMODE) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
++
++	if (!lksb || !lksb->page) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
++
++again:
++	retry = 0; /* do not retry by default */
++	if (adl_is_invalid(adl)) {
++		ret = -EIO;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	ret = adl_operate_lock_block(adl->bdev, blkno, offset, lksb->page, REQ_OP_READ, 0);
++	if (ret) {
++		static unsigned long caller_jiffies;
++
++		if (printk_timed_ratelimit(&caller_jiffies, LOG_RATELIMIT_INTERVAL_MSES))
++			mlog_errno(ret);
++		retry = 1;
++		retry_times++;
++		goto out;
++	}
++
++	old_lock = (struct ocfs2_adl_lock *)page_address(lksb->page);
++	print_disk_lock(ML_ADL, blkno, offset, old_lock);
++
++	ret = adl_validate_adl_block(adl->bdev, blkno, offset, old_lock);
++	if (ret) {
++		if (++ro_retrys < MAX_RO_RETRY_TIMES) {
++			mlog(ML_ERROR, "%s: blkno %llu, sector %d may be corrupted\n",
++					adl->name, (unsigned long long)blkno, offset);
++			msleep(RO_RETRY_TIME_MS);
++			goto again;
++		}
++
++		mlog_errno(ret);
++		goto out;
++	}
++
++	/* check if already locked */
++	if (adl_locked(adl, old_lock, level, lock_mode)) {
++		mlog(ML_NOTICE, "%s: blkno %llu, sector %d, level %d, lock already exist\n",
++				adl->name, (unsigned long long)blkno, offset, level);
++		goto out;
++	}
++	pending = adl_lock_pending_exist(adl, old_lock);
++	if (!adl_lock_compatible(adl, old_lock, level, lock_mode, wait_recovery)) {
++		if (flags & ADL_LKF_NOQUEUE || pending) {
++			mlog(0, "%s: blkno %llu, sector %d, flags 0x%x, pending exist %d\n",
++				adl->name, (unsigned long long)blkno, offset, flags,
++				pending);
++			/* Resend lock request message */
++			if (adl->node_num == pending_host_id(old_lock))
++				adl_do_lock_request(adl, blkno, offset, old_lock);
++		} else {
++			ret = adl_do_caw_cmd(adl, blkno, offset, level,
++					lksb, MODE_PENDING, lock_mode);
++			if (ret) {
++				adl_decide_disposition(ret, &retry, &retry_times);
++				goto out;
++			}
++			adl_do_lock_request(adl, blkno, offset, old_lock);
++		}
++		/* Cluser lock will retry when return -EAGAIN.
++		 * This is to solve a deadlock.
++		 * Two nodes both want to upconvert to EX from PR with BUSY pending,
++		 * Unlock thread on this two nodes want to unlock the PR lock,
++		 * and found BUSY pending, so unlock thread should wait,
++		 * which cause deadlock.
++		 *
++		 * So return -EAGAIN to let cluster lock clear BUSY and wait for unlock
++		 * thread to unlock the lock.
++		 */
++		ret = -EAGAIN;
++		goto out;
++	} else if (adl_lock_other_pending_exist(adl, old_lock)) {
++		/* compatible, but other nodes pending */
++		mlog(0,
++			"%s: blkno %llu, sector %d, other nodes pending, pending host %u\n",
++			adl->name, (unsigned long long)blkno, offset,
++			pending_host_id(old_lock));
++
++		/* ocfs2 cluster lock will retry */
++		ret = -EAGAIN;
++		goto out;
++	}
++
++	ret = adl_do_caw_cmd(adl, blkno, offset, level, lksb,
++			MODE_LOCK, lock_mode);
++	adl_decide_disposition(ret, &retry, &retry_times);
++
++out:
++	if (ret && retry && retry_times < DISK_RETRY_MAX_TIMS) {
++		mlog(ML_ADL,
++			"%s: lock failed, blkno %llu, sector %d, level %d, flags 0x%x, retry_times %d, try again.\n",
++			adl->name, (unsigned long long)blkno, offset, level, flags, retry_times);
++		msleep(DISK_RETRY_TIME_MS);
++		goto again;
++	}
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(adl_lock);
++
++/*
++ * return value: 1 - other nodes pending
++ *               0 - no other node
++ *              <0 - error while checking
++ */
++int adl_other_nodes_pending(struct adl_ctxt *adl, u64 blkno, int offset)
++{
++	int ret;
++	struct ocfs2_adl_lock *old_lock = NULL;
++	struct page *page;
++
++	if (adl_is_invalid(adl)) {
++		ret = -EIO;
++		mlog_errno(ret);
++		return ret;
++	}
++
++	/*
++	 * check pending may race with lock/unlock,
++	 * so can not use lksb->page
++	 */
++	page = alloc_page(GFP_NOFS);
++	if (!page) {
++		ret = -ENOMEM;
++		mlog_errno(ret);
++		return ret;
++	}
++
++	ret = adl_operate_lock_block(adl->bdev, blkno, offset, page, REQ_OP_READ, 0);
++	if (ret) {
++		mlog_errno(ret);
++		goto out;
++	}
++
++	old_lock = (struct ocfs2_adl_lock *)page_address(page);
++	ret = adl_validate_adl_block(adl->bdev, blkno, offset, old_lock);
++	if (ret) {
++		mlog_errno(ret);
++		goto out;
++	}
++
++	/* no other nodes want this lock, so do not unlock */
++	if ((pending_host_id(old_lock) == O2NM_MAX_NODES) ||
++			(!lock_pending_valid(adl, old_lock))) {
++		//mlog(0, "%s: blkno %llu, offset %d, no pending host\n",
++		//		adl->name, blkno, offset);
++		ret = 0;
++	} else {
++		mlog(0, "%s: blkno %llu, offset %d, have pending host\n",
++				adl->name, blkno, offset);
++		ret = 1;
++	}
++
++out:
++	__free_page(page);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(adl_other_nodes_pending);
++
++/*
++ * level: level after unlocked
++ */
++int adl_unlock(struct adl_ctxt *adl, u64 blkno, int offset,
++		struct adl_lockstatus *lksb, int level, int flags)
++{
++	int ret, retry, retry_times = 0;
++	struct ocfs2_adl_lock *old_lock = NULL;
++	int lock_mode = (flags & ADL_LKF_USER_MODE) ? ADL_LOCK_USER_MODE :
++			ADL_LOCK_KERNEL_MODE;
++	int ro_retrys = 0;
++
++	mlog(0, "%s: unlock blkno %llu, offset %d, level %d, flags: 0x%x\n",
++			adl->name, (unsigned long long)blkno, offset, level, flags);
++
++	if (level == LKM_EXMODE) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
++
++	if (!lksb || !lksb->page) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
++
++again:
++	retry = 0; /* do not retry by default */
++
++	if (adl_is_invalid(adl)) {
++		ret = -EIO;
++		mlog_errno(ret);
++		goto out;
++	}
++
++	ret = adl_operate_lock_block(adl->bdev, blkno, offset, lksb->page, REQ_OP_READ, 0);
++	if (ret) {
++		static unsigned long caller_jiffies;
++
++		if (printk_timed_ratelimit(&caller_jiffies, LOG_RATELIMIT_INTERVAL_MSES))
++			mlog_errno(ret);
++		retry = 1;
++		retry_times++;
++		goto out;
++	}
++
++	old_lock = (struct ocfs2_adl_lock *)page_address(lksb->page);
++	print_disk_lock(ML_ADL, blkno, offset, old_lock);
++
++	ret = adl_validate_adl_block(adl->bdev, blkno, offset, old_lock);
++	if (ret) {
++		if (++ro_retrys < MAX_RO_RETRY_TIMES) {
++			mlog(ML_ERROR, "%s: blkno %llu, sector %d may be corrupted\n",
++					'adl->name, (unsigned long long)blkno, offset);
++			msleep(RO_RETRY_TIME_MS);
++			goto again;
++		}
++
++		mlog_errno(ret);
++		goto out;
++	}
++
++	/* check if already unlocked */
++	if (adl_unlocked(adl, old_lock, level, lock_mode)) {
++		mlog(ML_NOTICE, "%s: blkno %llu, offset %d, level %d, lock already unlocked\n",
++				adl->name, (unsigned long long)blkno, offset, level);
++		goto out;
++	}
++
++	ret = adl_do_caw_cmd(adl, blkno, offset, level, lksb,
++			MODE_UNLOCK, lock_mode);
++	if (ret)
++		adl_decide_disposition(ret, &retry, &retry_times);
++	else
++		adl_do_unlock_notify(adl, blkno, offset, old_lock, lock_mode);
++
++out:
++	if (ret && retry && retry_times < DISK_RETRY_MAX_TIMS) {
++		mlog(ML_ADL,
++			"%s: unlock failed, blkno %llu, offset %d, level %d, flags: 0x%x, retry_times %d, try again.\n",
++			adl->name, (unsigned long long)blkno, offset,
++			level, flags, retry_times);
++		msleep(DISK_RETRY_TIME_MS);
++		goto again;
++	}
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(adl_unlock);
+diff --git a/fs/ocfs2/adl/adllock.h b/fs/ocfs2/adl/adllock.h
+new file mode 100644
+index 000000000000..ccaaa543e65f
+--- /dev/null
++++ b/fs/ocfs2/adl/adllock.h
+@@ -0,0 +1,22 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#ifndef ADLLOCK_H
++#define ADLLOCK_H
++
++struct adl_ctxt;
++
++struct adl_lockstatus {
++	struct page *page;
++	u32 seqno;
++};
++
++int adl_lock(struct adl_ctxt *adl, u64 blkno, int offset,
++				struct adl_lockstatus *lksb, int level, int flags);
++int adl_unlock(struct adl_ctxt *adl, u64 blkno, int offset,
++				struct adl_lockstatus *lksb, int level, int flags);
++void adl_free_lock_lksb(struct adl_lockstatus *lksb);
++int adl_alloc_lock_lksb(struct adl_ctxt *adl, u64 block,
++		int offset, struct adl_lockstatus *lksb);
++u32 adl_lock_seqno_get(struct adl_lockstatus *lksb);
++void adl_lock_seqno_set(struct adl_lockstatus *lksb, u32 seqno);
++
++#endif /* ADLLOCK_H */
+-- 
+2.17.1
+

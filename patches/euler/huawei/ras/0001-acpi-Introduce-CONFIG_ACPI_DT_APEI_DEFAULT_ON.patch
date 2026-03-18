@@ -1,0 +1,59 @@
+From 3d7d9fef394c9fc4841e06681a5b1fc974ed78d3 Mon Sep 17 00:00:00 2001
+From: Chen Jun <chenjun102@huawei.com>
+Date: Fri, 2 Jun 2023 15:00:46 +0800
+Subject: [PATCH] acpi: Introduce CONFIG_ACPI_DT_APEI_DEFAULT_ON
+
+Intoduce CONFIG_ACPI_DT_APEI_DEFAULT_ON to enable
+apei supported by dts. Which is used to avoid modifying
+boot args.
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+---
+ drivers/acpi/Kconfig     | 13 ++++++++++++-
+ drivers/acpi/apei/ghes.c |  2 +-
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/acpi/Kconfig b/drivers/acpi/Kconfig
+index 4a8241684..31a5508ff 100644
+--- a/drivers/acpi/Kconfig
++++ b/drivers/acpi/Kconfig
+@@ -541,7 +541,7 @@ config X86_PM_TIMER
+ 
+ config ACPI_DT_APEI
+ 	bool "APEI support for DTS"
+-	depends on ACPI
++	depends on ACPI && ACPI_APEI_GHES
+ 	default n
+ 	help
+ 	 Select this option to enable support for DTS, parameters in the
+@@ -549,3 +549,14 @@ config ACPI_DT_APEI
+ 
+ 	 If the RAS function is required but the firmware does not support
+ 	 the ACPI function, the DTS can be used for transmission.
++
++config ACPI_DT_APEI_DEFAULT_ON
++	bool "Enable DTS support APEI by default"
++	depends on ACPI_DT_APEI
++	default n
++	help
++	  Select this option to enable support for DTS by default. Also can
++	  enable the feature by bootargs enable_acpi_dt_apei.
++
++	  If not sure, say n.
++
+diff --git a/drivers/acpi/apei/ghes.c b/drivers/acpi/apei/ghes.c
+index 575db2584..3b0c0b2d9 100644
+--- a/drivers/acpi/apei/ghes.c
++++ b/drivers/acpi/apei/ghes.c
+@@ -150,7 +150,7 @@ static atomic_t ghes_estatus_cache_alloced;
+ static int ghes_panic_timeout __read_mostly = 30;
+ 
+ bool dt_apei_disable = true;
+-bool enable_acpi_dt_apei = false;
++bool enable_acpi_dt_apei = IS_ENABLED(CONFIG_ACPI_DT_APEI_DEFAULT_ON);
+ 
+ static int __init enable_acpi_dt_apei_setup(char *str)
+ {
+-- 
+2.17.1
+

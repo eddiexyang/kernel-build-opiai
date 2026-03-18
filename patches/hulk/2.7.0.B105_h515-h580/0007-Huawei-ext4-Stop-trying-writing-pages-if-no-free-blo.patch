@@ -1,0 +1,67 @@
+From 366247c69118429c524d1d0535d30142cd0317b8 Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Fri, 9 Jun 2023 11:45:04 +0800
+Subject: [PATCH 007/780] [Huawei] ext4: Stop trying writing pages if no free
+ blocks generated
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188819
+
+--------------------------------
+
+Folllowing steps could make ext4_wripages trap into a dead loop:
+
+1. Consume free_clusters until free_clusters > 2 * sbi->s_resv_clusters,
+   and free_clusters > EXT4_FREECLUSTERS_WATERMARK.
+   // eg. free_clusters = 1422, sbi->s_resv_clusters = 512
+   // nr_cpus = 4, EXT4_FREECLUSTERS_WATERMARK = 512
+2. umount && mount.  // dirty_clusters = 0
+3. Run free_clusters tasks concurrently to write different files, many
+   tasks write(appendant) 4K data by da_write method. And each inode will
+   consume one data block and one extent block in map_block.
+   // There are (free_clusters - EXT4_FREECLUSTERS_WATERMARK = 910)
+   // tasks choosing da_write method, left 512 tasks choose write_begin
+   // method. If tasks which chooses da_write path run first.
+   // dirty_clusters = 910, free_clusters = 1422
+   // Tasks which choose write_begin path will get ENOSPC:
+   //  free_clusters < (nclusters + dirty_clusters + resv_clusters)
+   //  1422 < (1 + 910 + 512)
+4. After certain number of map_block iterations in ext4_writepages.
+   // free_clusters = 0,
+   // dirty_clusters = 910 - (1422 / 2) = 199
+5. Delete one 4K file.  // free_clusters = 1
+6. ext4_writepages traps into dead loop:
+    mpage_map_and_submit_extent
+     mpage_map_one_extent // ret = ENOSPC
+       ext4_map_blocks -> ext4_ext_map_blocks -> ext4_mb_new_blocks ->
+       ext4_claim_free_clusters:
+         if (free_clusters >= (nclusters + dirty_clusters)) // false
+     if (err == -ENOSPC && ext4_count_free_clusters(sb)) // true
+       return err
+     *give_up_on_write = true // won't be executed
+
+Fix it by terminating ext4_writepages if no free blocks generated.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index ed2c466ad891..388b13f37bd3 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -2478,7 +2478,7 @@ static int mpage_map_and_submit_extent(handle_t *handle,
+ 			 * is non-zero, a commit should free up blocks.
+ 			 */
+ 			if ((err == -ENOMEM) ||
+-			    (err == -ENOSPC && ext4_count_free_clusters(sb))) {
++			    (err == -ENOSPC && EXT4_SB(sb)->s_mb_free_pending)) {
+ 				if (progress)
+ 					goto update_disksize;
+ 				return err;
+-- 
+2.17.1
+

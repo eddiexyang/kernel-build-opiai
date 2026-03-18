@@ -1,0 +1,47 @@
+From 3cfdb7905f2212db346bc7299a4f9280109760cb Mon Sep 17 00:00:00 2001
+From: Jiao Zhou <jiaozhou@google.com>
+Date: Tue, 6 Dec 2022 13:53:11 -0500
+Subject: [PATCH 656/905] [Backport] ALSA: hda/hdmi: Add HP Device 0x8711 to
+ force connect list
+
+stable inclusion
+from stable-v5.10.163
+commit 2b725b6fbbe6577dbe5aa931522cec6475da9140
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2b725b6fbbe6577dbe5aa931522cec6475da9140
+
+--------------------------------
+
+commit 31b573946ea55e1ea0e08ae8e83bcf879b30f83a upstream.
+
+HDMI audio is not working on the HP EliteDesk 800 G6 because the pin is
+unconnected. This issue can be resolved by using the 'hdajackretask'
+tool to override the unconnected pin to force it to connect.
+
+Signed-off-by: Jiao Zhou <jiaozhou@google.com>
+Cc: <stable@vger.kernel.org>
+Link: https://lore.kernel.org/r/20221206185311.3669950-1-jiaozhou@google.com
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/pci/hda/patch_hdmi.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/pci/hda/patch_hdmi.c b/sound/pci/hda/patch_hdmi.c
+index df445c9ac3f2..5e53d75f1ff1 100644
+--- a/sound/pci/hda/patch_hdmi.c
++++ b/sound/pci/hda/patch_hdmi.c
+@@ -1964,6 +1964,7 @@ static int hdmi_add_cvt(struct hda_codec *codec, hda_nid_t cvt_nid)
+ static const struct snd_pci_quirk force_connect_list[] = {
+ 	SND_PCI_QUIRK(0x103c, 0x870f, "HP", 1),
+ 	SND_PCI_QUIRK(0x103c, 0x871a, "HP", 1),
++	SND_PCI_QUIRK(0x103c, 0x8711, "HP", 1),
+ 	SND_PCI_QUIRK(0x1462, 0xec94, "MS-7C94", 1),
+ 	{}
+ };
+-- 
+2.17.1
+

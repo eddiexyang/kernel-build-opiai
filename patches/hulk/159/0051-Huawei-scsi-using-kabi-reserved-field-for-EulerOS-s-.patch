@@ -1,0 +1,42 @@
+From 671cc88797e636a8ebadcc485516a6e6e1122e70 Mon Sep 17 00:00:00 2001
+From: Wenchao Hao <haowenchao@huawei.com>
+Date: Tue, 25 Oct 2022 16:34:04 -0400
+Subject: [PATCH 051/595] [Huawei] scsi:using kabi reserved field for EulerOS's
+ error handler
+
+Offering: HULK
+euleros inclusion
+category: bugfix
+bugzilla: 187868
+
+--------------------------------
+
+EulerOS developed a feature which need to use scsi_device's kabi field,
+which could not be changed once released. So here we using this kabi
+field to avoid conflict in future.
+
+Signed-off-by: Wenchao Hao <haowenchao@huawei.com>
+---
+ include/scsi/scsi_device.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/include/scsi/scsi_device.h b/include/scsi/scsi_device.h
+index 8b9d1aac62d1..216aa54172fd 100644
+--- a/include/scsi/scsi_device.h
++++ b/include/scsi/scsi_device.h
+@@ -240,7 +240,11 @@ struct scsi_device {
+ 	enum scsi_device_state sdev_state;
+ 	struct task_struct	*quiesced_by;
+ 
+-	KABI_RESERVE(1)
++	/*
++	 * Use the first RESERVED field for EulerOS's
++	 * SCSI single LUN error handler feature
++	 */
++	KABI_USE(1, void *eh)
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+-- 
+2.17.1
+

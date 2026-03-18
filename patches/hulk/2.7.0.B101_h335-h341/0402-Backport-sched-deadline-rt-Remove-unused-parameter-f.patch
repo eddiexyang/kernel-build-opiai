@@ -1,0 +1,81 @@
+From e74bf978bc44e2d119aec625b49d86630562844e Mon Sep 17 00:00:00 2001
+From: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Date: Wed, 2 Mar 2022 19:34:33 +0100
+Subject: [PATCH 402/921] [Backport] sched/deadline,rt: Remove unused parameter
+ from pick_next_[rt|dl]_entity()
+
+stable inclusion
+from stable-v5.10.173
+commit 53dbbe36340d602017b435e67c3ce5f80ab9df98
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=53dbbe36340d602017b435e67c3ce5f80ab9df98
+
+--------------------------------
+
+[ Upstream commit 821aecd09e5ad2f8d4c3d8195333d272b392f7d3 ]
+
+The `struct rq *rq` parameter isn't used. Remove it.
+
+Signed-off-by: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Acked-by: Juri Lelli <juri.lelli@redhat.com>
+Link: https://lore.kernel.org/r/20220302183433.333029-7-dietmar.eggemann@arm.com
+Stable-dep-of: 7c4a5b89a0b5 ("sched/rt: pick_next_rt_entity(): check list_entry")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/sched/deadline.c | 5 ++---
+ kernel/sched/rt.c       | 5 ++---
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
+index 4be38a92b7d0..6e237211b437 100644
+--- a/kernel/sched/deadline.c
++++ b/kernel/sched/deadline.c
+@@ -1847,8 +1847,7 @@ static void set_next_task_dl(struct rq *rq, struct task_struct *p, bool first)
+ 	deadline_queue_push_tasks(rq);
+ }
+ 
+-static struct sched_dl_entity *pick_next_dl_entity(struct rq *rq,
+-						   struct dl_rq *dl_rq)
++static struct sched_dl_entity *pick_next_dl_entity(struct dl_rq *dl_rq)
+ {
+ 	struct rb_node *left = rb_first_cached(&dl_rq->root);
+ 
+@@ -1867,7 +1866,7 @@ static struct task_struct *pick_next_task_dl(struct rq *rq)
+ 	if (!sched_dl_runnable(rq))
+ 		return NULL;
+ 
+-	dl_se = pick_next_dl_entity(rq, dl_rq);
++	dl_se = pick_next_dl_entity(dl_rq);
+ 	BUG_ON(!dl_se);
+ 	p = dl_task_of(dl_se);
+ 	set_next_task_dl(rq, p, true);
+diff --git a/kernel/sched/rt.c b/kernel/sched/rt.c
+index 238c61148397..a86fbd82c0a9 100644
+--- a/kernel/sched/rt.c
++++ b/kernel/sched/rt.c
+@@ -1603,8 +1603,7 @@ static inline void set_next_task_rt(struct rq *rq, struct task_struct *p, bool f
+ 	rt_queue_push_tasks(rq);
+ }
+ 
+-static struct sched_rt_entity *pick_next_rt_entity(struct rq *rq,
+-						   struct rt_rq *rt_rq)
++static struct sched_rt_entity *pick_next_rt_entity(struct rt_rq *rt_rq)
+ {
+ 	struct rt_prio_array *array = &rt_rq->active;
+ 	struct sched_rt_entity *next = NULL;
+@@ -1626,7 +1625,7 @@ static struct task_struct *_pick_next_task_rt(struct rq *rq)
+ 	struct rt_rq *rt_rq  = &rq->rt;
+ 
+ 	do {
+-		rt_se = pick_next_rt_entity(rq, rt_rq);
++		rt_se = pick_next_rt_entity(rt_rq);
+ 		BUG_ON(!rt_se);
+ 		rt_rq = group_rt_rq(rt_se);
+ 	} while (rt_rq);
+-- 
+2.17.1
+

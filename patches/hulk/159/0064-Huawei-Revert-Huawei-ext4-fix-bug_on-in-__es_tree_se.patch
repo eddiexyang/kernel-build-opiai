@@ -1,0 +1,42 @@
+From 08f1c6bedafbc7f1406be68fd22f4d62512ea619 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Fri, 28 Oct 2022 10:37:14 +0800
+Subject: [PATCH 064/595] [Huawei] Revert "[Huawei] ext4: fix bug_on in
+ __es_tree_search caused by wrong s_usr_quota_inum"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187821
+
+--------------------------------
+
+This reverts commit 0e4fffd81ab5ddc2652749c38e2b5a97c56e100b.
+Revert the self-developed solution and synchronize the solution reviewed
+by the community.
+
+Link: https://patchwork.ozlabs.org/project/linux-ext4/list/?series=324622
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/super.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index abf7ce63d0d0..98ee457f90de 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -6503,9 +6503,9 @@ static int ext4_quota_enable(struct super_block *sb, int type, int format_id,
+ 		return -EPERM;
+ 
+ 	qf_inode = ext4_iget(sb, qf_inums[type], EXT4_IGET_SPECIAL);
+-	if (IS_ERR(qf_inode) || is_bad_inode(qf_inode)) {
++	if (IS_ERR(qf_inode)) {
+ 		ext4_error(sb, "Bad quota inode # %lu", qf_inums[type]);
+-		return IS_ERR(qf_inode) ? PTR_ERR(qf_inode) : -EUCLEAN;
++		return PTR_ERR(qf_inode);
+ 	}
+ 
+ 	/* Don't account quota for quota files to avoid recursion */
+-- 
+2.17.1
+

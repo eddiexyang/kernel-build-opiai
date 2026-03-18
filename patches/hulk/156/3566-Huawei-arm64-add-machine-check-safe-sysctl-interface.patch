@@ -1,0 +1,118 @@
+From 9801a68f374dfa599e1ff7c0874b6912231789a3 Mon Sep 17 00:00:00 2001
+From: Tong Tiangen <tongtiangen@huawei.com>
+Date: Sat, 9 Jul 2022 09:21:03 +0000
+Subject: [PATCH 3566/4585] [Huawei] arm64: add machine check safe sysctl
+ interface
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187273
+
+--------------------------------
+
+Add /proc/sys/kernel/machine_check_safe_enable. Set 1(default value) to
+enable machine check safe support. Set 0(default) to disable machine
+check safe support.
+
+Signed-off-by: Tong Tiangen <tongtiangen@huawei.com>
+---
+ Documentation/admin-guide/sysctl/kernel.rst | 21 +++++++++++++++++++++
+ arch/arm64/include/asm/processor.h          |  2 ++
+ arch/arm64/mm/fault.c                       |  5 +++++
+ kernel/sysctl.c                             | 11 +++++++++++
+ 4 files changed, 39 insertions(+)
+
+diff --git a/Documentation/admin-guide/sysctl/kernel.rst b/Documentation/admin-guide/sysctl/kernel.rst
+index a4b1ebc2e70b..f0271bc4ff95 100644
+--- a/Documentation/admin-guide/sysctl/kernel.rst
++++ b/Documentation/admin-guide/sysctl/kernel.rst
+@@ -478,6 +478,27 @@ if leaking kernel pointer values to unprivileged users is a concern.
+ When ``kptr_restrict`` is set to 2, kernel pointers printed using
+ %pK will be replaced with 0s regardless of privileges.
+ 
++machine_check_safe (arm64 only)
++================================
++
++Controls the kernel's behaviour when an hardware memory error is
++encountered in the following scenarios:
++
++=  ===================
++1  cow
++2  copy_mc_to_kernel
++3  copy_from_user
++4  copy_to_user
++5  get_user
++6  put_user
++=  ===================
++
++Correspondence between sysctl value and behavior:
++
++= =======================
++0 Kernel panic
++1 Kill related processes
++= =======================
+ 
+ modprobe
+ ========
+diff --git a/arch/arm64/include/asm/processor.h b/arch/arm64/include/asm/processor.h
+index 617cdd40c61b..8d2a6e315764 100644
+--- a/arch/arm64/include/asm/processor.h
++++ b/arch/arm64/include/asm/processor.h
+@@ -88,6 +88,8 @@
+ #define STACK_TOP		STACK_TOP_MAX
+ #endif /* CONFIG_COMPAT */
+ 
++extern int sysctl_machine_check_safe;
++
+ #ifndef CONFIG_ARM64_FORCE_52BIT
+ #define arch_get_mmap_end(addr) ((addr > DEFAULT_MAP_WINDOW) ? TASK_SIZE :\
+ 				DEFAULT_MAP_WINDOW)
+diff --git a/arch/arm64/mm/fault.c b/arch/arm64/mm/fault.c
+index 4ab0ba661657..53cdcbda7cb6 100644
+--- a/arch/arm64/mm/fault.c
++++ b/arch/arm64/mm/fault.c
+@@ -40,6 +40,8 @@
+ #include <asm/tlbflush.h>
+ #include <asm/traps.h>
+ 
++int sysctl_machine_check_safe = 1;
++
+ struct fault_info {
+ 	int	(*fn)(unsigned long addr, unsigned int esr,
+ 		      struct pt_regs *regs);
+@@ -640,6 +642,9 @@ static bool arm64_do_kernel_sea(void __user *addr, unsigned int esr,
+ 	if (!IS_ENABLED(CONFIG_ARCH_HAS_COPY_MC))
+ 		return false;
+ 
++	if (!sysctl_machine_check_safe)
++		return false;
++
+ 	if (user_mode(regs))
+ 		return false;
+ 
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index 73777f233be5..28ece1919f9c 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -2782,6 +2782,17 @@ static struct ctl_table kern_table[] = {
+ 		.mode		= 0555,
+ 		.child		= ias_table,
+ 	},
++#endif
++#if defined(CONFIG_ARM64) && defined(CONFIG_ARCH_HAS_COPY_MC)
++	{
++		.procname       = "machine_check_safe",
++		.data           = &sysctl_machine_check_safe,
++		.maxlen         = sizeof(sysctl_machine_check_safe),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec_minmax,
++		.extra1         = SYSCTL_ZERO,
++		.extra2         = SYSCTL_ONE,
++	},
+ #endif
+ 	{ }
+ };
+-- 
+2.17.1
+

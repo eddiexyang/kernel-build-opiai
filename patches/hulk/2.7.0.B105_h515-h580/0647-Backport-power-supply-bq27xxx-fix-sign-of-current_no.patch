@@ -1,0 +1,52 @@
+From 80b4558d5d2dbf85b37d8ff58a30944c6a372562 Mon Sep 17 00:00:00 2001
+From: Matthias Schiffer <matthias.schiffer@ew.tq-group.com>
+Date: Wed, 3 Mar 2021 10:54:18 +0100
+Subject: [PATCH 647/780] [Backport] power: supply: bq27xxx: fix sign of
+ current_now for newer ICs
+
+stable inclusion
+from stable-v5.10.182
+commit 659094e4057ab1b8d3b162b721ea2bd3fe64e30c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=659094e4057ab1b8d3b162b721ea2bd3fe64e30c
+
+--------------------------------
+
+[ Upstream commit b67fdcb7099e9c640bad625c4dd6399debb3376a ]
+
+Commit cd060b4d0868 ("power: supply: bq27xxx: fix polarity of current_now")
+changed the sign of current_now for all bq27xxx variants, but on BQ28Z610
+I'm now seeing negated values *with* that patch.
+
+The GTA04/Openmoko device that was used for testing uses a BQ27000 or
+BQ27010 IC, so I assume only the BQ27XXX_O_ZERO code path was incorrect.
+Revert the behaviour for newer ICs.
+
+Fixes: cd060b4d0868 "power: supply: bq27xxx: fix polarity of current_now"
+Signed-off-by: Matthias Schiffer <matthias.schiffer@ew.tq-group.com>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+Stable-dep-of: 35092c5819f8 ("power: supply: bq27xxx: Add cache parameter to bq27xxx_battery_current_and_status()")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/power/supply/bq27xxx_battery.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/power/supply/bq27xxx_battery.c b/drivers/power/supply/bq27xxx_battery.c
+index 79eee63a2041..d34f1fceadbb 100644
+--- a/drivers/power/supply/bq27xxx_battery.c
++++ b/drivers/power/supply/bq27xxx_battery.c
+@@ -1781,7 +1781,7 @@ static int bq27xxx_battery_current(struct bq27xxx_device_info *di,
+ 		val->intval = curr * BQ27XXX_CURRENT_CONSTANT / BQ27XXX_RS;
+ 	} else {
+ 		/* Other gauges return signed value */
+-		val->intval = -(int)((s16)curr) * 1000;
++		val->intval = (int)((s16)curr) * 1000;
+ 	}
+ 
+ 	return 0;
+-- 
+2.17.1
+

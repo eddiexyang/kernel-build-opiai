@@ -1,0 +1,130 @@
+From e2364588b76bf2d6b2027ccdb72dfa36f925bb71 Mon Sep 17 00:00:00 2001
+From: Li Hua <hucool.lihua@huawei.com>
+Date: Thu, 11 Aug 2022 07:17:25 +0800
+Subject: [PATCH 4426/4585] [Huawei] sched/cputime: Fix the bug of reading time
+ backward from /proc/stat
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187445
+
+--------------------------------
+
+The problem that the statistical time goes backward, the value read first is 319, and the value read again is 318. As follows：
+first：
+cat /proc/stat |  grep cpu1
+cpu1    319    0    496    41665    0    0    0    0    0    0
+then：
+cat /proc/stat |  grep cpu1
+cpu1    318    0    497    41674    0    0    0    0    0    0
+
+Time goes back, which is counterintuitive.
+
+After debug this, I found that the problem is caused by the implementation of kcpustat_cpu_fetch_vtime. As follows：
+
+                              CPU0                                                                          CPU1
+First:
+show_stat():
+    ->kcpustat_cpu_fetch()
+        ->kcpustat_cpu_fetch_vtime()
+            ->cpustat[CPUTIME_USER] = kcpustat_cpu(cpu) + vtime->utime + delta;              rq->curr is in user mod
+             ---> When CPU1 rq->curr running on userspace, need add utime and delta
+                                                                                             --->  rq->curr->vtime->utime is less than 1 tick
+Then:
+show_stat():
+    ->kcpustat_cpu_fetch()
+        ->kcpustat_cpu_fetch_vtime()
+            ->cpustat[CPUTIME_USER] = kcpustat_cpu(cpu);                                     rq->curr is in kernel mod
+            ---> When CPU1 rq->curr running on kernel space, just got kcpustat
+
+Signed-off-by: Li Hua <hucool.lihua@huawei.com>
+---
+ kernel/sched/core.c    |  1 +
+ kernel/sched/cputime.c | 32 +++++++++++++++++++++++++++++++-
+ kernel/sched/sched.h   |  6 ++++++
+ 3 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index c372dd61f9ce..da32c7af5279 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -7458,6 +7458,7 @@ void __init sched_init(void)
+ #endif /* CONFIG_SMP */
+ 		hrtick_rq_init(rq);
+ 		atomic_set(&rq->nr_iowait, 0);
++		cputime_cpu_init(i);
+ 	}
+ 
+ 	set_load_weight(&init_task, false);
+diff --git a/kernel/sched/cputime.c b/kernel/sched/cputime.c
+index 2c8b512abb30..76c7a386d065 100644
+--- a/kernel/sched/cputime.c
++++ b/kernel/sched/cputime.c
+@@ -1063,6 +1063,18 @@ static int kcpustat_cpu_fetch_vtime(struct kernel_cpustat *dst,
+ 	return 0;
+ }
+ 
++/*
++ * Stores the time of the last acquisition, which is used to handle the case of
++ * time backwards.
++*/
++static DEFINE_PER_CPU(struct kernel_cpustat, cpustat_prev);
++static DEFINE_PER_CPU(raw_spinlock_t, cpustat_prev_lock);
++
++void cputime_cpu_init(int cpu)
++{
++	raw_spin_lock_init(per_cpu_ptr(&cpustat_prev_lock, cpu));
++}
++
+ void kcpustat_cpu_fetch(struct kernel_cpustat *dst, int cpu)
+ {
+ 	const struct kernel_cpustat *src = &kcpustat_cpu(cpu);
+@@ -1090,8 +1102,26 @@ void kcpustat_cpu_fetch(struct kernel_cpustat *dst, int cpu)
+ 		err = kcpustat_cpu_fetch_vtime(dst, src, curr, cpu);
+ 		rcu_read_unlock();
+ 
+-		if (!err)
++		if (!err) {
++			int i;
++			int map[5] = {CPUTIME_USER, CPUTIME_SYSTEM, CPUTIME_NICE,
++				CPUTIME_GUEST, CPUTIME_GUEST_NICE};
++			struct kernel_cpustat *prev = &per_cpu(cpustat_prev, cpu);
++			raw_spinlock_t *cpustat_lock = &per_cpu(cpustat_prev_lock, cpu);
++			u64 *dst_stat = dst->cpustat;
++			u64 *prev_stat = prev->cpustat;
++
++			raw_spin_lock(cpustat_lock);
++			for (i = 0; i < 5; i++) {
++				int idx = map[i];
++
++				if (dst_stat[idx] < prev_stat[idx])
++					dst_stat[idx] = prev_stat[idx];
++			}
++			*prev = *dst;
++			raw_spin_unlock(cpustat_lock);
+ 			return;
++		}
+ 
+ 		cpu_relax();
+ 	}
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index 348e683e8af7..5c5f358f00d3 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -2739,3 +2739,9 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
+ 
+ void swake_up_all_locked(struct swait_queue_head *q);
+ void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait);
++
++#ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
++extern void cputime_cpu_init(int cpu);
++#else
++static inline void cputime_cpu_init(int cpu) {}
++#endif
+-- 
+2.17.1
+

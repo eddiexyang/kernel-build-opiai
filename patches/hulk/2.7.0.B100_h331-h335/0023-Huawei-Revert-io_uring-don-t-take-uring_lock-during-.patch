@@ -1,0 +1,56 @@
+From 61e3aff3fbf36b98d0c934b34077f4d970a14a2a Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Mon, 6 Feb 2023 22:19:03 +0800
+Subject: [PATCH 023/500] [Huawei] Revert "io_uring: don't take uring_lock
+ during iowq cancel"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188335
+
+-------------------------------
+
+This reverts commit c5562a26fd8dc4b2ae6fd8c75b77a592891acf20.
+
+We need to apply patch 788d0824269bef (io_uring: import 5.15-stable
+io_uring) to move io_uring to separate directory and solve
+the problem of CVE-2023-0240.
+This patch can be replaced by the same one from stable/5.10 to
+eliminate conflicts.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/io_uring.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index 78cd4695b21d..6bcbd89aa5d0 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -2103,9 +2103,7 @@ static void io_req_task_cancel(struct callback_head *cb)
+ 	struct io_kiocb *req = container_of(cb, struct io_kiocb, task_work);
+ 	struct io_ring_ctx *ctx = req->ctx;
+ 
+-	mutex_lock(&ctx->uring_lock);
+ 	__io_req_task_cancel(req, -ECANCELED);
+-	mutex_unlock(&ctx->uring_lock);
+ 	percpu_ref_put(&ctx->refs);
+ }
+ 
+@@ -6128,11 +6126,7 @@ static struct io_wq_work *io_wq_submit_work(struct io_wq_work *work)
+ 	/* if NO_CANCEL is set, we must still run the work */
+ 	if ((work->flags & (IO_WQ_WORK_CANCEL|IO_WQ_WORK_NO_CANCEL)) ==
+ 				IO_WQ_WORK_CANCEL) {
+-		/* io-wq is going to take down one */
+-		refcount_inc(&req->refs);
+-		percpu_ref_get(&req->ctx->refs);
+-		io_req_task_work_add_fallback(req, io_req_task_cancel);
+-		return io_steal_work(req);
++		ret = -ECANCELED;
+ 	}
+ 
+ 	if (!ret) {
+-- 
+2.17.1
+

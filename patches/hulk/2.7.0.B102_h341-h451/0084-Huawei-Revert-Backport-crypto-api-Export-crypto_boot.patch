@@ -1,0 +1,40 @@
+From 4e536992bc3caf1834f8524e359f686340091828 Mon Sep 17 00:00:00 2001
+From: Gaosheng Cui <cuigaosheng1@huawei.com>
+Date: Tue, 18 Apr 2023 08:48:57 -0400
+Subject: [PATCH 0084/1646] [Huawei] Revert "[Backport] crypto: api - Export
+ crypto_boot_test_finished"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188696
+
+--------------------------------
+
+This reverts commit 8ef884dfcf15aff75a2b1260e973bca0e912aade.
+
+The patch set of 8ef884dfcf15 ("crypto: api - Export crypto_boot_test_finished")
+conflicts with the SIMD feature, and maybe cause kernel
+panic on arm64, so revert the patch set.
+
+Fixes: 8ef884dfcf15 (crypto: api - Export crypto_boot_test_finished)
+Signed-off-by: Gaosheng Cui <cuigaosheng1@huawei.com>
+---
+ crypto/api.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/crypto/api.c b/crypto/api.c
+index 7ddfe946dd56..0e7a255252ca 100644
+--- a/crypto/api.c
++++ b/crypto/api.c
+@@ -32,7 +32,6 @@ BLOCKING_NOTIFIER_HEAD(crypto_chain);
+ EXPORT_SYMBOL_GPL(crypto_chain);
+ 
+ DEFINE_STATIC_KEY_FALSE(crypto_boot_test_finished);
+-EXPORT_SYMBOL_GPL(crypto_boot_test_finished);
+ 
+ static struct crypto_alg *crypto_larval_wait(struct crypto_alg *alg);
+ 
+-- 
+2.17.1
+

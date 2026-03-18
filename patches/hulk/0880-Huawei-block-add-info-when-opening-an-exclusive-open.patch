@@ -1,0 +1,53 @@
+From db1394ae891553cba7d721b33ed475914831eaa3 Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Sat, 7 May 2022 10:22:19 +0800
+Subject: [PATCH 0880/2065] [Huawei] block: add info when opening an exclusive
+ opened block device for write
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I53Q6M
+
+--------------------------------
+
+Just like open a write opend block device exclusively, open an exclusive
+opened block device for write may also lead to potential data corruption.
+This patch add an info message when opening an exclusive opened block
+device for write to hint the potential data corruption.
+
+Note that there are some legal cases such as file system or device
+mapper online resize, so this message is just a hint and isn't always
+mean that a risky written happens.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/block_dev.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 71aea6a9fa67..e324b7ace8f1 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -1654,6 +1654,18 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, void *holder,
+ 
+ 		bd_finish_claiming(bdev, claiming, holder);
+ 		spin_unlock(&bdev_lock);
++	} else if (!for_part && (mode & FMODE_WRITE)) {
++		spin_lock(&bdev_lock);
++		/*
++		 * Open an exclusive opened device for write may
++		 * probability corrupt the device, such as a
++		 * mounted file system, give a hint here.
++		 */
++		if (bdev->bd_holders ||
++		   (whole && (whole->bd_holder != NULL) && (whole->bd_holder != bd_may_claim)))
++			blkdev_dump_conflict_opener(bdev,
++					"VFS: Open an exclusive opened block device for write");
++		spin_unlock(&bdev_lock);
+ 	}
+ 
+ 	/*
+-- 
+2.17.1
+

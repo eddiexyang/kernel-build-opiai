@@ -1,0 +1,46 @@
+From 5b223e4ff6c21eefb53826faeb6ef092fde24a21 Mon Sep 17 00:00:00 2001
+From: Daisuke Nojiri <dnojiri@chromium.org>
+Date: Mon, 24 Apr 2023 11:25:58 -0700
+Subject: [PATCH 580/780] [Backport] power: supply: sbs-charger: Fix INHIBITED
+ bit for Status reg
+
+stable inclusion
+from stable-v5.10.181
+commit 52967bbb93eb817db90f8aadc1c083f7f3e194d4
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=52967bbb93eb817db90f8aadc1c083f7f3e194d4
+
+--------------------------------
+
+commit b2f2a3c9800208b0db2c2e34b05323757117faa2 upstream.
+
+CHARGE_INHIBITED bit position of the ChargerStatus register is actually
+0 not 1. This patch corrects it.
+
+Fixes: feb583e37f8a8 ("power: supply: add sbs-charger driver")
+Signed-off-by: Daisuke Nojiri <dnojiri@chromium.org>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/power/supply/sbs-charger.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/power/supply/sbs-charger.c b/drivers/power/supply/sbs-charger.c
+index fbfb6a620961..a30eb42e379a 100644
+--- a/drivers/power/supply/sbs-charger.c
++++ b/drivers/power/supply/sbs-charger.c
+@@ -25,7 +25,7 @@
+ #define SBS_CHARGER_REG_STATUS			0x13
+ #define SBS_CHARGER_REG_ALARM_WARNING		0x16
+ 
+-#define SBS_CHARGER_STATUS_CHARGE_INHIBITED	BIT(1)
++#define SBS_CHARGER_STATUS_CHARGE_INHIBITED	BIT(0)
+ #define SBS_CHARGER_STATUS_RES_COLD		BIT(9)
+ #define SBS_CHARGER_STATUS_RES_HOT		BIT(10)
+ #define SBS_CHARGER_STATUS_BATTERY_PRESENT	BIT(14)
+-- 
+2.17.1
+

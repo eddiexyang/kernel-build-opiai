@@ -1,0 +1,56 @@
+From 4643975bd6d667b77f6132470477662dd73919dc Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Fri, 29 Apr 2022 09:53:37 +0800
+Subject: [PATCH 2847/4585] [Backport] net: cpsw: add missing of_node_put() in
+ cpsw_probe_dt()
+
+stable inclusion
+from stable-v5.10.115
+commit 8459485db70c8d1371062657d3988c5c1ff008ca
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5FTC5
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8459485db70c8d1371062657d3988c5c1ff008ca
+
+--------------------------------
+
+commit 95098d5ac2551769807031444e55a0da5d4f0952 upstream.
+
+'tmp_node' need be put before returning from cpsw_probe_dt(),
+so add missing of_node_put() in error path.
+
+Fixes: ed3525eda4c4 ("net: ethernet: ti: introduce cpsw switchdev based driver part 1 - dual-emac")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/net/ethernet/ti/cpsw_new.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/ti/cpsw_new.c b/drivers/net/ethernet/ti/cpsw_new.c
+index 3cc5884b7c40..971f0d4bd24d 100644
+--- a/drivers/net/ethernet/ti/cpsw_new.c
++++ b/drivers/net/ethernet/ti/cpsw_new.c
+@@ -1255,8 +1255,10 @@ static int cpsw_probe_dt(struct cpsw_common *cpsw)
+ 	data->slave_data = devm_kcalloc(dev, CPSW_SLAVE_PORTS_NUM,
+ 					sizeof(struct cpsw_slave_data),
+ 					GFP_KERNEL);
+-	if (!data->slave_data)
++	if (!data->slave_data) {
++		of_node_put(tmp_node);
+ 		return -ENOMEM;
++	}
+ 
+ 	/* Populate all the child nodes here...
+ 	 */
+@@ -1353,6 +1355,7 @@ static int cpsw_probe_dt(struct cpsw_common *cpsw)
+ 
+ err_node_put:
+ 	of_node_put(port_np);
++	of_node_put(tmp_node);
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

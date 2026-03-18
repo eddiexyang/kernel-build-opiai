@@ -1,0 +1,46 @@
+From 026087d32dfa22701191f502f25477f1e08e372b Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Tue, 23 Aug 2022 10:46:50 -0700
+Subject: [PATCH 127/595] [Backport] net: Fix a data-race around
+ sysctl_tstamp_allow_data.
+
+stable inclusion
+from stable-v5.10.140
+commit 8db070463e3ebedf81dfcc1d8bc51f46e751872f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5W3GQ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8db070463e3ebedf81dfcc1d8bc51f46e751872f
+
+--------------------------------
+
+[ Upstream commit d2154b0afa73c0159b2856f875c6b4fe7cf6a95e ]
+
+While reading sysctl_tstamp_allow_data, it can be changed
+concurrently.  Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: b245be1f4db1 ("net-timestamp: no-payload only sysctl")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/core/skbuff.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index 1aa1be87238b..bb31ac64ec38 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -4768,7 +4768,7 @@ static bool skb_may_tx_timestamp(struct sock *sk, bool tsonly)
+ {
+ 	bool ret;
+ 
+-	if (likely(sysctl_tstamp_allow_data || tsonly))
++	if (likely(READ_ONCE(sysctl_tstamp_allow_data) || tsonly))
+ 		return true;
+ 
+ 	read_lock_bh(&sk->sk_callback_lock);
+-- 
+2.17.1
+

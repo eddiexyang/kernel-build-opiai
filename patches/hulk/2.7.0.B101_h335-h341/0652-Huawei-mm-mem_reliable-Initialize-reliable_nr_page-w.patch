@@ -1,0 +1,73 @@
+From b6c39b15d9809cfb48ef3db5ef10ecab62e448ed Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Thu, 30 Mar 2023 11:41:12 +0800
+Subject: [PATCH 652/921] [Huawei] mm: mem_reliable: Initialize
+ reliable_nr_page when when mm_init()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6RKHX
+
+--------------------------------
+
+After forking, we found that child process have a reliable page size twice
+that of its parent process which is erroneous.
+
+Upon examining the mm_struct structure, it was discovered that
+reliable_nr_page should be initialized to 0, similar to how RSS is
+initialized during mm_init(). This particular problem that arises during
+forking is merely one such example.
+
+To address this issue, we can simply set reliable_nr_page to 0 during
+mm_init().
+
+Fixes: 08966e4ea85c ("proc: Count reliable memory usage of reliable tasks")
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ include/linux/mem_reliable.h | 9 +++++++++
+ kernel/fork.c                | 1 +
+ 2 files changed, 10 insertions(+)
+
+diff --git a/include/linux/mem_reliable.h b/include/linux/mem_reliable.h
+index 003be6463237..0715c24bab5c 100644
+--- a/include/linux/mem_reliable.h
++++ b/include/linux/mem_reliable.h
+@@ -151,6 +151,14 @@ static inline bool shmem_prepare_alloc(gfp_t *gfp_mask)
+ 
+ 	return false;
+ }
++
++static inline void reliable_clear_page_counter(struct mm_struct *mm)
++{
++	if (!mem_reliable_is_enabled())
++		return;
++
++	atomic_long_set(&mm->reliable_nr_page, 0);
++}
+ #else
+ #define reliable_enabled 0
+ #define pagecache_use_reliable_mem 0
+@@ -195,6 +203,7 @@ static inline void reliable_page_counter(struct page *page,
+ static inline void reliable_report_usage(struct seq_file *m,
+ 		struct mm_struct *mm) {}
+ static inline bool shmem_prepare_alloc(gfp_t *gfp_mask) { return true; }
++static inline void reliable_clear_page_counter(struct mm_struct *mm) {}
+ #endif
+ 
+ #endif
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 3f0b2d3d661f..010e0c1fad5a 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1057,6 +1057,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
+ 	atomic_set(&mm->has_pinned, 0);
+ 	atomic64_set(&mm->pinned_vm, 0);
+ 	memset(&mm->rss_stat, 0, sizeof(mm->rss_stat));
++	reliable_clear_page_counter(mm);
+ 	spin_lock_init(&mm->page_table_lock);
+ 	spin_lock_init(&mm->arg_lock);
+ 	mm_init_cpumask(mm);
+-- 
+2.17.1
+

@@ -1,0 +1,31 @@
+From 4239a9cc5421fe4328477eff96e54f0e98c0c885 Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Tue, 25 Oct 2022 11:24:09 +0000
+Subject: [PATCH 1/4] iommu: Add a new attribute to enable the use of TTB1 for
+ the domain
+
+-------------------------------------------
+
+Add a new domain attribute, the domain of this attribute allows the
+SMMU to use the address space specified in TTB1.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ include/linux/iommu.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/linux/iommu.h b/include/linux/iommu.h
+index 5202483d0..0f7d29ab9 100644
+--- a/include/linux/iommu.h
++++ b/include/linux/iommu.h
+@@ -123,6 +123,7 @@ enum iommu_attr {
+ 	DOMAIN_ATTR_FSL_PAMUV1,
+ 	DOMAIN_ATTR_NESTING,	/* two stages of translation */
+ 	DOMAIN_ATTR_DMA_USE_FLUSH_QUEUE,
++	DOMAIN_ATTR_TTB1,
+ 	DOMAIN_ATTR_MAX,
+ };
+ 
+-- 
+2.17.1
+

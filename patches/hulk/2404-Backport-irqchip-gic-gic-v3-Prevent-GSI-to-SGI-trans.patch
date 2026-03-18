@@ -1,0 +1,75 @@
+From 4e7551b1cb75f65d177e05718bcb04cedc96437e Mon Sep 17 00:00:00 2001
+From: Andre Przywara <andre.przywara@arm.com>
+Date: Mon, 4 Apr 2022 12:08:42 +0100
+Subject: [PATCH 2404/2592] [Backport] irqchip/gic, gic-v3: Prevent GSI to SGI
+ translations
+
+stable inclusion
+from stable-v5.10.111
+commit 5973f7507a73878653de7f27f4a433c9a8ba2690
+bugzilla: https://gitee.com/openeuler/kernel/
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=5973f7507a73878653de7f27f4a433c9a8ba2690
+
+--------------------------------
+
+commit 544808f7e21cb9ccdb8f3aa7de594c05b1419061 upstream.
+
+At the moment the GIC IRQ domain translation routine happily converts
+ACPI table GSI numbers below 16 to GIC SGIs (Software Generated
+Interrupts aka IPIs). On the Devicetree side we explicitly forbid this
+translation, actually the function will never return HWIRQs below 16 when
+using a DT based domain translation.
+
+We expect SGIs to be handled in the first part of the function, and any
+further occurrence should be treated as a firmware bug, so add a check
+and print to report this explicitly and avoid lengthy debug sessions.
+
+Fixes: 64b499d8df40 ("irqchip/gic-v3: Configure SGIs as standard interrupts")
+Signed-off-by: Andre Przywara <andre.przywara@arm.com>
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20220404110842.2882446-1-andre.przywara@arm.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/irqchip/irq-gic-v3.c | 6 ++++++
+ drivers/irqchip/irq-gic.c    | 6 ++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/irqchip/irq-gic-v3.c b/drivers/irqchip/irq-gic-v3.c
+index b8ab2a88c93d..1797b961d465 100644
+--- a/drivers/irqchip/irq-gic-v3.c
++++ b/drivers/irqchip/irq-gic-v3.c
+@@ -1560,6 +1560,12 @@ static int gic_irq_domain_translate(struct irq_domain *d,
+ 		if(fwspec->param_count != 2)
+ 			return -EINVAL;
+ 
++		if (fwspec->param[0] < 16) {
++			pr_err(FW_BUG "Illegal GSI%d translation request\n",
++			       fwspec->param[0]);
++			return -EINVAL;
++		}
++
+ 		*hwirq = fwspec->param[0];
+ 		*type = fwspec->param[1];
+ 
+diff --git a/drivers/irqchip/irq-gic.c b/drivers/irqchip/irq-gic.c
+index 176f5f06432d..205cbd24ff20 100644
+--- a/drivers/irqchip/irq-gic.c
++++ b/drivers/irqchip/irq-gic.c
+@@ -1094,6 +1094,12 @@ static int gic_irq_domain_translate(struct irq_domain *d,
+ 		if(fwspec->param_count != 2)
+ 			return -EINVAL;
+ 
++		if (fwspec->param[0] < 16) {
++			pr_err(FW_BUG "Illegal GSI%d translation request\n",
++			       fwspec->param[0]);
++			return -EINVAL;
++		}
++
+ 		*hwirq = fwspec->param[0];
+ 		*type = fwspec->param[1];
+ 
+-- 
+2.17.1
+

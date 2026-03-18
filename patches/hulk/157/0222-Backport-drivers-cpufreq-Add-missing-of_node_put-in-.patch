@@ -1,0 +1,47 @@
+From cbec33bd19654bac9d5fa1faa4949bf12feb9bbd Mon Sep 17 00:00:00 2001
+From: Liang He <windhl@126.com>
+Date: Wed, 15 Jun 2022 17:48:07 +0800
+Subject: [PATCH 222/261] [Backport] drivers: cpufreq: Add missing
+ of_node_put() in qoriq-cpufreq.c
+
+stable inclusion
+from stable-v5.10.129
+commit 652fd40eb01cc2c9348af293dbc7b1983a91e958
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PD6F
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=652fd40eb01cc2c9348af293dbc7b1983a91e958
+
+--------------------------------
+
+[ Upstream commit 4ff5a9b6d95f3524bf6d27147df497eb21968300 ]
+
+In qoriq_cpufreq_probe(), of_find_matching_node() will return a
+node pointer with refcount incremented. We should use of_node_put()
+when it is not used anymore.
+
+Fixes: 157f527639da ("cpufreq: qoriq: convert to a platform driver")
+[ Viresh: Fixed Author's name in commit log ]
+Signed-off-by: Liang He <windhl@126.com>
+Signed-off-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ drivers/cpufreq/qoriq-cpufreq.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/cpufreq/qoriq-cpufreq.c b/drivers/cpufreq/qoriq-cpufreq.c
+index 6b6b20da2bcf..573b417e1483 100644
+--- a/drivers/cpufreq/qoriq-cpufreq.c
++++ b/drivers/cpufreq/qoriq-cpufreq.c
+@@ -275,6 +275,7 @@ static int qoriq_cpufreq_probe(struct platform_device *pdev)
+ 
+ 	np = of_find_matching_node(NULL, qoriq_cpufreq_blacklist);
+ 	if (np) {
++		of_node_put(np);
+ 		dev_info(&pdev->dev, "Disabling due to erratum A-008083");
+ 		return -ENODEV;
+ 	}
+-- 
+2.17.1
+

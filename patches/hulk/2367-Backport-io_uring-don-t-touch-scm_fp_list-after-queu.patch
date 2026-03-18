@@ -1,0 +1,52 @@
+From ecfbc851dad1b0251046650af8defb4c5298b46c Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Wed, 6 Apr 2022 12:43:58 +0100
+Subject: [PATCH 2367/2592] [Backport] io_uring: don't touch scm_fp_list after
+ queueing skb
+
+stable inclusion
+from stable-v5.10.111
+commit aed30a2054060e470db02eaaf352c14dc38aa611
+bugzilla: https://gitee.com/openeuler/kernel/
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=aed30a2054060e470db02eaaf352c14dc38aa611
+
+--------------------------------
+
+[ Upstream commit a07211e3001435fe8591b992464cd8d5e3c98c5a ]
+
+It's safer to not touch scm_fp_list after we queued an skb to which it
+was assigned, there might be races lurking if we screw subtle sync
+guarantees on the io_uring side.
+
+Fixes: 6b06314c47e14 ("io_uring: add file set registration")
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/io_uring.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index a1c2c04b8ca0..3da9c6f457ae 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -7314,8 +7314,12 @@ static int __io_sqe_files_scm(struct io_ring_ctx *ctx, int nr, int offset)
+ 		refcount_add(skb->truesize, &sk->sk_wmem_alloc);
+ 		skb_queue_head(&sk->sk_receive_queue, skb);
+ 
+-		for (i = 0; i < nr_files; i++)
+-			fput(fpl->fp[i]);
++		for (i = 0; i < nr; i++) {
++			struct file *file = io_file_from_index(ctx, i + offset);
++
++			if (file)
++				fput(file);
++		}
+ 	} else {
+ 		kfree_skb(skb);
+ 		free_uid(fpl->user);
+-- 
+2.17.1
+

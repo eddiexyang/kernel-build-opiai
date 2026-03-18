@@ -1,0 +1,52 @@
+From ea21b0530985446d7d7a4c9654efd02bcabd36bf Mon Sep 17 00:00:00 2001
+From: Ye Bin <yebin10@huawei.com>
+Date: Wed, 23 Nov 2022 17:55:06 +0800
+Subject: [PATCH 1236/1398] [Backport] mmc: mmc_test: Fix removal of debugfs
+ file
+
+stable inclusion
+from stable-v5.10.158
+commit b79be962b567e857470b454d564baea5014ee94b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68YE9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b79be962b567e857470b454d564baea5014ee94b
+
+--------------------------------
+
+commit f4307b4df1c28842bb1950ff0e1b97e17031b17f upstream.
+
+In __mmc_test_register_dbgfs_file(), we need to assign 'file', as it's
+being used when removing the debugfs files when the mmc_test module is
+removed.
+
+Fixes: a04c50aaa916 ("mmc: core: no need to check return value of debugfs_create functions")
+Signed-off-by: Ye Bin <yebin10@huawei.com>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Cc: stable@vger.kernel.org
+[Ulf: Re-wrote the commit msg]
+Link: https://lore.kernel.org/r/20221123095506.1965691-1-yebin@huaweicloud.com
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/mmc/core/mmc_test.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/core/mmc_test.c b/drivers/mmc/core/mmc_test.c
+index 152e7525ed33..b9b6f000154b 100644
+--- a/drivers/mmc/core/mmc_test.c
++++ b/drivers/mmc/core/mmc_test.c
+@@ -3195,7 +3195,8 @@ static int __mmc_test_register_dbgfs_file(struct mmc_card *card,
+ 	struct mmc_test_dbgfs_file *df;
+ 
+ 	if (card->debugfs_root)
+-		debugfs_create_file(name, mode, card->debugfs_root, card, fops);
++		file = debugfs_create_file(name, mode, card->debugfs_root,
++					   card, fops);
+ 
+ 	df = kmalloc(sizeof(*df), GFP_KERNEL);
+ 	if (!df) {
+-- 
+2.17.1
+

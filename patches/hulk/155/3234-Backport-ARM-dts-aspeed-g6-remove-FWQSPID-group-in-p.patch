@@ -1,0 +1,52 @@
+From 93ed0ac702dfa7ec13930681eeca70ac35b908aa Mon Sep 17 00:00:00 2001
+From: Jae Hyun Yoo <quic_jaehyoo@quicinc.com>
+Date: Tue, 29 Mar 2022 10:39:26 -0700
+Subject: [PATCH 3234/4585] [Backport] ARM: dts: aspeed-g6: remove FWQSPID
+ group in pinctrl dtsi
+
+stable inclusion
+from stable-v5.10.118
+commit d8ca684c3d3bc9155353fc24b84674e21128f1f6
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5G0WC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d8ca684c3d3bc9155353fc24b84674e21128f1f6
+
+--------------------------------
+
+[ Upstream commit efddaa397cceefb61476e383c26fafd1f8ab6356 ]
+
+FWSPIDQ2 and FWSPIDQ3 are not part of FWSPI18 interface so remove
+FWQSPID group in pinctrl dtsi. These pins must be used with the
+FWSPI pins that are dedicated for boot SPI interface which provides
+same 3.3v logic level.
+
+Fixes: 2f6edb6bcb2f ("ARM: dts: aspeed: Fix AST2600 quad spi group")
+Signed-off-by: Jae Hyun Yoo <quic_jaehyoo@quicinc.com>
+Reviewed-by: Andrew Jeffery <andrew@aj.id.au>
+Link: https://lore.kernel.org/r/20220329173932.2588289-2-quic_jaehyoo@quicinc.com
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi b/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi
+index a362714ae9fc..546ce37f3f4e 100644
+--- a/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi
++++ b/arch/arm/boot/dts/aspeed-g6-pinctrl.dtsi
+@@ -117,11 +117,6 @@
+ 		groups = "FWSPID";
+ 	};
+ 
+-	pinctrl_fwqspid_default: fwqspid_default {
+-		function = "FWSPID";
+-		groups = "FWQSPID";
+-	};
+-
+ 	pinctrl_fwspiwp_default: fwspiwp_default {
+ 		function = "FWSPIWP";
+ 		groups = "FWSPIWP";
+-- 
+2.17.1
+

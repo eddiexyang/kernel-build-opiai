@@ -1,0 +1,49 @@
+From cd81cf1ddebac04f68a2e337a4d9ea37b8822f2d Mon Sep 17 00:00:00 2001
+From: Chengchang Tang <tangchengchang@huawei.com>
+Date: Tue, 5 Jul 2022 17:56:25 +0800
+Subject: [PATCH 4395/4585] [Backport] RDMA/hns: Remove unnecessary check for
+ the sgid_attr when modifying QP
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit c2fcafa78a33576b7fe47f5e4f85d413a62c2fe2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5CHIG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c2fcafa78a33576b7fe47f5e4f85d413a62c2fe2
+
+--------------------------------
+
+The sgid_attr cannot be null in this scenario. This judgment is redundant.
+
+Fixes: 606bf89e98ef ("RDMA/hns: Refactor for hns_roce_v2_modify_qp function")
+Link: https://lore.kernel.org/r/20220409083254.9696-2-liangwenpeng@huawei.com
+Signed-off-by: Chengchang Tang <tangchengchang@huawei.com>
+Signed-off-by: Wenpeng Liang <liangwenpeng@huawei.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Zhengfeng Luo <luozhengfeng@h-partners.com>
+Reviewed-by: Yangyang Li <liyangyang20@huawei.com>
+Reviewed-by: Yue Haibing <yuehaibing@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ drivers/infiniband/hw/hns/hns_roce_hw_v2.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+index 936176712758..59b1956671e5 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+@@ -4650,9 +4650,7 @@ static int hns_roce_v2_set_path(struct ib_qp *ibqp,
+ 		if (ret)
+ 			return ret;
+ 
+-		if (gid_attr)
+-			is_udp = (gid_attr->gid_type ==
+-				 IB_GID_TYPE_ROCE_UDP_ENCAP);
++		is_udp = (gid_attr->gid_type == IB_GID_TYPE_ROCE_UDP_ENCAP);
+ 	}
+ 
+ 	/* Only HIP08 needs to set the vlan_en bits in QPC */
+-- 
+2.17.1
+

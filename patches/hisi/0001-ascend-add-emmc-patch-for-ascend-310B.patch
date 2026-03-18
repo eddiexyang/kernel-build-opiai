@@ -1,0 +1,1993 @@
+From eb67d1564a19090442f4b83fba6e035ec0681b3c Mon Sep 17 00:00:00 2001
+From: huawei <huawei@huawei.com>
+Date: Tue, 14 Nov 2023 11:30:29 +0800
+Subject: [PATCH] [Huawei] ascend: add emmc patch for ascend 310B
+
+Offering:ascend
+Reference:NA
+Type:requirement
+DTS/AR:AR20231030203988
+reason:emmc efuse dc spec flag
+---
+ drivers/mmc/Kconfig                 |   7 +-
+ drivers/mmc/core/core.c             |   2 +-
+ drivers/mmc/host/Kconfig            |  16 +
+ drivers/mmc/host/Makefile           |   2 +
+ drivers/mmc/host/emmc_phy.c         | 266 ++++++++
+ drivers/mmc/host/emmc_phy.h         |  13 +
+ drivers/mmc/host/mmc_misc.h         |  48 ++
+ drivers/mmc/host/mmc_misc_1910b.c   | 456 +++++++++++++
+ drivers/mmc/host/sdhci_zodiac_mmc.c | 993 ++++++++++++++++++++++++++++
+ drivers/mmc/host/sdhci_zodiac_mmc.h |  74 +++
+ 10 files changed, 1875 insertions(+), 2 deletions(-)
+ mode change 100644 => 100755 drivers/mmc/core/core.c
+ create mode 100755 drivers/mmc/host/emmc_phy.c
+ create mode 100755 drivers/mmc/host/emmc_phy.h
+ create mode 100755 drivers/mmc/host/mmc_misc.h
+ create mode 100755 drivers/mmc/host/mmc_misc_1910b.c
+ create mode 100755 drivers/mmc/host/sdhci_zodiac_mmc.c
+ create mode 100755 drivers/mmc/host/sdhci_zodiac_mmc.h
+
+diff --git a/drivers/mmc/Kconfig b/drivers/mmc/Kconfig
+index 2436eb499..90eec7a8d 100644
+--- a/drivers/mmc/Kconfig
++++ b/drivers/mmc/Kconfig
+@@ -12,7 +12,12 @@ menuconfig MMC
+ 
+ 	  If you want MMC/SD/SDIO support, you should say Y here and
+ 	  also to your specific host controller driver.
+-
++config ZODIAC_MMC
++	bool "ZODIAC MMC"
++	depends on MMC
++	default y
++	help
++	   config ZODIAC mmc driver
+ if MMC
+ 
+ source "drivers/mmc/core/Kconfig"
+diff --git a/drivers/mmc/core/core.c b/drivers/mmc/core/core.c
+old mode 100644
+new mode 100755
+index 8f2465394..af95fd850
+--- a/drivers/mmc/core/core.c
++++ b/drivers/mmc/core/core.c
+@@ -1372,7 +1372,7 @@ void mmc_power_off(struct mmc_host *host)
+ 	 * XO-1.5, require a short delay after poweroff before the card
+ 	 * can be successfully turned on again.
+ 	 */
+-	mmc_delay(1);
++	mmc_delay(100);
+ }
+ 
+ void mmc_power_cycle(struct mmc_host *host, u32 ocr)
+diff --git a/drivers/mmc/host/Kconfig b/drivers/mmc/host/Kconfig
+index 82e1fbd6b..47da878a8 100644
+--- a/drivers/mmc/host/Kconfig
++++ b/drivers/mmc/host/Kconfig
+@@ -528,6 +528,22 @@ config MMC_AU1X
+ 
+ 	  If unsure, say N.
+ 
++config MMC_SDHCI_ZODIAC
++	tristate "SDHCI OF support for the zodiac SDHCI controllers"
++	depends on MMC_SDHCI_PLTFM
++	help
++	  If you have a controller with this interface, say Y or M here.
++config MMC_SDHCI_ZODIAC_310B
++	tristate "SDHCI OF support for the Ascend310B zodiac SDHCI controllers"
++	depends on MMC_SDHCI_ZODIAC
++	help
++	  This selects the Arasan Secure Digital Host Controller Interface
++	  (SDHCI). This hardware is found e.g. in Xilinx' Zynq SoC.
++
++	  If you have a controller with this interface, say Y or M here.
++
++	  If unsure, say N.
++
+ config MMC_ATMELMCI
+ 	tristate "Atmel SD/MMC Driver (Multimedia Card Interface)"
+ 	depends on ARCH_AT91
+diff --git a/drivers/mmc/host/Makefile b/drivers/mmc/host/Makefile
+index 451c25fc2..53590de73 100644
+--- a/drivers/mmc/host/Makefile
++++ b/drivers/mmc/host/Makefile
+@@ -15,6 +15,8 @@ obj-$(CONFIG_MMC_SDHCI_PCI)	+= sdhci-pci.o
+ sdhci-pci-y			+= sdhci-pci-core.o sdhci-pci-o2micro.o sdhci-pci-arasan.o \
+ 				   sdhci-pci-dwc-mshc.o sdhci-pci-gli.o
+ obj-$(subst m,y,$(CONFIG_MMC_SDHCI_PCI))	+= sdhci-pci-data.o
++obj-$(CONFIG_MMC_SDHCI_ZODIAC_310B)      += sdhci_zodiac_mmc_310b.o
++sdhci_zodiac_mmc_310b-objs := sdhci_zodiac_mmc.o mmc_misc_1910b.o emmc_phy.o
+ obj-$(CONFIG_MMC_SDHCI_ACPI)	+= sdhci-acpi.o
+ obj-$(CONFIG_MMC_SDHCI_PXAV3)	+= sdhci-pxav3.o
+ obj-$(CONFIG_MMC_SDHCI_PXAV2)	+= sdhci-pxav2.o
+diff --git a/drivers/mmc/host/emmc_phy.c b/drivers/mmc/host/emmc_phy.c
+new file mode 100755
+index 000000000..7083be7aa
+--- /dev/null
++++ b/drivers/mmc/host/emmc_phy.c
+@@ -0,0 +1,266 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: emmc phy
++ * Author:
++ * Create: 2022/08/13
++ */
++#include <linux/delay.h>
++#include <linux/of.h>
++#include <linux/bitfield.h>
++#include <linux/of_address.h>
++#include <linux/platform_device.h>
++#include <linux/mmc/host.h>
++#include "sdhci-pltfm.h"
++#include "sdhci_zodiac_mmc.h"
++#include "emmc_phy.h"
++
++/* emmc phy register */
++#define PHY_PHYINITCTRL 0x4
++#define INIT_EN 0x1
++#define DLYMEAS_EN (0x1 << 2)
++#define ZCAL_EN (0x1 << 3)
++#define BIST_CLK (0x1 << 17)
++#define PHY_PHYINITSTAT 0x8
++/* This register specify the control the ZQ calibration */
++#define PHY_IMPCTRL 0x24
++#define IMPCTRL_ZCOM_RSP_DLY_MASK 0x3F
++
++/* This register specify the ZQ calibration result */
++#define PHY_IMPSTATUS 0x28
++#define PHY_DATENA_DLY 0x23C
++#define PHY_PHYCTRL2 0x248
++#define PHY_DLYMEAS_UPDATE (0x1 << 14)
++#define PHY_DLYMEAS_1T_SEL (0x1 << 21)
++#define PHY_DLY_CTL 0x250
++#define DLY_CODE_1T_MASK 0x7FF
++#define PHY_DLY_CTL1 0x254
++#define DLY_3_CODE_MASK 0x3FF
++#define DLY_3_CODE_SHIFT 8
++#define DLY_2_CODE_MASK 0x7FF
++#define DLY_2_CODE_SHIFT 8
++#define DLY_1_CODE_MASK 0x3FF
++#define DLY_1_CODE_SHIFT 21
++#define INV_TX_CLK (1UL << 31)
++
++#define PHY_DLY_CTL2 0x258
++#define PHY_IOCTL_PUPD 0x260
++#define PUPD_EN_DATA 0xFF
++#define PUPD_EN_STROBE 0x100
++#define PUPD_EN_CMD 0x200
++#define PULLUP_DATA (0xFF << 16)
++#define PULLUP_CMD (0x200 << 16)
++#define PHY_IOCTL_RONSEL_1 0x264
++#define PHY_IOCTL_RONSEL_2 0x268
++#define EMMC_RONSEL_2 0x7FF
++#define PHY_IOCTL_IOE 0x26c
++#define DA_EMMC_E (0x1 << 10)
++#define DA_EMMC_IE (0x7FF << 16)
++#define PHY_IOCTL_INMODE 0x28c
++#define RG_EMMC_INMODE 0x7FF
++#define WAIT_DONE_MAX_TIMES 30
++
++static inline void sdhci_phy_writel(struct sdhci_host *host, u32 val, u32 reg)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    writel(val, zodiac_host->phy.io_base + reg);
++}
++
++static inline u32 sdhci_phy_readl(struct sdhci_host *host, u32 reg)
++{
++    u32 ret;
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    ret = readl(zodiac_host->phy.io_base + reg);
++    return ret;
++}
++
++void sdhci_zodiac_dump_phy_regs(struct sdhci_host *host)
++{
++    pr_err("Start dump emmc phy register\n");
++    pr_err("==================== emmc phy ====================");
++    pr_err("PHY init ctrl: 0x%08x | init stat: 0x%08x\n", sdhci_phy_readl(host, PHY_PHYINITCTRL),
++        sdhci_phy_readl(host, PHY_PHYINITSTAT));
++    pr_err("PHY imp ctrl: 0x%08x | imp stat: 0x%08x\n", sdhci_phy_readl(host, PHY_IMPCTRL),
++        sdhci_phy_readl(host, PHY_IMPSTATUS));
++    pr_err("PHY dly ctrl: 0x%08x\n", sdhci_phy_readl(host, PHY_DLY_CTL));
++    pr_err("PHY dly ctrl1: 0x%08x | dly ctrl2: 0x%08x\n", sdhci_phy_readl(host, PHY_DLY_CTL1),
++        sdhci_phy_readl(host, PHY_DLY_CTL2));
++    pr_err("PHY drv1: 0x%08x | drv2: 0x%08x\n", sdhci_phy_readl(host, PHY_IOCTL_RONSEL_1),
++        sdhci_phy_readl(host, PHY_IOCTL_RONSEL_2));
++}
++
++static int sdhci_combo_phy_zq_cal(struct sdhci_host *host)
++{
++    u32 count;
++    u32 reg_val;
++
++    reg_val = sdhci_phy_readl(host, PHY_IMPCTRL);
++    reg_val &= ~(IMPCTRL_ZCOM_RSP_DLY_MASK);
++    /* zcom_rsp_dly set as d'60 */
++    reg_val |= (IMPCTRL_ZCOM_RSP_DLY_MASK & 0x3C);
++    sdhci_phy_writel(host, reg_val, PHY_IMPCTRL);
++
++    reg_val = sdhci_phy_readl(host, PHY_PHYINITCTRL);
++    /* zcal_en set 1 to start impedance cal */
++    reg_val |= ZCAL_EN;
++    /* disable delay measuremnt to wait zq calc ready */
++    reg_val &= ~DLYMEAS_EN;
++    /* int_en & zcal_en all set to 1 */
++    reg_val |= INIT_EN;
++    sdhci_phy_writel(host, reg_val, PHY_PHYINITCTRL);
++
++    count = 0;
++    do {
++        if (count > WAIT_DONE_MAX_TIMES) { /*  delay total 3000us */
++            pr_err("phy_zq_cal wait timeout\n");
++            pr_err("PHY init stat: 0x%08x\n", sdhci_phy_readl(host, PHY_PHYINITSTAT));
++            pr_err("the IMPSTATUS is %x\n", sdhci_phy_readl(host, PHY_IMPSTATUS));
++            return -ETIMEDOUT;
++        }
++        udelay(100); // 100us
++        count++;
++        reg_val = sdhci_phy_readl(host, PHY_PHYINITCTRL);
++    } while (reg_val & INIT_EN);
++
++    return 0;
++}
++
++int sdhci_combo_phy_init(struct sdhci_host *host)
++{
++    u32 reg_val;
++    int ret;
++
++    // close bist clk
++    reg_val = sdhci_phy_readl(host, PHY_PHYINITCTRL);
++    reg_val |= BIST_CLK;
++    sdhci_phy_writel(host, reg_val, PHY_PHYINITCTRL);
++    // close data enable delay
++    sdhci_phy_writel(host, 0, PHY_DATENA_DLY);
++
++    reg_val = PUPD_EN_DATA | PUPD_EN_STROBE | PUPD_EN_CMD | PULLUP_DATA | PULLUP_CMD;
++    // pad pull up,clk na,strb pull down,cmd/data pull up
++    sdhci_phy_writel(host, reg_val, PHY_IOCTL_PUPD);
++
++    /* Output impedance 50ohm */
++    reg_val = sdhci_phy_readl(host, PHY_IOCTL_RONSEL_2);
++    reg_val |= EMMC_RONSEL_2;
++    sdhci_phy_writel(host, reg_val, PHY_IOCTL_RONSEL_2);
++
++    /* enable phy input output */
++    reg_val = sdhci_phy_readl(host, PHY_IOCTL_IOE);
++    reg_val |= DA_EMMC_E | DA_EMMC_IE;
++    sdhci_phy_writel(host, reg_val, PHY_IOCTL_IOE);
++
++    reg_val = sdhci_phy_readl(host, PHY_IOCTL_INMODE);
++    reg_val &= ~RG_EMMC_INMODE;
++    sdhci_phy_writel(host, reg_val, PHY_IOCTL_INMODE);
++
++    // phy tx clk negate
++    reg_val = sdhci_phy_readl(host, PHY_DLY_CTL1);
++    reg_val |= INV_TX_CLK;
++    sdhci_phy_writel(host, reg_val, PHY_DLY_CTL1);
++
++    /* do ZQ Calibration and so on, to be finish */
++    ret = sdhci_combo_phy_zq_cal(host);
++    if (ret != 0) {
++        pr_err("sdhci_combo_phy_zq_cal fail!\r\n");
++        return ret;
++    }
++    return 0;
++}
++
++static inline u32 sdhci_get_phy_delay1(u32 ratio, u32 margin, u32 delaymeas_code)
++{
++    if (ratio != 0) {
++        return ((delaymeas_code / ratio) & 0x7) + ((delaymeas_code / ratio) & 0x3F8) + margin;
++    } else {
++        return margin;
++    }
++}
++
++static void sdhci_config_phy_delay_ctl(struct sdhci_host *host, struct mmc_ios *ios)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    u32 reg_val;
++    u32 delaymeas_code;
++    u32 delay1;
++    u32 delay2;
++    u32 delay3;
++
++    reg_val = sdhci_phy_readl(host, PHY_DLY_CTL);
++    delaymeas_code = reg_val & DLY_CODE_1T_MASK;
++    reg_val = sdhci_phy_readl(host, PHY_DLY_CTL1);
++    reg_val &= ~(DLY_1_CODE_MASK << DLY_1_CODE_SHIFT);
++
++    // set tx_clk
++    if (ios->timing == MMC_TIMING_MMC_HS200) {
++        delay1 = sdhci_get_phy_delay1(zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].ratio,
++            zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].margin, delaymeas_code);
++    } else if (ios->timing == MMC_TIMING_MMC_HS400) {
++        delay1 = sdhci_get_phy_delay1(zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].ratio,
++            zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].margin, delaymeas_code);
++    } else if (ios->timing == MMC_TIMING_MMC_DDR52) {
++        delay1 = sdhci_get_phy_delay1(zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].ratio,
++            zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].margin, delaymeas_code);
++    }
++
++    reg_val |= ((DLY_1_CODE_MASK & (delay1)) << DLY_1_CODE_SHIFT);
++    sdhci_phy_writel(host, reg_val, PHY_DLY_CTL1);
++
++    // DDR52 no tuning need config delay2 ，hs200 and hs400 tuning no need config delay2
++    if (ios->timing == MMC_TIMING_MMC_DDR52) {
++        reg_val = sdhci_phy_readl(host, PHY_DLY_CTL2);
++        reg_val &= ~(DLY_2_CODE_MASK << DLY_2_CODE_SHIFT);
++        delay2 = delaymeas_code / 2; // DDR52 1/2T, 1/2T measure, finally 1/4T
++        reg_val |= ((DLY_2_CODE_MASK & (delay2)) << DLY_2_CODE_SHIFT);
++        sdhci_phy_writel(host, reg_val, PHY_DLY_CTL2);
++    } else if (ios->timing == MMC_TIMING_MMC_HS400) {
++        // HS400 need config delay3
++        reg_val = sdhci_phy_readl(host, PHY_DLY_CTL1);
++        reg_val &= ~(DLY_3_CODE_MASK << DLY_3_CODE_SHIFT);
++        delay3 = ((delaymeas_code / 4) & 0x7) + ((delaymeas_code / 4) & 0x3F8);
++        reg_val |= ((DLY_3_CODE_MASK & (delay3)) << DLY_3_CODE_SHIFT);
++        sdhci_phy_writel(host, reg_val, PHY_DLY_CTL1);
++    }
++}
++
++int sdhci_combo_phy_delay_measurement(struct sdhci_host *host, struct mmc_ios *ios)
++{
++    u32 count;
++    u32 reg_val;
++
++    reg_val = sdhci_phy_readl(host, PHY_PHYCTRL2);
++    if (ios->timing == MMC_TIMING_MMC_DDR52) {
++        reg_val &= ~PHY_DLYMEAS_1T_SEL; // ddr52 1/2T measure
++    } else {
++        reg_val |= PHY_DLYMEAS_1T_SEL;
++    }
++    /* phy_dlymeas_update on */
++    reg_val |= PHY_DLYMEAS_UPDATE;
++    sdhci_phy_writel(host, reg_val, PHY_PHYCTRL2);
++
++    reg_val = sdhci_phy_readl(host, PHY_PHYINITCTRL);
++    reg_val &= ~ZCAL_EN;
++    reg_val |= (INIT_EN | DLYMEAS_EN);
++    sdhci_phy_writel(host, reg_val, PHY_PHYINITCTRL);
++    count = 0;
++    do {
++        if (count > WAIT_DONE_MAX_TIMES) { /* delay total 3000us */
++            pr_err("wait for delay measurement done timeout\n");
++            return -ETIMEDOUT;
++        }
++        udelay(100); // 100us
++        count++;
++        reg_val = sdhci_phy_readl(host, PHY_PHYINITCTRL);
++    } while (reg_val & INIT_EN);
++
++    // config delay 1 2 3
++    sdhci_config_phy_delay_ctl(host, ios);
++    reg_val = sdhci_phy_readl(host, PHY_PHYCTRL2);
++    /* phy_dlymeas_update off at dlymeas_done */
++    reg_val &= ~PHY_DLYMEAS_UPDATE;
++    sdhci_phy_writel(host, reg_val, PHY_PHYCTRL2);
++    return 0;
++}
+diff --git a/drivers/mmc/host/emmc_phy.h b/drivers/mmc/host/emmc_phy.h
+new file mode 100755
+index 000000000..e6c0cc8a1
+--- /dev/null
++++ b/drivers/mmc/host/emmc_phy.h
+@@ -0,0 +1,13 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: emmc phy
++ * Author:
++ * Create: 2022/08/13
++ */
++#ifndef __EMMC_PHY_H
++#define __EMMC_PHY_H
++
++void sdhci_zodiac_dump_phy_regs(struct sdhci_host *host);
++int sdhci_combo_phy_init(struct sdhci_host *host);
++int sdhci_combo_phy_delay_measurement(struct sdhci_host *host, struct mmc_ios *ios);
++#endif
+diff --git a/drivers/mmc/host/mmc_misc.h b/drivers/mmc/host/mmc_misc.h
+new file mode 100755
+index 000000000..5a8e21680
+--- /dev/null
++++ b/drivers/mmc/host/mmc_misc.h
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: mmc misc
++ * Author:
++ * Create: 2022/12/05
++ */
++#ifndef __MMC_MISC_H
++#define __MMC_MISC_H
++
++/**
++ * ip integration depends on top interface
++ */
++
++#include <linux/device.h>
++
++int hisi_subctrl_emmc_clkgate_enable(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_sd_clkgate_enable(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_clkgate_disable(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_sd_clkgate_disable(struct device *mmc_dev, u32 host_id);
++bool hisi_subctrl_emmc_clkgate_is_enabled(struct device *mmc_dev, u32 host_id);
++bool hisi_subctrl_sd_clkgate_is_enabled(struct device *mmc_dev, u32 host_id);
++
++int hisi_subctrl_emmc_phy_clkgate_enable(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_phy_clkgate_disable(struct device *mmc_dev, u32 host_id);
++bool hisi_subctrl_emmc_phy_clkgate_is_enabled(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_phy_reset_assert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_phy_reset_deassert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_phy_get_reset_status(struct device *mmc_dev, u32 host_id);
++
++int hisi_subctrl_emmc_reset_assert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_sd_reset_assert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_reset_deassert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_sd_reset_deassert(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_emmc_get_reset_status(struct device *mmc_dev, u32 host_id);
++int hisi_subctrl_sd_get_reset_status(struct device *mmc_dev, u32 host_id);
++
++int hisi_subctrl_emmc_set_clk_cfg(struct device *mmc_dev, u32 host_id, u32 sel, u32 div);
++int hisi_subctrl_sd_set_clk_cfg(struct device *mmc_dev, u32 host_id, u32 sel, u32 div);
++int hisi_subctrl_emmc_set_sample_clk(struct device *mmc_dev, u32 host_id, u32 sel);
++int hisi_subctrl_emmc_set_power_en(struct device *mmc_dev, u32 host_id, u32 en);
++int hisi_subctrl_sd_set_power_en(struct device *mmc_dev, u32 host_id, u32 en);
++int hisi_subctrl_sd_volt_switch_1v8(struct device *mmc_dev, u32 host_id, u32 set);
++
++int sdhci_zodiac_get_clk_rst_info(struct sdhci_zodiac_host *zodiac_host);
++
++int hisi_mmc_subctrl_init(u32 host_mode, u32 host_id, struct device *dev);
++
++#endif
+diff --git a/drivers/mmc/host/mmc_misc_1910b.c b/drivers/mmc/host/mmc_misc_1910b.c
+new file mode 100755
+index 000000000..c8c90137b
+--- /dev/null
++++ b/drivers/mmc/host/mmc_misc_1910b.c
+@@ -0,0 +1,456 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: emmc/sd misc driver, clk/reset and misc
++ * Author:
++ * Create: 2022/08/13
++ */
++#include <linux/delay.h>
++#include <linux/of.h>
++#include <linux/bitfield.h>
++#include <linux/of_address.h>
++#include <linux/platform_device.h>
++#include <linux/mmc/host.h>
++#include "sdhci-pltfm.h"
++#include "sdhci_zodiac_mmc.h"
++
++/* PREI SUBCTRL reg */
++#define SC_EMMC_PHY_RESET_REQ_REG 0xA60 /* EMMC PHY soft reset request control register */
++#define SRST_REQ_EMMC_PHY_TX (0x1 << 1)
++#define SRST_REQ_EMMC_PHY_RX (0x1 << 0)
++#define SC_EMMC_PHY_RESET_DREQ_REG 0xA64 /* EMMC PHY soft reset de-request control register */
++#define SRST_DREQ_EMMC_PHY_APB (0x1 << 2)
++#define SRST_DREQ_EMMC_PHY_TX (0x1 << 1)
++#define SRST_DREQ_EMMC_PHY_RX (0x1 << 0)
++#define SC_EMMC_PHY_RESET_ST_REG 0x5A60 /* EMMC PHY soft reset status register */
++#define SRST_ST_EMMC_PHY_TX (0x1 << 1)
++#define SRST_ST_EMMC_PHY_RX (0x1 << 0)
++#define SC_SD_RESET_REQ_REG 0xA68 /* SD Soft reset request control register */
++#define SRST_REQ_SD (0x1 << 1)
++#define SRST_REQ_SD_APB (0x1 << 0)
++#define SC_SD_RESET_DREQ_REG 0xA6c /* SD soft reset de-request control register */
++#define SRST_DREQ_SD (0x1 << 1)
++#define SRST_DREQ_SD_APB (0x1 << 0)
++#define SC_SD_RESET_ST_REG 0x5A68 /* SD soft reset status register */
++#define SRST_ST_SD  (0x1 << 1)
++#define SRST_ST_SD_APB (0x1 << 0)
++#define SC_EMMC_RESET_REQ_REG 0xA58 /* EMMC Soft reset request control register */
++#define SRST_REQ_EMMC (0x1 << 1)
++#define SRST_REQ_EMMC_APB (0x1 << 0)
++#define SC_EMMC_RESET_DREQ_REG 0xA5C /* EMMC soft reset de-request control register */
++#define SRST_DREQ_EMMC (0x1 << 1)
++#define SRST_DREQ_EMMC_APB (0x1 << 0)
++#define SC_EMMC_RESET_ST_REG 0x5A58 /* EMMC soft reset status register */
++#define SRST_ST_EMMC  (0x1 << 1)
++#define SRST_ST_EMMC_APB (0x1 << 0)
++
++#define SC_EMMC_ICG_EN_REG 0x360 /* EMMC clock enable control register */
++#define ICG_EN_EMMC (0x1 << 1)
++#define ICG_EN_EMMC_APB (0x1 << 0)
++#define SC_EMMC_ICG_DIS_REG 0x364 /* EMMC clock disable control register */
++#define ICG_DIS_EMMC (0x1 << 1)
++#define ICG_DIS_EMMC_APB (0x1 << 0)
++#define SC_EMMC_ICG_ST_REG 0x5360 /* EMMC clock status register */
++#define ICG_ST_EMMC (0x1 << 1)
++#define ICG_ST_EMMC_APB (0x1 << 0)
++#define SC_EMMC_PHY_ICG_EN_REG 0x368 /* EMMC PHY clock enable control register */
++#define ICG_EN_EMMC_PHY_APB (0x1 << 0)
++#define SC_EMMC_PHY_ICG_DIS_REG 0x36C /* EMMC PHY clock disable control register */
++#define ICG_DIS_EMMC_PHY_APB (0x1 << 0)
++#define SC_EMMC_PHY_ICG_ST_REG 0x5368 /* EMMC PHY clock status register */
++#define ICG_ST_EMMC_PHY_APB (0x1 << 0)
++#define SC_SD_ICG_EN_REG 0x370  /* SD clock enable control register */
++#define ICG_EN_SD (0x1 << 1)
++#define ICG_EN_SD_APB (0x1 << 0)
++#define SC_SD_ICG_DIS_REG 0x374 /* SD clock disable control register */
++#define ICG_DIS_SD (0x1 << 1)
++#define ICG_DIS_SD_APB (0x1 << 0)
++#define SC_SD_ICG_ST_REG 0x5370 /* SD clock status register */
++#define ICG_ST_SD (0x1 << 1)
++#define ICG_ST_SD_APB (0x1 << 0)
++
++#define SC_SD_CLK_CFG_REG 0x160
++#define SD_CLK_DIV_CFG  GENMASK(4, 1)
++#define SD_CLK_SEL BIT(0)
++#define SC_EMMC_CLK_CFG_REG 0x164
++#define EMMC_CLK_DIV_CFG  GENMASK(4, 1)
++#define EMMC_CLK_SEL BIT(0)
++#define SC_SAMPLE_CCLK_SEL_REG 0x2400
++#define EMMC_CLK_SEL_FIXED_CLK (0x0 << 0)
++#define EMMC_CLK_SEL_TUNED_CLK (0x1 << 0)
++
++#define EMMC_POWER_EN_CTRL 0x2204
++#define PAD_EMMC_POWER_EN_OUT BIT(0)
++#define PAD_SDIO_CARD_POWER_EN_OUT BIT(1)
++
++#define SC_SWITCH_S12V100_REG 0x150
++#define SW_SEL     BIT(2)
++#define SW_RST_IN  BIT(1)
++#define SW_EN      BIT(0)
++#define SC_SDIO_MS 0x3500
++#define SDIO_PAD_3V3 0x0
++#define SDIO_PAD_1V8 0x2
++#define PADMG003   0x80c // CLK
++#define PADMG004   0x810 // CMD
++#define PADMG005   0x814 // DATA0
++#define PADMG006   0x818 // DATA1
++#define PADMG007   0x81c // DATA2
++#define PADMG008   0x820 // DATA3
++
++enum {
++    MMC_0,
++    MMC_MAX_NUM
++};
++static void __iomem *g_emmc_subctrl_vbase[MMC_MAX_NUM] = {0};
++static void __iomem *g_sd_subctrl_vbase[MMC_MAX_NUM] = {0};
++
++#define PERI_SUB_CTRL_BASE 0x80130000
++#define SUB_CTRL_SIZE  0x10000
++int hisi_mmc_subctrl_init(u32 host_mode, u32 host_id, struct device *dev)
++{
++    int subctrl_id;
++
++    if (host_id > MMC_MAX_NUM) {
++        return -EINVAL;
++    }
++
++    if (host_mode == 0) {
++        g_emmc_subctrl_vbase[host_id] = devm_ioremap(dev, PERI_SUB_CTRL_BASE, SUB_CTRL_SIZE);
++        if (!g_emmc_subctrl_vbase[host_id]) {
++            dev_err(dev, "subctrl_id = %d devm_ioremap failed\n", subctrl_id);
++            g_emmc_subctrl_vbase[host_id] = NULL;
++            return -ENOMEM;
++        }
++    } else {
++        g_sd_subctrl_vbase[host_id] = devm_ioremap(dev, PERI_SUB_CTRL_BASE, SUB_CTRL_SIZE);
++        if (!g_sd_subctrl_vbase[host_id]) {
++            dev_err(dev, "subctrl_id = %d devm_ioremap failed\n", subctrl_id);
++            g_sd_subctrl_vbase[host_id] = NULL;
++            return -ENOMEM;
++        }
++    }
++    return 0;
++}
++
++static inline void sdhci_sctrl_writel(void __iomem * vbase, u32 val, u32 reg)
++{
++    writel(val, vbase + reg);
++}
++
++static inline u32 sdhci_sctrl_readl(void __iomem * vbase, u32 reg)
++{
++    u32 ret;
++    ret = readl(vbase + reg);
++    return ret;
++}
++
++int hisi_subctrl_emmc_clkgate_enable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], ICG_EN_EMMC | ICG_EN_EMMC_APB, SC_EMMC_ICG_EN_REG);
++    return 0;
++}
++
++int hisi_subctrl_sd_clkgate_enable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], ICG_EN_SD | ICG_EN_SD_APB, SC_SD_ICG_EN_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_clkgate_disable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], ICG_DIS_EMMC, SC_EMMC_ICG_DIS_REG);
++    return 0;
++}
++int hisi_subctrl_sd_clkgate_disable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], ICG_DIS_SD, SC_SD_ICG_DIS_REG);
++    return 0;
++}
++
++bool hisi_subctrl_emmc_clkgate_is_enabled(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], SC_EMMC_ICG_ST_REG);
++    mask = ICG_ST_EMMC | ICG_ST_EMMC_APB;
++    return (((val & mask) == mask) ? true : false);
++}
++
++bool hisi_subctrl_sd_clkgate_is_enabled(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_sd_subctrl_vbase[host_id], SC_SD_ICG_ST_REG);
++    mask = ICG_ST_SD | ICG_ST_SD_APB;
++    return (((val & mask) == mask) ? true : false);
++}
++
++int hisi_subctrl_emmc_reset_assert(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], SRST_REQ_EMMC, SC_EMMC_RESET_REQ_REG);
++    return 0;
++}
++
++int hisi_subctrl_sd_reset_assert(struct device *mmc_dev, u32 host_id)
++{
++    /* sd reset */
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], (SRST_REQ_SD | SRST_REQ_SD_APB), SC_SD_RESET_REQ_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_reset_deassert(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], (SRST_DREQ_EMMC | SRST_DREQ_EMMC_APB), SC_EMMC_RESET_DREQ_REG);
++    return 0;
++}
++
++int hisi_subctrl_sd_reset_deassert(struct device *mmc_dev, u32 host_id)
++{
++    /* sd disreset */
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], (SRST_DREQ_SD | SRST_DREQ_SD_APB), SC_SD_RESET_DREQ_REG);
++    return 0;
++}
++int hisi_subctrl_emmc_get_reset_status(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], SC_EMMC_RESET_ST_REG);
++    mask = SRST_ST_EMMC | SRST_ST_EMMC_APB;
++    return ((val & mask) ? 1 : 0);
++}
++
++int hisi_subctrl_sd_get_reset_status(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_sd_subctrl_vbase[host_id], SC_SD_RESET_ST_REG);
++    mask = SRST_ST_SD | SRST_ST_SD_APB;
++    return ((val & mask) ? 1 : 0);
++}
++int hisi_subctrl_emmc_phy_clkgate_enable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], ICG_EN_EMMC_PHY_APB, SC_EMMC_PHY_ICG_EN_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_phy_clkgate_disable(struct device *mmc_dev, u32 host_id)
++{
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], ICG_DIS_EMMC_PHY_APB, SC_EMMC_PHY_ICG_DIS_REG);
++    return 0;
++}
++
++bool hisi_subctrl_emmc_phy_clkgate_is_enabled(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], SC_EMMC_PHY_ICG_ST_REG);
++    mask = ICG_ST_EMMC_PHY_APB;
++    return ((val & mask) ? true : false);
++}
++
++int hisi_subctrl_emmc_phy_reset_assert(struct device *mmc_dev, u32 host_id)
++{
++    /* phy reset */
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], SRST_REQ_EMMC_PHY_TX | SRST_REQ_EMMC_PHY_RX,
++        SC_EMMC_PHY_RESET_REQ_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_phy_reset_deassert(struct device *mmc_dev, u32 host_id)
++{
++    /* phy disreset */
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id],
++        SRST_DREQ_EMMC_PHY_APB | SRST_DREQ_EMMC_PHY_TX | SRST_DREQ_EMMC_PHY_RX, SC_EMMC_PHY_RESET_DREQ_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_phy_get_reset_status(struct device *mmc_dev, u32 host_id)
++{
++    u32 val;
++    u32 mask;
++
++    val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], SC_EMMC_PHY_RESET_ST_REG);
++    mask = SRST_ST_EMMC_PHY_TX | SRST_ST_EMMC_PHY_RX;
++    return ((val & mask) ? 1 : 0);
++}
++
++int hisi_subctrl_emmc_set_clk_cfg(struct device *mmc_dev, u32 host_id, u32 sel, u32 div)
++{
++    u32 val;
++
++    val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], SC_EMMC_CLK_CFG_REG);
++    val &= ~EMMC_CLK_DIV_CFG;
++    val |= FIELD_PREP(EMMC_CLK_DIV_CFG, div);
++    if (sel == 0) { // Low frequency osci
++        val &= ~EMMC_CLK_SEL;
++    } else { // High frequency clock
++        val |= EMMC_CLK_SEL;
++    }
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], val, SC_EMMC_CLK_CFG_REG);
++    return 0;
++}
++
++int hisi_subctrl_sd_set_clk_cfg(struct device *mmc_dev, u32 host_id, u32 sel, u32 div)
++{
++    u32 val;
++
++    val = sdhci_sctrl_readl(g_sd_subctrl_vbase[host_id], SC_SD_CLK_CFG_REG);
++    val &= ~SD_CLK_DIV_CFG;
++    val |= FIELD_PREP(SD_CLK_DIV_CFG, div);
++    if (sel == 0) { // Low frequency osci
++        val &= ~SD_CLK_SEL;
++    } else { // High frequency clock
++        val |= SD_CLK_SEL;
++    }
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], val, SC_SD_CLK_CFG_REG);
++    return 0;
++}
++
++int hisi_subctrl_emmc_set_sample_clk(struct device *mmc_dev, u32 host_id, u32 sel)
++{
++    if (sel == 0) { // fixed clock
++        sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], EMMC_CLK_SEL_FIXED_CLK, SC_SAMPLE_CCLK_SEL_REG);
++    } else {  // tuned clock
++        sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], EMMC_CLK_SEL_TUNED_CLK, SC_SAMPLE_CCLK_SEL_REG);
++    }
++    return 0;
++}
++
++#define PERI_IOMUX_BASE 0x82320000
++#define PERI_IOMUX_SIZE 0x10000
++#define PERI_IOMG000 0x0
++#define PAD_EMMC_POWER_EN 0x0
++#define PAD_GPIO2_09 0x3
++#define TEMP_DEBUG_POWER_EN 1
++#define EFUSE_DC_FLAG_REG 0xC018E254
++#define EFUSE_DC_FLAG_REG_BIT7 0x80
++int hisi_subctrl_emmc_set_power_en(struct device *mmc_dev, u32 host_id, u32 en)
++{
++    u32 reg_val;
++    void __iomem *peri_iomux_vbase;
++
++    peri_iomux_vbase = ioremap(PERI_IOMUX_BASE, PERI_IOMUX_SIZE);
++    if (!peri_iomux_vbase) {
++        pr_err("ioremap failed\n");
++        return -ENODEV;
++    }
++
++    reg_val = sdhci_sctrl_readl(g_emmc_subctrl_vbase[host_id], EMMC_POWER_EN_CTRL);
++    if (en == 1) {
++        // config as gpio2_9, power up based on gpio weak pull-up, to fix hanging dead when suspend-resume
++        writel(PAD_GPIO2_09, peri_iomux_vbase + PERI_IOMG000);
++        udelay(100); // 100us
++        reg_val |= PAD_EMMC_POWER_EN_OUT;
++    } else {
++        reg_val &= ~PAD_EMMC_POWER_EN_OUT;
++    }
++    // power en high or low
++    sdhci_sctrl_writel(g_emmc_subctrl_vbase[host_id], reg_val, EMMC_POWER_EN_CTRL);
++    // config as emmc_power_en
++    writel(PAD_EMMC_POWER_EN, peri_iomux_vbase + PERI_IOMG000);
++    iounmap(peri_iomux_vbase);
++    return 0;
++}
++
++int hisi_subctrl_sd_set_power_en(struct device *mmc_dev, u32 host_id, u32 en)
++{
++    u32 reg_val;
++
++    reg_val = sdhci_sctrl_readl(g_sd_subctrl_vbase[host_id], EMMC_POWER_EN_CTRL);
++    if (en == 1) {
++        reg_val |= PAD_SDIO_CARD_POWER_EN_OUT; // to pin SDIO_CARD_POWER_EN, SDIO Power enable control signal, Highly effective
++    } else {
++        reg_val &= ~PAD_SDIO_CARD_POWER_EN_OUT;
++    }
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], reg_val, EMMC_POWER_EN_CTRL);
++    return 0;
++}
++
++static bool hisi_subctrl_get_efuse_dc_flag(void)
++{
++    u32 reg;
++    void __iomem *efuse_iomux;
++
++    efuse_iomux = ioremap(EFUSE_DC_FLAG_REG, PERI_IOMUX_SIZE);
++    if (efuse_iomux == NULL) {
++        pr_err("devm_ioremap failed\n");
++        return false;
++    }
++
++    reg = readl(efuse_iomux);
++    if ((reg & EFUSE_DC_FLAG_REG_BIT7) != 0) {
++        iounmap(efuse_iomux);
++        return true;
++    }
++
++    iounmap(efuse_iomux);
++    return false;
++}
++
++int hisi_subctrl_sd_volt_switch_1v8(struct device *mmc_dev, u32 host_id, u32 set)
++{
++    void __iomem *peri_iomux_vbase;
++    u32 val;
++    u32 temp;
++
++    val = sdhci_sctrl_readl(g_sd_subctrl_vbase[host_id], SC_SWITCH_S12V100_REG);
++    val |= SW_RST_IN;
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], val, SC_SWITCH_S12V100_REG);
++    val |= SW_EN;
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], val, SC_SWITCH_S12V100_REG);
++
++    peri_iomux_vbase = ioremap(PERI_IOMUX_BASE, PERI_IOMUX_SIZE);
++    if (!peri_iomux_vbase) {
++        pr_err("devm_ioremap failed\n");
++        return -ENODEV;
++    }
++    temp = readl(peri_iomux_vbase + PADMG004);
++    temp = (temp & 0xFFFEFFFF) | 0x00000070; // CMD drive config to 0x71 0111 gear
++    writel(temp, peri_iomux_vbase + PADMG004);
++    temp = readl(peri_iomux_vbase + PADMG005);
++    temp = (temp & 0xFFFEFFFF) | 0x00000070; // DATA0 drive config to 0x71 0111 gear
++    writel(temp, peri_iomux_vbase + PADMG005);
++    temp = readl(peri_iomux_vbase + PADMG006);
++    temp = (temp & 0xFFFEFFFF) | 0x00000070; // DATA1 drive config to 0x71 0111 gear
++    writel(temp, peri_iomux_vbase + PADMG006);
++    temp = readl(peri_iomux_vbase + PADMG007);
++    temp = (temp & 0xFFFEFFFF) | 0x00000070; // DATA2 drive config to 0x71 0111 gear
++    writel(temp, peri_iomux_vbase + PADMG007);
++    temp = readl(peri_iomux_vbase + PADMG008);
++    temp = (temp & 0xFFFEFFFF) | 0x00000070; // DATA3 drive config to 0x71 0111 gear
++    writel(temp, peri_iomux_vbase + PADMG008);
++
++    if (set == 1) {
++        pr_info("switch to 1v8 ,config PADMG003\n");
++        temp = readl(peri_iomux_vbase + PADMG003);
++        if (hisi_subctrl_get_efuse_dc_flag()) {
++            temp = (temp & 0xFFFEFF8F) | 0x00000040; // SD CLK drive config to DS40 0100 gear: bit16\6\5\4
++        } else {
++            temp = (temp & 0xFFFEFF8F) | 0x00000050; // SD CLK drive config to DS50 0101 gear: bit16\6\5\4
++        }
++        writel(temp, peri_iomux_vbase + PADMG003);
++        val |= SW_SEL; // AVDD18
++    } else {
++        pr_info("switch to 3V3 ,config PADMG003\n");
++        writel(0x00010071, peri_iomux_vbase + PADMG003);
++        val &= ~SW_SEL; // AVDD33
++    }
++    iounmap(peri_iomux_vbase);
++    sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], val, SC_SWITCH_S12V100_REG);
++    mdelay(10); // 10ms
++    if (set == 1) {
++        sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], SDIO_PAD_1V8, SC_SDIO_MS);
++    } else {
++        sdhci_sctrl_writel(g_sd_subctrl_vbase[host_id], SDIO_PAD_3V3, SC_SDIO_MS);
++    }
++    return 0;
++}
++
++int sdhci_zodiac_get_clk_rst_info(struct sdhci_zodiac_host *zodiac_host)
++{
++    return 0;
++}
+\ No newline at end of file
+diff --git a/drivers/mmc/host/sdhci_zodiac_mmc.c b/drivers/mmc/host/sdhci_zodiac_mmc.c
+new file mode 100755
+index 000000000..b804ab0dd
+--- /dev/null
++++ b/drivers/mmc/host/sdhci_zodiac_mmc.c
+@@ -0,0 +1,993 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: emmc/sd ip
++ * Author:
++ * Create: 2022/08/13
++ */
++#include <linux/module.h>
++#include <linux/dma-mapping.h>
++#include <linux/slab.h>
++#include <linux/delay.h>
++#include <linux/of_gpio.h>
++#include <linux/pm_runtime.h>
++#include <linux/mmc/card.h>
++#include <linux/mmc/mmc.h>
++#include <linux/mmc/sdio.h>
++#include <linux/mmc/sd.h>
++#include <linux/scatterlist.h>
++#include <linux/reset-controller.h>
++#include <linux/reset.h>
++#include <linux/clk.h>
++#include <linux/clk-provider.h>
++#include <linux/securec.h>
++#include "sdhci-pltfm.h"
++#include "sdhci_zodiac_mmc.h"
++#include "emmc_phy.h"
++#include "mmc_misc.h"
++
++// controller new register
++#define SDHCI_CRG_CTRL0 0x80
++#define SDEMMC_SAMP_SEL BIT(31)
++#define SDEMMC_CLK_DIV GENMASK(27, 24)
++#define SDEMMC_CLK_DLY_DRV GENMASK(20, 16)
++#define SDEMMC_CLK_DLY_SAMPLE GENMASK(12, 8)
++#define SAMPLE_CLK_UPDATE_MASK BIT(19)
++#define TUNING_RESULT_VALUE_REG 0x88
++#define SDEMMC_TIMING_CTRL_0 0x90
++#define  OE_MASK_EN                  BIT(31)
++#define  CFG_READ_AUTO_CMD12_START   GENMASK(29, 24)
++#define  CFG_READ_WAIT_START         GENMASK(23, 21)
++#define  CFG_CMD_TIMEOUT_CNT         GENMASK(7, 0)
++#define  CFG_CMD_RESP_CNT            GENMASK(15, 8)
++#define SDEMMC_TIMING_CTRL_1 0x94
++#define CRC_ST_DET_DLY_MODE  BIT(15)
++#define CRC_ST_DET_DLY   GENMASK(14, 8)
++#define CRC_ST_CHK_DLY   GENMASK(7, 0)
++#define SDEMMC_TIMING_CTRL_2 0x98
++#define CFG_STOP_SDCLK_RD_START  GENMASK(4, 1)
++
++#define SDHCI_ZODIAC_MIN_FREQ 100000
++#define MAX_TUNING_LOOP 40
++#define SDHCI_ZODIAC_CLK_STABLE_TIME 500
++#define ASYNC_MODE 1  // async
++#define L_CLK 0
++#define H_CLK 1
++#define FIXED_CLK 0
++#define TUNED_CLK 1
++#define DRIVER_NAME "sdhci-zodiac"
++#define sdhci_dump(f, x...) \
++    pr_err("%s: " DRIVER_NAME ": " f, mmc_hostname(host->mmc), ## x)
++
++static void sdhci_zodiac_dumpregs(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    pr_err(DRIVER_NAME ": Start dump maintenance and test register\n");
++    sdhci_dump("tuning ctrl:  0x%08x\n", sdhci_readl(host, SDHCI_CRG_CTRL0));
++    sdhci_dump("==================== emmc dfx ====================");
++    sdhci_dump("0x80:  0x%08x | 0x84:  0x%08x \n", sdhci_readl(host, 0x80), sdhci_readl(host, 0x84));
++    sdhci_dump("0x88:  0x%08x | 0x90:  0x%08x \n", sdhci_readl(host, 0x88), sdhci_readl(host, 0x90));
++    sdhci_dump("0x94:  0x%08x | 0x98:  0x%08x \n", sdhci_readl(host, 0x94), sdhci_readl(host, 0x98));
++    sdhci_dump("0xA0:  0x%08x | 0xE0:  0x%08x \n", sdhci_readl(host, 0xA0), sdhci_readl(host, 0xE0));
++    sdhci_dump("0xFC:  0x%08x | 0x800:  0x%08x \n", sdhci_readl(host, 0xFC), sdhci_readl(host, 0x800));
++    sdhci_dump("0x804:  0x%08x | 0x808:  0x%08x \n", sdhci_readl(host, 0x804), sdhci_readl(host, 0x808));
++    sdhci_dump("0x80C:  0x%08x | 0x810:  0x%08x \n", sdhci_readl(host, 0x80C), sdhci_readl(host, 0x810));
++    sdhci_dump("0x814:  0x%08x | 0x818:  0x%08x \n", sdhci_readl(host, 0x814), sdhci_readl(host, 0x818));
++    sdhci_dump("0x81c:  0x%08x | 0x820:  0x%08x \n", sdhci_readl(host, 0x81c), sdhci_readl(host, 0x820));
++    sdhci_dump("0x824:  0x%08x | 0x828:  0x%08x \n", sdhci_readl(host, 0x824), sdhci_readl(host, 0x828));
++    sdhci_dump("0x82c:  0x%08x | 0x830:  0x%08x \n", sdhci_readl(host, 0x82c), sdhci_readl(host, 0x830));
++    sdhci_dump("0x834:  0x%08x | 0x838:  0x%08x \n", sdhci_readl(host, 0x834), sdhci_readl(host, 0x838));
++    sdhci_dump("0x83c:  0x%08x | 0x840:  0x%08x \n", sdhci_readl(host, 0x83c), sdhci_readl(host, 0x840));
++    sdhci_dump("0x844:  0x%08x | 0x848:  0x%08x \n", sdhci_readl(host, 0x844), sdhci_readl(host, 0x848));
++    sdhci_dump("0x84c:  0x%08x | 0x850:  0x%08x \n", sdhci_readl(host, 0x84c), sdhci_readl(host, 0x850));
++    sdhci_dump("0x854:  0x%08x | 0x858:  0x%08x \n", sdhci_readl(host, 0x854), sdhci_readl(host, 0x858));
++    sdhci_dump("0x85c:  0x%08x | 0x860:  0x%08x \n", sdhci_readl(host, 0x85c), sdhci_readl(host, 0x860));
++    sdhci_dump("0x864:  0x%08x | 0x900:  0x%08x \n", sdhci_readl(host, 0x864), sdhci_readl(host, 0x900));
++    sdhci_dump("0x904:  0x%08x | 0x908:  0x%08x \n", sdhci_readl(host, 0x904), sdhci_readl(host, 0x908));
++    sdhci_dump("0x90c:  0x%08x | 0x910:  0x%08x \n", sdhci_readl(host, 0x90c), sdhci_readl(host, 0x910));
++    sdhci_dump("0x914:  0x%08x | 0x918:  0x%08x \n", sdhci_readl(host, 0x914), sdhci_readl(host, 0x918));
++    sdhci_dump("0x91c:  0x%08x | 0x920:  0x%08x \n", sdhci_readl(host, 0x91c), sdhci_readl(host, 0x920));
++    sdhci_dump("0x924:  0x%08x | 0x928:  0x%08x \n", sdhci_readl(host, 0x924), sdhci_readl(host, 0x928));
++    sdhci_dump("0x92c:  0x%08x | 0x930:  0x%08x \n", sdhci_readl(host, 0x92c), sdhci_readl(host, 0x930));
++    sdhci_dump("0x934:  0x%08x | 0x938:  0x%08x \n", sdhci_readl(host, 0x934), sdhci_readl(host, 0x938));
++    sdhci_dump("0x93c:  0x%08x | 0x940:  0x%08x \n", sdhci_readl(host, 0x93c), sdhci_readl(host, 0x940));
++    sdhci_dump("0x944:  0x%08x | 0x948:  0x%08x \n", sdhci_readl(host, 0x944), sdhci_readl(host, 0x948));
++    sdhci_dump("0x94c:  0x%08x | 0x950:  0x%08x \n", sdhci_readl(host, 0x94c), sdhci_readl(host, 0x950));
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        sdhci_zodiac_dump_phy_regs(host);
++    }
++
++    pr_err(DRIVER_NAME ": Dump end\n");
++}
++
++static void sdhci_zodiac_hardware_reset(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)hisi_subctrl_emmc_reset_assert(zodiac_host->dev, zodiac_host->host_id);
++        (void)hisi_subctrl_emmc_phy_reset_assert(zodiac_host->dev, zodiac_host->host_id);
++    } else {
++        (void)hisi_subctrl_sd_reset_assert(zodiac_host->dev, zodiac_host->host_id);
++    }
++}
++
++static int sdhci_zodiac_hardware_disreset(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    int ret;
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)hisi_subctrl_emmc_reset_deassert(zodiac_host->dev, zodiac_host->host_id);
++        ret = hisi_subctrl_emmc_get_reset_status(zodiac_host->dev, zodiac_host->host_id);
++        if (ret != 0) {
++            dev_err(zodiac_host->dev, "mmc is not deassert status, status=%d\n", ret);
++            return ret;
++        }
++
++        (void)hisi_subctrl_emmc_phy_reset_deassert(zodiac_host->dev, zodiac_host->host_id);
++        ret = hisi_subctrl_emmc_phy_get_reset_status(zodiac_host->dev, zodiac_host->host_id);
++        if (ret != 0) {
++            dev_err(zodiac_host->dev, "mmc phy is not deassert status, status=%d\n", ret);
++            return ret;
++        }
++    } else {
++        (void)hisi_subctrl_sd_reset_deassert(zodiac_host->dev, zodiac_host->host_id);
++        ret = hisi_subctrl_sd_get_reset_status(zodiac_host->dev, zodiac_host->host_id);
++        if (ret != 0) {
++            dev_err(zodiac_host->dev, "mmc is not deassert status, status=%d\n", ret);
++            return ret;
++        }
++    }
++    return 0;
++}
++
++static int sdhci_zodiac_icg_en(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)hisi_subctrl_emmc_clkgate_enable(zodiac_host->dev, zodiac_host->host_id);
++        udelay(100); // 100us
++        if (!hisi_subctrl_emmc_clkgate_is_enabled(zodiac_host->dev, zodiac_host->host_id)) {
++            dev_err(zodiac_host->dev, "mmc_clkgate not enabled\n");
++            return -1;
++        }
++
++        (void)hisi_subctrl_emmc_phy_clkgate_enable(zodiac_host->dev, zodiac_host->host_id);
++        udelay(100); // 100us
++        if (!hisi_subctrl_emmc_phy_clkgate_is_enabled(zodiac_host->dev, zodiac_host->host_id)) {
++            dev_err(zodiac_host->dev, "mmc phy clkgate not enabled\n");
++            return -1;
++        }
++    } else {
++        (void)hisi_subctrl_sd_clkgate_enable(zodiac_host->dev, zodiac_host->host_id);
++        udelay(100); // 100us
++        if (!hisi_subctrl_sd_clkgate_is_enabled(zodiac_host->dev, zodiac_host->host_id)) {
++            dev_err(zodiac_host->dev, "sd clkgate not enabled\n");
++            return -1;
++        }
++    }
++    return 0;
++}
++
++static void sdhci_zodiac_icg_dis(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)hisi_subctrl_emmc_clkgate_disable(zodiac_host->dev, zodiac_host->host_id);
++
++        (void)hisi_subctrl_emmc_phy_clkgate_disable(zodiac_host->dev, zodiac_host->host_id);
++    } else {
++        (void)hisi_subctrl_sd_clkgate_disable(zodiac_host->dev, zodiac_host->host_id);
++    }
++}
++
++static unsigned int sdhci_zodiac_get_min_clock(struct sdhci_host *host)
++{
++    return SDHCI_ZODIAC_MIN_FREQ;
++}
++
++static void sdhci_zodiac_disable_clk(struct sdhci_host *host)
++{
++    u16 reg;
++    ktime_t timeout;
++    bool timedout;
++
++    reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
++    reg &= ~SDHCI_CLOCK_CARD_EN;
++    sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
++    reg &= ~SDHCI_CLOCK_INT_EN;
++    sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
++
++    timeout = ktime_add_ms(ktime_get(), SDHCI_ZODIAC_CLK_STABLE_TIME);
++    while (1) {
++        timedout = ktime_after(ktime_get(), timeout);
++        reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
++        if (!(reg & SDHCI_CLOCK_INT_STABLE))
++            break;
++        if (timedout) {
++            pr_err("%s: Internal clock never stabilised.\n", mmc_hostname(host->mmc));
++            sdhci_dumpregs(host);
++            return;
++        }
++        udelay(10); // 10us
++    }
++}
++
++static void sdhci_zodiac_enable_clk(struct sdhci_host *host)
++{
++    u16 reg;
++    ktime_t timeout;
++    bool timedout;
++
++    reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
++    reg |= SDHCI_CLOCK_INT_EN;
++    sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
++
++    timeout = ktime_add_ms(ktime_get(), SDHCI_ZODIAC_CLK_STABLE_TIME);
++    while (1) {
++        timedout = ktime_after(ktime_get(), timeout);
++        reg = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
++        if (reg & SDHCI_CLOCK_INT_STABLE)
++            break;
++        if (timedout) {
++            pr_err("%s: Internal clock never stabilised.\n", mmc_hostname(host->mmc));
++            sdhci_dumpregs(host);
++            return;
++        }
++        udelay(10); // 10us
++    }
++
++    reg |= SDHCI_CLOCK_CARD_EN;
++    sdhci_writew(host, reg, SDHCI_CLOCK_CONTROL);
++}
++
++static void sdhci_zodiac_set_clk_sel(struct sdhci_host *host, u8 timing)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        if (timing == MMC_TIMING_LEGACY) { // during init enumeration, use 4M Low-frequency osci,no freq division
++            (void)hisi_subctrl_emmc_set_clk_cfg(zodiac_host->dev, zodiac_host->host_id, L_CLK, 0);
++        } else {
++            (void)hisi_subctrl_emmc_set_clk_cfg(zodiac_host->dev, zodiac_host->host_id, H_CLK, 0);
++        }
++
++        if (timing == MMC_TIMING_MMC_HS400 || timing == MMC_TIMING_MMC_HS200) {
++            // hs200 and hs400 use sample clk as phy clk, not fixed clk
++            (void)hisi_subctrl_emmc_set_sample_clk(zodiac_host->dev, zodiac_host->host_id, TUNED_CLK);
++        } else {
++            (void)hisi_subctrl_emmc_set_sample_clk(zodiac_host->dev, zodiac_host->host_id, FIXED_CLK);
++        }
++    } else {
++        if (timing == MMC_TIMING_LEGACY) { // during init enumeration, use 4M Low-frequency osci,no freq division
++            (void)hisi_subctrl_sd_set_clk_cfg(zodiac_host->dev, zodiac_host->host_id, L_CLK, 0);
++        } else {
++            (void)hisi_subctrl_sd_set_clk_cfg(zodiac_host->dev, zodiac_host->host_id, H_CLK, 0);
++        }
++    }
++}
++
++static void sdhci_zodiac_timing_cfg(struct sdhci_host *host, u8 timing)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    u32 val;
++    struct sdhci_clk_cfg *crg;
++    struct sdhci_timing_cfg *timing_cfg;
++
++    crg = &zodiac_host->clk_cfg[timing];
++    timing_cfg = &crg->timing_cfg;
++    // config sync/async timing parameters
++    val = sdhci_readl(host, SDEMMC_TIMING_CTRL_0);
++    val &= ~(CFG_READ_WAIT_START | CFG_READ_AUTO_CMD12_START | CFG_CMD_TIMEOUT_CNT | CFG_CMD_RESP_CNT);
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) { // EMMC controller 0x90 reg bit31 for oe_mask_en
++        val &= ~OE_MASK_EN;
++        if (timing_cfg->oe_mask_en == 1) {
++            val |= OE_MASK_EN;
++        }
++    }
++    val |= FIELD_PREP(CFG_READ_WAIT_START, timing_cfg->read_wait_start);
++    val |= FIELD_PREP(CFG_READ_AUTO_CMD12_START, timing_cfg->read_auto_cmd12_start);
++    val |= FIELD_PREP(CFG_CMD_TIMEOUT_CNT, timing_cfg->cmd_timeout_cnt);
++    val |= FIELD_PREP(CFG_CMD_RESP_CNT, timing_cfg->cmd_resp_cnt);
++    sdhci_writel(host, val, SDEMMC_TIMING_CTRL_0);
++
++    val = sdhci_readl(host, SDEMMC_TIMING_CTRL_1);
++    val &= ~(CRC_ST_DET_DLY_MODE | CRC_ST_DET_DLY | CRC_ST_CHK_DLY);
++    if (timing_cfg->crc_st_det_dly_mode == 1) {
++        val |= CRC_ST_DET_DLY_MODE;
++    }
++    val |= FIELD_PREP(CRC_ST_DET_DLY, timing_cfg->crc_st_det_dly);
++    val |= FIELD_PREP(CRC_ST_CHK_DLY, timing_cfg->crc_st_chk_dly);
++    sdhci_writel(host, val, SDEMMC_TIMING_CTRL_1);
++
++    val = sdhci_readl(host, SDEMMC_TIMING_CTRL_2);
++    val &= ~(CFG_STOP_SDCLK_RD_START);
++    val |= FIELD_PREP(CFG_STOP_SDCLK_RD_START, timing_cfg->stop_sdclk_rd_start);
++    sdhci_writel(host, val, SDEMMC_TIMING_CTRL_2);
++}
++
++static void sdhci_zodiac_set_crg_timing_para(struct sdhci_host *host, u8 timing)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    u32 val;
++    struct sdhci_clk_cfg *cfg;
++
++    cfg = &zodiac_host->clk_cfg[timing];
++    val = sdhci_readl(host, SDHCI_CRG_CTRL0);
++    val &= ~(SDEMMC_SAMP_SEL | SDEMMC_CLK_DIV | SDEMMC_CLK_DLY_DRV | SDEMMC_CLK_DLY_SAMPLE);
++    if (cfg->sample_mode == ASYNC_MODE) {
++        val |= SDEMMC_SAMP_SEL;
++    }
++    val |= FIELD_PREP(SDEMMC_CLK_DIV, cfg->clk_div); // 310B emmc controller config 0x80 reg, invalid freq division, fixed 0xf
++    val |= FIELD_PREP(SDEMMC_CLK_DLY_DRV, cfg->clk_dly_drv);
++    val |= FIELD_PREP(SDEMMC_CLK_DLY_SAMPLE, cfg->clk_dly_sample);
++
++    sdhci_writel(host, val, SDHCI_CRG_CTRL0);
++    host->max_clk = cfg->max_clk;
++    // config sync/async timing parameters timing == MMC_TIMING_LEGACY
++    if (timing == MMC_TIMING_LEGACY || timing == MMC_TIMING_UHS_SDR50 || timing == MMC_TIMING_UHS_SDR104 ||
++        timing == MMC_TIMING_MMC_HS200 || timing == MMC_TIMING_MMC_HS400 || timing == MMC_TIMING_MMC_DDR52) {
++        sdhci_zodiac_timing_cfg(host, timing);
++    }
++}
++
++void sdhci_zoidac_set_card_power_en(struct sdhci_host *host, u32 en)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)hisi_subctrl_emmc_set_power_en(zodiac_host->dev, zodiac_host->host_id, en);
++    } else {
++        (void)hisi_subctrl_sd_set_power_en(zodiac_host->dev, zodiac_host->host_id, en);
++    }
++}
++
++static int sdhci_zodiac_reset(struct sdhci_host *host)
++{
++    int ret;
++    // 1、 close clock
++    sdhci_zodiac_icg_dis(host);
++    // 2、reset
++    sdhci_zodiac_hardware_reset(host);
++    // 3、open clock
++    ret = sdhci_zodiac_icg_en(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // 4、100us
++    udelay(100);
++    // 5、 close clock
++    sdhci_zodiac_icg_dis(host);
++    // 6、de-reset
++    ret = sdhci_zodiac_hardware_disreset(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // 7、open clock
++    ret = sdhci_zodiac_icg_en(host);
++    if (ret != 0) {
++        return ret;
++    }
++    return 0;
++}
++
++static int sdhci_zodiac_init_cfg(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    int ret;
++
++    // soft reset controller
++    ret = sdhci_zodiac_reset(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // Power up the card or particles
++    sdhci_zoidac_set_card_power_en(host, 1);
++    // emmc init phy
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        return sdhci_combo_phy_init(host);
++    }
++    return 0;
++}
++
++static void sdhci_zodiac_select_clk_src(struct sdhci_host *host, struct mmc_ios *ios)
++{
++    int ret;
++
++    if (ios->timing > MMC_TIMING_MMC_HS400) {
++        pr_err("sdhci_zodiac_select_clk_src failed, timing %d exceed max\n", ios->timing);
++        return;
++    }
++
++    // turn off clock gating
++    sdhci_zodiac_icg_dis(host);
++    // Switch the clock, low-freq osci for init, high-freq clock for normal operation
++    sdhci_zodiac_set_clk_sel(host, ios->timing);
++    // turn on clock gating
++    ret = sdhci_zodiac_icg_en(host);
++    if (ret != 0) {
++        return;
++    }
++    // crg_ctrl and timing reg
++    sdhci_zodiac_set_crg_timing_para(host, ios->timing);
++}
++
++static int sdhci_phy_delay_measurement(struct sdhci_host *host, struct mmc_ios *ios)
++{
++    int ret;
++    if ((host->clock == MMC_HS200_MAX_DTR || host->clock == MMC_HIGH_DDR_MAX_DTR || host->clock == host->mmc->f_max)) {
++        ret = sdhci_combo_phy_delay_measurement(host, ios);
++        if (ret != 0) {
++            pr_err("sdhci_combo_phy_delay_measurement fail!\n");
++            return ret;
++        }
++    }
++    return 0;
++}
++
++static void sdhci_zodiac_set_clock(struct sdhci_host *host, unsigned int clock)
++{
++    u16 clk;
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    host->mmc->actual_clock = 0;
++    //  close card clk
++    sdhci_zodiac_disable_clk(host);
++    if (clock == 0) {
++        return;
++    }
++    // select a clock source high or low freq osci
++    sdhci_zodiac_select_clk_src(host, &host->mmc->ios);
++    clk = sdhci_calc_clk(host, clock, &host->mmc->actual_clock);
++    // Config the freq division ratio, then enable, not write at the same time or clock-en will off probability
++    sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
++    // turn on card clk and wait for stable
++    sdhci_enable_clk(host, clk);
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)sdhci_phy_delay_measurement(host, &host->mmc->ios);
++    }
++}
++
++static void sdhci_zodiac_hw_reset(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    int ret;
++
++    sdhci_zodiac_hardware_reset(host);
++    ret = sdhci_zodiac_hardware_disreset(host);
++    if (ret != 0) {
++        dev_err(zodiac_host->dev, "sdhci_zodiac_hw_reset, sdhci_zodiac_hardware_disreset fail\n");
++        return;
++    }
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        (void)sdhci_combo_phy_init(host);
++    }
++}
++
++int sdhci_zodiac_enable_dma(struct sdhci_host *host)
++{
++    u8 val;
++
++    if (host->runtime_suspended) {
++        return 0;
++    }
++    val = sdhci_readb(host, SDHCI_HOST_CONTROL);
++    val &= ~SDHCI_CTRL_DMA_MASK;
++    if (host->flags & SDHCI_USE_ADMA) {
++        if (host->flags & SDHCI_USE_64_BIT_DMA) {
++            val |= SDHCI_CTRL_ADMA64;
++        } else {
++            val |= SDHCI_CTRL_ADMA32;
++        }
++    } else {
++        val |= SDHCI_CTRL_SDMA;
++    }
++    sdhci_writeb(host, val, SDHCI_HOST_CONTROL);
++    return 0;
++}
++
++static int sdhci_zodiac_execute_hwtuning(struct sdhci_host *host, u32 opcode)
++{
++    int i;
++    int err = -EIO;
++    u16 val;
++
++    for (i = 0; i < MAX_TUNING_LOOP; i++) {
++        sdhci_zodiac_disable_clk(host); // hardware tuning add turn on-off clk
++        sdhci_zodiac_enable_clk(host);
++        sdhci_send_tuning(host, opcode);
++
++        if (host->tuning_done == 0) {
++            pr_err("%s: Tuning timeout, falling back to fixed sampling clock\n", mmc_hostname(host->mmc));
++            sdhci_abort_tuning(host, opcode);
++            err = -ETIMEDOUT;
++            return err;
++        }
++        val = sdhci_readw(host, SDHCI_HOST_CONTROL2);
++        if ((val & SDHCI_CTRL_EXEC_TUNING) == 0) {
++            if (val & SDHCI_CTRL_TUNED_CLK) {
++                return 0; /* Success! */
++            }
++            err = -EAGAIN;
++            pr_err("%s: Tuning failed, falling back to fixed sampling clock\n", mmc_hostname(host->mmc));
++            sdhci_reset_tuning(host);
++            return err;
++        }
++
++        /* Spec does not require a delay between tuning cycles */
++        if (host->tuning_delay > 0) {
++            mdelay(host->tuning_delay);
++        }
++    }
++    return err;
++}
++
++static int sdhci_zodiac_platform_execute_tuning(struct sdhci_host *host, u32 opcode)
++{
++    int err;
++
++    if (host->tuning_delay < 0) {
++        host->tuning_delay = (opcode == MMC_SEND_TUNING_BLOCK) ? 1 : 0 ;
++    }
++
++    sdhci_start_tuning(host);
++    err = sdhci_zodiac_execute_hwtuning(host, opcode);
++    sdhci_end_tuning(host);
++    sdhci_zodiac_disable_clk(host); // disable and enable clk for controller to set hwtuninged phase
++    sdhci_zodiac_enable_clk(host);
++
++    if (err != 0) {
++        sdhci_dumpregs(host);
++        pr_err("hw tuning fail! err = %d\r\n", err);
++        return err;
++    }
++    // hwtuning succ, record best tuning phase
++    pr_info("hw tuning success !  best_phase = %u\r\n", sdhci_readl(host, TUNING_RESULT_VALUE_REG));
++    return err;
++}
++
++static void sdhci_zodiac_power_off(struct sdhci_host *host)
++{
++    sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
++    // power off card
++    sdhci_zoidac_set_card_power_en(host, 0);
++}
++
++static void sdhci_zodiac_sd_sel_1v8(struct sdhci_host *host, u32 set)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    hisi_subctrl_sd_volt_switch_1v8(zodiac_host->dev, zodiac_host->host_id, set);
++}
++
++static void sdhci_zodiac_power_up(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    if (zodiac_host->host_mode == ZODIAC_SD_MODE) {
++        sdhci_zodiac_sd_sel_1v8(host, 0);     // sd controller init as 3v3
++    } else if (zodiac_host->host_mode == ZODIAC_SDIO_MODE) {
++        sdhci_zodiac_sd_sel_1v8(host, 1); // sdio controller init as 1v8
++    }
++
++    sdhci_writeb(host, SDHCI_POWER_ON, SDHCI_POWER_CONTROL);
++    // power on card
++    sdhci_zoidac_set_card_power_en(host, 1);
++}
++
++static void sdhci_zodiac_set_power(struct sdhci_host *host, unsigned char mode, unsigned short vdd)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    struct device *dev = zodiac_host->dev;
++
++    if (zodiac_host->power_mode == mode) {
++        /* no need change power */
++        return;
++    }
++
++    switch (mode) {
++        case MMC_POWER_OFF:
++            dev_info(dev, "set io to lowpower\n");
++            sdhci_zodiac_power_off(host);
++            break;
++        case MMC_POWER_UP:
++            dev_info(dev, "set io to normal\n");
++            sdhci_zodiac_power_up(host);
++            break;
++        case MMC_POWER_ON:
++            break;
++        default:
++            dev_err(dev, "unknown power supply mode\n");
++            break;
++    }
++    zodiac_host->power_mode = mode;
++}
++
++static void sdhci_zodiac_voltage_switch(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    // sd切成1v8
++    if (zodiac_host->host_mode == ZODIAC_SD_MODE) {
++        sdhci_zodiac_sd_sel_1v8(host, 1);
++    }
++}
++
++static unsigned int sdhci_zodiac_get_max_clock(struct sdhci_host *host)
++{
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    // sdhci_get_property parse clock-frequency to get pltfm_host->clock
++    return pltfm_host->clock;
++}
++
++static struct sdhci_ops sdhci_zodiac_ops = {
++    .get_min_clock = sdhci_zodiac_get_min_clock,
++    .set_clock = sdhci_zodiac_set_clock,
++    .enable_dma = sdhci_zodiac_enable_dma,
++    .get_max_clock = sdhci_zodiac_get_max_clock,
++    .set_bus_width = sdhci_set_bus_width,
++    .reset = sdhci_reset,
++    .set_uhs_signaling = sdhci_set_uhs_signaling,
++    .platform_execute_tuning = sdhci_zodiac_platform_execute_tuning,
++    .hw_reset = sdhci_zodiac_hw_reset,
++    .set_power = sdhci_zodiac_set_power,
++    .dump_vendor_regs = sdhci_zodiac_dumpregs,
++    .voltage_switch = sdhci_zodiac_voltage_switch,
++};
++
++static struct sdhci_pltfm_data sdhci_zodiac_pdata = {
++    // sdhci_pltfm_data OR use sdhci_pltfm_ops as default
++    .ops = &sdhci_zodiac_ops,
++    .quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL | SDHCI_QUIRK_INVERTED_WRITE_PROTECT |
++    SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12,
++    .quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
++};
++
++#ifdef CONFIG_PM_SLEEP
++static int sdhci_zodiac_suspend(struct device *dev)
++{
++    int ret;
++    struct sdhci_host *host = dev_get_drvdata(dev);
++
++    ret = sdhci_suspend_host(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // power off card
++    sdhci_zoidac_set_card_power_en(host, 0);
++    // disable clk and wait for stable
++    sdhci_zodiac_disable_clk(host);
++    // disable crg clk gating
++    sdhci_zodiac_icg_dis(host);
++    // reset controller
++    sdhci_zodiac_hardware_reset(host);
++    return 0;
++}
++
++static int sdhci_zodiac_resume(struct device *dev)
++{
++    int ret;
++    struct sdhci_host *host = dev_get_drvdata(dev);
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++
++    // de-reset controller
++    ret = sdhci_zodiac_hardware_disreset(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // enable crg clk gating
++    ret = sdhci_zodiac_icg_en(host);
++    if (ret != 0) {
++        return ret;
++    }
++    // enable clk and wait for stable
++    sdhci_zodiac_enable_clk(host);
++    // power on card
++    sdhci_zoidac_set_card_power_en(host, 1);
++    // emmc phy init
++
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        ret = sdhci_combo_phy_init(host);
++        if (ret != 0) {
++            return ret;
++        }
++    }
++    dev_info(dev, "sdhci_zodiac_resume: ios.clock=%d, timing=%d.\n", host->mmc->ios.clock, host->mmc->ios.timing);
++    ret = sdhci_resume_host(host);
++    if (ret != 0) {
++        return ret;
++    }
++    return 0;
++}
++#endif /* CONFIG_PM_SLEEP */
++
++static const struct dev_pm_ops sdhci_zodiac_dev_pm_ops = { SET_SYSTEM_SLEEP_PM_OPS(sdhci_zodiac_suspend,
++    sdhci_zodiac_resume) SET_RUNTIME_PM_OPS(NULL, NULL, NULL) };
++
++static int sdhci_zodiac_get_phy_resource(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    struct resource *res;
++
++    res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy");
++    zodiac_host->phy.io_base = devm_ioremap_resource(&pdev->dev, res);
++    if (IS_ERR(zodiac_host->phy.io_base)) {
++        dev_err(&pdev->dev, "devm_ioremap phy iobase fail\n");
++        return PTR_ERR(zodiac_host->phy.io_base);
++    }
++    zodiac_host->phy.io_size = res->end - res->start + 1;
++    return 0;
++}
++
++static int sdhci_zodiac_parse_clk_cfg(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    struct device *dev = &pdev->dev;
++    int ret;
++    int i;
++    u8 prop_name[64] = {0}; // 64 btyes max
++
++    for (i = 0; i < HISI_MMC_MAX_TIMING_MODE; i++) {
++        ret = sprintf_s(prop_name, sizeof(prop_name), "timing_%d_cfg", i);
++        if (ret < 0) {
++            dev_err(dev, "sprintf_s fail i = %d\n", i);
++            return -EINVAL;
++        }
++        if (device_property_read_u32_array(dev, prop_name, (u32 *)&zodiac_host->clk_cfg[i],
++            sizeof(zodiac_host->clk_cfg[i]) / sizeof(u32))) {
++            dev_err(dev, "problem parsing timing_%d_cfg property\n", i);
++            return -EINVAL;
++        }
++    }
++    return 0;
++}
++
++static void sdhci_zodiac_parse_delay1_cfg(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    struct device *dev = &pdev->dev;
++
++    if (device_property_read_u32_array(dev, "mmc_ddr52_tx_delay", (u32 *)&(zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52]),
++        sizeof(struct zodiac_emmc_delay_config) / sizeof(u32)) != 0) {
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].ratio = 0;
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].margin = 0;
++        dev_info(dev, "using default tx delay for ddr52\n");
++    }
++    if (device_property_read_u32_array(dev, "mmc_hs200_tx_delay", (u32 *)&(zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200]),
++        sizeof(struct zodiac_emmc_delay_config) / sizeof(u32)) != 0) {
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].ratio = 0;
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].margin = 0;
++        dev_info(dev, "using default tx delay for hs200\n");
++    }
++    if (device_property_read_u32_array(dev, "mmc_hs400_tx_delay", (u32 *)&(zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400]),
++        sizeof(struct zodiac_emmc_delay_config) / sizeof(u32)) != 0) {
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].ratio = 0;
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].margin = 0;
++        dev_info(dev, "using default tx delay for hs400\n");
++    }
++    dev_info(dev, "ddr52 ratio: %u, margin: %d\n", zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].ratio,
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_DDR52].margin);
++    dev_info(dev, "hs200 ratio: %u, margin: %d\n", zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].ratio,
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS200].margin);
++    dev_info(dev, "hs400 ratio: %u, margin: %d\n", zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].ratio,
++        zodiac_host->delay1_cfg[ZODIAC_EMMC_HS400].margin);
++}
++
++static int sdhci_zodiac_get_property(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++    struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
++    struct sdhci_zodiac_host *zodiac_host = sdhci_pltfm_priv(pltfm_host);
++    struct device *dev = &pdev->dev;
++    struct device_node *np = dev->of_node;
++    int ret;
++
++    if (of_device_is_compatible(np, "hisilicon,sdhci_emmc")) {
++        zodiac_host->host_mode = ZODIAC_EMMC_MODE;
++    }
++    if (of_device_is_compatible(np, "hisilicon,sdhci_sd")) {
++        zodiac_host->host_mode = ZODIAC_SD_MODE;
++    }
++    if (of_device_is_compatible(np, "hisilicon,sdhci_sdio")) {
++        zodiac_host->host_mode = ZODIAC_SDIO_MODE;
++    }
++    if (of_device_is_compatible(np, "hisilicon,sdhci_emmc_sd")) {
++        if (device_property_read_u32(dev, "host_mode", &zodiac_host->host_mode) != 0) {
++            dev_err(dev, "failed to get sdhci host_mode, ret = %d\n", ret);
++            return -EINVAL;
++        }
++    }
++
++    if (zodiac_host->host_mode > ZODIAC_SDIO_MODE) {
++        dev_err(dev, "host_mode %u err exceed max!\n", zodiac_host->host_mode);
++        return ret;
++    }
++
++    if (device_property_read_u32(dev, "host_id", &zodiac_host->host_id) != 0) {
++        dev_err(dev, "failed to get sdhci host_id, ret = %d\n", ret);
++        return -EINVAL;
++    }
++    if (device_property_read_bool(dev, "broken_hs200")) {
++        host->quirks2 |= SDHCI_QUIRK2_BROKEN_HS200;
++    }
++
++    ret = sdhci_zodiac_parse_clk_cfg(pdev);
++    if (ret != 0) {
++        dev_err(&pdev->dev, "sdhci_zodiac_parse_clk_cfg fail\n");
++        return ret;
++    }
++    if (zodiac_host->host_mode == ZODIAC_EMMC_MODE) {
++        sdhci_zodiac_parse_delay1_cfg(pdev);
++        ret = sdhci_zodiac_get_phy_resource(pdev);
++        if (ret != 0) {
++            dev_err(&pdev->dev, "sdhci_zodiac_get_phy_resource fail\n");
++            return ret;
++        }
++    }
++    return 0;
++}
++
++static int sdhci_zodiac_parse_acpi_dts(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++    int ret;
++
++    ret = mmc_of_parse(host->mmc);
++    if (ret != 0) { // parse mmc by frame
++        dev_err(&pdev->dev, "mmc_of_parse fail\n");
++        return ret;
++    }
++    sdhci_get_property(pdev);
++    ret = sdhci_zodiac_get_property(pdev);
++    if (ret != 0) {
++        dev_err(&pdev->dev, "sdhci_zodiac_get_property fail\n");
++        return ret;
++    }
++    return 0;
++}
++
++static void sdhci_host_quirks2_cfg(struct sdhci_host *host)
++{
++    host->quirks2 |= SDHCI_QUIRK2_HOST_NO_CMD23;
++    host->quirks |= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC;
++    host->mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;
++    if (host->mmc->pm_caps & MMC_PM_KEEP_POWER) {
++        host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
++        host->quirks2 |= SDHCI_QUIRK2_HOST_OFF_CARD_ON;
++    }
++
++    if (!(host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA)) {
++        host->dma_mask = DMA_BIT_MASK(64); // 64bit
++    } else {
++        host->dma_mask = DMA_BIT_MASK(32); // 32bit
++    }
++    mmc_dev(host->mmc)->dma_mask = &host->dma_mask;
++}
++
++static void sdhci_zodiac_set_desc_size(struct sdhci_host *host)
++{
++    host->caps = sdhci_readl(host, SDHCI_CAPABILITIES);
++    /* hisi controller amda 32/64bit BD need 16 bytes, frame is SDHCI_ADMA2_64_DESC_SZ and SDHCI_ADMA2_32_DESC_SZ
++    64bit do not need to change os code,32bit need, 32bit and 64bit only have differences in addr type, and no relation to performance,
++    adma32 not used in commercial scenarios, and can change os code to verify adma32 in verify scenarios */
++    if (host->caps & SDHCI_CAN_64BIT) {
++        host->alloc_desc_sz = 16; // hisi controller amda 64bit BD is 16 bytes, but 12bytes in frame defines
++    }
++}
++
++static int sdhci_zodiac_probe(struct platform_device *pdev)
++{
++    int ret;
++    struct sdhci_host *host = NULL;
++    struct sdhci_zodiac_host *zodiac_host = NULL;
++
++    dev_info(&pdev->dev, "sdhci_zodiac_probe start:\n");
++    host = sdhci_pltfm_init(pdev, &sdhci_zodiac_pdata, sizeof(*zodiac_host));
++    if (IS_ERR(host)) {
++        return PTR_ERR(host);
++    }
++
++    zodiac_host = sdhci_pltfm_priv(sdhci_priv(host));
++    zodiac_host->dev = &pdev->dev;
++    zodiac_host->host = host;
++
++    if (sdhci_zodiac_parse_acpi_dts(pdev) != 0) {
++        goto err_pltfm_free;
++    }
++
++    ret = hisi_mmc_subctrl_init(zodiac_host->host_mode, zodiac_host->host_id, zodiac_host->dev);
++    if (ret != 0) {
++        goto err_pltfm_free;
++    }
++
++    ret = sdhci_zodiac_get_clk_rst_info(zodiac_host);
++    if (ret != 0) {
++        goto err_pltfm_free;
++    }
++
++    // reset-dereset clk gating/ phy init etc
++    ret = sdhci_zodiac_init_cfg(host);
++    if (ret != 0) {
++        goto err_pltfm_free;
++    }
++
++    sdhci_host_quirks2_cfg(host);
++    sdhci_zodiac_set_desc_size(host);
++    ret = sdhci_add_host(host);
++    if (ret != 0) {
++        goto err_pltfm_free;
++    }
++
++    dev_info(&pdev->dev, "%s: sdhci_zodiac_probe done! \n", dev_name(zodiac_host->dev));
++    return 0;
++
++err_pltfm_free:
++    sdhci_pltfm_free(pdev);
++    dev_err(&pdev->dev, "sdhci_zodiac_probe fail!! ret = %d!\n", ret);
++    return ret;
++}
++
++static int sdhci_zodiac_remove(struct platform_device *pdev)
++{
++    struct sdhci_host *host = platform_get_drvdata(pdev);
++
++    dev_info(&pdev->dev, "sdhci_zodiac_remove\n");
++    sdhci_remove_host(host, 1);
++    sdhci_zodiac_icg_dis(host);
++    // power off card
++    sdhci_zoidac_set_card_power_en(host, 0);
++    sdhci_pltfm_free(pdev);
++    return 0;
++}
++
++static const struct of_device_id sdhci_zodiac_of_match[] = {
++    {.compatible = "hisilicon,sdhci_emmc_sd"}, // 2-in-1 controller, parse dts host_mode
++    {.compatible = "hisilicon,sdhci_emmc"},
++    {.compatible = "hisilicon,sdhci_sd"},
++    {.compatible = "hisilicon,sdhci_sdio"},
++    {}
++};
++
++MODULE_DEVICE_TABLE(of, sdhci_zodiac_of_match);
++
++static struct platform_driver sdhci_zodiac_driver = {
++    .driver = {
++        .name = "sdhci_zodiac",
++        .of_match_table = sdhci_zodiac_of_match,
++        .pm = &sdhci_zodiac_dev_pm_ops,
++    },
++    .probe = sdhci_zodiac_probe,
++    .remove = sdhci_zodiac_remove,
++};
++
++module_platform_driver(sdhci_zodiac_driver);
++
++MODULE_DESCRIPTION("Driver for the zodiac SDHCI Controller");
++MODULE_AUTHOR("zodiac");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/mmc/host/sdhci_zodiac_mmc.h b/drivers/mmc/host/sdhci_zodiac_mmc.h
+new file mode 100755
+index 000000000..ddfc38ea4
+--- /dev/null
++++ b/drivers/mmc/host/sdhci_zodiac_mmc.h
+@@ -0,0 +1,74 @@
++/*
++ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
++ * Description: emmc/sd ip
++ * Author:
++ * Create: 2022/08/13
++ */
++#ifndef __SDHCI_ZODIAC_MMC_H
++#define __SDHCI_ZODIAC_MMC_H
++
++#define HISI_MMC_MAX_TIMING_MODE (MMC_TIMING_MMC_HS400 + 1)
++struct sdhci_timing_cfg {
++    u32 oe_mask_en;
++    u32 read_auto_cmd12_start;
++    u32 read_wait_start;
++    u32 cmd_timeout_cnt;
++    u32 cmd_resp_cnt;
++    u32 stop_sdclk_rd_start;
++    u32 crc_st_det_dly_mode;
++    u32 crc_st_det_dly;
++    u32 crc_st_chk_dly;
++};
++
++struct sdhci_clk_cfg {
++    u32 clk_src;
++    u32 clk_dly_sample;
++    u32 clk_dly_drv;
++    u32 clk_div;
++    u32 sample_mode;
++    u32 max_clk;
++    struct sdhci_timing_cfg timing_cfg;
++};
++
++struct region {
++    void __iomem *io_base;
++    u32 io_size;
++};
++
++struct zodiac_emmc_delay_config {
++    u32 ratio;
++    int margin;
++};
++
++enum zodiac_emmc_delay1_mode {
++    ZODIAC_EMMC_DDR52 = 0,
++    ZODIAC_EMMC_HS200 = 1,
++    ZODIAC_EMMC_HS400 = 2,
++    ZODIAC_EMMC_MODE_MAX = 3,
++};
++
++enum zodiac_host_mode {
++    ZODIAC_EMMC_MODE = 0,
++    ZODIAC_SD_MODE = 1,
++    ZODIAC_SDIO_MODE = 2,
++};
++
++struct sdhci_zodiac_host {
++    struct device *dev;
++    struct sdhci_host *host;
++    struct reset_control *rst;
++    struct clk *clk;
++    struct reset_control *phy_rst;
++    struct clk *phy_clk;
++    struct region phy;
++    struct sdhci_clk_cfg clk_cfg[HISI_MMC_MAX_TIMING_MODE];
++    struct pinctrl *pinctrl;
++    struct pinctrl_state *pins_default;
++    struct pinctrl_state *pins_idle;
++    struct zodiac_emmc_delay_config delay1_cfg[ZODIAC_EMMC_MODE_MAX];
++    u32 host_mode;
++    u32 host_id;
++    u8 power_mode;
++};
++
++#endif
+-- 
+2.27.0
+

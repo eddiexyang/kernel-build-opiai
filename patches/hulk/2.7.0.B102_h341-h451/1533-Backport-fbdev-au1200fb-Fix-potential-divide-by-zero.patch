@@ -1,0 +1,49 @@
+From 835eba3af76b0ff43bc8a7afebe51e3557b6dc45 Mon Sep 17 00:00:00 2001
+From: Wei Chen <harperchen1110@gmail.com>
+Date: Wed, 15 Mar 2023 09:22:54 +0000
+Subject: [PATCH 1533/1646] [Backport] fbdev: au1200fb: Fix potential divide by
+ zero
+
+stable inclusion
+from stable-v5.10.177
+commit 5ec5680dc656c80e4004969299bc6f27e2291434
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=5ec5680dc656c80e4004969299bc6f27e2291434
+
+--------------------------------
+
+[ Upstream commit 44a3b36b42acfc433aaaf526191dd12fbb919fdb ]
+
+var->pixclock can be assigned to zero by user. Without
+proper check, divide by zero would occur when invoking
+macro PICOS2KHZ in au1200fb_fb_check_var.
+
+Error out if var->pixclock is zero.
+
+Signed-off-by: Wei Chen <harperchen1110@gmail.com>
+Signed-off-by: Helge Deller <deller@gmx.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/video/fbdev/au1200fb.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/video/fbdev/au1200fb.c b/drivers/video/fbdev/au1200fb.c
+index c00e01a17368..a8a0a448cdb5 100644
+--- a/drivers/video/fbdev/au1200fb.c
++++ b/drivers/video/fbdev/au1200fb.c
+@@ -1040,6 +1040,9 @@ static int au1200fb_fb_check_var(struct fb_var_screeninfo *var,
+ 	u32 pixclock;
+ 	int screen_size, plane;
+ 
++	if (!var->pixclock)
++		return -EINVAL;
++
+ 	plane = fbdev->plane;
+ 
+ 	/* Make sure that the mode respect all LCD controller and
+-- 
+2.17.1
+

@@ -1,0 +1,51 @@
+From 0a32b6065daf990edb1a7b6c1934c8fcb23f1be9 Mon Sep 17 00:00:00 2001
+From: Xin Xiong <xiongx18@fudan.edu.cn>
+Date: Sun, 24 Jul 2022 17:55:58 +0800
+Subject: [PATCH 093/595] [Backport] xfrm: fix refcount leak in
+ __xfrm_policy_check()
+
+stable inclusion
+from stable-v5.10.140
+commit 1305d7d4f35ca6f214a2d23b075aa6a924cff3be
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5W3GQ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1305d7d4f35ca6f214a2d23b075aa6a924cff3be
+
+--------------------------------
+
+[ Upstream commit 9c9cb23e00ddf45679b21b4dacc11d1ae7961ebe ]
+
+The issue happens on an error path in __xfrm_policy_check(). When the
+fetching process of the object `pols[1]` fails, the function simply
+returns 0, forgetting to decrement the reference count of `pols[0]`,
+which is incremented earlier by either xfrm_sk_policy_lookup() or
+xfrm_policy_lookup(). This may result in memory leaks.
+
+Fix it by decreasing the reference count of `pols[0]` in that path.
+
+Fixes: 134b0fc544ba ("IPsec: propagate security module errors up from flow_cache_lookup")
+Signed-off-by: Xin Xiong <xiongx18@fudan.edu.cn>
+Signed-off-by: Xin Tan <tanxin.ctf@gmail.com>
+Signed-off-by: Steffen Klassert <steffen.klassert@secunet.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/xfrm/xfrm_policy.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/xfrm/xfrm_policy.c b/net/xfrm/xfrm_policy.c
+index 1d8d9e5d66b8..58b013d5fff7 100644
+--- a/net/xfrm/xfrm_policy.c
++++ b/net/xfrm/xfrm_policy.c
+@@ -3631,6 +3631,7 @@ int __xfrm_policy_check(struct sock *sk, int dir, struct sk_buff *skb,
+ 		if (pols[1]) {
+ 			if (IS_ERR(pols[1])) {
+ 				XFRM_INC_STATS(net, LINUX_MIB_XFRMINPOLERROR);
++				xfrm_pol_put(pols[0]);
+ 				return 0;
+ 			}
+ 			pols[1]->curlft.use_time = ktime_get_real_seconds();
+-- 
+2.17.1
+

@@ -1,0 +1,118 @@
+From 1a641e0ea18b66d6d6068cdfbadf31e3c973ed58 Mon Sep 17 00:00:00 2001
+From: Chen Jun <chenjun102@huawei.com>
+Date: Mon, 28 Nov 2022 12:17:06 +0000
+Subject: [PATCH 0817/1398] [Huawei] mm/sharepool: extract group_add_task
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I650K6
+
+--------------------------------
+
+Extract group_add_task from duplicate code.
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+---
+ mm/share_pool.c | 38 +++++++++++++++++++++-----------------
+ 1 file changed, 21 insertions(+), 17 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index b76813dc8659..47059aadcd84 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -494,12 +494,14 @@ static struct sp_mapping *sp_mapping_find(struct sp_group *spg,
+ static struct sp_group *create_spg(int spg_id, unsigned long flag);
+ static void free_new_spg_id(bool new, int spg_id);
+ static void free_sp_group_locked(struct sp_group *spg);
+-static int local_group_add_task(struct mm_struct *mm, struct sp_group *spg);
++static struct sp_group_node *group_add_task(struct mm_struct *mm, struct sp_group *spg,
++					    unsigned long prot);
+ static int init_local_group(struct mm_struct *mm)
+ {
+ 	int spg_id, ret;
+ 	struct sp_group *spg;
+ 	struct sp_mapping *spm;
++	struct sp_group_node *spg_node;
+ 	struct sp_group_master *master = mm->sp_group_master;
+ 
+ 	spg_id = ida_alloc_range(&sp_group_id_ida, SPG_ID_LOCAL_MIN,
+@@ -525,10 +527,13 @@ static int init_local_group(struct mm_struct *mm)
+ 	sp_mapping_attach(master->local, sp_mapping_normal);
+ 	sp_mapping_attach(master->local, sp_mapping_ro);
+ 
+-	ret = local_group_add_task(mm, spg);
+-	if (ret < 0)
++	spg_node = group_add_task(mm, spg, PROT_READ | PROT_WRITE);
++	if (IS_ERR(spg_node)) {
+ 		/* The spm would be released while destroying the spg */
++		ret = PTR_ERR(spg_node);
+ 		goto free_spg;
++	}
++	mmget(mm);
+ 
+ 	return 0;
+ 
+@@ -1353,18 +1358,24 @@ static void free_spg_node(struct mm_struct *mm, struct sp_group *spg,
+ 	kfree(spg_node);
+ }
+ 
+-static int local_group_add_task(struct mm_struct *mm, struct sp_group *spg)
++/* the caller must hold sp_group_sem and down_write(&spg->rw_lock) in order */
++static struct sp_group_node *group_add_task(struct mm_struct *mm, struct sp_group *spg,
++					    unsigned long prot)
+ {
+ 	struct sp_group_node *node;
++	int ret;
+ 
+-	node = create_spg_node(mm, PROT_READ | PROT_WRITE, spg);
++	node = create_spg_node(mm, prot, spg);
+ 	if (IS_ERR(node))
+-		return PTR_ERR(node);
++		return node;
+ 
+-	insert_spg_node(spg, node);
+-	mmget(mm);
++	ret = insert_spg_node(spg, node);
++	if (unlikely(ret)) {
++		free_spg_node(mm, spg, node);
++		return ERR_PTR(ret);
++	}
+ 
+-	return 0;
++	return node;
+ }
+ 
+ /**
+@@ -1498,19 +1509,13 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		goto out_drop_group;
+ 	}
+ 
+-	node = create_spg_node(mm, prot, spg);
++	node = group_add_task(mm, spg, prot);
+ 	if (unlikely(IS_ERR(node))) {
+ 		up_write(&spg->rw_lock);
+ 		ret = PTR_ERR(node);
+ 		goto out_drop_group;
+ 	}
+ 
+-	ret = insert_spg_node(spg, node);
+-	if (unlikely(ret)) {
+-		up_write(&spg->rw_lock);
+-		goto out_drop_spg_node;
+-	}
+-
+ 	/*
+ 	 * create mappings of existing shared memory segments into this
+ 	 * new process' page table.
+@@ -1591,7 +1596,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		delete_spg_node(spg, node);
+ 	up_write(&spg->rw_lock);
+ 
+-out_drop_spg_node:
+ 	if (unlikely(ret))
+ 		free_spg_node(mm, spg, node);
+ 	/*
+-- 
+2.17.1
+

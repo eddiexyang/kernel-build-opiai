@@ -1,0 +1,46 @@
+From a09dd088c0c087e233ed479ca9cb65f070f4a52b Mon Sep 17 00:00:00 2001
+From: Angelo Dureghello <angelo.dureghello@timesys.com>
+Date: Wed, 26 Apr 2023 22:28:15 +0200
+Subject: [PATCH 338/780] [Backport] net: dsa: mv88e6xxx: add mv88e6321
+ rsvd2cpu
+
+stable inclusion
+from stable-v5.10.180
+commit f47f0fb5b58b92e0e256fd8e90211fe42093aaad
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f47f0fb5b58b92e0e256fd8e90211fe42093aaad
+
+--------------------------------
+
+[ Upstream commit 6686317855c6997671982d4489ccdd946f644957 ]
+
+Add rsvd2cpu capability for mv88e6321 model, to allow proper bpdu
+processing.
+
+Signed-off-by: Angelo Dureghello <angelo.dureghello@timesys.com>
+Fixes: 51c901a775621 ("net: dsa: mv88e6xxx: distinguish Global 2 Rsvd2CPU")
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/dsa/mv88e6xxx/chip.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/dsa/mv88e6xxx/chip.c b/drivers/net/dsa/mv88e6xxx/chip.c
+index 0b104a90c0d8..321c821876f6 100644
+--- a/drivers/net/dsa/mv88e6xxx/chip.c
++++ b/drivers/net/dsa/mv88e6xxx/chip.c
+@@ -4182,6 +4182,7 @@ static const struct mv88e6xxx_ops mv88e6321_ops = {
+ 	.set_cpu_port = mv88e6095_g1_set_cpu_port,
+ 	.set_egress_port = mv88e6095_g1_set_egress_port,
+ 	.watchdog_ops = &mv88e6390_watchdog_ops,
++	.mgmt_rsvd2cpu = mv88e6352_g2_mgmt_rsvd2cpu,
+ 	.reset = mv88e6352_g1_reset,
+ 	.vtu_getnext = mv88e6185_g1_vtu_getnext,
+ 	.vtu_loadpurge = mv88e6185_g1_vtu_loadpurge,
+-- 
+2.17.1
+

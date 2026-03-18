@@ -1,0 +1,113 @@
+From a87116f1895d2e19dc0214a69b7eae782454f28d Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Mon, 6 Feb 2023 22:34:19 +0800
+Subject: [PATCH 024/500] [Huawei] Revert "io_uring: deduplicate failing
+ task_work_add"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188335
+
+-------------------------------
+
+This reverts commit 62ca17101210b51f98146f7502ae25238c69f4a6.
+
+This patch extracts a function for patch 792bb6eb8623 (io_uring: don't
+take uring_lock during iowq cancel). We can revert it since patch
+792bb6eb8623 has been replaced by the one from stable/5.10.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/io_uring.c | 46 +++++++++++++++++++++++++++++-----------------
+ 1 file changed, 29 insertions(+), 17 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index 6bcbd89aa5d0..6bcc80fd624e 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -2074,16 +2074,6 @@ static int io_req_task_work_add(struct io_kiocb *req, bool twa_signal_ok)
+ 	return ret;
+ }
+ 
+-static void io_req_task_work_add_fallback(struct io_kiocb *req,
+-					  void (*cb)(struct callback_head *))
+-{
+-	struct task_struct *tsk = io_wq_get_task(req->ctx->io_wq);
+-
+-	init_task_work(&req->task_work, cb);
+-	task_work_add(tsk, &req->task_work, TWA_NONE);
+-	wake_up_process(tsk);
+-}
+-
+ static void __io_req_task_cancel(struct io_kiocb *req, int error)
+ {
+ 	struct io_ring_ctx *ctx = req->ctx;
+@@ -2139,8 +2129,14 @@ static void io_req_task_queue(struct io_kiocb *req)
+ 	percpu_ref_get(&req->ctx->refs);
+ 
+ 	ret = io_req_task_work_add(req, true);
+-	if (unlikely(ret))
+-		io_req_task_work_add_fallback(req, io_req_task_cancel);
++	if (unlikely(ret)) {
++		struct task_struct *tsk;
++
++		init_task_work(&req->task_work, io_req_task_cancel);
++		tsk = io_wq_get_task(req->ctx->io_wq);
++		task_work_add(tsk, &req->task_work, TWA_NONE);
++		wake_up_process(tsk);
++	}
+ }
+ 
+ static void io_queue_next(struct io_kiocb *req)
+@@ -2259,8 +2255,13 @@ static void io_free_req_deferred(struct io_kiocb *req)
+ 
+ 	init_task_work(&req->task_work, io_put_req_deferred_cb);
+ 	ret = io_req_task_work_add(req, true);
+-	if (unlikely(ret))
+-		io_req_task_work_add_fallback(req, io_put_req_deferred_cb);
++	if (unlikely(ret)) {
++		struct task_struct *tsk;
++
++		tsk = io_wq_get_task(req->ctx->io_wq);
++		task_work_add(tsk, &req->task_work, TWA_NONE);
++		wake_up_process(tsk);
++	}
+ }
+ 
+ static inline void io_put_req_deferred(struct io_kiocb *req, int refs)
+@@ -3323,8 +3324,15 @@ static int io_async_buf_func(struct wait_queue_entry *wait, unsigned mode,
+ 	/* submit ref gets dropped, acquire a new one */
+ 	refcount_inc(&req->refs);
+ 	ret = io_req_task_work_add(req, true);
+-	if (unlikely(ret))
+-		io_req_task_work_add_fallback(req, io_req_task_cancel);
++	if (unlikely(ret)) {
++		struct task_struct *tsk;
++
++		/* queue just for cancelation */
++		init_task_work(&req->task_work, io_req_task_cancel);
++		tsk = io_wq_get_task(req->ctx->io_wq);
++		task_work_add(tsk, &req->task_work, TWA_NONE);
++		wake_up_process(tsk);
++	}
+ 	return 1;
+ }
+ 
+@@ -4940,8 +4948,12 @@ static int __io_async_wake(struct io_kiocb *req, struct io_poll_iocb *poll,
+ 	 */
+ 	ret = io_req_task_work_add(req, twa_signal_ok);
+ 	if (unlikely(ret)) {
++		struct task_struct *tsk;
++
+ 		WRITE_ONCE(poll->canceled, true);
+-		io_req_task_work_add_fallback(req, func);
++		tsk = io_wq_get_task(req->ctx->io_wq);
++		task_work_add(tsk, &req->task_work, TWA_NONE);
++		wake_up_process(tsk);
+ 	}
+ 	return 1;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,159 @@
+From f4b324790fdb9eaa43c38236204a69084b246a33 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Sun, 7 Feb 2021 09:24:55 +0000
+Subject: [PATCH] char/sdma: Add driver framework for sdma
+
+SDMA (System Direct memory access) supplies a feature to do memcpy
+without CPU, and its speed is much faster.
+We can user it in kernel or export to userspace for performance
+improvement.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ drivers/char/Kconfig      |  6 ++++
+ drivers/char/Makefile     |  1 +
+ drivers/char/sdma.c       | 72 +++++++++++++++++++++++++++++++++++++++
+ include/linux/hisi_sdma.h | 26 ++++++++++++++
+ 4 files changed, 105 insertions(+)
+ create mode 100644 drivers/char/sdma.c
+ create mode 100644 include/linux/hisi_sdma.h
+
+diff --git a/drivers/char/Kconfig b/drivers/char/Kconfig
+index 9e80f8fa6..40947a5ee 100644
+--- a/drivers/char/Kconfig
++++ b/drivers/char/Kconfig
+@@ -478,6 +478,12 @@ config PIN_MEMORY_DEV
+ 	help
+ 	  pin memory driver
+ 
++config HISI_SDMA
++	bool "Hisilicon sdma driver"
++	default y
++	help
++	  This driver provides a cpu-free memory copy methods.
++
+ endmenu
+ 
+ config RANDOM_TRUST_CPU
+diff --git a/drivers/char/Makefile b/drivers/char/Makefile
+index 71d76fd62..a6ac23c55 100644
+--- a/drivers/char/Makefile
++++ b/drivers/char/Makefile
+@@ -48,3 +48,4 @@ obj-$(CONFIG_XILLYBUS)		+= xillybus/
+ obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
+ obj-$(CONFIG_ADI)		+= adi.o
+ obj-$(CONFIG_PIN_MEMORY_DEV)	+= pin_memory.o
++obj-$(CONFIG_HISI_SDMA)        += sdma.o
+diff --git a/drivers/char/sdma.c b/drivers/char/sdma.c
+new file mode 100644
+index 000000000..a6f33ec25
+--- /dev/null
++++ b/drivers/char/sdma.c
+@@ -0,0 +1,72 @@
++/*
++ * Copyright (C) Huawei Technologies Co., Ltd. 2021. All rights reserved.
++ * Author: Huawei OS Kernel Lab
++ * Create: Sun Feb 07 08:45:25 2021
++ */
++#define pr_fmt(fmt) "SDMA:" fmt
++
++#include <linux/hisi_sdma.h>
++#include <linux/printk.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++
++#define SDMA_DEVICE_NAME "sdma"
++
++struct sdma_sq_entry {
++
++};
++
++struct sdma_cq_entry {
++
++};
++
++struct sdma_channel {
++
++};
++
++struct sdma_device {
++
++};
++
++int sdma_memcpy(void *des, const void *src, size_t len)
++{
++	return 0;
++}
++
++static int sdma_device_probe(struct platform_device *pdev)
++{
++	return 0;
++}
++
++static int sdma_device_remove(struct platform_device *pdev)
++{
++	return 0;
++}
++
++static void sdma_device_shutdown(struct platform_device *pdev)
++{
++	return;
++}
++
++static const struct of_device_id sdma_of_match[] = {
++	{ .compatible = "hisilicon,sdma" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, sdma_of_match);
++
++static struct platform_driver sdma_driver = {
++	.probe    = sdma_device_probe,
++	.remove   = sdma_device_remove,
++	.shutdown = sdma_device_shutdown,
++	.driver   = {
++		.name           = SDMA_DEVICE_NAME,
++		.of_match_table = sdma_of_match,
++	},
++};
++module_platform_driver(sdma_driver);
++
++MODULE_AUTHOR("Wang Wensheng <wangwensheng4@huawei.com>");
++MODULE_LICENSE("GPL v2");
+diff --git a/include/linux/hisi_sdma.h b/include/linux/hisi_sdma.h
+new file mode 100644
+index 000000000..b658ca1ab
+--- /dev/null
++++ b/include/linux/hisi_sdma.h
+@@ -0,0 +1,26 @@
++/*
++ * Copyright (C) Huawei Technologies Co., Ltd. 2021. All rights reserved.
++ * Author: Huawei OS Kernel Lab
++ * Create: Sun Feb 07 09:11:30 2021
++ */
++
++#ifndef __HISI_SDMA_H__
++#define __HISI_SDMA_H__
++
++#include <linux/types.h>
++#include <linux/errno.h>
++
++#ifdef CONFIG_HISI_SDMA
++
++int sdma_memcpy(void *des, const void *src, size_t len);
++
++#else
++
++int sdma_memcpy(void *des, const void *src, size_t len)
++{
++	return -ENODEV;
++}
++
++#endif
++
++#endif
+-- 
+2.17.1
+

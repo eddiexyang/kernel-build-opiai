@@ -1,0 +1,74 @@
+From cbe1cb5dc23c8dcb1afd550680fffccf0dcad4cf Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 18 Aug 2023 15:56:01 +0800
+Subject: [PATCH 52/53] [Huawei] mm/sharepool: Using mmput_async()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+The mmput may release the mm_struct and then call sp_clean_mm that
+requires the locks of sharepool subsystem. So if we invoke mmput under
+sharepool locks, AA lockup may occur.
+
+schedule+0x50/0xdc
+rwsem_down_write_slowpath+0x3f0/0x770
+down_write+0x74/0xa0
+sp_mm_clean+0xa8/0x220
+mmput+0xac/0x220
+sp_munmap.isra.0+0xbc/0x140
+sp_free_inner+0xa0/0x200
+mg_sp_free+0x34/0x60
+dev_sp_free+0xa0/0x170 [sharepool_dev]
+dev_ioctl+0x22c/0x3ac [sharepool_dev]
+__arm64_sys_ioctl+0xb0/0xf4
+el0_svc_common.constprop.0+0x7c/0x1bc
+do_el0_svc+0x2c/0xa4
+el0_svc+0x20/0x30
+el0_sync_handler+0xb0/0xb4
+el0_sync+0x160/0x180
+
+Using mmput_async() to solve this problem.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 68fe9173dd57..293a7120d7e2 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1798,7 +1798,7 @@ static void sp_munmap(struct mm_struct *mm, unsigned long addr,
+ 		pr_err("failed to unmap VA %pK when sp munmap\n", (void *)addr);
+ 
+ 	up_write(&mm->mmap_lock);
+-	mmput(mm);
++	mmput_async(mm);
+ }
+ 
+ /* The caller should hold the write lock for spa->spg->rw_lock */
+@@ -2118,7 +2118,7 @@ static int sp_map_spa_to_mm(struct mm_struct *mm, struct sp_area *spa,
+ 	mmap_addr = sp_mmap(mm, spa_file(spa), spa, &populate, prot);
+ 	if (IS_ERR_VALUE(mmap_addr)) {
+ 		up_write(&mm->mmap_lock);
+-		mmput(mm);
++		mmput_async(mm);
+ 		pr_err("%s, sp mmap failed %ld\n", str, mmap_addr);
+ 		return (int)mmap_addr;
+ 	}
+@@ -2139,7 +2139,7 @@ static int sp_map_spa_to_mm(struct mm_struct *mm, struct sp_area *spa,
+ 		}
+ 		up_write(&mm->mmap_lock);
+ 	}
+-	mmput(mm);
++	mmput_async(mm);
+ 
+ 	return ret;
+ }
+-- 
+2.17.1
+

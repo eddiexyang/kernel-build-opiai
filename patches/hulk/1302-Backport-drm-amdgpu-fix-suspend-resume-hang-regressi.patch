@@ -1,0 +1,53 @@
+From 7e2fca4cd5d7bf3edca56c36ba256b331c51e1c4 Mon Sep 17 00:00:00 2001
+From: Qiang Yu <qiang.yu@amd.com>
+Date: Tue, 1 Mar 2022 14:11:59 +0800
+Subject: [PATCH 1302/2065] [Backport] drm/amdgpu: fix suspend/resume hang
+ regression
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.104
+commit 6828da5dea530f4743ecdef89f90cc117dfe3cee
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XAC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6828da5dea530f4743ecdef89f90cc117dfe3cee
+
+--------------------------------
+
+[ Upstream commit f1ef17011c765495c876fa75435e59eecfdc1ee4 ]
+
+Regression has been reported that suspend/resume may hang with
+the previous vm ready check commit.
+
+So bring back the evicted list check as a temp fix.
+
+Bug: https://gitlab.freedesktop.org/drm/amd/-/issues/1922
+Fixes: c1a66c3bc425 ("drm/amdgpu: check vm ready by amdgpu_vm->evicting flag")
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Qiang Yu <qiang.yu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 47cc038d7d50..635601d8b131 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -724,7 +724,8 @@ bool amdgpu_vm_ready(struct amdgpu_vm *vm)
+ 	amdgpu_vm_eviction_lock(vm);
+ 	ret = !vm->evicting;
+ 	amdgpu_vm_eviction_unlock(vm);
+-	return ret;
++
++	return ret && list_empty(&vm->evicted);
+ }
+ 
+ /**
+-- 
+2.17.1
+

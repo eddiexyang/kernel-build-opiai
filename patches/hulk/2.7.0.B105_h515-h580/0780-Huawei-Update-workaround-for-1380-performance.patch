@@ -1,0 +1,158 @@
+From 7d0f68c5bba94ca3f8eec9b7b458349c2de3b53e Mon Sep 17 00:00:00 2001
+From: GUO Zihua <guozihua@huawei.com>
+Date: Fri, 30 Jun 2023 11:14:31 +0800
+Subject: [PATCH 780/780] [Huawei] Update workaround for 1380 performance
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188392
+
+--------------------------------
+
+Updated the workaround for 1380 performance fix, utilizing an aligned
+attribute allowing for window of instruction changes.
+
+Signed-off-by: GUO Zihua <guozihua@huawei.com>
+---
+ drivers/char/random.c | 122 +++---------------------------------------
+ 1 file changed, 7 insertions(+), 115 deletions(-)
+
+diff --git a/drivers/char/random.c b/drivers/char/random.c
+index 63b5eb667717..8562401b108b 100644
+--- a/drivers/char/random.c
++++ b/drivers/char/random.c
+@@ -398,123 +398,15 @@ static void crng_make_state(u32 chacha_state[CHACHA_STATE_WORDS],
+ #ifdef CONFIG_RTOS_FIX_RANDOM_PERFORMANCE
+ /*
+  * Dummy function acting as a placeholder to fix 1380 performance degrade.
+- * It contains 112 nops, which is exactly the instruction count of the original
+- * function crng_pre_init_inject.
++ * This is a de-facto workaround produced from bunch of testing. The root
++ * casue of this performance issue is still unknown.
+  */
+-static void __used dummy(const void *input, size_t len, bool account)
++static __aligned(64) void __used dummy(const void *input, size_t len, bool account)
++{
++}
++
++static __aligned(64) void __used dummy2(const void *input, size_t len, bool account)
+ {
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+-	__asm__ __volatile__ ("nop");
+ }
+ #endif // CONFIG_RTOS_FIX_RANDOM_PERFORMANCE
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,45 @@
+From 142544cf47fc144a27623a225034cf5212f8d706 Mon Sep 17 00:00:00 2001
+From: Huang Pei <huangpei@loongson.cn>
+Date: Tue, 23 Nov 2021 19:07:48 +0800
+Subject: [PATCH 1315/2065] [Backport] hamradio: fix macro redefine warning
+
+stable inclusion
+from stable-v5.10.104
+commit dbbe09d953773e89d7e9bfb49acd936ddf7d84db
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XAC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=dbbe09d953773e89d7e9bfb49acd936ddf7d84db
+
+--------------------------------
+
+commit 16517829f2e02f096fb5ea9083d160381127faf3 upstream.
+
+MIPS/IA64 define END as assembly function ending, which conflict
+with END definition in mkiss.c, just undef it at first
+
+Reported-by: lkp@intel.com
+Signed-off-by: Huang Pei <huangpei@loongson.cn>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Cc: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/net/hamradio/mkiss.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/hamradio/mkiss.c b/drivers/net/hamradio/mkiss.c
+index 63502a85a975..049264a7d961 100644
+--- a/drivers/net/hamradio/mkiss.c
++++ b/drivers/net/hamradio/mkiss.c
+@@ -31,6 +31,8 @@
+ 
+ #define AX_MTU		236
+ 
++/* some arch define END as assembly function ending, just undef it */
++#undef	END
+ /* SLIP/KISS protocol characters. */
+ #define END             0300		/* indicates end of frame	*/
+ #define ESC             0333		/* indicates byte stuffing	*/
+-- 
+2.17.1
+

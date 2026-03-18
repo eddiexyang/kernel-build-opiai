@@ -1,0 +1,43 @@
+From 8a2c33997e90c92bca653cb45d9b06e01080bc3c Mon Sep 17 00:00:00 2001
+From: Long Li <leo.lilong@huawei.com>
+Date: Fri, 21 Apr 2023 10:09:21 +0800
+Subject: [PATCH 1274/1646] [Huawei] xfs: fix missed modify in xfs_log_writable
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188220
+
+--------------------------------
+
+In mainline, 50d25484bebe ("xfs: sync lazy sb accounting on quiesce of
+read-only mounts") merges before 2039a272300b (xfs: convert
+XLOG_FORCED_SHUTDOWN() to xlog_is_shutdown()"), and the latter relies on
+the xfs_log_writable() added by the former. But in hulk, the merging
+order is reversed, after this, commit 761bf940a272 ("xfs: replace
+XFS_FORCED_SHUTDOWN with xfs_is_shutdown") changes XFS_FORCED_SHUTDOWN
+to xfs_is_shutdown. that caused modify of xfs_is_shutdown is missed in
+xfs_log_writable(), fix it by using the correct function.
+
+Fixes: 48d69947e8c7 ("[Backport] xfs: sync lazy sb accounting on quiesce of read-only mounts")
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_log.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/xfs/xfs_log.c b/fs/xfs/xfs_log.c
+index 46c692844717..506bb43b1eda 100644
+--- a/fs/xfs/xfs_log.c
++++ b/fs/xfs/xfs_log.c
+@@ -359,7 +359,7 @@ xfs_log_writable(
+ 		return false;
+ 	if (xfs_readonly_buftarg(mp->m_log->l_targ))
+ 		return false;
+-	if (xfs_is_shutdown(mp))
++	if (xlog_is_shutdown(mp->m_log))
+ 		return false;
+ 	return true;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,66 @@
+From 757409f38865be54bbab202ef26f8c8f2a0e2db7 Mon Sep 17 00:00:00 2001
+From: Julia Lawall <Julia.Lawall@lip6.fr>
+Date: Wed, 27 Apr 2022 11:15:33 +0800
+Subject: [PATCH 0462/2065] [Backport] powerpc/cell: add missing of_node_put
+
+stable inclusion
+from stable-v5.10.94
+commit fc10d8f00a89717a5d7fd837e6b6a188e4279d48
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fc10d8f00a89717a5d7fd837e6b6a188e4279d48
+
+--------------------------------
+
+[ Upstream commit a841fd009e51c8c0a8f07c942e9ab6bb48da8858 ]
+
+for_each_node_by_name performs an of_node_get on each iteration, so
+a break out of the loop requires an of_node_put.
+
+A simplified version of the semantic patch that fixes this problem is as
+follows (http://coccinelle.lip6.fr):
+
+// <smpl>
+@@
+expression e,e1;
+local idexpression n;
+@@
+
+ for_each_node_by_name(n, e1) {
+   ... when != of_node_put(n)
+       when != e = n
+(
+   return n;
+|
++  of_node_put(n);
+?  return ...;
+)
+   ...
+ }
+// </smpl>
+
+Signed-off-by: Julia Lawall <Julia.Lawall@lip6.fr>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/1448051604-25256-7-git-send-email-Julia.Lawall@lip6.fr
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ arch/powerpc/platforms/cell/iommu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/platforms/cell/iommu.c b/arch/powerpc/platforms/cell/iommu.c
+index 2124831cf57c..d04079b34d7c 100644
+--- a/arch/powerpc/platforms/cell/iommu.c
++++ b/arch/powerpc/platforms/cell/iommu.c
+@@ -976,6 +976,7 @@ static int __init cell_iommu_fixed_mapping_init(void)
+ 			if (hbase < dbase || (hend > (dbase + dsize))) {
+ 				pr_debug("iommu: hash window doesn't fit in"
+ 					 "real DMA window\n");
++				of_node_put(np);
+ 				return -1;
+ 			}
+ 		}
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From a52c04ae41fc63555464f32c9826d316cd144440 Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Fri, 12 May 2023 14:49:57 -0400
+Subject: [PATCH 038/263] [Backport] ext4: add indication of ro vs r/w mounts
+ in the mount message
+
+mainline inclusion
+from mainline-v6.4-rc2
+commit 6dcc98fbc46511f7a6650946f198df6951a5a88c
+category: feature
+bugzilla: 188795
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6dcc98fbc46511f7a6650946f198df6951a5a88c
+
+--------------------------------
+
+Whether the file system is mounted read-only or read/write is more
+important than the quota mode, which we are already printing.  Add the
+ro vs r/w indication since this can be helpful in debugging problems
+from the console log.
+
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+
+Conflicts:
+	fs/ext4/super.c
+
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/super.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index 1a9b85599b9a..fb71ed6d99ce 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5197,8 +5197,9 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
+ 	}
+ 
+ 	if (___ratelimit(&ext4_mount_msg_ratelimit, "EXT4-fs mount"))
+-		ext4_msg(sb, KERN_INFO, "mounted filesystem %pU with%s. "
+-			 "Opts: %.*s%s%s", &sb->s_uuid, descr,
++		ext4_msg(sb, KERN_INFO, "mounted filesystem %pU %s with%s. "
++			 "Opts: %.*s%s%s", &sb->s_uuid,
++			 sb_rdonly(sb) ? "ro" : "r/w", descr,
+ 			 (int) sizeof(sbi->s_es->s_mount_opts),
+ 			 sbi->s_es->s_mount_opts,
+ 			 *sbi->s_es->s_mount_opts ? "; " : "", orig_data);
+@@ -6230,8 +6231,8 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
+ 	 */
+ 	*flags = (*flags & ~vfs_flags) | (sb->s_flags & vfs_flags);
+ 
+-	ext4_msg(sb, KERN_INFO, "re-mounted %pU. Opts: %s", &sb->s_uuid,
+-		 orig_data);
++	ext4_msg(sb, KERN_INFO, "re-mounted %pU %s. Opts: %s", &sb->s_uuid,
++		 sb_rdonly(sb) ? "ro" : "r/w", orig_data);
+ 	kfree(orig_data);
+ 	return 0;
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,56 @@
+From d0e2e64ffa995d8ac23f462cc2151f07da16924a Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 1 Nov 2022 22:03:26 +0000
+Subject: [PATCH 182/921] [Backport] tools/selftets/damon/sysfs: test
+ tried_regions directory existence
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 2b3ee3f66c673312ea377bcfb54cb2b9abc8473b
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2b3ee3f66c673312ea377bcfb54cb2b9abc8473b
+
+--------------------------------
+
+Add a simple test case for ensuring tried_regions directory existence.
+
+Link: https://lkml.kernel.org/r/20221101220328.95765-7-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ tools/testing/selftests/damon/sysfs.sh | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/tools/testing/selftests/damon/sysfs.sh b/tools/testing/selftests/damon/sysfs.sh
+index 89592c64462f..db4942383a50 100644
+--- a/tools/testing/selftests/damon/sysfs.sh
++++ b/tools/testing/selftests/damon/sysfs.sh
+@@ -80,6 +80,12 @@ test_range()
+ 	ensure_file "$range_dir/max" "exist" 600
+ }
+ 
++test_tried_regions()
++{
++	tried_regions_dir=$1
++	ensure_dir "$tried_regions_dir" "exist"
++}
++
+ test_stats()
+ {
+ 	stats_dir=$1
+@@ -138,6 +144,7 @@ test_scheme()
+ 	test_quotas "$scheme_dir/quotas"
+ 	test_watermarks "$scheme_dir/watermarks"
+ 	test_stats "$scheme_dir/stats"
++	test_tried_regions "$scheme_dir/tried_regions"
+ }
+ 
+ test_schemes()
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From ba5a68217d69f3f452ba3a817e383fce05d4b265 Mon Sep 17 00:00:00 2001
+From: Michael Chan <michael.chan@broadcom.com>
+Date: Tue, 28 Mar 2023 18:30:21 -0700
+Subject: [PATCH 1553/1646] [Backport] bnxt_en: Add missing 200G link speed
+ reporting
+
+stable inclusion
+from stable-v5.10.177
+commit 8104c795517c2f10e2720c16b216abb9a68746ee
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8104c795517c2f10e2720c16b216abb9a68746ee
+
+--------------------------------
+
+[ Upstream commit 581bce7bcb7e7f100908728e7b292e266c76895b ]
+
+bnxt_fw_to_ethtool_speed() is missing the case statement for 200G
+link speed reported by firmware.  As a result, ethtool will report
+unknown speed when the firmware reports 200G link speed.
+
+Fixes: 532262ba3b84 ("bnxt_en: ethtool: support PAM4 link speeds up to 200G")
+Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/broadcom/bnxt/bnxt.h         | 1 +
+ drivers/net/ethernet/broadcom/bnxt/bnxt_ethtool.c | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt.h b/drivers/net/ethernet/broadcom/bnxt/bnxt.h
+index 34affd1de91d..b7b07beb17ff 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt.h
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt.h
+@@ -1198,6 +1198,7 @@ struct bnxt_link_info {
+ #define BNXT_LINK_SPEED_40GB	PORT_PHY_QCFG_RESP_LINK_SPEED_40GB
+ #define BNXT_LINK_SPEED_50GB	PORT_PHY_QCFG_RESP_LINK_SPEED_50GB
+ #define BNXT_LINK_SPEED_100GB	PORT_PHY_QCFG_RESP_LINK_SPEED_100GB
++#define BNXT_LINK_SPEED_200GB	PORT_PHY_QCFG_RESP_LINK_SPEED_200GB
+ 	u16			support_speeds;
+ 	u16			support_pam4_speeds;
+ 	u16			auto_link_speeds;	/* fw adv setting */
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt_ethtool.c b/drivers/net/ethernet/broadcom/bnxt/bnxt_ethtool.c
+index f3d8d08a15d3..6af0b61eb8c1 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt_ethtool.c
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt_ethtool.c
+@@ -1661,6 +1661,8 @@ u32 bnxt_fw_to_ethtool_speed(u16 fw_link_speed)
+ 		return SPEED_50000;
+ 	case BNXT_LINK_SPEED_100GB:
+ 		return SPEED_100000;
++	case BNXT_LINK_SPEED_200GB:
++		return SPEED_200000;
+ 	default:
+ 		return SPEED_UNKNOWN;
+ 	}
+-- 
+2.17.1
+

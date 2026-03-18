@@ -1,0 +1,129 @@
+From dad9f830b5bc6e3df34d3e9752be8188ff80b4b9 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Fri, 11 Nov 2022 11:53:38 +0800
+Subject: [PATCH 0018/1398] [Huawei] mm/hugetlb: isolate the code of dynamic
+ hugetlb feature
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187965
+
+--------------------------------
+
+Isolate the code of dynamic hugetlb feature.
+
+Fixes: 5993c1d64dd7 ("mm/dynamic_hugetlb: collects resv allocated for dhugetlb_pool")
+Fixes: 39eec7589dee ("mm/dynamic_hugetlb: alloc huge pages from dhugetlb_pool")
+Fixes: 6ede0f004ac6 ("mm/dynamic_hugetlb: free huge pages to dhugetlb_pool")
+Fixes: 72a95efdb3b0 ("mm/huge_memory: disable THP when dynamic hugetlb is enabled")
+Fixes: 1c67d0903de1 ("mm: hugetlb_vmemmap: disable hugetlb_vmemmap when dynamic hugetlb is enabled")
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/hugetlb.h | 2 ++
+ mm/huge_memory.c        | 2 ++
+ mm/hugetlb.c            | 6 ++++++
+ mm/hugetlb_vmemmap.c    | 2 ++
+ 4 files changed, 12 insertions(+)
+
+diff --git a/include/linux/hugetlb.h b/include/linux/hugetlb.h
+index 1c780d188e8c..cbb09645ecb2 100644
+--- a/include/linux/hugetlb.h
++++ b/include/linux/hugetlb.h
+@@ -446,7 +446,9 @@ struct hugetlbfs_inode_info {
+ 	struct shared_policy policy;
+ 	struct inode vfs_inode;
+ 	unsigned int seals;
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	struct dhugetlb_pool *hpool;
++#endif
+ };
+ 
+ static inline struct hugetlbfs_inode_info *HUGETLBFS_I(struct inode *inode)
+diff --git a/mm/huge_memory.c b/mm/huge_memory.c
+index e20f47caeabb..2722d00ecc77 100644
+--- a/mm/huge_memory.c
++++ b/mm/huge_memory.c
+@@ -393,6 +393,7 @@ static int __init hugepage_init(void)
+ 		return -EINVAL;
+ 	}
+ 
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	/*
+ 	 * When we alloc some pages(order = 0), system may help us to alloc a page(order > 0)
+ 	 * due to transparent hugepage. This result dynamic hugetlb to be skipped.
+@@ -404,6 +405,7 @@ static int __init hugepage_init(void)
+ 		pr_info("transparent hugepage is disabled due to conflict with dynamic hugetlb\n");
+ 		return -EINVAL;
+ 	}
++#endif
+ 
+ 	/*
+ 	 * hugepages can't be allocated by the buddy allocator
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index c5a4792ece6b..9b0896a1e27d 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -1583,6 +1583,7 @@ void free_huge_page(struct page *page)
+ 	restore_reserve = HPageRestoreReserve(page);
+ 	ClearHPageRestoreReserve(page);
+ 
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	if (dhugetlb_enabled && PagePool(page)) {
+ 		spin_lock(&hugetlb_lock);
+ 		ClearHPageMigratable(page);
+@@ -1595,6 +1596,7 @@ void free_huge_page(struct page *page)
+ 		free_huge_page_to_dhugetlb_pool(page, restore_reserve);
+ 		return;
+ 	}
++#endif
+ 
+ 	/*
+ 	 * If HPageRestoreReserve was set on page, page allocation consumed a
+@@ -2616,6 +2618,7 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
+ 	if (ret)
+ 		goto out_uncharge_cgroup_reservation;
+ 
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	if (file_has_mem_in_hpool(info)) {
+ 		bool need_unreserved = false;
+ 
+@@ -2628,6 +2631,7 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
+ 		list_add(&page->lru, &h->hugepage_activelist);
+ 		goto out;
+ 	}
++#endif
+ 
+ 	spin_lock_irq(&hugetlb_lock);
+ 	/*
+@@ -2649,7 +2653,9 @@ struct page *alloc_huge_page(struct vm_area_struct *vma,
+ 		list_add(&page->lru, &h->hugepage_activelist);
+ 		/* Fall through */
+ 	}
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ out:
++#endif
+ 	hugetlb_cgroup_commit_charge(idx, pages_per_huge_page(h), h_cg, page);
+ 	/* If allocation is not consuming a reservation, also store the
+ 	 * hugetlb_cgroup pointer on the page.
+diff --git a/mm/hugetlb_vmemmap.c b/mm/hugetlb_vmemmap.c
+index 7ec8560d267d..91a9e3626185 100644
+--- a/mm/hugetlb_vmemmap.c
++++ b/mm/hugetlb_vmemmap.c
+@@ -305,11 +305,13 @@ void __init hugetlb_vmemmap_init(struct hstate *h)
+ 	BUILD_BUG_ON(__NR_USED_SUBPAGE >=
+ 		     RESERVE_VMEMMAP_SIZE / sizeof(struct page));
+ 
++#ifdef CONFIG_DYNAMIC_HUGETLB
+ 	if (enable_dhugetlb) {
+ 		pr_warn_once("cannot optimize vmemmap pages due to conflict with dynamic hugetlb\n");
+ 		static_branch_disable(&hugetlb_optimize_vmemmap_key);
+ 		return;
+ 	}
++#endif
+ 
+ 	if (!is_power_of_2(sizeof(struct page))) {
+ 		pr_warn_once("cannot optimize vmemmap pages because \"struct page\" crosses page boundaries\n");
+-- 
+2.17.1
+

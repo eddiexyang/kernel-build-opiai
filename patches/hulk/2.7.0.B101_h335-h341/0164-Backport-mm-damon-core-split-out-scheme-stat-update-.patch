@@ -1,0 +1,65 @@
+From 7b19874a3a1095ddc8853b3571e8a11a55e9f1a0 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Wed, 26 Oct 2022 22:59:34 +0000
+Subject: [PATCH 164/921] [Backport] mm/damon/core: split out scheme stat
+ update logic into a new function
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit d1cbbf621fc25950938be74a228ef518d05d93a1
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d1cbbf621fc25950938be74a228ef518d05d93a1
+
+--------------------------------
+
+The function for applying a given DAMON scheme action to a given DAMON
+region, 'damos_apply_scheme()' is not quite short.  Make it better to read
+by splitting out the stat update logic into a new function.
+
+Link: https://lkml.kernel.org/r/20221026225943.100429-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core.c | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index c1a912bc46ae..3a810c6e26bc 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -755,6 +755,16 @@ static bool damos_skip_charged_region(struct damon_target *t,
+ 	return false;
+ }
+ 
++static void damos_update_stat(struct damos *s,
++		unsigned long sz_tried, unsigned long sz_applied)
++{
++	s->stat.nr_tried++;
++	s->stat.sz_tried += sz_tried;
++	if (sz_applied)
++		s->stat.nr_applied++;
++	s->stat.sz_applied += sz_applied;
++}
++
+ static void damos_apply_scheme(struct damon_ctx *c, struct damon_target *t,
+ 		struct damon_region *r, struct damos *s)
+ {
+@@ -786,11 +796,7 @@ static void damos_apply_scheme(struct damon_ctx *c, struct damon_target *t,
+ 		r->age = 0;
+ 
+ update_stat:
+-	s->stat.nr_tried++;
+-	s->stat.sz_tried += sz;
+-	if (sz_applied)
+-		s->stat.nr_applied++;
+-	s->stat.sz_applied += sz_applied;
++	damos_update_stat(s, sz, sz_applied);
+ }
+ 
+ static void damon_do_apply_schemes(struct damon_ctx *c,
+-- 
+2.17.1
+

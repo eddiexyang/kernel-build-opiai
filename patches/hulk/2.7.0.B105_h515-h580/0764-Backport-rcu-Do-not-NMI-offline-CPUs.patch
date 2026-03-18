@@ -1,0 +1,65 @@
+From 5def20d4698bc6f72791a71453686959dff7ec87 Mon Sep 17 00:00:00 2001
+From: "Paul E. McKenney" <paulmck@kernel.org>
+Date: Thu, 12 Nov 2020 12:19:47 -0800
+Subject: [PATCH 764/780] [Backport] rcu: Do not NMI offline CPUs
+
+mainline inclusion
+from mainline-v5.12-rc1
+commit 725969ac11d7fa50aa701321daa600ce421fc21b
+category: feature
+bugzilla: 188933
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=725969ac11d7fa50aa701321daa600ce421fc21b
+
+--------------------------------
+
+Currently, RCU CPU stall warning messages will NMI whatever CPU looks
+like it is blocking either the current grace period or the grace-period
+kthread.  This can produce confusing output if the target CPU is offline.
+This commit therefore checks for offline CPUs.
+
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+---
+ kernel/rcu/tree_stall.h | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/rcu/tree_stall.h b/kernel/rcu/tree_stall.h
+index 5df4640254ac..c38622ff7267 100644
+--- a/kernel/rcu/tree_stall.h
++++ b/kernel/rcu/tree_stall.h
+@@ -333,9 +333,12 @@ static void rcu_dump_cpu_stacks(void)
+ 	rcu_for_each_leaf_node(rnp) {
+ 		raw_spin_lock_irqsave_rcu_node(rnp, flags);
+ 		for_each_leaf_node_possible_cpu(rnp, cpu)
+-			if (rnp->qsmask & leaf_node_cpu_bit(rnp, cpu))
+-				if (!trigger_single_cpu_backtrace(cpu))
++			if (rnp->qsmask & leaf_node_cpu_bit(rnp, cpu)) {
++				if (cpu_is_offline(cpu))
++					pr_err("Offline CPU %d blocking current GP.\n", cpu);
++				else if (!trigger_single_cpu_backtrace(cpu))
+ 					dump_cpu_task(cpu);
++			}
+ 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+ 	}
+ }
+@@ -466,9 +469,13 @@ static void rcu_check_gp_kthread_starvation(void)
+ 			pr_err("RCU grace-period kthread stack dump:\n");
+ 			sched_show_task(gpk);
+ 			if (cpu >= 0) {
+-				pr_err("Stack dump where RCU grace-period kthread last ran:\n");
+-				if (!trigger_single_cpu_backtrace(cpu))
+-					dump_cpu_task(cpu);
++				if (cpu_is_offline(cpu)) {
++					pr_err("RCU GP kthread last ran on offline CPU %d.\n", cpu);
++				} else  {
++					pr_err("Stack dump where RCU GP kthread last ran:\n");
++					if (!trigger_single_cpu_backtrace(cpu))
++						dump_cpu_task(cpu);
++				}
+ 			}
+ 			wake_up_process(gpk);
+ 		}
+-- 
+2.17.1
+

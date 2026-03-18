@@ -1,0 +1,11 @@
+set(product_list "ascend310" "ascend310rc")
+
+if (${PRODUCT_SIDE} STREQUAL host)
+add_subdirectory(ts_drv_host)
+	if(${PRODUCT} IN_LIST product_list)
+	else()
+		add_subdirectory(ts_drv_vm)
+	endif()
+else ()
+add_subdirectory(ts_drv_device)
+endif()

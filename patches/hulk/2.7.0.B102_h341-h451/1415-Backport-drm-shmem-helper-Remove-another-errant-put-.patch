@@ -1,0 +1,58 @@
+From c13dd1deb185ecc04f359d5ecf4ca1b27079013b Mon Sep 17 00:00:00 2001
+From: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Date: Mon, 9 Jan 2023 00:13:11 +0300
+Subject: [PATCH 1415/1646] [Backport] drm/shmem-helper: Remove another errant
+ put in error path
+
+stable inclusion
+from stable-v5.10.176
+commit 684c7372bbd6447c2e86a2a84e97a1478604d21f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=684c7372bbd6447c2e86a2a84e97a1478604d21f
+
+--------------------------------
+
+commit ee9adb7a45516cfa536ca92253d7ae59d56db9e4 upstream.
+
+drm_gem_shmem_mmap() doesn't own reference in error code path, resulting
+in the dma-buf shmem GEM object getting prematurely freed leading to a
+later use-after-free.
+
+Fixes: f49a51bfdc8e ("drm/shme-helpers: Fix dma_buf_mmap forwarding bug")
+Cc: stable@vger.kernel.org
+Signed-off-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Reviewed-by: Rob Clark <robdclark@gmail.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230108211311.3950107-1-dmitry.osipenko@collabora.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/drm_gem_shmem_helper.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/drm_gem_shmem_helper.c b/drivers/gpu/drm/drm_gem_shmem_helper.c
+index c56656a95cf9..b7bb5610dfe2 100644
+--- a/drivers/gpu/drm/drm_gem_shmem_helper.c
++++ b/drivers/gpu/drm/drm_gem_shmem_helper.c
+@@ -614,11 +614,14 @@ int drm_gem_shmem_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
+ 	int ret;
+ 
+ 	if (obj->import_attach) {
+-		/* Drop the reference drm_gem_mmap_obj() acquired.*/
+-		drm_gem_object_put(obj);
+ 		vma->vm_private_data = NULL;
++		ret = dma_buf_mmap(obj->dma_buf, vma, 0);
++
++		/* Drop the reference drm_gem_mmap_obj() acquired.*/
++		if (!ret)
++			drm_gem_object_put(obj);
+ 
+-		return dma_buf_mmap(obj->dma_buf, vma, 0);
++		return ret;
+ 	}
+ 
+ 	shmem = to_drm_gem_shmem_obj(obj);
+-- 
+2.17.1
+

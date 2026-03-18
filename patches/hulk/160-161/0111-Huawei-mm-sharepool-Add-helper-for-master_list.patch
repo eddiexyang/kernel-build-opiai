@@ -1,0 +1,82 @@
+From 566076c2c1bf7a63212d9a405fa15c17aa82bfa8 Mon Sep 17 00:00:00 2001
+From: Xu Qiang <xuqiang36@huawei.com>
+Date: Tue, 15 Nov 2022 21:56:36 +0800
+Subject: [PATCH 0111/1398] [Huawei] mm/sharepool: Add helper for master_list
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: 188076
+
+----------------------------------------------
+
+Add two Helper functions sp_add_group_master and
+sp_del_group_master to manipulate master_list.
+
+Signed-off-by: Xu Qiang <xuqiang36@huawei.com>
+---
+ mm/share_pool.c | 27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 62a50e67c9f3..63d0c020f7ba 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -264,6 +264,20 @@ struct sp_group_node {
+ };
+ #endif
+ 
++static inline void sp_add_group_master(struct sp_group_master *master)
++{
++	mutex_lock(&master_list_lock);
++	list_add_tail(&master->list_node, &master_list);
++	mutex_unlock(&master_list_lock);
++}
++
++static inline void sp_del_group_master(struct sp_group_master *master)
++{
++	mutex_lock(&master_list_lock);
++	list_del(&master->list_node);
++	mutex_unlock(&master_list_lock);
++}
++
+ /* The caller should hold mmap_sem to protect master (TBD) */
+ static void sp_init_group_master_stat(int tgid, struct mm_struct *mm,
+ 		struct sp_proc_stat *stat)
+@@ -545,10 +559,7 @@ static int sp_init_group_master_locked(struct task_struct *tsk, struct mm_struct
+ 	master->mm = mm;
+ 	sp_init_group_master_stat(tsk->tgid, mm, &master->instat);
+ 	mm->sp_group_master = master;
+-
+-	mutex_lock(&master_list_lock);
+-	list_add_tail(&master->list_node, &master_list);
+-	mutex_unlock(&master_list_lock);
++	sp_add_group_master(master);
+ 
+ 	ret = init_local_group(mm);
+ 	if (ret)
+@@ -557,9 +568,7 @@ static int sp_init_group_master_locked(struct task_struct *tsk, struct mm_struct
+ 	return 0;
+ 
+ free_master:
+-	mutex_lock(&master_list_lock);
+-	list_del(&master->list_node);
+-	mutex_unlock(&master_list_lock);
++	sp_del_group_master(master);
+ 	mm->sp_group_master = NULL;
+ 	kfree(master);
+ 
+@@ -4360,9 +4369,7 @@ void sp_group_post_exit(struct mm_struct *mm)
+ 	}
+ 	up_write(&sp_group_sem);
+ 
+-	mutex_lock(&master_list_lock);
+-	list_del(&master->list_node);
+-	mutex_unlock(&master_list_lock);
++	sp_del_group_master(master);
+ 
+ 	kfree(master);
+ }
+-- 
+2.17.1
+

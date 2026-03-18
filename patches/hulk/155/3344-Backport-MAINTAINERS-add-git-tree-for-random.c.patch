@@ -1,0 +1,41 @@
+From a5c28cf17df0ac95ca2b4f39d50a4e063d78668b Mon Sep 17 00:00:00 2001
+From: "Jason A. Donenfeld" <Jason@zx2c4.com>
+Date: Sat, 25 Dec 2021 01:50:07 +0100
+Subject: [PATCH 3344/4585] [Backport] MAINTAINERS: add git tree for random.c
+
+stable inclusion
+from stable-v5.10.119
+commit c3a4645d803e924c1a45e7df3cb57d76368d9240
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5G2MB
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c3a4645d803e924c1a45e7df3cb57d76368d9240
+
+--------------------------------
+
+commit 9bafaa9375cbf892033f188d8cb624ae328754b5 upstream.
+
+This is handy not just for humans, but also so that the 0-day bot can
+automatically test posted mailing list patches against the right tree.
+
+Signed-off-by: Jason A. Donenfeld <Jason@zx2c4.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ MAINTAINERS | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 955e497d3006..5221d94586c7 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -14743,6 +14743,7 @@ F:	arch/mips/generic/board-ranchu.c
+ RANDOM NUMBER DRIVER
+ M:	"Theodore Ts'o" <tytso@mit.edu>
+ M:	Jason A. Donenfeld <Jason@zx2c4.com>
++T:	git https://git.kernel.org/pub/scm/linux/kernel/git/crng/random.git
+ S:	Maintained
+ F:	drivers/char/random.c
+ 
+-- 
+2.17.1
+

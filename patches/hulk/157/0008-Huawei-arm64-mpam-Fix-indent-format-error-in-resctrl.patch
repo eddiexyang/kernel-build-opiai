@@ -1,0 +1,48 @@
+From 8f30e1f45fb2f345f966859a50eeaddf810aaf2f Mon Sep 17 00:00:00 2001
+From: Wang ShaoBo <bobo.shaobowang@huawei.com>
+Date: Fri, 19 Aug 2022 10:39:46 +0800
+Subject: [PATCH 008/261] [Huawei] arm64/mpam: Fix indent format error in
+ resctrl_parse_param()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 48265
+
+--------------------------------
+
+This fixes indent format error in resctrl_parse_param():
+ fs/resctrlfs.c:616 resctrl_parse_param() warn: ignoring unreachable code.
+ fs/resctrlfs.c:616 resctrl_parse_param() warn: inconsistent indenting
+ fs/resctrlfs.c:619 resctrl_parse_param() warn: inconsistent indenting
+
+Fixes: 100e2317e9b9 ("arm64/mpam: Use fs_context to parse mount options")
+Signed-off-by: Wang ShaoBo <bobo.shaobowang@huawei.com>
+---
+ fs/resctrlfs.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/fs/resctrlfs.c b/fs/resctrlfs.c
+index 0d6947d3829e..e02e4769edc0 100644
+--- a/fs/resctrlfs.c
++++ b/fs/resctrlfs.c
+@@ -612,12 +612,11 @@ static int resctrl_parse_param(struct fs_context *fc, struct fs_parameter *param
+ 	case Opt_caPrio:
+ 		ctx->enable_caPrio = true;
+ 		return 0;
++	default:
++		break;
++	}
+ 
+-	return 0;
+-}
+-
+-return -EINVAL;
+-
++	return -EINVAL;
+ }
+ 
+ static void resctrl_fs_context_free(struct fs_context *fc)
+-- 
+2.17.1
+

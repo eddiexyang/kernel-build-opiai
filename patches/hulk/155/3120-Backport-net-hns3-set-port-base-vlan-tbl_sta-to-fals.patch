@@ -1,0 +1,46 @@
+From 53f0f32a3e908607b54eb7c9ff152f63ad67f0d5 Mon Sep 17 00:00:00 2001
+From: Guangbin Huang <huangguangbin2@huawei.com>
+Date: Tue, 28 Jun 2022 21:18:46 +0800
+Subject: [PATCH 3120/4585] [Backport] net: hns3: set port base vlan tbl_sta to
+ false before removing old vlan
+
+mainline inclusion
+from mainline-v5.19-rc3
+commit 9eda7d8bcbdb6909f202edeedff51948f1cad1e5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5DGNU
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9eda7d8bcbdb6909f202edeedff51948f1cad1e5
+
+--------------------------------
+
+When modify port base vlan, the port base vlan tbl_sta needs to set to
+false before removing old vlan, to indicate this operation is not finish.
+
+Fixes: c0f46de30c96 ("net: hns3: fix port base vlan add fail when concurrent with reset")
+Signed-off-by: Guangbin Huang <huangguangbin2@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Jiantao Xiao <xiaojiantao1@h-partners.com>
+Reviewed-by: Jian Shen <shenjian15@huawei.com>
+Reviewed-by: Yue Haibing <yuehaibing@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 3e0d8388ad3f..57aaa2f1536f 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -10117,6 +10117,7 @@ static int hclge_modify_port_base_vlan_tag(struct hclge_vport *vport,
+ 	if (ret)
+ 		return ret;
+ 
++	vport->port_base_vlan_cfg.tbl_sta = false;
+ 	/* remove old VLAN tag */
+ 	if (old_info->vlan_tag == 0)
+ 		ret = hclge_set_vf_vlan_common(hdev, vport->vport_id,
+-- 
+2.17.1
+

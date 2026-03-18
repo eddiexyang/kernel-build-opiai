@@ -1,0 +1,51 @@
+From 998dff85404a081bed9323632ec118ea06a7282b Mon Sep 17 00:00:00 2001
+From: Hamza Mahfooz <hamza.mahfooz@amd.com>
+Date: Tue, 2 May 2023 11:59:08 -0400
+Subject: [PATCH 375/780] [Backport] drm/amdgpu: fix an amdgpu_irq_put() issue
+ in gmc_v9_0_hw_fini()
+
+stable inclusion
+from stable-v5.10.180
+commit eed63477ae065b69ee757e38a1cd48ec51de9719
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=eed63477ae065b69ee757e38a1cd48ec51de9719
+
+--------------------------------
+
+commit 922a76ba31adf84e72bc947267385be420c689ee upstream.
+
+As made mention of in commit 08c677cb0b43 ("drm/amdgpu: fix
+amdgpu_irq_put call trace in gmc_v10_0_hw_fini") and commit 13af556104fa
+("drm/amdgpu: fix amdgpu_irq_put call trace in gmc_v11_0_hw_fini"). It
+is meaningless to call amdgpu_irq_put() for gmc.ecc_irq. So, remove it
+from gmc_v9_0_hw_fini().
+
+Link: https://gitlab.freedesktop.org/drm/amd/-/issues/2522
+Fixes: 3029c855d79f ("drm/amdgpu: Fix desktop freezed after gpu-reset")
+Reviewed-by: Mario Limonciello <mario.limonciello@amd.com>
+Signed-off-by: Hamza Mahfooz <hamza.mahfooz@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 1673bf3bae55..945cbdbc2f99 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -1686,7 +1686,6 @@ static int gmc_v9_0_hw_fini(void *handle)
+ 		return 0;
+ 	}
+ 
+-	amdgpu_irq_put(adev, &adev->gmc.ecc_irq, 0);
+ 	amdgpu_irq_put(adev, &adev->gmc.vm_fault, 0);
+ 
+ 	return 0;
+-- 
+2.17.1
+

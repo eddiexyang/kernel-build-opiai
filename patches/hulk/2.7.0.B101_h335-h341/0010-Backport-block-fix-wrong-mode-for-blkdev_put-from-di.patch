@@ -1,0 +1,50 @@
+From 770bc086aa68a4154dd95d93db01960b27107010 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Tue, 7 Mar 2023 18:55:52 +0800
+Subject: [PATCH 010/921] [Backport] block: fix wrong mode for blkdev_put()
+ from disk_scan_partitions()
+
+mainline inclusion
+from mainline-v6.3-rc2
+commit 428913bce1e67ccb4dae317fd0332545bf8c9233
+category: bugfix
+bugzilla: 188425
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e5cfefa97bccf956ea0bb6464c1f6c84fd7a8d9f
+
+--------------------------------
+
+If disk_scan_partitions() is called with 'FMODE_EXCL',
+blkdev_get_by_dev() will be called without 'FMODE_EXCL', however, follow
+blkdev_put() is still called with 'FMODE_EXCL', which will cause
+'bd_holders' counter to leak.
+
+Fix the problem by using the right mode for blkdev_put().
+
+Reported-by: syzbot+2bcc0d79e548c4f62a59@syzkaller.appspotmail.com
+Link: https://lore.kernel.org/lkml/f9649d501bc8c3444769418f6c26263555d9d3be.camel@linux.ibm.com/T/
+Tested-by: Julian Ruess <julianr@linux.ibm.com>
+Fixes: e5cfefa97bcc ("block: fix scan partition for exclusively open device again")
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/genhd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/genhd.c b/block/genhd.c
+index b6ad3554876f..3c34dd011585 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -768,7 +768,7 @@ int disk_scan_partitions(struct gendisk *disk, fmode_t mode)
+ 	if (IS_ERR(bdev))
+ 		ret = PTR_ERR(bdev);
+ 	else
+-		blkdev_put(bdev, mode);
++		blkdev_put(bdev, mode & ~FMODE_EXCL);
+ 
+ 	if (!(mode & FMODE_EXCL)) {
+ 		bd_abort_claiming(claim, claim, disk_scan_partitions);
+-- 
+2.17.1
+

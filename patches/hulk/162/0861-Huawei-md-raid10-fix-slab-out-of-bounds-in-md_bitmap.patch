@@ -1,0 +1,41 @@
+From f78bf3f97b4d3e30af8c3a3ab2bfccab2afe37bf Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Thu, 2 Feb 2023 09:45:35 +0800
+Subject: [PATCH 861/905] [Huawei] md/raid10: fix slab-out-of-bounds in
+ md_bitmap_get_counter
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188270
+
+--------------------------------
+
+There is a bug if we write a large number to md/bitmap_set_bits.
+md_bitmap_checkpage() returned -EINVAL if "page >= bitmap->pages", but the
+return value was not checked immediately in md_bitmap_get_counter() in
+order to set *blocks value. fix it by checking page before operate
+bitmap.
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md-bitmap.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/md/md-bitmap.c b/drivers/md/md-bitmap.c
+index 20afc0aec177..f36a2e1bcc88 100644
+--- a/drivers/md/md-bitmap.c
++++ b/drivers/md/md-bitmap.c
+@@ -1365,6 +1365,9 @@ __acquires(bitmap->lock)
+ 	sector_t csize;
+ 	int err;
+ 
++	if (page >= bitmap->pages)
++		return NULL;
++
+ 	err = md_bitmap_checkpage(bitmap, page, create, 0);
+ 
+ 	if (bitmap->bp[page].hijacked ||
+-- 
+2.17.1
+

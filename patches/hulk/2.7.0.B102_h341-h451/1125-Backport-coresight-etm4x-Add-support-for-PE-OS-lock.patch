@@ -1,0 +1,154 @@
+From 6788485d2019a47f2f59a9933d1d451dcb12594c Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:38:28 +0800
+Subject: [PATCH 1125/1646] [Backport] coresight: etm4x: Add support for PE OS
+ lock
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit bc2c689f0648898c498700e40e71f5170eed1532
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=bc2c689f0648898c498700e40e71f5170eed1532
+
+--------------------------------
+
+ETE may not implement the OS lock and instead could rely on
+the PE OS Lock for the trace unit access. This is indicated
+by the TRCOLSR.OSM == 0b100. Add support for handling the
+PE OS lock
+
+Cc: Mike Leach <mike.leach@linaro.org>
+Reviewed-by: mike.leach <mike.leach@linaro.org>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20210405164307.1720226-12-suzuki.poulose@arm.com
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ .../coresight/coresight-etm4x-core.c          | 51 +++++++++++++++----
+ drivers/hwtracing/coresight/coresight-etm4x.h | 15 ++++++
+ 2 files changed, 56 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-etm4x-core.c b/drivers/hwtracing/coresight/coresight-etm4x-core.c
+index 684693b3e1bc..9d0895cde9d6 100644
+--- a/drivers/hwtracing/coresight/coresight-etm4x-core.c
++++ b/drivers/hwtracing/coresight/coresight-etm4x-core.c
+@@ -131,30 +131,59 @@ static void ete_sysreg_write(u64 val, u32 offset, bool _relaxed, bool _64bit)
+ 	}
+ }
+ 
+-static void etm4_os_unlock_csa(struct etmv4_drvdata *drvdata, struct csdev_access *csa)
++static void etm_detect_os_lock(struct etmv4_drvdata *drvdata,
++			       struct csdev_access *csa)
+ {
+-	/* Writing 0 to TRCOSLAR unlocks the trace registers */
+-	etm4x_relaxed_write32(csa, 0x0, TRCOSLAR);
+-	drvdata->os_unlock = true;
++	u32 oslsr = etm4x_relaxed_read32(csa, TRCOSLSR);
++
++	drvdata->os_lock_model = ETM_OSLSR_OSLM(oslsr);
++}
++
++static void etm_write_os_lock(struct etmv4_drvdata *drvdata,
++			      struct csdev_access *csa, u32 val)
++{
++	val = !!val;
++
++	switch (drvdata->os_lock_model) {
++	case ETM_OSLOCK_PRESENT:
++		etm4x_relaxed_write32(csa, val, TRCOSLAR);
++		break;
++	case ETM_OSLOCK_PE:
++		write_sysreg_s(val, SYS_OSLAR_EL1);
++		break;
++	default:
++		pr_warn_once("CPU%d: Unsupported Trace OSLock model: %x\n",
++			     smp_processor_id(), drvdata->os_lock_model);
++		fallthrough;
++	case ETM_OSLOCK_NI:
++		return;
++	}
+ 	isb();
+ }
+ 
++static inline void etm4_os_unlock_csa(struct etmv4_drvdata *drvdata,
++				      struct csdev_access *csa)
++{
++	WARN_ON(drvdata->cpu != smp_processor_id());
++
++	/* Writing 0 to OS Lock unlocks the trace unit registers */
++	etm_write_os_lock(drvdata, csa, 0x0);
++	drvdata->os_unlock = true;
++}
++
+ static void etm4_os_unlock(struct etmv4_drvdata *drvdata)
+ {
+ 	if (!WARN_ON(!drvdata->csdev))
+ 		etm4_os_unlock_csa(drvdata, &drvdata->csdev->access);
+-
+ }
+ 
+ static void etm4_os_lock(struct etmv4_drvdata *drvdata)
+ {
+ 	if (WARN_ON(!drvdata->csdev))
+ 		return;
+-
+-	/* Writing 0x1 to TRCOSLAR locks the trace registers */
+-	etm4x_relaxed_write32(&drvdata->csdev->access, 0x1, TRCOSLAR);
++	/* Writing 0x1 to OS Lock locks the trace registers */
++	etm_write_os_lock(drvdata, &drvdata->csdev->access, 0x1);
+ 	drvdata->os_unlock = false;
+-	isb();
+ }
+ 
+ static void etm4_cs_lock(struct etmv4_drvdata *drvdata,
+@@ -1012,9 +1041,11 @@ static void etm4_init_arch_data(void *info)
+ 	if (!etm4_init_csdev_access(drvdata, csa))
+ 		return;
+ 
++	/* Detect the support for OS Lock before we actually use it */
++	etm_detect_os_lock(drvdata, csa);
+ 
+ 	/* Make sure all registers are accessible */
+-	etm4_os_unlock(drvdata);
++	etm4_os_unlock_csa(drvdata, csa);
+ 	etm4_cs_unlock(drvdata, csa);
+ 
+ 	/* find all capabilities of the tracing unit */
+diff --git a/drivers/hwtracing/coresight/coresight-etm4x.h b/drivers/hwtracing/coresight/coresight-etm4x.h
+index 45e01ae3e33b..894041f69842 100644
+--- a/drivers/hwtracing/coresight/coresight-etm4x.h
++++ b/drivers/hwtracing/coresight/coresight-etm4x.h
+@@ -538,6 +538,20 @@
+ 					 ETM_MODE_EXCL_KERN | \
+ 					 ETM_MODE_EXCL_USER)
+ 
++/*
++ * TRCOSLSR.OSLM advertises the OS Lock model.
++ * OSLM[2:0] = TRCOSLSR[4:3,0]
++ *
++ *	0b000 - Trace OS Lock is not implemented.
++ *	0b010 - Trace OS Lock is implemented.
++ *	0b100 - Trace OS Lock is not implemented, unit is controlled by PE OS Lock.
++ */
++#define ETM_OSLOCK_NI		0b000
++#define ETM_OSLOCK_PRESENT	0b010
++#define ETM_OSLOCK_PE		0b100
++
++#define ETM_OSLSR_OSLM(oslsr)	((((oslsr) & GENMASK(4, 3)) >> 2) | (oslsr & 0x1))
++
+ /*
+  * TRCDEVARCH Bit field definitions
+  * Bits[31:21]	- ARCHITECT = Always Arm Ltd.
+@@ -922,6 +936,7 @@ struct etmv4_drvdata {
+ 	u8				s_ex_level;
+ 	u8				ns_ex_level;
+ 	u8				q_support;
++	u8				os_lock_model;
+ 	bool				sticky_enable;
+ 	bool				boot_enable;
+ 	bool				os_unlock;
+-- 
+2.17.1
+

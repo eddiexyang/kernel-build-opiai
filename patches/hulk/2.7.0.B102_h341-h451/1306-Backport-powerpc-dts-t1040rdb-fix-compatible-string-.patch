@@ -1,0 +1,46 @@
+From c541b9e7f40f90382c889846a4a07b3b1bb1d3b7 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Fri, 24 Feb 2023 17:59:39 +0200
+Subject: [PATCH 1306/1646] [Backport] powerpc: dts: t1040rdb: fix compatible
+ string for Rev A boards
+
+stable inclusion
+from stable-v5.10.175
+commit 6f0cc879c889596c7ea0cddc86ca19fcf540a1c4
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6f0cc879c889596c7ea0cddc86ca19fcf540a1c4
+
+--------------------------------
+
+[ Upstream commit ae44f1c9d1fc54aeceb335fedb1e73b2c3ee4561 ]
+
+It looks like U-Boot fails to start the kernel properly when the
+compatible string of the board isn't fsl,T1040RDB, so stop overriding it
+from the rev-a.dts.
+
+Fixes: 5ebb74749202 ("powerpc: dts: t1040rdb: fix ports names for Seville Ethernet switch")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/powerpc/boot/dts/fsl/t1040rdb-rev-a.dts | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/powerpc/boot/dts/fsl/t1040rdb-rev-a.dts b/arch/powerpc/boot/dts/fsl/t1040rdb-rev-a.dts
+index 73f8c998c64d..d4f5f159d6f2 100644
+--- a/arch/powerpc/boot/dts/fsl/t1040rdb-rev-a.dts
++++ b/arch/powerpc/boot/dts/fsl/t1040rdb-rev-a.dts
+@@ -10,7 +10,6 @@
+ 
+ / {
+ 	model = "fsl,T1040RDB-REV-A";
+-	compatible = "fsl,T1040RDB-REV-A";
+ };
+ 
+ &seville_port0 {
+-- 
+2.17.1
+

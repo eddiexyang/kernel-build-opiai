@@ -1,0 +1,111 @@
+From bff0fc5a433f0c2763710dc3821cfa1addd3de78 Mon Sep 17 00:00:00 2001
+From: Hui Tang <tanghui20@huawei.com>
+Date: Wed, 24 May 2023 23:57:06 +0800
+Subject: [PATCH 209/263] [Huawei] Revert "[Huawei] sched: fix performance
+ degradation on lmbench"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186575
+
+--------------------------------
+
+This reverts commit 135c1a0bda21353d790c3d67158e9fc8dc0b21fd.
+Signed-off-by: Hui Tang <tanghui20@huawei.com>
+---
+ include/linux/sched.h |  4 ----
+ init/init_task.c      |  1 -
+ kernel/fork.c         |  1 -
+ kernel/sched/core.c   | 11 ++---------
+ kernel/sched/fair.c   |  3 ++-
+ 5 files changed, 4 insertions(+), 16 deletions(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 38079256f4b6..0cbb17e7000f 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1427,11 +1427,7 @@ struct task_struct {
+ 	KABI_RESERVE(2)
+ #endif
+ 	KABI_USE(3, void *pf_io_worker)
+-#if defined(CONFIG_QOS_SCHED_DYNAMIC_AFFINITY)
+-	KABI_USE2(4, u8 dynamic_affinity_enable, u8 res[7])
+-#else
+ 	KABI_RESERVE(4)
+-#endif
+ 	KABI_RESERVE(5)
+ 	KABI_RESERVE(6)
+ 	KABI_RESERVE(7)
+diff --git a/init/init_task.c b/init/init_task.c
+index e9a8939e910f..2bab4967f50d 100644
+--- a/init/init_task.c
++++ b/init/init_task.c
+@@ -219,7 +219,6 @@ struct task_struct init_task
+ #endif
+ #ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
+ 	.prefer_cpus	= NULL,
+-	.dynamic_affinity_enable = 0,
+ #endif
+ 	._resvd = &init_task_struct_resvd,
+ };
+diff --git a/kernel/fork.c b/kernel/fork.c
+index d1e401b0cf10..a2f84e007385 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -934,7 +934,6 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
+ 
+ #ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
+ 	tsk->prefer_cpus = NULL;
+-	tsk->dynamic_affinity_enable = 0;
+ #endif
+ 
+ 	setup_thread_stack(tsk, orig);
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index c76c74122b1b..1d1eac933415 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -8875,13 +8875,10 @@ int sched_prefer_cpus_fork(struct task_struct *p, struct cpumask *mask)
+ 	if (!p->prefer_cpus)
+ 		return -ENOMEM;
+ 
+-	if (mask) {
+-		p->dynamic_affinity_enable = !cpumask_empty(mask);
++	if (mask)
+ 		cpumask_copy(p->prefer_cpus, mask);
+-	} else {
++	else
+ 		cpumask_clear(p->prefer_cpus);
+-		p->dynamic_affinity_enable = 0;
+-	}
+ 
+ 	return 0;
+ }
+@@ -8914,10 +8911,6 @@ static void do_set_prefer_cpus(struct task_struct *p,
+ 		put_prev_task(rq, p);
+ 
+ 	cpumask_copy(p->prefer_cpus, new_mask);
+-	if (cpumask_empty(new_mask))
+-		p->dynamic_affinity_enable = 0;
+-	else
+-		p->dynamic_affinity_enable = 1;
+ 
+ 	if (queued)
+ 		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 7e7d37481f76..3303f7e0e631 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7256,7 +7256,8 @@ int sysctl_sched_util_low_pct = 85;
+ 
+ static inline bool prefer_cpus_valid(struct task_struct *p)
+ {
+-	return p->dynamic_affinity_enable == 1 &&
++	return p->prefer_cpus &&
++	       !cpumask_empty(p->prefer_cpus) &&
+ 	       !cpumask_equal(p->prefer_cpus, p->cpus_ptr) &&
+ 	       cpumask_subset(p->prefer_cpus, p->cpus_ptr);
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,72 @@
+From d5d3103cd1348c60f9c0e231ed1a806a05c7e5df Mon Sep 17 00:00:00 2001
+From: Long Li <leo.lilong@huawei.com>
+Date: Fri, 9 Jun 2023 10:49:46 +0800
+Subject: [PATCH 008/780] [Huawei] xfs: factor out xfs_destroy_perag()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188878
+
+--------------------------------
+
+Factor out xfs_destroy_perag() from xfs_initialize_perag() for error
+handle, delete perag from radix tree requires lock protection, just like
+any other places where perag tree are modified.
+
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_mount.c | 30 ++++++++++++++++++++++--------
+ 1 file changed, 22 insertions(+), 8 deletions(-)
+
+diff --git a/fs/xfs/xfs_mount.c b/fs/xfs/xfs_mount.c
+index 69888dd863d7..8346441985b0 100644
+--- a/fs/xfs/xfs_mount.c
++++ b/fs/xfs/xfs_mount.c
+@@ -173,6 +173,27 @@ xfs_sb_validate_fsb_count(
+ 	return 0;
+ }
+ 
++void
++xfs_destroy_perag(
++	xfs_mount_t	*mp,
++	xfs_agnumber_t	agstart,
++	xfs_agnumber_t	agend)
++{
++	xfs_agnumber_t  index;
++	xfs_perag_t	*pag;
++
++	for (index = agstart; index < agend; index++) {
++		spin_lock(&mp->m_perag_lock);
++		pag = radix_tree_delete(&mp->m_perag_tree, index);
++		spin_unlock(&mp->m_perag_lock);
++		if (!pag)
++			break;
++		xfs_buf_hash_destroy(pag);
++		xfs_iunlink_destroy(pag);
++		kmem_free(pag);
++	}
++}
++
+ int
+ xfs_initialize_perag(
+ 	xfs_mount_t	*mp,
+@@ -252,14 +273,7 @@ xfs_initialize_perag(
+ 	kmem_free(pag);
+ out_unwind_new_pags:
+ 	/* unwind any prior newly initialized pags */
+-	for (index = first_initialised; index < agcount; index++) {
+-		pag = radix_tree_delete(&mp->m_perag_tree, index);
+-		if (!pag)
+-			break;
+-		xfs_buf_hash_destroy(pag);
+-		xfs_iunlink_destroy(pag);
+-		kmem_free(pag);
+-	}
++	xfs_destroy_perag(mp, first_initialised, agcount);
+ 	return error;
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,64 @@
+From 1e920b4af7a8cf0b51789eb75f829340cba1e861 Mon Sep 17 00:00:00 2001
+From: Chen Jun <chenjun102@huawei.com>
+Date: Tue, 29 Nov 2022 13:13:00 +0000
+Subject: [PATCH 0473/1398] [Huawei] mm/sharepool: Fix a double free problem
+ caused by init_local_group
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64Y5Y
+
+-------------------------------
+
+If local_group_add_task fails in init_local_group. ida free the
+same id twice.
+
+init_local_group
+  local_group_add_task    // failed
+  goto free_spg
+
+free_spg:
+  free_sp_group_locked
+    free_sp_group_id      // free spg->id
+free_spg_id:
+  free_new_spg_id         // double free spg->id
+
+To fix it, return before calling free_new_spg_id.
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+---
+ mm/share_pool.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 76a7a7ffd00b..a0c6b2915b83 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -511,8 +511,8 @@ static int init_local_group(struct mm_struct *mm)
+ 
+ 	spg = create_spg(spg_id, 0);
+ 	if (IS_ERR(spg)) {
+-		ret = PTR_ERR(spg);
+-		goto free_spg_id;
++		free_new_spg_id(true, spg_id);
++		return PTR_ERR(spg);
+ 	}
+ 
+ 	master->local = spg;
+@@ -533,11 +533,9 @@ static int init_local_group(struct mm_struct *mm)
+ 	return 0;
+ 
+ free_spg:
++	/* spg_id is freed in free_sp_group_locked */
+ 	free_sp_group_locked(spg);
+ 	master->local = NULL;
+-free_spg_id:
+-	free_new_spg_id(true, spg_id);
+-
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

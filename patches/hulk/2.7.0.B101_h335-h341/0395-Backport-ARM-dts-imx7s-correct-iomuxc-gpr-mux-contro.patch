@@ -1,0 +1,46 @@
+From bfaf4984fb8e7c0c37449a55fde9ebab0c179ed5 Mon Sep 17 00:00:00 2001
+From: Peng Fan <peng.fan@nxp.com>
+Date: Fri, 23 Dec 2022 11:04:33 +0800
+Subject: [PATCH 395/921] [Backport] ARM: dts: imx7s: correct iomuxc gpr mux
+ controller cells
+
+stable inclusion
+from stable-v5.10.173
+commit e874629c5fb77ac1a09190f0c2352791f5f8e844
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e874629c5fb77ac1a09190f0c2352791f5f8e844
+
+--------------------------------
+
+[ Upstream commit 0e3e1946606a2919b1dda9967ab2e1c5af2fedd6 ]
+
+Per binding doc reg-mux.yaml, the #mux-control-cells should be 1
+
+Signed-off-by: Peng Fan <peng.fan@nxp.com>
+Reviewed-by: Marco Felsch <m.felsch@pengutronix.de>
+Fixes: 94a905a79f2c ("ARM: dts: imx7s: add multiplexer controls")
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/imx7s.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/imx7s.dtsi b/arch/arm/boot/dts/imx7s.dtsi
+index 9e1b0af0aa43..43b39ad9ddce 100644
+--- a/arch/arm/boot/dts/imx7s.dtsi
++++ b/arch/arm/boot/dts/imx7s.dtsi
+@@ -494,7 +494,7 @@
+ 
+ 				mux: mux-controller {
+ 					compatible = "mmio-mux";
+-					#mux-control-cells = <0>;
++					#mux-control-cells = <1>;
+ 					mux-reg-masks = <0x14 0x00000010>;
+ 				};
+ 
+-- 
+2.17.1
+

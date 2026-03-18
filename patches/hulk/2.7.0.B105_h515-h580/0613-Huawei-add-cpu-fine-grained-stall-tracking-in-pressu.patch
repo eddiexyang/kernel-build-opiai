@@ -1,0 +1,259 @@
+From 49d795353dc8ba656300231071df93b62736862b Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Thu, 29 Jun 2023 21:41:58 +0800
+Subject: [PATCH 613/780] [Huawei] add cpu fine grained stall tracking in
+ pressure.stat
+
+Offering: HULK
+HULK inclusion
+category: feature
+bugzilla: 188780
+
+-------------------------------
+
+Introduce cpu fine grained stall tracking(cpu cfs bandwidth or cpu qos) in
+pressure.stat. For cpu fine grained stall tracking, only "full"
+information in pressure.stat.
+
+for example:
+
+/test # cat /tmp/cpuacct/test/pressure.stat
+cgroup_memory_reclaim
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+global_memory_reclaim
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+compact
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+cgroup_async_memory_reclaim
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+swap
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+cpu_cfs_bandwidth
+full avg10=21.76 avg60=4.58 avg300=0.98 total=3893827
+cpu_qos
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ include/linux/psi_types.h |  8 +++++
+ kernel/sched/fair.c       |  6 ----
+ kernel/sched/psi.c        | 67 ++++++++++++++++++++++++++++++++++++---
+ kernel/sched/stats.h      |  8 +++++
+ 4 files changed, 79 insertions(+), 10 deletions(-)
+
+diff --git a/include/linux/psi_types.h b/include/linux/psi_types.h
+index 1224951694ef..d61f8e25f2e2 100644
+--- a/include/linux/psi_types.h
++++ b/include/linux/psi_types.h
+@@ -241,6 +241,10 @@ enum psi_stat_states {
+ 	PSI_ASYNC_MEMCG_RECLAIM_FULL,
+ 	PSI_SWAP_SOME,
+ 	PSI_SWAP_FULL,
++	PSI_CPU_CFS_BANDWIDTH_FULL,
++#ifdef CONFIG_QOS_SCHED
++	PSI_CPU_QOS_FULL,
++#endif
+ 	NR_PSI_STAT_STATES,
+ };
+ 
+@@ -275,6 +279,8 @@ enum psi_memstall_type {
+ 	PSI_SWAP,
+ };
+ 
++#define CPU_CFS_BANDWIDTH		1
++
+ struct psi_group_stat_cpu {
+ 	u32 state_mask;
+ 	u32 times[NR_PSI_STAT_STATES];
+@@ -282,6 +288,8 @@ struct psi_group_stat_cpu {
+ 	unsigned int tasks[NR_PSI_STAT_TASK_COUNTS];
+ 	u32 times_delta;
+ 	u32 times_prev[NR_PSI_AGGREGATORS][NR_PSI_STAT_STATES];
++	int prev_throttle;
++	int cur_throttle;
+ };
+ 
+ struct psi_group_ext {
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index f216a532900b..5a2e14d1462c 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -157,12 +157,6 @@ int __weak arch_asym_cpu_priority(int cpu)
+ 
+ #ifdef CONFIG_QOS_SCHED
+ 
+-/*
+- * To distinguish cfs bw, use QOS_THROTTLED mark cfs_rq->throttled
+- * when qos throttled(and cfs bw throttle mark cfs_rq->throttled as 1).
+- */
+-#define QOS_THROTTLED	2
+-
+ static DEFINE_PER_CPU_SHARED_ALIGNED(struct list_head, qos_throttled_cfs_rq);
+ static DEFINE_PER_CPU_SHARED_ALIGNED(struct hrtimer, qos_overload_timer);
+ static DEFINE_PER_CPU(int, qos_cpu_overload);
+diff --git a/kernel/sched/psi.c b/kernel/sched/psi.c
+index c96ac0737397..ac1a073bf4f2 100644
+--- a/kernel/sched/psi.c
++++ b/kernel/sched/psi.c
+@@ -446,7 +446,7 @@ static void psi_group_stat_change(struct psi_group *group, int cpu,
+ 	for (t = 0; set; set &= ~(1 << t), t++)
+ 		if (set & (1 << t))
+ 			ext_groupc->tasks[t]++;
+-	for (s = 0; s < NR_PSI_STAT_STATES; s++)
++	for (s = 0; s < PSI_CPU_CFS_BANDWIDTH_FULL; s++)
+ 		if (test_fine_grained_stat(ext_groupc->tasks,
+ 					   groupc->tasks[NR_RUNNING], s))
+ 			state_mask |= (1 << s);
+@@ -520,6 +520,45 @@ static void update_stat_averages(struct psi_group_ext *psi_ext,
+ 		calc_avgs(psi_ext->avg[s], missed_periods, sample, period);
+ 	}
+ }
++
++static void record_cpu_stat_times(struct psi_group *group, int cpu)
++{
++	struct psi_group_ext *psi_ext = to_psi_group_ext(group);
++	struct psi_group_cpu *groupc = per_cpu_ptr(group->pcpu, cpu);
++	struct psi_group_stat_cpu *ext_groupc = per_cpu_ptr(psi_ext->pcpu, cpu);
++	u32 delta = ext_groupc->psi_delta;
++
++	if (groupc->state_mask & (1 << PSI_CPU_FULL)) {
++		if (ext_groupc->prev_throttle == CPU_CFS_BANDWIDTH)
++			ext_groupc->times[PSI_CPU_CFS_BANDWIDTH_FULL] += delta;
++#ifdef CONFIG_QOS_SCHED
++		else if (ext_groupc->prev_throttle == QOS_THROTTLED)
++			ext_groupc->times[PSI_CPU_QOS_FULL] += delta;
++#endif
++	}
++}
++
++static void update_throttle_type(struct task_struct *task, int cpu, bool next)
++{
++	struct cgroup *cpuacct_cgrp;
++	struct psi_group_ext *psi_ext;
++	struct psi_group_stat_cpu *groupc;
++	struct task_group *tsk_grp;
++
++	if (!cgroup_subsys_on_dfl(cpuacct_cgrp_subsys)) {
++		rcu_read_lock();
++		cpuacct_cgrp = task_cgroup(task, cpuacct_cgrp_id);
++		if (cgroup_parent(cpuacct_cgrp)) {
++			psi_ext = to_psi_group_ext(cgroup_psi(cpuacct_cgrp));
++			groupc = per_cpu_ptr(psi_ext->pcpu, cpu);
++			tsk_grp = task_group(task);
++			if (next)
++				groupc->prev_throttle = groupc->cur_throttle;
++			groupc->cur_throttle = tsk_grp->cfs_rq[cpu]->throttled;
++		}
++		rcu_read_unlock();
++	}
++}
+ #else
+ static inline void psi_group_stat_change(struct psi_group *group, int cpu,
+ 					 int clear, int set) {}
+@@ -532,6 +571,9 @@ static inline void record_stat_times(struct psi_group_ext *psi_ext, int cpu) {}
+ static inline void update_stat_averages(struct psi_group_ext *psi_ext,
+ 					unsigned long missed_periods,
+ 					u64 period) {}
++static inline void record_cpu_stat_times(struct psi_group *group, int cpu) {}
++static inline void update_throttle_type(struct task_struct *task, int cpu,
++					bool next) {}
+ #endif
+ 
+ static void collect_percpu_times(struct psi_group *group,
+@@ -944,6 +986,7 @@ static void psi_group_change(struct psi_group *group, int cpu,
+ 	write_seqcount_begin(&groupc->seq);
+ 
+ 	record_times(groupc, now);
++	record_cpu_stat_times(group, cpu);
+ 
+ 	/*
+ 	 * Start with TSK_ONCPU, which doesn't have a corresponding
+@@ -1099,6 +1142,7 @@ void psi_task_switch(struct task_struct *prev, struct task_struct *next,
+ 
+ 	if (next->pid) {
+ 
++		update_throttle_type(next, cpu, true);
+ 		psi_flags_change(next, 0, TSK_ONCPU);
+ 		/*
+ 		 * Set TSK_ONCPU on @next's cgroups. If @next shares any
+@@ -1125,6 +1169,7 @@ void psi_task_switch(struct task_struct *prev, struct task_struct *next,
+ 		int stat_set = 0;
+ 		int stat_clear = 0;
+ 
++		update_throttle_type(prev, cpu, false);
+ 		/*
+ 		 * When we're going to sleep, psi_dequeue() lets us
+ 		 * handle TSK_RUNNING, TSK_MEMSTALL_RUNNING and
+@@ -1202,6 +1247,7 @@ void psi_account_irqtime(struct task_struct *task, u32 delta)
+ 		update_psi_stat_delta(group, cpu, now);
+ 		record_stat_times(to_psi_group_ext(group), cpu);
+ 		record_times(groupc, now);
++		record_cpu_stat_times(group, cpu);
+ 		groupc->times[PSI_IRQ_FULL] += delta;
+ 
+ 		write_seqcount_end(&groupc->seq);
+@@ -1755,8 +1801,22 @@ static const char *const psi_stat_names[] = {
+ 	"compact",
+ 	"cgroup_async_memory_reclaim",
+ 	"swap",
++	"cpu_cfs_bandwidth",
++	"cpu_qos",
+ };
+ 
++static void get_stat_names(struct seq_file *m, int i, bool is_full)
++{
++	if (i <= PSI_SWAP_FULL && !is_full)
++		return seq_printf(m, "%s\n", psi_stat_names[i / 2]);
++	else if (i == PSI_CPU_CFS_BANDWIDTH_FULL)
++		return seq_printf(m, "%s\n", "cpu_cfs_bandwidth");
++#ifdef CONFIG_QOS_SCHED
++	else if (i == PSI_CPU_QOS_FULL)
++		return seq_printf(m, "%s\n", "cpu_qos");
++#endif
++}
++
+ int psi_stat_show(struct seq_file *m, struct psi_group *group)
+ {
+ 	struct psi_group_ext *psi_ext;
+@@ -1776,12 +1836,11 @@ int psi_stat_show(struct seq_file *m, struct psi_group *group)
+ 		group->avg_next_update = update_averages(group, now);
+ 	mutex_unlock(&group->avgs_lock);
+ 	for (i = 0; i < NR_PSI_STAT_STATES; i++) {
+-		is_full = i % 2;
++		is_full = i % 2 || i > PSI_SWAP_FULL;
+ 		for (w = 0; w < 3; w++)
+ 			avg[w] = psi_ext->avg[i][w];
+ 		total = div_u64(psi_ext->total[PSI_AVGS][i], NSEC_PER_USEC);
+-		if (!is_full)
+-			seq_printf(m, "%s\n", psi_stat_names[i / 2]);
++		get_stat_names(m, i, is_full);
+ 		seq_printf(m, "%s avg10=%lu.%02lu avg60=%lu.%02lu avg300=%lu.%02lu total=%llu\n",
+ 			   is_full ? "full" : "some",
+ 			   LOAD_INT(avg[0]), LOAD_FRAC(avg[0]),
+diff --git a/kernel/sched/stats.h b/kernel/sched/stats.h
+index 874d8c6e6750..4fc84b0e2945 100644
+--- a/kernel/sched/stats.h
++++ b/kernel/sched/stats.h
+@@ -75,6 +75,14 @@ static inline void rq_sched_info_depart  (struct rq *rq, unsigned long long delt
+ # define   schedstat_end_time(rq, t)	do { } while (0)
+ #endif /* CONFIG_SCHEDSTATS */
+ 
++#ifdef CONFIG_QOS_SCHED
++/*
++ * To distinguish cfs bw, use QOS_THROTTLED mark cfs_rq->throttled
++ * when qos throttled(and cfs bw throttle mark cfs_rq->throttled as 1).
++ */
++#define QOS_THROTTLED	2
++#endif
++
+ #ifdef CONFIG_PSI
+ /*
+  * PSI tracks state that persists across sleeps, such as iowaits and
+-- 
+2.17.1
+

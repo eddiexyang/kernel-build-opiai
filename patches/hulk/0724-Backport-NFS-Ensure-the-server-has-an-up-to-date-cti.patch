@@ -1,0 +1,46 @@
+From 128be59e0036f7ed9e658f45e3dba2335218819f Mon Sep 17 00:00:00 2001
+From: Trond Myklebust <trond.myklebust@hammerspace.com>
+Date: Wed, 15 Dec 2021 16:38:16 -0500
+Subject: [PATCH 0724/2065] [Backport] NFS: Ensure the server has an up to date
+ ctime before renaming
+
+stable inclusion
+from stable-v5.10.96
+commit 7a32824f7a9c8e2571b2ff74493516fb894d8d06
+bugzilla: https://gitee.com/openeuler/kernel/issues/I55NWB
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7a32824f7a9c8e2571b2ff74493516fb894d8d06
+
+--------------------------------
+
+[ Upstream commit 6ff9d99bb88faebf134ca668842349d9718e5464 ]
+
+Renaming a file is required by POSIX to update the file ctime, so
+ensure that the file data is synced to disk so that we don't clobber the
+updated ctime by writing back after creating the hard link.
+
+Fixes: f2c2c552f119 ("NFS: Move delegation recall into the NFSv4 callback for rename_setup()")
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ fs/nfs/dir.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 97eb30043192..7e25c720d2ec 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -2282,6 +2282,8 @@ int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+ 		}
+ 	}
+ 
++	if (S_ISREG(old_inode->i_mode))
++		nfs_sync_inode(old_inode);
+ 	task = nfs_async_rename(old_dir, new_dir, old_dentry, new_dentry, NULL);
+ 	if (IS_ERR(task)) {
+ 		error = PTR_ERR(task);
+-- 
+2.17.1
+

@@ -1,0 +1,114 @@
+From ee3526f4a96a07a7cda12bd166c8855fd102341f Mon Sep 17 00:00:00 2001
+From: Chen Wandun <chenwandun@huawei.com>
+Date: Tue, 1 Mar 2022 17:26:37 +0800
+Subject: [PATCH 3537/4585] [Huawei] mm: Add support for limiting the usage of
+ reliable memory in pagecache
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187270
+
+--------------------------------
+
+Add interface /proc/sys/vm/reliable_pagecache_max_bytes to set the
+max size for reliable page cache, the max size cant beyond total
+reliable ram.
+
+the whole reliable memory feature depend on kernelcore=mirror,
+and which depend on NUMA, so remove redundant code in UMA.
+
+Signed-off-by: Chen Wandun <chenwandun@huawei.com>
+---
+ mm/mem_reliable.c | 50 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+
+diff --git a/mm/mem_reliable.c b/mm/mem_reliable.c
+index 2a4bca105105..67b8475abb36 100644
+--- a/mm/mem_reliable.c
++++ b/mm/mem_reliable.c
+@@ -19,6 +19,7 @@ bool shmem_reliable __read_mostly = true;
+ bool pagecache_use_reliable_mem __read_mostly = true;
+ struct percpu_counter pagecache_reliable_pages;
+ struct percpu_counter anon_reliable_pages;
++static unsigned long reliable_pagecache_max_bytes = ULONG_MAX;
+ 
+ bool mem_reliable_counter_initialized(void)
+ {
+@@ -65,12 +66,18 @@ void reliable_lru_add(enum lru_list lru, struct page *page, int val)
+ 
+ void page_cache_prepare_alloc(gfp_t *gfp)
+ {
++	s64 nr_reliable = 0;
++
+ 	if (!mem_reliable_is_enabled())
+ 		return;
+ 
+ 	if (!pagecache_reliable_is_enabled())
+ 		goto no_reliable;
+ 
++	nr_reliable = percpu_counter_read_positive(&pagecache_reliable_pages);
++	if (nr_reliable > reliable_pagecache_max_bytes >> PAGE_SHIFT)
++		goto no_reliable;
++
+ 	*gfp |= GFP_RELIABLE;
+ 	return;
+ 
+@@ -181,11 +188,54 @@ void reliable_report_meminfo(struct seq_file *m)
+ 	}
+ }
+ 
++int reliable_pagecache_max_bytes_write(struct ctl_table *table, int write,
++	void __user *buffer, size_t *length, loff_t *ppos)
++{
++	unsigned long old_value = reliable_pagecache_max_bytes;
++	int ret;
++
++	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos);
++	if (!ret && write) {
++		if (reliable_pagecache_max_bytes > total_reliable_mem_sz()) {
++			reliable_pagecache_max_bytes = old_value;
++			return -EINVAL;
++		}
++	}
++
++	return ret;
++}
++
++static struct ctl_table reliable_ctl_table[] = {
++	{
++		.procname = "reliable_pagecache_max_bytes",
++		.data = &reliable_pagecache_max_bytes,
++		.maxlen = sizeof(reliable_pagecache_max_bytes),
++		.mode = 0644,
++		.proc_handler = reliable_pagecache_max_bytes_write,
++	},
++	{}
++};
++
++static struct ctl_table reliable_dir_table[] = {
++	{
++		.procname = "vm",
++		.maxlen = 0,
++		.mode = 0555,
++		.child = reliable_ctl_table,
++	},
++	{}
++};
++
+ static int __init reliable_sysctl_init(void)
+ {
+ 	if (!mem_reliable_is_enabled())
+ 		return 0;
+ 
++	if (!register_sysctl_table(reliable_dir_table)) {
++		pr_err("register sysctl failed.");
++		return -ENOMEM;
++	}
++
+ 	percpu_counter_init(&pagecache_reliable_pages, 0, GFP_KERNEL);
+ 	percpu_counter_init(&anon_reliable_pages, 0, GFP_KERNEL);
+ 
+-- 
+2.17.1
+

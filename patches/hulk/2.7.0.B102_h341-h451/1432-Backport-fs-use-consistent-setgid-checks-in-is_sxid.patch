@@ -1,0 +1,54 @@
+From c9a7aff92ab149063d9d5607a2684f3185593a75 Mon Sep 17 00:00:00 2001
+From: Christian Brauner <brauner@kernel.org>
+Date: Sat, 18 Mar 2023 12:15:28 +0200
+Subject: [PATCH 1432/1646] [Backport] fs: use consistent setgid checks in
+ is_sxid()
+
+stable inclusion
+from stable-v5.10.176
+commit 183ca919544c898dfbb40f6b26d33bfe8765a986
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=183ca919544c898dfbb40f6b26d33bfe8765a986
+
+--------------------------------
+
+commit 8d84e39d76bd83474b26cb44f4b338635676e7e8 upstream.
+
+Now that we made the VFS setgid checking consistent an inode can't be
+marked security irrelevant even if the setgid bit is still set. Make
+this function consistent with all other helpers.
+
+Note that enforcing consistent setgid stripping checks for file
+modification and mode- and ownership changes will cause the setgid bit
+to be lost in more cases than useed to be the case. If an unprivileged
+user wrote to a non-executable setgid file that they don't have
+privilege over the setgid bit will be dropped. This will lead to
+temporary failures in some xfstests until they have been updated.
+
+Reported-by: Miklos Szeredi <miklos@szeredi.hu>
+Signed-off-by: Christian Brauner (Microsoft) <brauner@kernel.org>
+Signed-off-by: Amir Goldstein <amir73il@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/linux/fs.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index d6d877d326b9..9d4b101b86fc 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -3476,7 +3476,7 @@ int __init get_filesystem_list(char *buf);
+ 
+ static inline bool is_sxid(umode_t mode)
+ {
+-	return (mode & S_ISUID) || ((mode & S_ISGID) && (mode & S_IXGRP));
++	return mode & (S_ISUID | S_ISGID);
+ }
+ 
+ static inline int check_sticky(struct inode *dir, struct inode *inode)
+-- 
+2.17.1
+

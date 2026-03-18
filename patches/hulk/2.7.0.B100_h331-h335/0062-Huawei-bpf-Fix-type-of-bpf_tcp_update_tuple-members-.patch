@@ -1,0 +1,64 @@
+From b2008ed0cc345e385103bcff05e1ae7e318481b4 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Wed, 22 Feb 2023 08:15:22 -0500
+Subject: [PATCH 062/500] [Huawei] bpf: Fix type of bpf_tcp_update_tuple
+ members to u32
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: N/A
+
+--------------------------------
+
+The members of bpf_tcp_update_tuple is used in CPU byte order. They
+should not be __be32 type but __u32 instead.
+
+Fixes: 72f1c82b29fe ("[Huawei] samples: bpf: Add sample BMC for Redis")
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ include/uapi/linux/bpf.h       | 8 ++++----
+ tools/include/uapi/linux/bpf.h | 8 ++++----
+ 2 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/include/uapi/linux/bpf.h b/include/uapi/linux/bpf.h
+index fd93710460e2..50d257c06775 100644
+--- a/include/uapi/linux/bpf.h
++++ b/include/uapi/linux/bpf.h
+@@ -4281,10 +4281,10 @@ struct bpf_xdp_sock {
+ struct bpf_tcp_update_tuple {
+ 	struct bpf_sock_tuple sock;
+ 	__u32 family;
+-	__be32 seq;
+-	__be32 rcv_len;
+-	__be32 ack_seq;
+-	__be32 snd_len;
++	__u32 seq;
++	__u32 rcv_len;
++	__u32 ack_seq;
++	__u32 snd_len;
+ };
+ 
+ #define XDP_PACKET_HEADROOM 256
+diff --git a/tools/include/uapi/linux/bpf.h b/tools/include/uapi/linux/bpf.h
+index d95a9ae20c62..beb2bd3c58e0 100644
+--- a/tools/include/uapi/linux/bpf.h
++++ b/tools/include/uapi/linux/bpf.h
+@@ -4280,10 +4280,10 @@ struct bpf_xdp_sock {
+ struct bpf_tcp_update_tuple {
+ 	struct bpf_sock_tuple sock;
+ 	__u32 family;
+-	__be32 seq;
+-	__be32 rcv_len;
+-	__be32 ack_seq;
+-	__be32 snd_len;
++	__u32 seq;
++	__u32 rcv_len;
++	__u32 ack_seq;
++	__u32 snd_len;
+ };
+ 
+ #define XDP_PACKET_HEADROOM 256
+-- 
+2.17.1
+

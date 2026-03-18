@@ -1,0 +1,66 @@
+From 76f46bda9290abf9e463ddb3f7dc499eb9dbb7ef Mon Sep 17 00:00:00 2001
+From: lansheng <lansheng@huawei.com>
+Date: Sat, 16 Jul 2022 07:55:36 +0000
+Subject: [PATCH 2/8] huawei kbox watchdog notifier list
+
+---
+ kernel/watchdog.c     | 9 ++++++++-
+ kernel/watchdog_hld.c | 8 +++++++-
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/watchdog.c b/kernel/watchdog.c
+index d89b75329..41872fc7d 100644
+--- a/kernel/watchdog.c
++++ b/kernel/watchdog.c
+@@ -188,6 +188,11 @@ static DEFINE_PER_CPU(bool, softlockup_touch_sync);
+ static DEFINE_PER_CPU(unsigned long, hrtimer_interrupts);
+ static DEFINE_PER_CPU(unsigned long, hrtimer_interrupts_saved);
+ static unsigned long soft_lockup_nmi_warn;
++#ifdef CONFIG_EULEROS_KBOX_WATCHDOG_NOTIFIER_LIST
++ATOMIC_NOTIFIER_HEAD(watchdog_notifier_list);
++/* Should not be exported but the struct is now used by products. */
++EXPORT_SYMBOL(watchdog_notifier_list);
++#endif
+ 
+ static int __init nowatchdog_setup(char *str)
+ {
+@@ -449,7 +454,9 @@ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+ 			trigger_allbutself_cpu_backtrace();
+ 			clear_bit_unlock(0, &soft_lockup_nmi_warn);
+ 		}
+-
++#ifdef CONFIG_EULEROS_KBOX_WATCHDOG_NOTIFIER_LIST
++		(void)atomic_notifier_call_chain(&watchdog_notifier_list, (unsigned long)regs, "SOFT-WATCHDOG detected!");
++#endif
+ 		add_taint(TAINT_SOFTLOCKUP, LOCKDEP_STILL_OK);
+ 		if (softlockup_panic)
+ 			panic("softlockup: hung tasks");
+diff --git a/kernel/watchdog_hld.c b/kernel/watchdog_hld.c
+index b8a2d3b2c..2fdf01620 100644
+--- a/kernel/watchdog_hld.c
++++ b/kernel/watchdog_hld.c
+@@ -297,6 +297,10 @@ static inline bool watchdog_check_timestamp(void)
+ }
+ #endif
+ 
++#ifdef CONFIG_EULEROS_KBOX_WATCHDOG_NOTIFIER_LIST
++extern struct atomic_notifier_head watchdog_notifier_list;
++#endif
++
+ void watchdog_hardlockup_check(struct pt_regs *regs)
+ {
+ #ifdef CONFIG_CORELOCKUP_DETECTOR
+@@ -343,7 +347,9 @@ void watchdog_hardlockup_check(struct pt_regs *regs)
+ 		if (sysctl_hardlockup_all_cpu_backtrace &&
+ 				!test_and_set_bit(0, &hardlockup_allcpu_dumped))
+ 			trigger_allbutself_cpu_backtrace();
+-
++#ifdef CONFIG_EULEROS_KBOX_WATCHDOG_NOTIFIER_LIST
++		(void)atomic_notifier_call_chain(&watchdog_notifier_list, (unsigned long)regs, "NMI-WATCHDOG detected!");
++#endif
+ 		if (hardlockup_panic)
+ 			nmi_panic(regs, "Hard LOCKUP");
+ 
+-- 
+2.33.0
+

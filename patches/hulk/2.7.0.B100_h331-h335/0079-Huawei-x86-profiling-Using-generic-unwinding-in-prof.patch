@@ -1,0 +1,74 @@
+From a3d351e33f38845d1ad5d793b66f0604cecb75d7 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Thu, 23 Feb 2023 22:37:25 +0800
+Subject: [PATCH 079/500] [Huawei] x86: profiling: Using generic unwinding in
+ profile_pc
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187469
+
+--------------------------------
+
+Syzbot has been reporting the problem of stack-out-of-bounds in
+profile_pc for a long time:
+https://syzkaller.appspot.com/bug?extid=84fe685c02cd112a2ac3
+
+profile_pc tries to get pc if current regs is inside lock function. For
+!CONFIG_FRAME_POINTER it used a hack way to get the pc from stack, which
+is not work with ORC. It makes profile_pc returns wrong result, and
+frequently triggers KASAN.
+
+This can be fixed by using the unwind_start, it will skip the first
+regs frame and get the caller of lock function directly, or 0 if
+unwind_get_return_address finds the unwinding failed. For all of FP, ORC
+and guess unwinders it works.
+
+Fixes: 0cb91a229364 ("[PATCH] i386: Account spinlocks to the caller during profiling for !FP kernels")
+Reported-by: syzbot+84fe685c02cd112a2ac3@syzkaller.appspotmail.com
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ arch/x86/kernel/time.c | 20 ++++++--------------
+ 1 file changed, 6 insertions(+), 14 deletions(-)
+
+diff --git a/arch/x86/kernel/time.c b/arch/x86/kernel/time.c
+index e42faa792c07..5e0446f49906 100644
+--- a/arch/x86/kernel/time.c
++++ b/arch/x86/kernel/time.c
+@@ -24,26 +24,18 @@
+ #include <asm/timer.h>
+ #include <asm/hpet.h>
+ #include <asm/time.h>
++#include <asm/unwind.h>
+ 
+ unsigned long profile_pc(struct pt_regs *regs)
+ {
+ 	unsigned long pc = instruction_pointer(regs);
+ 
+ 	if (!user_mode(regs) && in_lock_functions(pc)) {
+-#ifdef CONFIG_FRAME_POINTER
+-		return *(unsigned long *)(regs->bp + sizeof(long));
+-#else
+-		unsigned long *sp = (unsigned long *)regs->sp;
+-		/*
+-		 * Return address is either directly at stack pointer
+-		 * or above a saved flags. Eflags has bits 22-31 zero,
+-		 * kernel addresses don't.
+-		 */
+-		if (sp[0] >> 22)
+-			return sp[0];
+-		if (sp[1] >> 22)
+-			return sp[1];
+-#endif
++		struct unwind_state state;
++
++		/* unwind_start will skip the first regs frame */
++		unwind_start(&state, current, regs, NULL);
++		pc = unwind_get_return_address(&state);
+ 	}
+ 	return pc;
+ }
+-- 
+2.17.1
+

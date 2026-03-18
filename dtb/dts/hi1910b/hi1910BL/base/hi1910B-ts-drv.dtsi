@@ -1,0 +1,3 @@
+	tsdrv@0x1F0200000 {
+		compatible = "hisi,tsdrv_device";
+	};

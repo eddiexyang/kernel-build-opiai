@@ -1,0 +1,43 @@
+From 01e82997b8f1ae978b6f37de890e7b8daf63daf6 Mon Sep 17 00:00:00 2001
+From: Xiaochen Shen <xiaochen.shen@intel.com>
+Date: Mon, 21 Nov 2022 14:48:37 +0800
+Subject: [PATCH 0860/1646] [Backport] sched: Fix kABI for
+ task->pasid_activated
+
+Intel inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://gitee.com/openeuler/kernel/commit/3922e76213a46ffb0772c63300ec197d9674f676
+
+-------------------------------------------------
+
+In commit
+("sched: Define and initialize a flag to identify valid PASID in the task"),
+a new single bit field 'pasid_activated' is added to the middle of
+'struct task_struct' that causes kABI breakage.
+
+Fix it by using KABI_FILL_HOLE() API for task->pasid_activated.
+
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ include/linux/sched.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 94156d69107e..0cbb17e7000f 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -880,7 +880,7 @@ struct task_struct {
+ 	unsigned			in_memstall:1;
+ #endif
+ #ifdef CONFIG_IOMMU_SVA
+-	unsigned			pasid_activated:1;
++	KABI_FILL_HOLE(unsigned		pasid_activated:1)
+ #endif
+ 
+ 	unsigned long			atomic_flags; /* Flags requiring atomic access. */
+-- 
+2.17.1
+

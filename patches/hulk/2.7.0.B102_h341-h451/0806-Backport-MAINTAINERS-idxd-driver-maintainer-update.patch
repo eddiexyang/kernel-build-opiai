@@ -1,0 +1,45 @@
+From b976a39b4410302b8007f0caa8c3a2c3183bd42e Mon Sep 17 00:00:00 2001
+From: Dave Jiang <dave.jiang@intel.com>
+Date: Wed, 15 Jun 2022 16:26:51 -0700
+Subject: [PATCH 0806/1646] [Backport] MAINTAINERS: idxd driver maintainer
+ update
+
+mainline inclusion
+from mainline-v6.0-rc1
+commit 5dc8638872ef0deeae1371a9e2d551920870f76a
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=5dc8638872ef0deeae1371a9e2d551920870f76a
+
+--------------------------------
+
+Add Fenghua as maintainer of the idxd driver.
+
+Signed-off-by: Fenghua Yu <fenghua.yu@intel.com>
+Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+Link: https://lore.kernel.org/r/20220615232651.177098-1-fenghua.yu@intel.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ MAINTAINERS | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index a3044fe2cef8..fe6b60e27f5b 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -8929,7 +8929,8 @@ S:	Supported
+ Q:	https://patchwork.kernel.org/project/linux-dmaengine/list/
+ F:	drivers/dma/ioat*
+ 
+-INTEL IADX DRIVER
++INTEL IDXD DRIVER
++M:	Fenghua Yu <fenghua.yu@intel.com>
+ M:	Dave Jiang <dave.jiang@intel.com>
+ L:	dmaengine@vger.kernel.org
+ S:	Supported
+-- 
+2.17.1
+

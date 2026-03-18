@@ -1,0 +1,86 @@
+From f60f0410243a16a1c95d496af5a3f359cb465a63 Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 29 Aug 2022 15:49:53 +0800
+Subject: [PATCH 079/261] [Huawei] mm: mem_reliable: Start fallback if no
+ suitable zone found
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187270
+
+--------------------------------
+
+For reliable memory allocation bind to nodes which do not hvve any
+reliable zones, its memory allocation will fail and then warn message
+will be produced at the end of __alloc_pages_slowpath().
+
+Though this memory allocation can fallback to movable zone in
+check_after_alloc() if fallback is enabled, something should be done to
+prevent this pointless warn log.
+
+To solve this problem, fallback to movable zone if no suitable zone found.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/page_alloc.c | 30 ++++++++++++++++++++++++++++--
+ 1 file changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 4dee625adb7b..6a08bc7e01ff 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -4669,6 +4669,25 @@ check_retry_cpuset(int cpuset_mems_cookie, struct alloc_context *ac)
+ }
+ 
+ #ifdef CONFIG_MEMORY_RELIABLE
++/*
++ * if fallback is enabled, fallback to movable zone if no dma/normal zone
++ * found
++ */
++static inline struct zone *mem_reliable_fallback_zone(gfp_t gfp_mask,
++						      struct alloc_context *ac)
++{
++	if (!reliable_allow_fb_enabled())
++		return NULL;
++
++	if (!(gfp_mask & GFP_RELIABLE))
++		return NULL;
++
++	ac->highest_zoneidx = gfp_zone(gfp_mask & ~GFP_RELIABLE);
++	ac->preferred_zoneref = first_zones_zonelist(
++		ac->zonelist, ac->highest_zoneidx, ac->nodemask);
++	return ac->preferred_zoneref->zone;
++}
++
+ static inline void mem_reliable_fallback_slowpath(gfp_t gfp_mask,
+ 						  struct alloc_context *ac)
+ {
+@@ -4686,6 +4705,11 @@ static inline void mem_reliable_fallback_slowpath(gfp_t gfp_mask,
+ 	}
+ }
+ #else
++static inline struct zone *mem_reliable_fallback_zone(gfp_t gfp_mask,
++						      struct alloc_context *ac)
++{
++	return NULL;
++}
+ static inline void mem_reliable_fallback_slowpath(gfp_t gfp_mask,
+ 						  struct alloc_context *ac) {}
+ #endif
+@@ -4735,8 +4759,10 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 	 */
+ 	ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
+ 					ac->highest_zoneidx, ac->nodemask);
+-	if (!ac->preferred_zoneref->zone)
+-		goto nopage;
++	if (!ac->preferred_zoneref->zone) {
++		if (!mem_reliable_fallback_zone(gfp_mask, ac))
++			goto nopage;
++	}
+ 
+ 	if (alloc_flags & ALLOC_KSWAPD)
+ 		wake_all_kswapds(order, gfp_mask, ac);
+-- 
+2.17.1
+

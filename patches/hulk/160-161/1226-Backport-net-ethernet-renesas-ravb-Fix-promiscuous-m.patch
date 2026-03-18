@@ -1,0 +1,50 @@
+From b3663318123b934848cfb63b096f3f4c4008b610 Mon Sep 17 00:00:00 2001
+From: Yoshihiro Shimoda <yoshihiro.shimoda.uh@renesas.com>
+Date: Mon, 28 Nov 2022 15:56:04 +0900
+Subject: [PATCH 1226/1398] [Backport] net: ethernet: renesas: ravb: Fix
+ promiscuous mode after system resumed
+
+stable inclusion
+from stable-v5.10.158
+commit d93522d04f84c81ab9af899957fddfd3c7eb0bb6
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68YE9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d93522d04f84c81ab9af899957fddfd3c7eb0bb6
+
+--------------------------------
+
+[ Upstream commit d66233a312ec9013af3e37e4030b479a20811ec3 ]
+
+After system resumed on some environment board, the promiscuous mode
+is disabled because the SoC turned off. So, call ravb_set_rx_mode() in
+the ravb_resume() to fix the issue.
+
+Reported-by: Tho Vu <tho.vu.wh@renesas.com>
+Fixes: 0184165b2f42 ("ravb: add sleep PM suspend/resume support")
+Signed-off-by: Yoshihiro Shimoda <yoshihiro.shimoda.uh@renesas.com>
+Reviewed-by: Pavan Chebbi <pavan.chebbi@broadcom.com>
+Reviewed-by: Sergey Shtylyov <s.shtylyov@omp.ru>
+Link: https://lore.kernel.org/r/20221128065604.1864391-1-yoshihiro.shimoda.uh@renesas.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/renesas/ravb_main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/renesas/ravb_main.c b/drivers/net/ethernet/renesas/ravb_main.c
+index 59dcdedb7d2a..79bdcfc5b63d 100644
+--- a/drivers/net/ethernet/renesas/ravb_main.c
++++ b/drivers/net/ethernet/renesas/ravb_main.c
+@@ -2368,6 +2368,7 @@ static int __maybe_unused ravb_resume(struct device *dev)
+ 		ret = ravb_open(ndev);
+ 		if (ret < 0)
+ 			return ret;
++		ravb_set_rx_mode(ndev);
+ 		netif_device_attach(ndev);
+ 	}
+ 
+-- 
+2.17.1
+

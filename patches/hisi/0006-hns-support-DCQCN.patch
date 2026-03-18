@@ -1,0 +1,56 @@
+From a849f0565ac53bfc183e8a2916d090ead579e051 Mon Sep 17 00:00:00 2001
+Date: Fri, 25 Aug 2023 15:10:33 +0800
+Subject: [PATCH] hns-support-DCQCN
+
+---
+ drivers/infiniband/hw/hns/hns_roce_device.h | 1 +
+ drivers/infiniband/hw/hns/hns_roce_hw_v2.c  | 6 ++++++
+ drivers/infiniband/hw/hns/hns_roce_hw_v2.h  | 3 +++
+ 3 files changed, 10 insertions(+)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_device.h b/drivers/infiniband/hw/hns/hns_roce_device.h
+index 90461b1..c94b6c6 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_device.h
++++ b/drivers/infiniband/hw/hns/hns_roce_device.h
+@@ -840,6 +840,7 @@ struct hns_roce_eq_table {
+ 
+ enum cong_type {
+ 	CONG_TYPE_DCQCN,
++	CONG_TYPE_DCQCN_SUPPORT_CONG_LEVEL,
+ 	CONG_TYPE_LDCP,
+ 	CONG_TYPE_HC3,
+ 	CONG_TYPE_DIP,
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+index 7ffab04..4ecd5a4 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+@@ -4766,6 +4766,12 @@ static int check_cong_type(struct ib_qp *ibqp,
+ 		cong_alg->dip_vld = DIP_INVALID;
+ 		cong_alg->wnd_mode_sel = WND_LIMIT;
+ 		break;
++	case CONG_TYPE_DCQCN_SUPPORT_CONG_LEVEL:
++		cong_alg->alg_sel = CONG_DCQCN;
++		cong_alg->alg_sub_sel = SUPPORT_CONG_LEVEL;
++		cong_alg->dip_vld = DIP_INVALID;
++		cong_alg->wnd_mode_sel = WND_LIMIT;
++		break;
+ 	case CONG_TYPE_LDCP:
+ 		cong_alg->alg_sel = CONG_WINDOW;
+ 		cong_alg->alg_sub_sel = CONG_LDCP;
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.h b/drivers/infiniband/hw/hns/hns_roce_hw_v2.h
+index dd974a7..568b907 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.h
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.h
+@@ -215,6 +215,9 @@ enum {
+ enum hns_roce_opcode_type {
+ 	HNS_QUERY_FW_VER				= 0x0001,
+ 	HNS_QUERY_MAC_TYPE				= 0x0389,
++	HNS_ROCE_OPC_DCQCN_ENABLE 			= 0x7017,
++	HNS_ROCE_OPC_CFG_DCQCN_PARAM		= 0x7108,
++	HNS_ROCE_OPC_DCQCN_CNP_DSCP 		= 0x7109,
+ 	HNS_ROCE_OPC_QUERY_HW_VER			= 0x8000,
+ 	HNS_ROCE_OPC_CFG_GLOBAL_PARAM			= 0x8001,
+ 	HNS_ROCE_OPC_ALLOC_PF_RES			= 0x8004,
+-- 
+2.27.0
+

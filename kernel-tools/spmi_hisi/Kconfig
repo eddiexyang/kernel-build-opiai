@@ -1,0 +1,21 @@
+#
+# HISI SPMI driver configuration
+#
+
+config HISI_SPMI
+	tristate "HISI SPMI Controller"
+	help
+	  enabel hisi spmi
+
+config HISI_SPMI_DEBUG_FS
+	tristate "HISI SPMI Controller Debug"
+	depends on HISI_SPMI
+	depends on DEBUG_FS
+	help
+	  enable hisi spmi debug fs
+
+config HISI_SPMI_PMIC_VOLTAGE
+	tristate "inquire hisi PMIC per channel voltage"
+	depends on HISI_SPMI
+	help
+	  enable to inquire channel voltage

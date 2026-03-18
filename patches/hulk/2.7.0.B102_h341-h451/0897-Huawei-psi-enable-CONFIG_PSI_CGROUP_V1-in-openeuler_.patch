@@ -1,0 +1,49 @@
+From e1d043bae2bf0ffdd6eefa930f73a6fefbadf79d Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Thu, 27 Apr 2023 21:53:11 +0800
+Subject: [PATCH 0897/1646] [Huawei] psi: enable CONFIG_PSI_CGROUP_V1 in
+ openeuler_defconfig
+
+Offering: HULK
+HULK inclusion
+category: feature
+bugzilla: 188663
+
+-------------------------------
+
+enable CONFIG_PSI_CGROUP_V1 in openeuler_defconfig
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 2 ++
+ arch/x86/configs/openeuler_defconfig   | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index f5095bb5c6d5..8889db033b4a 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -91,6 +91,8 @@ CONFIG_TASK_XACCT=y
+ CONFIG_TASK_IO_ACCOUNTING=y
+ CONFIG_PSI=y
+ CONFIG_PSI_DEFAULT_DISABLED=y
++CONFIG_PSI_CGROUP_V1=y
++
+ # end of CPU/Task time and stats accounting
+ 
+ CONFIG_CPU_ISOLATION=y
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index fa258d271c27..ce2369ed2e8f 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -107,6 +107,7 @@ CONFIG_TASK_XACCT=y
+ CONFIG_TASK_IO_ACCOUNTING=y
+ CONFIG_PSI=y
+ CONFIG_PSI_DEFAULT_DISABLED=y
++CONFIG_PSI_CGROUP_V1=y
+ # end of CPU/Task time and stats accounting
+ 
+ CONFIG_CPU_ISOLATION=y
+-- 
+2.17.1
+

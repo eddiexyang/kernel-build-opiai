@@ -1,0 +1,315 @@
+From b13f6583c4392a043b45f82eb19ec45637f0a626 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Sat, 9 Jul 2022 10:56:06 -0700
+Subject: [PATCH 908/921] [Backport] xfs: replace XFS_IFORK_Q with a proper
+ predicate function
+
+mainline inclusion
+from mainline-v5.19-rc5
+commit 932b42c66cb5d0ca9800b128415b4ad6b1952b3e
+category: bugfix
+bugzilla: 187164
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=932b42c66cb5d0ca9800b128415b4ad6b1952b3e
+
+--------------------------------
+
+Replace this shouty macro with a real C function that has a more
+descriptive name.
+
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+
+conflicts:
+	fs/xfs/libxfs/xfs_attr.h
+	fs/xfs/libxfs/xfs_inode_fork.c
+	fs/xfs/scrub/btree.c
+	fs/xfs/xfs_inode.c
+
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/libxfs/xfs_attr.c       |  4 ++--
+ fs/xfs/libxfs/xfs_bmap.c       |  4 ++--
+ fs/xfs/libxfs/xfs_inode_fork.c |  2 +-
+ fs/xfs/libxfs/xfs_inode_fork.h |  5 ++---
+ fs/xfs/xfs_attr_inactive.c     |  4 ++--
+ fs/xfs/xfs_bmap_util.c         | 10 +++++-----
+ fs/xfs/xfs_inode.c             | 10 +++++-----
+ fs/xfs/xfs_inode.h             |  7 ++++++-
+ fs/xfs/xfs_inode_item.c        |  4 ++--
+ fs/xfs/xfs_iomap.c             |  2 +-
+ fs/xfs/xfs_iops.c              |  2 +-
+ 11 files changed, 29 insertions(+), 25 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_attr.c b/fs/xfs/libxfs/xfs_attr.c
+index 43390a7297f9..6da91abb129b 100644
+--- a/fs/xfs/libxfs/xfs_attr.c
++++ b/fs/xfs/libxfs/xfs_attr.c
+@@ -63,7 +63,7 @@ int
+ xfs_inode_hasattr(
+ 	struct xfs_inode	*ip)
+ {
+-	if (!XFS_IFORK_Q(ip))
++	if (!xfs_inode_has_attr_fork(ip))
+ 		return 0;
+ 	if (ip->i_af.if_format == XFS_DINODE_FMT_EXTENTS &&
+ 	    ip->i_af.if_nextents == 0)
+@@ -428,7 +428,7 @@ xfs_attr_set(
+ 		 * If the inode doesn't have an attribute fork, add one.
+ 		 * (inode must not be locked when we call this routine)
+ 		 */
+-		if (XFS_IFORK_Q(dp) == 0) {
++		if (xfs_inode_has_attr_fork(dp) == 0) {
+ 			int sf_size = sizeof(struct xfs_attr_sf_hdr) +
+ 				xfs_attr_sf_entsize_byname(args->namelen,
+ 						args->valuelen);
+diff --git a/fs/xfs/libxfs/xfs_bmap.c b/fs/xfs/libxfs/xfs_bmap.c
+index 6e8fe11511dd..7c4c2d6769a7 100644
+--- a/fs/xfs/libxfs/xfs_bmap.c
++++ b/fs/xfs/libxfs/xfs_bmap.c
+@@ -1071,7 +1071,7 @@ xfs_bmap_add_attrfork(
+ 	int			logflags;	/* logging flags */
+ 	int			error;		/* error return value */
+ 
+-	ASSERT(XFS_IFORK_Q(ip) == 0);
++	ASSERT(xfs_inode_has_attr_fork(ip) == 0);
+ 
+ 	mp = ip->i_mount;
+ 	ASSERT(!XFS_NOT_DQATTACHED(mp, ip));
+@@ -1082,7 +1082,7 @@ xfs_bmap_add_attrfork(
+ 			rsvd, &tp);
+ 	if (error)
+ 		return error;
+-	if (XFS_IFORK_Q(ip))
++	if (xfs_inode_has_attr_fork(ip))
+ 		goto trans_cancel;
+ 
+ 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
+diff --git a/fs/xfs/libxfs/xfs_inode_fork.c b/fs/xfs/libxfs/xfs_inode_fork.c
+index 3460c3d8a959..1c67421c1602 100644
+--- a/fs/xfs/libxfs/xfs_inode_fork.c
++++ b/fs/xfs/libxfs/xfs_inode_fork.c
+@@ -732,7 +732,7 @@ xfs_ifork_verify_local_attr(
+ 	struct xfs_ifork	*ifp = &ip->i_af;
+ 	xfs_failaddr_t		fa;
+ 
+-	if (!XFS_IFORK_Q(ip))
++	if (!xfs_inode_has_attr_fork(ip))
+ 		fa = __this_address;
+ 	else
+ 		fa = xfs_attr_shortform_verify(ip);
+diff --git a/fs/xfs/libxfs/xfs_inode_fork.h b/fs/xfs/libxfs/xfs_inode_fork.h
+index 8466923d450e..c54da38bde65 100644
+--- a/fs/xfs/libxfs/xfs_inode_fork.h
++++ b/fs/xfs/libxfs/xfs_inode_fork.h
+@@ -99,13 +99,12 @@ struct xfs_ifork {
+  * Fork handling.
+  */
+ 
+-#define XFS_IFORK_Q(ip)			((ip)->i_d.di_forkoff != 0)
+ #define XFS_IFORK_BOFF(ip)		((int)((ip)->i_d.di_forkoff << 3))
+ 
+ #define XFS_IFORK_DSIZE(ip) \
+-	(XFS_IFORK_Q(ip) ? XFS_IFORK_BOFF(ip) : XFS_LITINO((ip)->i_mount))
++	(xfs_inode_has_attr_fork(ip) ? XFS_IFORK_BOFF(ip) : XFS_LITINO((ip)->i_mount))
+ #define XFS_IFORK_ASIZE(ip) \
+-	(XFS_IFORK_Q(ip) ? XFS_LITINO((ip)->i_mount) - XFS_IFORK_BOFF(ip) : 0)
++	(xfs_inode_has_attr_fork(ip) ? XFS_LITINO((ip)->i_mount) - XFS_IFORK_BOFF(ip) : 0)
+ #define XFS_IFORK_SIZE(ip,w) \
+ 	((w) == XFS_DATA_FORK ? \
+ 		XFS_IFORK_DSIZE(ip) : \
+diff --git a/fs/xfs/xfs_attr_inactive.c b/fs/xfs/xfs_attr_inactive.c
+index b95c92f02924..5d2a0facf0c3 100644
+--- a/fs/xfs/xfs_attr_inactive.c
++++ b/fs/xfs/xfs_attr_inactive.c
+@@ -336,7 +336,7 @@ xfs_attr_inactive(
+ 	ASSERT(! XFS_NOT_DQATTACHED(mp, dp));
+ 
+ 	xfs_ilock(dp, lock_mode);
+-	if (!XFS_IFORK_Q(dp))
++	if (!xfs_inode_has_attr_fork(dp))
+ 		goto out_destroy_fork;
+ 	xfs_iunlock(dp, lock_mode);
+ 
+@@ -349,7 +349,7 @@ xfs_attr_inactive(
+ 	lock_mode = XFS_ILOCK_EXCL;
+ 	xfs_ilock(dp, lock_mode);
+ 
+-	if (!XFS_IFORK_Q(dp))
++	if (!xfs_inode_has_attr_fork(dp))
+ 		goto out_cancel;
+ 
+ 	/*
+diff --git a/fs/xfs/xfs_bmap_util.c b/fs/xfs/xfs_bmap_util.c
+index fc883ee63b8d..48d1b5e5851a 100644
+--- a/fs/xfs/xfs_bmap_util.c
++++ b/fs/xfs/xfs_bmap_util.c
+@@ -402,7 +402,7 @@ xfs_getbmap(
+ 	xfs_ilock(ip, XFS_IOLOCK_SHARED);
+ 	switch (whichfork) {
+ 	case XFS_ATTR_FORK:
+-		if (!XFS_IFORK_Q(ip))
++		if (!xfs_inode_has_attr_fork(ip))
+ 			goto out_unlock_iolock;
+ 
+ 		max_len = 1LL << 32;
+@@ -1259,7 +1259,7 @@ xfs_swap_extents_check_format(
+ 	 * extent format...
+ 	 */
+ 	if (tifp->if_format == XFS_DINODE_FMT_BTREE) {
+-		if (XFS_IFORK_Q(ip) &&
++		if (xfs_inode_has_attr_fork(ip) &&
+ 		    XFS_BMAP_BMDR_SPACE(tifp->if_broot) > XFS_IFORK_BOFF(ip))
+ 			return -EINVAL;
+ 		if (tifp->if_nextents <= XFS_IFORK_MAXEXT(ip, XFS_DATA_FORK))
+@@ -1268,7 +1268,7 @@ xfs_swap_extents_check_format(
+ 
+ 	/* Reciprocal target->temp btree format checks */
+ 	if (ifp->if_format == XFS_DINODE_FMT_BTREE) {
+-		if (XFS_IFORK_Q(tip) &&
++		if (xfs_inode_has_attr_fork(tip) &&
+ 		    XFS_BMAP_BMDR_SPACE(ip->i_df.if_broot) > XFS_IFORK_BOFF(tip))
+ 			return -EINVAL;
+ 		if (ifp->if_nextents <= XFS_IFORK_MAXEXT(tip, XFS_DATA_FORK))
+@@ -1439,14 +1439,14 @@ xfs_swap_extent_forks(
+ 	/*
+ 	 * Count the number of extended attribute blocks
+ 	 */
+-	if (XFS_IFORK_Q(ip) && ip->i_af.if_nextents > 0 &&
++	if (xfs_inode_has_attr_fork(ip) && ip->i_af.if_nextents > 0 &&
+ 	    ip->i_af.if_format != XFS_DINODE_FMT_LOCAL) {
+ 		error = xfs_bmap_count_blocks(tp, ip, XFS_ATTR_FORK, &junk,
+ 				&aforkblks);
+ 		if (error)
+ 			return error;
+ 	}
+-	if (XFS_IFORK_Q(tip) && tip->i_af.if_nextents > 0 &&
++	if (xfs_inode_has_attr_fork(tip) && tip->i_af.if_nextents > 0 &&
+ 	    tip->i_af.if_format != XFS_DINODE_FMT_LOCAL) {
+ 		error = xfs_bmap_count_blocks(tp, tip, XFS_ATTR_FORK, &junk,
+ 				&taforkblks);
+diff --git a/fs/xfs/xfs_inode.c b/fs/xfs/xfs_inode.c
+index e862a41a408c..3d4bf9ee79bc 100644
+--- a/fs/xfs/xfs_inode.c
++++ b/fs/xfs/xfs_inode.c
+@@ -125,7 +125,7 @@ xfs_ilock_attr_map_shared(
+ {
+ 	uint			lock_mode = XFS_ILOCK_SHARED;
+ 
+-	if (XFS_IFORK_Q(ip) &&
++	if (xfs_inode_has_attr_fork(ip) &&
+ 	    ip->i_af.if_format == XFS_DINODE_FMT_BTREE &&
+ 	    (ip->i_af.if_flags & XFS_IFEXTENTS) == 0)
+ 		lock_mode = XFS_ILOCK_EXCL;
+@@ -657,7 +657,7 @@ xfs_ip2xflags(
+ {
+ 	struct xfs_icdinode	*dic = &ip->i_d;
+ 
+-	return _xfs_dic2xflags(dic->di_flags, dic->di_flags2, XFS_IFORK_Q(ip));
++	return _xfs_dic2xflags(dic->di_flags, dic->di_flags2, xfs_inode_has_attr_fork(ip));
+ }
+ 
+ /*
+@@ -1922,7 +1922,7 @@ xfs_inactive(
+ 	 * now.  The code calls a routine that recursively deconstructs the
+ 	 * attribute fork. If also blows away the in-core attribute fork.
+ 	 */
+-	if (XFS_IFORK_Q(ip)) {
++	if (xfs_inode_has_attr_fork(ip)) {
+ 		error = xfs_attr_inactive(ip);
+ 		if (error)
+ 			goto out;
+@@ -3644,7 +3644,7 @@ xfs_iflush(
+ 	if (ip->i_df.if_format == XFS_DINODE_FMT_LOCAL &&
+ 	    xfs_ifork_verify_local_data(ip))
+ 		goto flush_out;
+-	if (XFS_IFORK_Q(ip) &&
++	if (xfs_inode_has_attr_fork(ip) &&
+ 	    ip->i_af.if_format == XFS_DINODE_FMT_LOCAL &&
+ 	    xfs_ifork_verify_local_attr(ip))
+ 		goto flush_out;
+@@ -3661,7 +3661,7 @@ xfs_iflush(
+ 		ip->i_d.di_flushiter = 0;
+ 
+ 	xfs_iflush_fork(ip, dip, iip, XFS_DATA_FORK);
+-	if (XFS_IFORK_Q(ip))
++	if (xfs_inode_has_attr_fork(ip))
+ 		xfs_iflush_fork(ip, dip, iip, XFS_ATTR_FORK);
+ 
+ 	/*
+diff --git a/fs/xfs/xfs_inode.h b/fs/xfs/xfs_inode.h
+index 4f5b3764c4d9..74998e64ac83 100644
+--- a/fs/xfs/xfs_inode.h
++++ b/fs/xfs/xfs_inode.h
+@@ -67,6 +67,11 @@ typedef struct xfs_inode {
+ 	struct list_head	i_ioend_list;
+ } xfs_inode_t;
+ 
++static inline bool xfs_inode_has_attr_fork(struct xfs_inode *ip)
++{
++	return (ip)->i_d.di_forkoff > 0;
++}
++
+ static inline struct xfs_ifork *
+ xfs_ifork_ptr(
+ 	struct xfs_inode	*ip,
+@@ -76,7 +81,7 @@ xfs_ifork_ptr(
+ 	case XFS_DATA_FORK:
+ 		return &ip->i_df;
+ 	case XFS_ATTR_FORK:
+-		if (!XFS_IFORK_Q(ip))
++		if (!xfs_inode_has_attr_fork(ip))
+ 			return NULL;
+ 		return &ip->i_af;
+ 	case XFS_COW_FORK:
+diff --git a/fs/xfs/xfs_inode_item.c b/fs/xfs/xfs_inode_item.c
+index ed8d94809bc6..7a02725cd22e 100644
+--- a/fs/xfs/xfs_inode_item.c
++++ b/fs/xfs/xfs_inode_item.c
+@@ -143,7 +143,7 @@ xfs_inode_item_size(
+ 		   xfs_log_dinode_size(ip->i_mount);
+ 
+ 	xfs_inode_item_data_fork_size(iip, nvecs, nbytes);
+-	if (XFS_IFORK_Q(ip))
++	if (xfs_inode_has_attr_fork(ip))
+ 		xfs_inode_item_attr_fork_size(iip, nvecs, nbytes);
+ }
+ 
+@@ -450,7 +450,7 @@ xfs_inode_item_format(
+ 
+ 	xfs_inode_item_format_core(ip, lv, &vecp);
+ 	xfs_inode_item_format_data_fork(iip, ilf, lv, &vecp);
+-	if (XFS_IFORK_Q(ip)) {
++	if (xfs_inode_has_attr_fork(ip)) {
+ 		xfs_inode_item_format_attr_fork(iip, ilf, lv, &vecp);
+ 	} else {
+ 		iip->ili_fields &=
+diff --git a/fs/xfs/xfs_iomap.c b/fs/xfs/xfs_iomap.c
+index b371b67cc945..564d26f9c325 100644
+--- a/fs/xfs/xfs_iomap.c
++++ b/fs/xfs/xfs_iomap.c
+@@ -1282,7 +1282,7 @@ xfs_xattr_iomap_begin(
+ 	lockmode = xfs_ilock_attr_map_shared(ip);
+ 
+ 	/* if there are no attribute fork or extents, return ENOENT */
+-	if (!XFS_IFORK_Q(ip) || !ip->i_af.if_nextents) {
++	if (!xfs_inode_has_attr_fork(ip) || !ip->i_af.if_nextents) {
+ 		error = -ENOENT;
+ 		goto out_unlock;
+ 	}
+diff --git a/fs/xfs/xfs_iops.c b/fs/xfs/xfs_iops.c
+index 2bcd5b4c7b73..88e814bb2476 100644
+--- a/fs/xfs/xfs_iops.c
++++ b/fs/xfs/xfs_iops.c
+@@ -1341,7 +1341,7 @@ xfs_setup_inode(
+ 	 * If there is no attribute fork no ACL can exist on this inode,
+ 	 * and it can't have any file capabilities attached to it either.
+ 	 */
+-	if (!XFS_IFORK_Q(ip)) {
++	if (!xfs_inode_has_attr_fork(ip)) {
+ 		inode_has_no_xattr(inode);
+ 		cache_no_acl(inode);
+ 	}
+-- 
+2.17.1
+

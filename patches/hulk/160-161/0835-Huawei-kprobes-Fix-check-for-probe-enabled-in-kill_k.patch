@@ -1,0 +1,71 @@
+From e434d1dc594143c5c17e50ea8e8f45f6e0c79c5c Mon Sep 17 00:00:00 2001
+From: Li Huafei <lihuafei1@huawei.com>
+Date: Fri, 25 Nov 2022 19:38:49 +0800
+Subject: [PATCH 0835/1398] [Huawei] kprobes: Fix check for probe enabled in
+ kill_kprobe()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188124
+
+--------------------------------
+
+In kill_kprobe(), the check whether disarm_kprobe_ftrace() needs to be
+called always fails. This is because before that we set the
+KPROBE_FLAG_GONE flag for kprobe so that "!kprobe_disabled(p)" is always
+false.
+
+The disarm_kprobe_ftrace() call introduced by commit:
+
+  0cb2f1372baa ("kprobes: Fix NULL pointer dereference at kprobe_ftrace_handler")
+
+to fix the NULL pointer reference problem. When the probe is enabled, if
+we do not disarm it, this problem still exists.
+
+Fix it by putting the probe enabled check before setting the
+KPROBE_FLAG_GONE flag.
+
+Fixes: 3031313eb3d54 ("kprobes: Fix to check probe enabled before disarm_kprobe_ftrace()")
+Signed-off-by: Li Huafei <lihuafei1@huawei.com>
+---
+ kernel/kprobes.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/kprobes.c b/kernel/kprobes.c
+index dbd09bd33c09..79517493236c 100644
+--- a/kernel/kprobes.c
++++ b/kernel/kprobes.c
+@@ -2273,6 +2273,14 @@ static void kill_kprobe(struct kprobe *p)
+ 	if (WARN_ON_ONCE(kprobe_gone(p)))
+ 		return;
+ 
++	/*
++	 * The module is going away. We should disarm the kprobe which
++	 * is using ftrace, because ftrace framework is still available at
++	 * MODULE_STATE_GOING notification.
++	 */
++	if (kprobe_ftrace(p) && !kprobe_disabled(p) && !kprobes_all_disarmed)
++		disarm_kprobe_ftrace(p);
++
+ 	p->flags |= KPROBE_FLAG_GONE;
+ 	if (kprobe_aggrprobe(p)) {
+ 		/*
+@@ -2289,14 +2297,6 @@ static void kill_kprobe(struct kprobe *p)
+ 	 * the original probed function (which will be freed soon) any more.
+ 	 */
+ 	arch_remove_kprobe(p);
+-
+-	/*
+-	 * The module is going away. We should disarm the kprobe which
+-	 * is using ftrace, because ftrace framework is still available at
+-	 * MODULE_STATE_GOING notification.
+-	 */
+-	if (kprobe_ftrace(p) && !kprobe_disabled(p) && !kprobes_all_disarmed)
+-		disarm_kprobe_ftrace(p);
+ }
+ 
+ /* Disable one kprobe */
+-- 
+2.17.1
+

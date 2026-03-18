@@ -1,0 +1,53 @@
+From 7dc9b3c168f70037a543cefdb017f0c2d1a46275 Mon Sep 17 00:00:00 2001
+From: Szymon Heidrich <szymon.heidrich@gmail.com>
+Date: Thu, 16 Mar 2023 11:19:54 +0100
+Subject: [PATCH 1455/1646] [Backport] net: usb: smsc95xx: Limit packet length
+ to skb->len
+
+stable inclusion
+from stable-v5.10.177
+commit 33d1603a38e05886c538129ddfe00bd52d347e7b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=33d1603a38e05886c538129ddfe00bd52d347e7b
+
+--------------------------------
+
+[ Upstream commit ff821092cf02a70c2bccd2d19269f01e29aa52cf ]
+
+Packet length retrieved from descriptor may be larger than
+the actual socket buffer length. In such case the cloned
+skb passed up the network stack will leak kernel memory contents.
+
+Fixes: 2f7ca802bdae ("net: Add SMSC LAN9500 USB2.0 10/100 ethernet adapter driver")
+Signed-off-by: Szymon Heidrich <szymon.heidrich@gmail.com>
+Reviewed-by: Jakub Kicinski <kuba@kernel.org>
+Link: https://lore.kernel.org/r/20230316101954.75836-1-szymon.heidrich@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/usb/smsc95xx.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/net/usb/smsc95xx.c b/drivers/net/usb/smsc95xx.c
+index e1cd4c2de2d3..975f52605867 100644
+--- a/drivers/net/usb/smsc95xx.c
++++ b/drivers/net/usb/smsc95xx.c
+@@ -1824,6 +1824,12 @@ static int smsc95xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
+ 		size = (u16)((header & RX_STS_FL_) >> 16);
+ 		align_count = (4 - ((size + NET_IP_ALIGN) % 4)) % 4;
+ 
++		if (unlikely(size > skb->len)) {
++			netif_dbg(dev, rx_err, dev->net,
++				  "size err header=0x%08x\n", header);
++			return 0;
++		}
++
+ 		if (unlikely(header & RX_STS_ES_)) {
+ 			netif_dbg(dev, rx_err, dev->net,
+ 				  "Error header=0x%08x\n", header);
+-- 
+2.17.1
+

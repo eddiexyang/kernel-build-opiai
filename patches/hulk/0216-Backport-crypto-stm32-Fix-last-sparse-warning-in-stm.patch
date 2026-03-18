@@ -1,0 +1,46 @@
+From 3fdacde1b52fb2e1044ad8a3386861b249b60cbf Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Wed, 27 Apr 2022 11:11:24 +0800
+Subject: [PATCH 0216/2065] [Backport] crypto: stm32 - Fix last sparse warning
+ in stm32_cryp_check_ctr_counter
+
+stable inclusion
+from stable-v5.10.94
+commit c40b1bc851e0816f45520f31b44e8461de13fc5c
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c40b1bc851e0816f45520f31b44e8461de13fc5c
+
+--------------------------------
+
+[ Upstream commit 81064c96d88180ad6995d52419e94a78968308a2 ]
+
+This patch changes the cast in stm32_cryp_check_ctr_counter from
+u32 to __be32 to match the prototype of stm32_cryp_hw_write_iv
+correctly.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/crypto/stm32/stm32-cryp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/stm32/stm32-cryp.c b/drivers/crypto/stm32/stm32-cryp.c
+index 7999b26a16ed..7389a0536ff0 100644
+--- a/drivers/crypto/stm32/stm32-cryp.c
++++ b/drivers/crypto/stm32/stm32-cryp.c
+@@ -1229,7 +1229,7 @@ static void stm32_cryp_check_ctr_counter(struct stm32_cryp *cryp)
+ 		cr = stm32_cryp_read(cryp, CRYP_CR);
+ 		stm32_cryp_write(cryp, CRYP_CR, cr & ~CR_CRYPEN);
+ 
+-		stm32_cryp_hw_write_iv(cryp, (u32 *)cryp->last_ctr);
++		stm32_cryp_hw_write_iv(cryp, (__be32 *)cryp->last_ctr);
+ 
+ 		stm32_cryp_write(cryp, CRYP_CR, cr);
+ 	}
+-- 
+2.17.1
+

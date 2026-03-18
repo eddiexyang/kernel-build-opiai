@@ -1,0 +1,55 @@
+From e913778cbd14289fcc23a0426e4dd2693813e7f2 Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Tue, 3 Jan 2023 10:03:35 +0100
+Subject: [PATCH 718/921] [Backport] udf: Detect system inodes linked into
+ directory hierarchy
+
+stable inclusion
+from stable-v5.10.173
+commit a44ec34b90440ada190924f5908b97026504fdcd
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a44ec34b90440ada190924f5908b97026504fdcd
+
+--------------------------------
+
+commit 85a37983ec69cc9fcd188bc37c4de15ee326355a upstream.
+
+When UDF filesystem is corrupted, hidden system inodes can be linked
+into directory hierarchy which is an avenue for further serious
+corruption of the filesystem and kernel confusion as noticed by syzbot
+fuzzed images. Refuse to access system inodes linked into directory
+hierarchy and vice versa.
+
+CC: stable@vger.kernel.org
+Reported-by: syzbot+38695a20b8addcbc1084@syzkaller.appspotmail.com
+Signed-off-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/udf/inode.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/fs/udf/inode.c b/fs/udf/inode.c
+index b197df5ed368..eed35d7d24d9 100644
+--- a/fs/udf/inode.c
++++ b/fs/udf/inode.c
+@@ -1891,8 +1891,13 @@ struct inode *__udf_iget(struct super_block *sb, struct kernel_lb_addr *ino,
+ 	if (!inode)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	if (!(inode->i_state & I_NEW))
++	if (!(inode->i_state & I_NEW)) {
++		if (UDF_I(inode)->i_hidden != hidden_inode) {
++			iput(inode);
++			return ERR_PTR(-EFSCORRUPTED);
++		}
+ 		return inode;
++	}
+ 
+ 	memcpy(&UDF_I(inode)->i_location, ino, sizeof(struct kernel_lb_addr));
+ 	err = udf_read_inode(inode, hidden_inode);
+-- 
+2.17.1
+

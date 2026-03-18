@@ -1,0 +1,53 @@
+From 349adc4fd375c9b9ce23bd0a2e607bd2880f0307 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Sat, 8 Jan 2022 08:53:36 +0000
+Subject: [PATCH 1132/2065] [Backport] dmaengine: stm32-dmamux: Fix PM disable
+ depth imbalance in stm32_dmamux_probe
+
+stable inclusion
+from stable-v5.10.102
+commit 2c35c95d3640979d0f0118b640ddd4b326cf4d81
+bugzilla: https://gitee.com/openeuler/kernel/issues/I567K6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2c35c95d3640979d0f0118b640ddd4b326cf4d81
+
+--------------------------------
+
+commit e831c7aba950f3ae94002b10321279654525e5ec upstream.
+
+The pm_runtime_enable will increase power disable depth.
+If the probe fails, we should use pm_runtime_disable() to balance
+pm_runtime_enable().
+
+Fixes: 4f3ceca254e0 ("dmaengine: stm32-dmamux: Add PM Runtime support")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Reviewed-by: Amelie Delaunay <amelie.delaunay@foss.st.com>
+Link: https://lore.kernel.org/r/20220108085336.11992-1-linmq006@gmail.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/dma/stm32-dmamux.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/dma/stm32-dmamux.c b/drivers/dma/stm32-dmamux.c
+index bddd3b23f33f..f04bcffd3c24 100644
+--- a/drivers/dma/stm32-dmamux.c
++++ b/drivers/dma/stm32-dmamux.c
+@@ -292,10 +292,12 @@ static int stm32_dmamux_probe(struct platform_device *pdev)
+ 	ret = of_dma_router_register(node, stm32_dmamux_route_allocate,
+ 				     &stm32_dmamux->dmarouter);
+ 	if (ret)
+-		goto err_clk;
++		goto pm_disable;
+ 
+ 	return 0;
+ 
++pm_disable:
++	pm_runtime_disable(&pdev->dev);
+ err_clk:
+ 	clk_disable_unprepare(stm32_dmamux->clk);
+ 
+-- 
+2.17.1
+

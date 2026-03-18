@@ -1,0 +1,111 @@
+From 898122371ac706fc81a8c32d2ae712a57eecfe82 Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 29 May 2023 19:37:04 +0800
+Subject: [PATCH 263/263] [Huawei] mm: Pass head page to clear_page_mlock
+ during removing page rmap
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188547
+
+--------------------------------
+
+Our syzbot report a mlock related problem. During exit_mm, tail page is
+passed to clear_page_mlock which final lead to kernel panic.
+
+During unmap_page_range, if compound is false, it means this page is
+seen as a small page. This page is passed to isolate_lru_page if this
+page is PageMlocked and finally lead to "trying to isolate tail page"
+warning.
+
+Here is the simplified calltrace:
+
+unmap_page_range
+  zap_pte_range
+    page_remove_rmap(page, false);	// compound is false means to handle
+					   to small page not compound page
+	  nr_pages = thp_nr_pages(page);
+	  clear_page_mlock(page)	// maybe tail page here
+		isolate_lru_page
+		  WARN_RATELIMIT(PageTail(page), "trying to isolate tail page");
+
+Since mlock is not supposed to handle tail, we pass head page to
+clear_page_mlock() to slove this problem.
+
+This bug can lead to multiple reports. Here ares the simplified reports:
+
+------------[ cut here ]------------
+trying to isolate tail page
+WARNING: CPU: 1 PID: 24489 at mm/vmscan.c:2031 isolate_lru_page+0x574/0x660
+
+page:fffffc000eb7a300 refcount:512 mapcount:0 mapping:0000000000000000 index:0x2008c pfn:0x3ede8c
+head:fffffc000eb78000 order:9 compound_mapcount:0 compound_pincount:0
+memcg:ffff0000d24bc000
+anon flags: 0x37ffff80009080c(uptodate|dirty|arch_1|head|swapbacked|node=1|zone=2|lastcpupid=0xfffff)
+raw: 037ffff800000800 fffffc000eb78001 fffffc000eb7a308 dead000000000400
+raw: 0000000000000000 0000000000000000 00000000ffffffff 0000000000000000
+head: 037ffff80009080c fffffc000eb70008 fffffc000e350708 ffff0003829eb839
+head: 0000000000020000 0000000000000000 00000200ffffffff ffff0000d24bc000
+page dumped because: VM_WARN_ON_ONCE_PAGE(!memcg && !mem_cgroup_disabled())
+------------[ cut here ]------------
+WARNING: CPU: 1 PID: 24489 at include/linux/memcontrol.h:767 lock_page_lruvec_irq+0x148/0x190
+
+page:fffffc000eb7a300 refcount:0 mapcount:0 mapping:dead000000000400 index:0x0 pfn:0x3ede8c
+failed to read mapping contents, not a valid kernel address?
+flags: 0x37ffff800000800(arch_1|node=1|zone=2|lastcpupid=0xfffff)
+raw: 037ffff800000800 dead000000000100 dead000000000122 dead000000000400
+raw: 0000000000000000 0000000000000000 00000000ffffffff 0000000000000000
+page dumped because: VM_BUG_ON_PAGE(((unsigned int) page_ref_count(page) + 127u <= 127u))
+------------[ cut here ]------------
+kernel BUG at include/linux/mm.h:1213!
+Call trace:
+ lru_cache_add+0x2d4/0x2e8
+ putback_lru_page+0x2c/0x168
+ clear_page_mlock+0x254/0x318
+ page_remove_rmap+0x900/0x9c0
+ unmap_page_range+0xa78/0x16a0
+ unmap_single_vma+0x114/0x1a0
+ unmap_vmas+0x100/0x220
+ exit_mmap+0x120/0x410
+ mmput+0x174/0x498
+ exit_mm+0x33c/0x460
+ do_exit+0x3c0/0x1310
+ do_group_exit+0x98/0x170
+ get_signal+0x370/0x13d0
+ do_notify_resume+0x5a0/0x968
+ el0_da+0x154/0x188
+ el0t_64_sync_handler+0x88/0xb8
+ el0t_64_sync+0x1a0/0x1a4
+Code: 912b0021 aa1503e0 910c0021 9401a49c (d4210000)
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/rmap.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mm/rmap.c b/mm/rmap.c
+index 3e12d26d8c55..1f3b14930d12 100644
+--- a/mm/rmap.c
++++ b/mm/rmap.c
+@@ -1282,7 +1282,7 @@ static void page_remove_file_rmap(struct page *page, bool compound)
+ 	__mod_lruvec_page_state(page, NR_FILE_MAPPED, -nr);
+ 
+ 	if (unlikely(PageMlocked(page)))
+-		clear_page_mlock(page);
++		clear_page_mlock(compound_head(page));
+ }
+ 
+ static void page_remove_anon_compound_rmap(struct page *page)
+@@ -1364,7 +1364,7 @@ void page_remove_rmap(struct page *page, bool compound)
+ 	__dec_lruvec_page_state(page, NR_ANON_MAPPED);
+ 
+ 	if (unlikely(PageMlocked(page)))
+-		clear_page_mlock(page);
++		clear_page_mlock(compound_head(page));
+ 
+ 	if (PageTransCompound(page)) {
+ 		if (!PageHotreplace(compound_head(page)))
+-- 
+2.17.1
+

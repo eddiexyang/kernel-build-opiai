@@ -1,0 +1,90 @@
+From 3d0714971cbc73c533f9cb89d2b59dbb2985c8c9 Mon Sep 17 00:00:00 2001
+From: Lin Yujun <linyujun809@huawei.com>
+Date: Wed, 15 Feb 2023 16:27:29 +0800
+Subject: [PATCH 049/500] [Huawei] arm64: Optimize the comparison of unsigned
+ expressions to avoid compiling error
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188396
+
+--------------------------------
+
+while compile arch/arm64/include/asm/cpufeature.h with
+-Werror=type-limits enabled, errors shown as below:
+
+./arch/arm64/include/asm/cpufeature.h: In function 'system_supports_4kb_granule':
+./arch/arm64/include/asm/cpufeature.h:653:14: error: comparison of unsigned expression >= 0 is always true [-Werror=type-limits]
+  return (val >= ID_AA64MMFR0_TGRAN4_SUPPORTED_MIN) &&
+              ^~
+./arch/arm64/include/asm/cpufeature.h: In function 'system_supports_64kb_granule':
+./arch/arm64/include/asm/cpufeature.h:666:14: error: comparison of unsigned expression >= 0 is always true [-Werror=type-limits]
+  return (val >= ID_AA64MMFR0_TGRAN64_SUPPORTED_MIN) &&
+              ^~
+Modify the return judgment statement, use
+"((val - min) < (val - max - 1))" to confirm that returns
+true in “min <= val <= max” cases, false in other cases.
+
+Fixes: bf3d97c184c5 ("arm64/kexec: Test page size support with new TGRAN range values")
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/arm64/include/asm/cpufeature.h | 18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/include/asm/cpufeature.h b/arch/arm64/include/asm/cpufeature.h
+index cce2f74ae618..f78f7f5d53e5 100644
+--- a/arch/arm64/include/asm/cpufeature.h
++++ b/arch/arm64/include/asm/cpufeature.h
+@@ -53,6 +53,9 @@ enum ftr_type {
+ #define FTR_VISIBLE_IF_IS_ENABLED(config)		\
+ 	(IS_ENABLED(config) ? FTR_VISIBLE : FTR_HIDDEN)
+ 
++#define IN_RANGE_INCLUSIVE(val, min, max)		\
++	(((val) - (min)) < ((val) - (max) - 1))
++
+ struct arm64_ftr_bits {
+ 	bool		sign;	/* Value is signed ? */
+ 	bool		visible;
+@@ -650,8 +653,9 @@ static inline bool system_supports_4kb_granule(void)
+ 	val = cpuid_feature_extract_unsigned_field(mmfr0,
+ 						ID_AA64MMFR0_TGRAN4_SHIFT);
+ 
+-	return (val >= ID_AA64MMFR0_TGRAN4_SUPPORTED_MIN) &&
+-	       (val <= ID_AA64MMFR0_TGRAN4_SUPPORTED_MAX);
++	return IN_RANGE_INCLUSIVE(val,
++		ID_AA64MMFR0_TGRAN4_SUPPORTED_MIN,
++		ID_AA64MMFR0_TGRAN4_SUPPORTED_MAX);
+ }
+ 
+ static inline bool system_supports_64kb_granule(void)
+@@ -663,8 +667,9 @@ static inline bool system_supports_64kb_granule(void)
+ 	val = cpuid_feature_extract_unsigned_field(mmfr0,
+ 						ID_AA64MMFR0_TGRAN64_SHIFT);
+ 
+-	return (val >= ID_AA64MMFR0_TGRAN64_SUPPORTED_MIN) &&
+-	       (val <= ID_AA64MMFR0_TGRAN64_SUPPORTED_MAX);
++	return IN_RANGE_INCLUSIVE(val,
++		ID_AA64MMFR0_TGRAN64_SUPPORTED_MIN,
++		ID_AA64MMFR0_TGRAN64_SUPPORTED_MAX);
+ }
+ 
+ static inline bool system_supports_16kb_granule(void)
+@@ -676,8 +681,9 @@ static inline bool system_supports_16kb_granule(void)
+ 	val = cpuid_feature_extract_unsigned_field(mmfr0,
+ 						ID_AA64MMFR0_TGRAN16_SHIFT);
+ 
+-	return (val >= ID_AA64MMFR0_TGRAN16_SUPPORTED_MIN) &&
+-	       (val <= ID_AA64MMFR0_TGRAN16_SUPPORTED_MAX);
++	return IN_RANGE_INCLUSIVE(val,
++		ID_AA64MMFR0_TGRAN16_SUPPORTED_MIN,
++		ID_AA64MMFR0_TGRAN16_SUPPORTED_MAX);
+ }
+ 
+ static inline bool system_supports_mixed_endian_el0(void)
+-- 
+2.17.1
+

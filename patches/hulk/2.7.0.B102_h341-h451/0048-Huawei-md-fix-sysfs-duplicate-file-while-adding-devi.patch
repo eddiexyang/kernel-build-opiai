@@ -1,0 +1,77 @@
+From d78f9f51295374769584938f243133d8bc54ef35 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Wed, 22 Mar 2023 16:36:20 +0800
+Subject: [PATCH 0048/1646] [Huawei] md: fix sysfs duplicate file while adding
+ device
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188553
+
+--------------------------------
+
+rdev->del_work has not been queued to md_rdev_misc_wq and flush_workqueue
+will not flush it if add device while removing it. sysfs might WARN
+duplicate filename as below.
+
+    //add                 //delete
+    md_ioctl              unbind_rdev_from_array
+     flush_workqueue
+                           INIT_WORK
+                           queue_work
+     md_add_new_disk
+      duplicate filename dev-xxx
+
+Putting blkdev after it is completely released is more reasonable. So
+move export_rdev() to rdev_delayed_delete(). And it will return busy in
+the same scene.
+
+Fixes: 5792a2856a63 ("md: avoid a deadlock when removing a device from an md array via sysfs")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 119c0552916a..0197c6603f1b 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -87,6 +87,7 @@ static struct workqueue_struct *md_wq;
+ static struct workqueue_struct *md_misc_wq;
+ static struct workqueue_struct *md_rdev_misc_wq;
+ 
++static void export_rdev(struct md_rdev *rdev);
+ static int remove_and_add_spares(struct mddev *mddev,
+ 				 struct md_rdev *this);
+ static void mddev_detach(struct mddev *mddev);
+@@ -2495,8 +2496,9 @@ static int bind_rdev_to_array(struct md_rdev *rdev, struct mddev *mddev)
+ static void rdev_delayed_delete(struct work_struct *ws)
+ {
+ 	struct md_rdev *rdev = container_of(ws, struct md_rdev, del_work);
++
+ 	kobject_del(&rdev->kobj);
+-	kobject_put(&rdev->kobj);
++	export_rdev(rdev);
+ }
+ 
+ static void unbind_rdev_from_array(struct md_rdev *rdev)
+@@ -2522,7 +2524,6 @@ static void unbind_rdev_from_array(struct md_rdev *rdev)
+ 	 */
+ 	synchronize_rcu();
+ 	INIT_WORK(&rdev->del_work, rdev_delayed_delete);
+-	kobject_get(&rdev->kobj);
+ 	queue_work(md_rdev_misc_wq, &rdev->del_work);
+ }
+ 
+@@ -2573,7 +2574,6 @@ static void export_rdev(struct md_rdev *rdev)
+ void md_kick_rdev_from_array(struct md_rdev *rdev)
+ {
+ 	unbind_rdev_from_array(rdev);
+-	export_rdev(rdev);
+ }
+ EXPORT_SYMBOL_GPL(md_kick_rdev_from_array);
+ 
+-- 
+2.17.1
+

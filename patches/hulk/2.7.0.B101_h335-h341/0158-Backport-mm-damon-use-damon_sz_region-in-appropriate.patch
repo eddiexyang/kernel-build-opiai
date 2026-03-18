@@ -1,0 +1,123 @@
+From 73527171852ac3f53e39c75a7cec0d0c2df33e4c Mon Sep 17 00:00:00 2001
+From: Xin Hao <xhao@linux.alibaba.com>
+Date: Tue, 27 Sep 2022 08:19:46 +0800
+Subject: [PATCH 158/921] [Backport] mm/damon: use damon_sz_region() in
+ appropriate place
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit ab63f63f3885d492e62da55304b0483a2a9e6a7d
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=ab63f63f3885d492e62da55304b0483a2a9e6a7d
+
+--------------------------------
+
+In many places we can use damon_sz_region() to instead of "r->ar.end -
+r->ar.start".
+
+Link: https://lkml.kernel.org/r/20220927001946.85375-2-xhao@linux.alibaba.com
+Signed-off-by: Xin Hao <xhao@linux.alibaba.com>
+Suggested-by: SeongJae Park <sj@kernel.org>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core.c  | 17 ++++++++---------
+ mm/damon/vaddr.c |  4 ++--
+ 2 files changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index 624ec6499389..36d098d06c55 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -491,7 +491,7 @@ static unsigned long damon_region_sz_limit(struct damon_ctx *ctx)
+ 
+ 	damon_for_each_target(t, ctx) {
+ 		damon_for_each_region(r, t)
+-			sz += r->ar.end - r->ar.start;
++			sz += damon_sz_region(r);
+ 	}
+ 
+ 	if (ctx->attrs.min_nr_regions)
+@@ -674,7 +674,7 @@ static bool __damos_valid_target(struct damon_region *r, struct damos *s)
+ {
+ 	unsigned long sz;
+ 
+-	sz = r->ar.end - r->ar.start;
++	sz = damon_sz_region(r);
+ 	return s->pattern.min_sz_region <= sz &&
+ 		sz <= s->pattern.max_sz_region &&
+ 		s->pattern.min_nr_accesses <= r->nr_accesses &&
+@@ -702,7 +702,7 @@ static void damon_do_apply_schemes(struct damon_ctx *c,
+ 
+ 	damon_for_each_scheme(s, c) {
+ 		struct damos_quota *quota = &s->quota;
+-		unsigned long sz = r->ar.end - r->ar.start;
++		unsigned long sz = damon_sz_region(r);
+ 		struct timespec64 begin, end;
+ 		unsigned long sz_applied = 0;
+ 
+@@ -731,14 +731,14 @@ static void damon_do_apply_schemes(struct damon_ctx *c,
+ 				sz = ALIGN_DOWN(quota->charge_addr_from -
+ 						r->ar.start, DAMON_MIN_REGION);
+ 				if (!sz) {
+-					if (r->ar.end - r->ar.start <=
+-							DAMON_MIN_REGION)
++					if (damon_sz_region(r) <=
++					    DAMON_MIN_REGION)
+ 						continue;
+ 					sz = DAMON_MIN_REGION;
+ 				}
+ 				damon_split_region_at(t, r, sz);
+ 				r = damon_next_region(r);
+-				sz = r->ar.end - r->ar.start;
++				sz = damon_sz_region(r);
+ 			}
+ 			quota->charge_target_from = NULL;
+ 			quota->charge_addr_from = 0;
+@@ -843,8 +843,7 @@ static void kdamond_apply_schemes(struct damon_ctx *c)
+ 					continue;
+ 				score = c->ops.get_scheme_score(
+ 						c, t, r, s);
+-				quota->histogram[score] +=
+-					r->ar.end - r->ar.start;
++				quota->histogram[score] += damon_sz_region(r);
+ 				if (score > max_score)
+ 					max_score = score;
+ 			}
+@@ -958,7 +957,7 @@ static void damon_split_regions_of(struct damon_target *t, int nr_subs)
+ 	int i;
+ 
+ 	damon_for_each_region_safe(r, next, t) {
+-		sz_region = r->ar.end - r->ar.start;
++		sz_region = damon_sz_region(r);
+ 
+ 		for (i = 0; i < nr_subs - 1 &&
+ 				sz_region > 2 * DAMON_MIN_REGION; i++) {
+diff --git a/mm/damon/vaddr.c b/mm/damon/vaddr.c
+index 95444ee3f802..4c953e4701f0 100644
+--- a/mm/damon/vaddr.c
++++ b/mm/damon/vaddr.c
+@@ -72,7 +72,7 @@ static int damon_va_evenly_split_region(struct damon_target *t,
+ 		return -EINVAL;
+ 
+ 	orig_end = r->ar.end;
+-	sz_orig = r->ar.end - r->ar.start;
++	sz_orig = damon_sz_region(r);
+ 	sz_piece = ALIGN_DOWN(sz_orig / nr_pieces, DAMON_MIN_REGION);
+ 
+ 	if (!sz_piece)
+@@ -617,7 +617,7 @@ static unsigned long damos_madvise(struct damon_target *target,
+ {
+ 	struct mm_struct *mm;
+ 	unsigned long start = PAGE_ALIGN(r->ar.start);
+-	unsigned long len = PAGE_ALIGN(r->ar.end - r->ar.start);
++	unsigned long len = PAGE_ALIGN(damon_sz_region(r));
+ 	unsigned long applied;
+ 
+ 	mm = damon_get_mm(target);
+-- 
+2.17.1
+

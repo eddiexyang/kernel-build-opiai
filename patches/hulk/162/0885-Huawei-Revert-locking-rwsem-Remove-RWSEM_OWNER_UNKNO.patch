@@ -1,0 +1,60 @@
+From 4658947bd548eb7f3931c2c93d709f22415d36c0 Mon Sep 17 00:00:00 2001
+From: Xie XiuQi <xiexiuqi@huawei.com>
+Date: Fri, 24 Jun 2022 22:52:20 +0800
+Subject: [PATCH 885/905] [Huawei] Revert "locking/rwsem: Remove
+ RWSEM_OWNER_UNKNOWN"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: NA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=bcba67cd806800fa8e973ac49dbc7d2d8fb3e55e
+
+--------------------------------
+
+This reverts commit bcba67cd806800fa8e973ac49dbc7d2d8fb3e55e.
+
+Prepare for port percpu-rwsem from v5.6.
+
+Signed-off-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Jian Cheng <cj.chengjian@huawei.com>
+Signed-off-by: Wei Li <liwei391@huawei.com>
+---
+ include/linux/rwsem.h  | 6 ++++++
+ kernel/locking/rwsem.c | 2 ++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/include/linux/rwsem.h b/include/linux/rwsem.h
+index 4c715be48717..0bdc396028a8 100644
+--- a/include/linux/rwsem.h
++++ b/include/linux/rwsem.h
+@@ -53,6 +53,12 @@ struct rw_semaphore {
+ #endif
+ };
+ 
++/*
++ * Setting all bits of the owner field except bit 0 will indicate
++ * that the rwsem is writer-owned with an unknown owner.
++ */
++#define RWSEM_OWNER_UNKNOWN	(-2L)
++
+ /* In all implementations count != 0 means locked */
+ static inline int rwsem_is_locked(struct rw_semaphore *sem)
+ {
+diff --git a/kernel/locking/rwsem.c b/kernel/locking/rwsem.c
+index cc5cc889b5b7..dae011eca4f0 100644
+--- a/kernel/locking/rwsem.c
++++ b/kernel/locking/rwsem.c
+@@ -659,6 +659,8 @@ static inline bool rwsem_can_spin_on_owner(struct rw_semaphore *sem,
+ 	unsigned long flags;
+ 	bool ret = true;
+ 
++	BUILD_BUG_ON(!(RWSEM_OWNER_UNKNOWN & RWSEM_NONSPINNABLE));
++
+ 	if (need_resched()) {
+ 		lockevent_inc(rwsem_opt_fail);
+ 		return false;
+-- 
+2.17.1
+

@@ -1,0 +1,37 @@
+From 074ea4c4f895e95e8f7a52b0f0cbf5f265ba907d Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Mon, 19 Dec 2022 09:39:12 +0800
+Subject: [PATCH 0856/1398] [Huawei] block: always align request_wrapper to
+ cacheline
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187003
+
+--------------------------------
+
+____cacheline_aligned_in_smp will only be effective if CONFIG_SMP is
+enabled, use ____cacheline_aligned instead.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-mq.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/blk-mq.h b/block/blk-mq.h
+index 7896d7c4cf03..7bb0b82bfbe9 100644
+--- a/block/blk-mq.h
++++ b/block/blk-mq.h
+@@ -44,7 +44,7 @@ struct request_wrapper {
+ 	/* Time that the first bio started allocating this request. */
+ 	u64 alloc_time_ns;
+ #endif
+-} ____cacheline_aligned_in_smp;
++} ____cacheline_aligned;
+ 
+ static inline struct request_wrapper *request_to_wrapper(void *rq)
+ {
+-- 
+2.17.1
+

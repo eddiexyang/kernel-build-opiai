@@ -1,0 +1,58 @@
+From 847949cafe296c83706eba0c47809d7165c6da67 Mon Sep 17 00:00:00 2001
+From: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Date: Wed, 2 Nov 2022 14:43:20 +0530
+Subject: [PATCH 259/905] [Backport] clk: qcom: gcc-sm8250: Use retention mode
+ for USB GDSCs
+
+stable inclusion
+from stable-v5.10.163
+commit 1a79539f4e8b24e234c2e7fc2050e416e9ce212d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1a79539f4e8b24e234c2e7fc2050e416e9ce212d
+
+--------------------------------
+
+[ Upstream commit ac1c5a03d3772b1db25e8092f771aa33f6ae2f7e ]
+
+USB controllers on SM8250 doesn't work after coming back from suspend.
+This can be fixed by keeping the USB GDSCs in retention mode so that
+hardware can keep them ON and put into rentention mode once the parent
+domain goes to a low power state.
+
+Fixes: 3e5770921a88 ("clk: qcom: gcc: Add global clock controller driver for SM8250")
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20221102091320.66007-1-manivannan.sadhasivam@linaro.org
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/clk/qcom/gcc-sm8250.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/qcom/gcc-sm8250.c b/drivers/clk/qcom/gcc-sm8250.c
+index ab594a0f0c40..7ec11acc8298 100644
+--- a/drivers/clk/qcom/gcc-sm8250.c
++++ b/drivers/clk/qcom/gcc-sm8250.c
+@@ -3268,7 +3268,7 @@ static struct gdsc usb30_prim_gdsc = {
+ 	.pd = {
+ 		.name = "usb30_prim_gdsc",
+ 	},
+-	.pwrsts = PWRSTS_OFF_ON,
++	.pwrsts = PWRSTS_RET_ON,
+ };
+ 
+ static struct gdsc usb30_sec_gdsc = {
+@@ -3276,7 +3276,7 @@ static struct gdsc usb30_sec_gdsc = {
+ 	.pd = {
+ 		.name = "usb30_sec_gdsc",
+ 	},
+-	.pwrsts = PWRSTS_OFF_ON,
++	.pwrsts = PWRSTS_RET_ON,
+ };
+ 
+ static struct gdsc hlos1_vote_mmnoc_mmu_tbu_hf0_gdsc = {
+-- 
+2.17.1
+

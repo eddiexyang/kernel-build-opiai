@@ -1,0 +1,56 @@
+From 043b44aa8f407fb9578340264bbd28238f6794ff Mon Sep 17 00:00:00 2001
+From: Marek Vasut <marex@denx.de>
+Date: Fri, 25 Mar 2022 18:58:51 +0100
+Subject: [PATCH 3921/4585] [Backport] ARM: dts: stm32: Fix PHY post-reset
+ delay on Avenger96
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.121
+commit 95000ae68025e7c928c1aef97f61b1fe573babb1
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=95000ae68025e7c928c1aef97f61b1fe573babb1
+
+--------------------------------
+
+[ Upstream commit ef2d90708883f4025a801feb0ba8411a7a4387e1 ]
+
+Per KSZ9031RNX PHY datasheet FIGURE 7-5: POWER-UP/POWER-DOWN/RESET TIMING
+Note 2: After the de-assertion of reset, wait a minimum of 100 μs before
+starting programming on the MIIM (MDC/MDIO) interface.
+
+Add 1ms post-reset delay to guarantee this figure.
+
+Fixes: 010ca9fe500bf ("ARM: dts: stm32: Add missing ethernet PHY reset on AV96")
+Signed-off-by: Marek Vasut <marex@denx.de>
+Cc: Alexandre Torgue <alexandre.torgue@foss.st.com>
+Cc: Patrice Chotard <patrice.chotard@foss.st.com>
+Cc: Patrick Delaunay <patrick.delaunay@foss.st.com>
+Cc: linux-stm32@st-md-mailman.stormreply.com
+To: linux-arm-kernel@lists.infradead.org
+Signed-off-by: Alexandre Torgue <alexandre.torgue@foss.st.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/stm32mp15xx-dhcor-avenger96.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/stm32mp15xx-dhcor-avenger96.dtsi b/arch/arm/boot/dts/stm32mp15xx-dhcor-avenger96.dtsi
+index 944d38b85eef..f3e0c790a4b1 100644
+--- a/arch/arm/boot/dts/stm32mp15xx-dhcor-avenger96.dtsi
++++ b/arch/arm/boot/dts/stm32mp15xx-dhcor-avenger96.dtsi
+@@ -141,6 +141,7 @@
+ 		compatible = "snps,dwmac-mdio";
+ 		reset-gpios = <&gpioz 2 GPIO_ACTIVE_LOW>;
+ 		reset-delay-us = <1000>;
++		reset-post-delay-us = <1000>;
+ 
+ 		phy0: ethernet-phy@7 {
+ 			reg = <7>;
+-- 
+2.17.1
+

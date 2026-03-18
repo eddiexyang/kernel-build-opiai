@@ -1,0 +1,38 @@
+From afe128b0e6a5eed84b7fcd747020749ef4e66cfd Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Tue, 26 Jul 2022 12:00:31 +0800
+Subject: [PATCH 3525/4585] [Huawei] selinux: genfscon: declare
+ inode_security_cache as static
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187312
+
+--------------------------------
+
+Fix a sparse warning:
+
+security/selinux/hooks.c:114:19: warning: symbol 'inode_security_cache' was not declared. Should it be static?
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 59659bf7eff6..899ddf9ccd4f 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -111,7 +111,7 @@ static atomic_t selinux_secmark_refcount = ATOMIC_INIT(0);
+ 
+ const char *SELINUX_NS_INIT_NAME = "";
+ static struct selinux_ns init_selinux_ns;
+-struct kmem_cache *inode_security_cache;
++static struct kmem_cache *inode_security_cache;
+ 
+ #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+ static int selinux_enforcing_boot __initdata;
+-- 
+2.17.1
+

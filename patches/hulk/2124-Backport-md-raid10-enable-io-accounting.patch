@@ -1,0 +1,76 @@
+From 95e7570b765992bf8154093e2e40350e1cc1798a Mon Sep 17 00:00:00 2001
+From: Guoqing Jiang <jgq516@gmail.com>
+Date: Tue, 25 May 2021 17:46:22 +0800
+Subject: [PATCH 2124/2592] [Backport] md/raid10: enable io accounting
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit 528bc2cf2fccef2c2c17263f9932094bf81fee5a
+category: bugfix
+bugzilla: 186791
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=528bc2cf2fccef2c2c17263f9932094bf81fee5a
+
+-------------------------------
+
+For raid10, we record the start time between split bio and clone bio,
+and finish the accounting in the final endio.
+
+Also introduce start_time in r10bio accordingly.
+
+Signed-off-by: Guoqing Jiang <jiangguoqing@kylinos.cn>
+Signed-off-by: Song Liu <song@kernel.org>
+Conflict:
+	drivers/md/raid10.c
+Signed-off-by: Zhang Wensheng <zhangwensheng5@huawei.com>
+---
+ drivers/md/raid10.c | 6 ++++++
+ drivers/md/raid10.h | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index 70dccc3c9631..1bc6cb48467f 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -297,6 +297,8 @@ static void raid_end_bio_io(struct r10bio *r10_bio)
+ 	if (!test_bit(R10BIO_Uptodate, &r10_bio->state))
+ 		bio->bi_status = BLK_STS_IOERR;
+ 
++	if (blk_queue_io_stat(bio->bi_disk->queue))
++		bio_end_io_acct(bio, r10_bio->start_time);
+ 	bio_endio(bio);
+ 	/*
+ 	 * Wake up any possible resync thread that waits for the device
+@@ -1185,6 +1187,8 @@ static void raid10_read_request(struct mddev *mddev, struct bio *bio,
+ 	}
+ 	slot = r10_bio->read_slot;
+ 
++	if (blk_queue_io_stat(bio->bi_disk->queue))
++		r10_bio->start_time = bio_start_io_acct(bio);
+ 	read_bio = bio_clone_fast(bio, gfp, &mddev->bio_set);
+ 
+ 	r10_bio->devs[slot].bio = read_bio;
+@@ -1468,6 +1472,8 @@ static void raid10_write_request(struct mddev *mddev, struct bio *bio,
+ 		r10_bio->master_bio = bio;
+ 	}
+ 
++	if (blk_queue_io_stat(bio->bi_disk->queue))
++		r10_bio->start_time = bio_start_io_acct(bio);
+ 	atomic_set(&r10_bio->remaining, 1);
+ 	md_bitmap_startwrite(mddev->bitmap, r10_bio->sector, r10_bio->sectors, 0);
+ 
+diff --git a/drivers/md/raid10.h b/drivers/md/raid10.h
+index 79cd2b7d3128..5420250d4bd6 100644
+--- a/drivers/md/raid10.h
++++ b/drivers/md/raid10.h
+@@ -124,6 +124,7 @@ struct r10bio {
+ 	sector_t		sector;	/* virtual sector number */
+ 	int			sectors;
+ 	unsigned long		state;
++	unsigned long		start_time;
+ 	struct mddev		*mddev;
+ 	/*
+ 	 * original bio going to /dev/mdx
+-- 
+2.17.1
+

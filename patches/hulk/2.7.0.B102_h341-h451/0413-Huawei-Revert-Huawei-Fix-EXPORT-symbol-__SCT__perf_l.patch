@@ -1,0 +1,42 @@
+From c11a0790a312163b09afb23c716a8e4daf04d1bd Mon Sep 17 00:00:00 2001
+From: Lin Yujun <linyujun809@huawei.com>
+Date: Tue, 25 Apr 2023 10:37:21 +0000
+Subject: [PATCH 0413/1646] [Huawei] Revert "[Huawei] Fix EXPORT symbol
+ __SCT__perf_lopwr_cb build warning"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188709
+
+-------------------------------------------------
+
+This reverts commit 9b1256cdef301abda6d77fd82164f3eddc1f54a1.
+
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/include/asm/perf_event.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/x86/include/asm/perf_event.h b/arch/x86/include/asm/perf_event.h
+index 807c4c78bcea..8d684a0fc6f1 100644
+--- a/arch/x86/include/asm/perf_event.h
++++ b/arch/x86/include/asm/perf_event.h
+@@ -568,14 +568,12 @@ static inline void intel_pt_handle_vmx(int on)
+  */
+ extern void perf_amd_brs_lopwr_cb(bool lopwr_in);
+ 
+-#ifndef __GENKSYMS__
+ DECLARE_STATIC_CALL(perf_lopwr_cb, perf_amd_brs_lopwr_cb);
+ 
+ static inline void perf_lopwr_cb(bool lopwr_in)
+ {
+ 	static_call_mod(perf_lopwr_cb)(lopwr_in);
+ }
+-#endif
+ 
+ #endif /* PERF_NEEDS_LOPWR_CB */
+ 
+-- 
+2.17.1
+

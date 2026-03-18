@@ -1,0 +1,74 @@
+From a8167cb55d305425f5db221dc69c49018ebb9ed2 Mon Sep 17 00:00:00 2001
+From: Austin Kim <austindh.kim@gmail.com>
+Date: Tue, 24 Aug 2021 04:49:29 +0100
+Subject: [PATCH 428/780] [Backport] ext4: remove an unused variable warning
+ with CONFIG_QUOTA=n
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.181
+commit efd18a91c9c246abcbe413e10eeef0a4c4bb22e7
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=efd18a91c9c246abcbe413e10eeef0a4c4bb22e7
+
+--------------------------------
+
+[ Upstream commit 3bbef91bdd2180c67407285ba160b023eb4d5306 ]
+
+The 'enable_quota' variable is only used in an CONFIG_QUOTA.
+With CONFIG_QUOTA=n, compiler causes a harmless warning:
+
+fs/ext4/super.c: In function ‘ext4_remount’:
+fs/ext4/super.c:5840:6: warning: variable ‘enable_quota’ set but not used
+  [-Wunused-but-set-variable]
+  int enable_quota = 0;
+              ^~~~~
+
+Move 'enable_quota' into the same #ifdef CONFIG_QUOTA block
+to remove an unused variable warning.
+
+Signed-off-by: Austin Kim <austindh.kim@gmail.com>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Link: https://lore.kernel.org/r/20210824034929.GA13415@raspberrypi
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Stable-dep-of: a44be64bbecb ("ext4: don't clear SB_RDONLY when remounting r/w until quota is re-enabled")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/ext4/super.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index 80ac6064ad0b..d8621a328a16 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5958,11 +5958,11 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
+ 	struct ext4_sb_info *sbi = EXT4_SB(sb);
+ 	unsigned long old_sb_flags, vfs_flags;
+ 	struct ext4_mount_options old_opts;
+-	int enable_quota = 0;
+ 	ext4_group_t g;
+ 	unsigned int journal_ioprio = DEFAULT_JOURNAL_IOPRIO;
+ 	int err = 0;
+ #ifdef CONFIG_QUOTA
++	int enable_quota = 0;
+ 	int i, j;
+ 	char *to_free[EXT4_MAXQUOTAS];
+ #endif
+@@ -6173,7 +6173,9 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
+ 					err = -EROFS;
+ 					goto restore_opts;
+ 				}
++#ifdef CONFIG_QUOTA
+ 			enable_quota = 1;
++#endif
+ 		}
+ 	}
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,42 @@
+From 34fc17dd4d9ca995ed1ad34212a249d5e94fba66 Mon Sep 17 00:00:00 2001
+From: Jiangshui Yang <yangjiangshui@h-partners.com>
+Date: Thu, 3 Nov 2022 18:49:23 +0800
+Subject: [PATCH 1018/1646] [Backport] config: support sec crypto.
+
+driver  inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5XYPG
+
+Reference: https://gitee.com/openeuler/kernel/commit/d1d461fe9012296f9574b551430414997e7ae448
+
+----------------------------------------------------------------------
+
+The sm4-ccm and sm4-gcm algorithms of the sec module depend on
+the fallback TFM function. Therefore, the sm4_generic module of
+the crypto subsystem needs to be loaded.
+
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Kai Ye <yekai13@huawei.com>
+Reviewed-by: Chao Liu <liuchao173@huawei.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 656ccd43a092..14ca1c366405 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -6747,6 +6747,7 @@ CONFIG_CRYPTO_CHACHA20=m
+ CONFIG_CRYPTO_SEED=m
+ CONFIG_CRYPTO_SERPENT=m
+ CONFIG_CRYPTO_SM4=m
++CONFIG_CRYPTO_SM4_GENERIC=m
+ CONFIG_CRYPTO_TEA=m
+ CONFIG_CRYPTO_TWOFISH=m
+ CONFIG_CRYPTO_TWOFISH_COMMON=m
+-- 
+2.17.1
+

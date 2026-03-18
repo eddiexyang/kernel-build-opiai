@@ -1,0 +1,48 @@
+From 3aecb9b7a46d1cf0f1ecab8e1e8bfa24f21e2e51 Mon Sep 17 00:00:00 2001
+From: Xu Chenjiao <xuchenjiao@wxiat.com>
+Date: Tue, 7 Jun 2022 17:42:13 +0800
+Subject: [PATCH 3010/4585] [Backport] sw64: radeon: add a force flush to delay
+ work when radeon uvd suspend
+
+Sunway inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XI1
+
+Reference: https://gitee.com/openeuler/kernel/commit/0b98e524a2ad2825c5c819d8a122de26af3a863e
+
+--------------------------------
+
+On sw64 platform, system suspend operation may occur Dfault error during
+that video player is running at the same time, so let's fix it by adding
+a force flush.
+
+Signed-off-by: Xu Chenjiao <xuchenjiao@wxiat.com>
+
+Signed-off-by: Gu Zitao <guzitao@wxiat.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/radeon/radeon_uvd.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/radeon/radeon_uvd.c b/drivers/gpu/drm/radeon/radeon_uvd.c
+index 1f4e3396d097..a42ea2b76985 100644
+--- a/drivers/gpu/drm/radeon/radeon_uvd.c
++++ b/drivers/gpu/drm/radeon/radeon_uvd.c
+@@ -275,6 +275,11 @@ int radeon_uvd_suspend(struct radeon_device *rdev)
+ 		}
+ 	}
+ 
++#if IS_ENABLED(CONFIG_SW64)
++	/* Finish executing delayed work */
++	flush_delayed_work(&rdev->uvd.idle_work);
++#endif
++
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

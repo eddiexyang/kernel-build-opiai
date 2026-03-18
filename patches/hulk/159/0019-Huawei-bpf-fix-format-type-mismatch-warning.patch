@@ -1,0 +1,48 @@
+From 42b7929170d57bd89c101a291e2a5e4ee76b0174 Mon Sep 17 00:00:00 2001
+From: Ziyang Xuan <william.xuanziyang@huawei.com>
+Date: Tue, 18 Oct 2022 20:12:23 +0800
+Subject: [PATCH 019/595] [Huawei] bpf: fix format type mismatch warning
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187826
+
+--------------------------------
+
+Format '%u' specifies type 'unsigned int' which is nominally
+inconsistent with ntohs() result of promoted type 'unsigned short int'.
+
+Use '%u' for ntohs() result will trigger warnings. Fix them by using
+'%hu' for ntohs() result.
+
+Fixes: 877e893ac68e ("[Huawei] bpf: Add new bpf helper to get SO_ORIGINAL_DST/REPLY_SRC")
+Signed-off-by: Ziyang Xuan <william.xuanziyang@huawei.com>
+---
+ net/netfilter/nf_conntrack_proto.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto.c b/net/netfilter/nf_conntrack_proto.c
+index dd1fff72c736..1922620c8405 100644
+--- a/net/netfilter/nf_conntrack_proto.c
++++ b/net/netfilter/nf_conntrack_proto.c
+@@ -340,14 +340,14 @@ bpf_getorigdst_impl(struct sock *sk, int optval, void *user, int *len, int dir)
+ 		}
+ 		memset(sin.sin_zero, 0, sizeof(sin.sin_zero));
+ 
+-		pr_debug("SO_ORIGINAL_DST: %pI4 %u\n",
++		pr_debug("SO_ORIGINAL_DST: %pI4 %hu\n",
+ 			 &sin.sin_addr.s_addr, ntohs(sin.sin_port));
+ 		nf_ct_put(ct);
+ 
+ 		memcpy(user, &sin, sizeof(sin));
+ 		return 0;
+ 	}
+-	pr_debug("SO_ORIGINAL_DST: Can't find %pI4/%u-%pI4/%u.\n",
++	pr_debug("SO_ORIGINAL_DST: Can't find %pI4/%hu-%pI4/%hu.\n",
+ 		 &tuple.src.u3.ip, ntohs(tuple.src.u.tcp.port),
+ 		 &tuple.dst.u3.ip, ntohs(tuple.dst.u.tcp.port));
+ 	return -ENOENT;
+-- 
+2.17.1
+

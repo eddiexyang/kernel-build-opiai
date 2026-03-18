@@ -1,0 +1,45 @@
+From 4d73e77f5c1d1433962a3b6b05fdbc4c828bc063 Mon Sep 17 00:00:00 2001
+From: Nanyong Sun <sunnanyong@huawei.com>
+Date: Wed, 16 Nov 2022 13:36:33 +0800
+Subject: [PATCH 0054/1398] [Huawei] Revert "[Backport] arm64: mm: Don't
+ invalidate FROM_DEVICE buffers at start of DMA transfer"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188003
+
+-----------------------------------------------------------------------
+
+This reverts commit 02824322d4d7f48b33bd1bdfdd0a6fd60db77490.
+
+The patch backported from LTS "arm64: mm: Don't invalidate FROM_DEVICE
+buffers at start of DMA transfer" changes the implementation of dma_map_single(),
+some drivers do not match it right now because they did not follow the DMA API
+rules strictly, for example, lose the dma_sync_* call or did not call dma_unmap_*
+correcyly, and then cache inconsistency will occur when doing DMA.
+
+Before we have checked all of drivers in product, we should revert this patch
+firstly to avoid the uncontrolled influence.
+
+Signed-off-by: Nanyong Sun <sunnanyong@huawei.com>
+---
+ arch/arm64/mm/cache.S | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm64/mm/cache.S b/arch/arm64/mm/cache.S
+index 7b8158ae36ec..2d881f34dd9d 100644
+--- a/arch/arm64/mm/cache.S
++++ b/arch/arm64/mm/cache.S
+@@ -228,6 +228,8 @@ SYM_FUNC_END_PI(__dma_flush_area)
+  *	- dir	- DMA direction
+  */
+ SYM_FUNC_START_PI(__dma_map_area)
++	cmp	w2, #DMA_FROM_DEVICE
++	b.eq	__dma_inv_area
+ 	b	__dma_clean_area
+ SYM_FUNC_END_PI(__dma_map_area)
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From 820bc4aa8101cb81c7e6492c460d8acc82cd2478 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Tue, 18 Apr 2023 21:50:17 +0800
+Subject: [PATCH 0087/1646] [Huawei] md: fix unexpected changes of return value
+ in rdev_set_badblocks
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188569
+
+--------------------------------
+
+If we set any badblocks fail, we will remove this rdev(set it to Faulty
+or set recovery_disabled). Commit cb8b5410ee4f ("[Huawei] md/raid10: fix
+io hung in md_wait_for_blocked_rdev()") check badblocks->changed instead
+of return value in rdev_set_badblocks(), but return value of this func
+also changed accordingly, which is not what we expected.
+
+Keep the return value consistent with before.
+
+Fixes: cb8b5410ee4f ("[Huawei] md/raid10: fix io hung in md_wait_for_blocked_rdev()")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 55a2800ab33e..ffeda7161826 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -9586,12 +9586,13 @@ int rdev_set_badblocks(struct md_rdev *rdev, sector_t s, int sectors,
+ 		       int is_new)
+ {
+ 	struct mddev *mddev = rdev->mddev;
++	int rv;
+ 
+ 	if (is_new)
+ 		s += rdev->new_data_offset;
+ 	else
+ 		s += rdev->data_offset;
+-	badblocks_set(&rdev->badblocks, s, sectors, 0);
++	rv = badblocks_set(&rdev->badblocks, s, sectors, 0);
+ 	if (rdev->badblocks.changed) {
+ 		/* Make sure they get written out promptly */
+ 		if (test_bit(ExternalBbl, &rdev->flags))
+@@ -9600,9 +9601,8 @@ int rdev_set_badblocks(struct md_rdev *rdev, sector_t s, int sectors,
+ 		set_mask_bits(&mddev->sb_flags, 0,
+ 			      BIT(MD_SB_CHANGE_CLEAN) | BIT(MD_SB_CHANGE_PENDING));
+ 		md_wakeup_thread(rdev->mddev->thread);
+-		return 1;
+-	} else
+-		return 0;
++	}
++	return !rv;
+ }
+ EXPORT_SYMBOL_GPL(rdev_set_badblocks);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From 98279b2d2df0f05c3981340a8c1793991f9b2d0c Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Thu, 29 Sep 2022 21:50:44 +0200
+Subject: [PATCH 583/595] [Backport] wifi: cfg80211: ensure length byte is
+ present before access
+
+stable inclusion
+from stable-v5.10.148
+commit 6144c97f96f5cc3ede984b224fdf8dde658cfcad
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZVOX
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6144c97f96f5cc3ede984b224fdf8dde658cfcad
+
+--------------------------------
+
+commit 567e14e39e8f8c6997a1378bc3be615afca86063 upstream.
+
+When iterating the elements here, ensure the length byte is
+present before checking it to see if the entire element will
+fit into the buffer.
+
+Longer term, we should rewrite this code using the type-safe
+element iteration macros that check all of this.
+
+Fixes: 0b8fb8235be8 ("cfg80211: Parsing of Multiple BSSID information in scanning")
+Reported-by: Soenke Huster <shuster@seemoo.tu-darmstadt.de>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/wireless/scan.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/net/wireless/scan.c b/net/wireless/scan.c
+index b5e6870faaeb..d1e338b85a82 100644
+--- a/net/wireless/scan.c
++++ b/net/wireless/scan.c
+@@ -298,7 +298,8 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
+ 	tmp_old = cfg80211_find_ie(WLAN_EID_SSID, ie, ielen);
+ 	tmp_old = (tmp_old) ? tmp_old + tmp_old[1] + 2 : ie;
+ 
+-	while (tmp_old + tmp_old[1] + 2 - ie <= ielen) {
++	while (tmp_old + 2 - ie <= ielen &&
++	       tmp_old + tmp_old[1] + 2 - ie <= ielen) {
+ 		if (tmp_old[0] == 0) {
+ 			tmp_old++;
+ 			continue;
+@@ -358,7 +359,8 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
+ 	 * copied to new ie, skip ssid, capability, bssid-index ie
+ 	 */
+ 	tmp_new = sub_copy;
+-	while (tmp_new + tmp_new[1] + 2 - sub_copy <= subie_len) {
++	while (tmp_new + 2 - sub_copy <= subie_len &&
++	       tmp_new + tmp_new[1] + 2 - sub_copy <= subie_len) {
+ 		if (!(tmp_new[0] == WLAN_EID_NON_TX_BSSID_CAP ||
+ 		      tmp_new[0] == WLAN_EID_SSID)) {
+ 			memcpy(pos, tmp_new, tmp_new[1] + 2);
+-- 
+2.17.1
+

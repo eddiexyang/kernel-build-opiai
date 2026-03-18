@@ -1,0 +1,50 @@
+From ff62d7ae32dabec868876620daa2e518e7203a5b Mon Sep 17 00:00:00 2001
+From: Hans de Goede <hdegoede@redhat.com>
+Date: Sat, 15 Apr 2023 20:23:38 +0200
+Subject: [PATCH 653/780] [Backport] power: supply: bq27xxx: After charger plug
+ in/out wait 0.5s for things to stabilize
+
+stable inclusion
+from stable-v5.10.182
+commit 277b489ad0b70c2ffa6b6805e7f20b54399f8d50
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=277b489ad0b70c2ffa6b6805e7f20b54399f8d50
+
+--------------------------------
+
+[ Upstream commit 59a99cd462fbdf71f4e845e09f37783035088b4f ]
+
+bq27xxx_external_power_changed() gets called when the charger is plugged
+in or out. Rather then immediately scheduling an update wait 0.5 seconds
+for things to stabilize, so that e.g. the (dis)charge current is stable
+when bq27xxx_battery_update() runs.
+
+Fixes: 740b755a3b34 ("bq27x00: Poll battery state")
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/power/supply/bq27xxx_battery.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/power/supply/bq27xxx_battery.c b/drivers/power/supply/bq27xxx_battery.c
+index 8984f66bd2bc..235647b21af7 100644
+--- a/drivers/power/supply/bq27xxx_battery.c
++++ b/drivers/power/supply/bq27xxx_battery.c
+@@ -2022,8 +2022,8 @@ static void bq27xxx_external_power_changed(struct power_supply *psy)
+ {
+ 	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+ 
+-	cancel_delayed_work_sync(&di->work);
+-	schedule_delayed_work(&di->work, 0);
++	/* After charger plug in/out wait 0.5s for things to stabilize */
++	mod_delayed_work(system_wq, &di->work, HZ / 2);
+ }
+ 
+ int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
+-- 
+2.17.1
+

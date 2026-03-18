@@ -1,0 +1,47 @@
+From 295eccfa1cbef83368ee14f03f712544dc3fd8cd Mon Sep 17 00:00:00 2001
+From: Wang ShaoBo <bobo.shaobowang@huawei.com>
+Date: Thu, 24 Nov 2022 17:23:42 +0800
+Subject: [PATCH 335/905] [Backport] SUNRPC: Fix missing release socket in
+ rpc_sockname()
+
+stable inclusion
+from stable-v5.10.163
+commit 3fbc3c78fa32d2e7b713a9031ba44a231a9f55b5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3fbc3c78fa32d2e7b713a9031ba44a231a9f55b5
+
+--------------------------------
+
+[ Upstream commit 50fa355bc0d75911fe9d5072a5ba52cdb803aff7 ]
+
+socket dynamically created is not released when getting an unintended
+address family type in rpc_sockname(), direct to out_release for calling
+sock_release().
+
+Fixes: 2e738fdce22f ("SUNRPC: Add API to acquire source address")
+Signed-off-by: Wang ShaoBo <bobo.shaobowang@huawei.com>
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/sunrpc/clnt.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index 6fe8cb84638f..0e427e82b633 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -1368,7 +1368,7 @@ static int rpc_sockname(struct net *net, struct sockaddr *sap, size_t salen,
+ 		break;
+ 	default:
+ 		err = -EAFNOSUPPORT;
+-		goto out;
++		goto out_release;
+ 	}
+ 	if (err < 0) {
+ 		dprintk("RPC:       can't bind UDP socket (%d)\n", err);
+-- 
+2.17.1
+

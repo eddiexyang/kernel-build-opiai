@@ -1,0 +1,76 @@
+From c26403ccbb528f323a3b0ce0bc5b7a0297102907 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Tue, 30 May 2023 17:03:27 +0800
+Subject: [PATCH 28/53] [Huawei] mm/sharepool: Simplify the input param for
+ __sp_free()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+The first three parameters for __sp_free are got from a sp_area, just
+use sp_area to replace them.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index cb5d07d6d681..fa54735d74b7 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1885,17 +1885,16 @@ static void sp_munmap(struct mm_struct *mm, unsigned long addr,
+ 	up_write(&mm->mmap_lock);
+ }
+ 
+-static void __sp_free(struct sp_group *spg, unsigned long addr,
+-		      unsigned long size, struct mm_struct *stop)
++static void __sp_free(struct sp_area *spa, struct mm_struct *stop)
+ {
+ 	struct mm_struct *mm;
+ 	struct sp_group_node *spg_node = NULL;
+ 
+-	list_for_each_entry(spg_node, &spg->proc_head, proc_node) {
++	list_for_each_entry(spg_node, &spa->spg->proc_head, proc_node) {
+ 		mm = spg_node->master->mm;
+ 		if (mm == stop)
+ 			break;
+-		sp_munmap(mm, addr, size);
++		sp_munmap(mm, spa->va_start, spa_size(spa));
+ 	}
+ }
+ 
+@@ -1983,7 +1982,7 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 	up_write(&spa->spg->rw_lock);
+ 
+ 	down_read(&spa->spg->rw_lock);
+-	__sp_free(spa->spg, spa->va_start, spa_size(spa), NULL);
++	__sp_free(spa, NULL);
+ 	if (spa->type == SPA_TYPE_ALLOC) {
+ 		sp_fallocate(spa);
+ 	} else {
+@@ -2267,7 +2266,7 @@ static int sp_alloc_mmap_populate(struct sp_area *spa, struct sp_alloc_context *
+ 	return ret;
+ 
+ unmap:
+-	__sp_free(spa->spg, spa->va_start, spa_size(spa), mm);
++	__sp_free(spa, mm);
+ 
+ 	/*
+ 	 * Sometimes do_mm_populate() allocates some memory and then failed to
+@@ -2581,7 +2580,7 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 			if (mmap_ret == SP_SKIP_ERR)
+ 				continue;
+ 			pr_err("remap k2u to spg failed %d\n", mmap_ret);
+-			__sp_free(spg, spa->va_start, spa_size(spa), mm);
++			__sp_free(spa, mm);
+ 			ret = mmap_ret;
+ 			break;
+ 		}
+-- 
+2.17.1
+

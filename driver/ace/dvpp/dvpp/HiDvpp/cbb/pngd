@@ -1,0 +1,48 @@
+#*******************************************************************************
+#The rule of make Linux kernel module
+#*******************************************************************************
+
+CUR_MAKEFILE_PATH := $(strip \
+                $(eval LOCAL_MODULE_MAKEFILE := $$(lastword $$(MAKEFILE_LIST))) \
+                $(patsubst %/,%, $(dir $(LOCAL_MODULE_MAKEFILE))) \
+                )
+
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../inc/external/dvpp/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../inc/dvpp/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../drivers/ai_sdk/arc/linux/kernel_space/inc/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/drv_devmng/drv_devmng_inc/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/tsdrv/ts_drv/ts_drv_common/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../drivers/ai_sdk/arc/linux/kernel_space/src/tsdrv/ts_platform/ts_platform_device/ascend910
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../inc/driver/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../../../../../../libc_sec/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/ext_inc/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../base/arch/hidvpp/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../base/ext_inc/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../base/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../base/include/adapt/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../include/adapt/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../osal/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../pngd/include/inner/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../pngd/include/adapt/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../pngd/arch/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../pngd/mkp/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../sys/ext_inc/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../sys/arch/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../sys/include/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../sys/include/adapt/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../sys/include/inner/
+EXTRA_CFLAGS += -I$(CUR_MAKEFILE_PATH)/../drv_dvpp_comm/include/
+
+EXTRA_CFLAGS += -Wno-error=date-time
+EXTRA_CFLAGS += -Wno-date-time
+EXTRA_CFLAGS += -Wno-error=incompatible-pointer-types
+EXTRA_CFLAGS += -fsigned-char
+EXTRA_CFLAGS += -pipe
+EXTRA_CFLAGS += -DDVPP_MINI
+EXTRA_CFLAGS += -DUSE_DVPP_FWK
+
+obj-m   += drv_pngd.o
+drv_pngd-objs = pngd_init.o mkp/src/pngd.o mkp/src/pngd_buf.o mkp/src/pngd_ext.o mkp/src/pngd_intf.o mkp/src/pngd_proc.o
+
+

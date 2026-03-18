@@ -1,0 +1,227 @@
+From f7ed8c2e66d243dac8a3fc7378908ed8126e86c6 Mon Sep 17 00:00:00 2001
+From: Yipeng Zou <zouyipeng@huawei.com>
+Date: Mon, 13 Feb 2023 19:34:25 +0800
+Subject: [PATCH 903/905] [Huawei] genirq: fix kabi with
+ CONFIG_GENERIC_PENDING_IRQ
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6BO2R
+
+-------------------------------
+
+Since CONFIG_GENERIC_PENDING_IRQ has been introduced for gic-v3-its
+there has some kabi changed(irq_desc->pending_mask).
+
+Introduce CONFIG_GENERIC_PENDING_IRQ_FIX_KABI to fix it
+
+The main way is to use an static array(irq_pending_mask) to replace
+pending_mask in irq_desc.
+
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ include/linux/irqdesc.h |  3 ++-
+ kernel/irq/Kconfig      |  6 ++++++
+ kernel/irq/debugfs.c    |  2 +-
+ kernel/irq/internals.h  | 19 +++++++++++++++++++
+ kernel/irq/irqdesc.c    |  8 +++++---
+ kernel/irq/manage.c     |  6 ++++++
+ kernel/irq/migration.c  | 13 ++++++++-----
+ kernel/irq/proc.c       |  2 +-
+ 8 files changed, 48 insertions(+), 11 deletions(-)
+
+diff --git a/include/linux/irqdesc.h b/include/linux/irqdesc.h
+index dc1b213ae941..ba6ed3f1f752 100644
+--- a/include/linux/irqdesc.h
++++ b/include/linux/irqdesc.h
+@@ -74,7 +74,8 @@ struct irq_desc {
+ #ifdef CONFIG_SMP
+ 	const struct cpumask	*affinity_hint;
+ 	struct irq_affinity_notify *affinity_notify;
+-#ifdef CONFIG_GENERIC_PENDING_IRQ
++#if defined(CONFIG_GENERIC_PENDING_IRQ) && \
++	!defined(CONFIG_GENERIC_PENDING_IRQ_FIX_KABI)
+ 	cpumask_var_t		pending_mask;
+ #endif
+ #endif
+diff --git a/kernel/irq/Kconfig b/kernel/irq/Kconfig
+index 3c829bb4f649..8dbd236a4f19 100644
+--- a/kernel/irq/Kconfig
++++ b/kernel/irq/Kconfig
+@@ -141,6 +141,12 @@ config GENERIC_IRQ_DEBUGFS
+ 
+ 	  If you don't know what to do here, say N.
+ 
++# Support for delayed migration from interrupt context without kabi modification
++config GENERIC_PENDING_IRQ_FIX_KABI
++	bool "Support for delayed migration from interrupt context without kabi modification "
++	depends on GENERIC_PENDING_IRQ
++	default n
++
+ endmenu
+ 
+ config GENERIC_IRQ_MULTI_HANDLER
+diff --git a/kernel/irq/debugfs.c b/kernel/irq/debugfs.c
+index e4cff358b437..866cad81b0a9 100644
+--- a/kernel/irq/debugfs.c
++++ b/kernel/irq/debugfs.c
+@@ -39,7 +39,7 @@ static void irq_debug_show_masks(struct seq_file *m, struct irq_desc *desc)
+ 	seq_printf(m, "effectiv: %*pbl\n", cpumask_pr_args(msk));
+ #endif
+ #ifdef CONFIG_GENERIC_PENDING_IRQ
+-	msk = desc->pending_mask;
++	msk = irq_desc_get_pending_mask(desc);
+ 	seq_printf(m, "pending:  %*pbl\n", cpumask_pr_args(msk));
+ #endif
+ }
+diff --git a/kernel/irq/internals.h b/kernel/irq/internals.h
+index f1d83a8b4417..d5a25b8cecae 100644
+--- a/kernel/irq/internals.h
++++ b/kernel/irq/internals.h
+@@ -415,6 +415,7 @@ static inline bool irq_move_pending(struct irq_data *data)
+ {
+ 	return irqd_is_setaffinity_pending(data);
+ }
++#ifndef CONFIG_GENERIC_PENDING_IRQ_FIX_KABI
+ static inline void
+ irq_copy_pending(struct irq_desc *desc, const struct cpumask *mask)
+ {
+@@ -429,6 +430,24 @@ static inline struct cpumask *irq_desc_get_pending_mask(struct irq_desc *desc)
+ {
+ 	return desc->pending_mask;
+ }
++#else
++extern struct cpumask irq_pending_mask[IRQ_BITMAP_BITS];
++
++static inline void
++irq_copy_pending(struct irq_desc *desc, const struct cpumask *mask)
++{
++	cpumask_copy(&irq_pending_mask[irq_desc_get_irq(desc)], mask);
++}
++static inline void
++irq_get_pending(struct cpumask *mask, struct irq_desc *desc)
++{
++	cpumask_copy(mask, &irq_pending_mask[irq_desc_get_irq(desc)]);
++}
++static inline struct cpumask *irq_desc_get_pending_mask(struct irq_desc *desc)
++{
++	return &irq_pending_mask[irq_desc_get_irq(desc)];
++}
++#endif
+ static inline bool handle_enforce_irqctx(struct irq_data *data)
+ {
+ 	return irqd_is_handle_enforce_irqctx(data);
+diff --git a/kernel/irq/irqdesc.c b/kernel/irq/irqdesc.c
+index 9b0914a063f9..f70355603f4d 100644
+--- a/kernel/irq/irqdesc.c
++++ b/kernel/irq/irqdesc.c
+@@ -66,7 +66,8 @@ static int alloc_masks(struct irq_desc *desc, int node)
+ 	}
+ #endif
+ 
+-#ifdef CONFIG_GENERIC_PENDING_IRQ
++#if defined(CONFIG_GENERIC_PENDING_IRQ) && \
++	!defined(CONFIG_GENERIC_PENDING_IRQ_FIX_KABI)
+ 	if (!zalloc_cpumask_var_node(&desc->pending_mask, GFP_KERNEL, node)) {
+ #ifdef CONFIG_GENERIC_IRQ_EFFECTIVE_AFF_MASK
+ 		free_cpumask_var(desc->irq_common_data.effective_affinity);
+@@ -86,7 +87,7 @@ static void desc_smp_init(struct irq_desc *desc, int node,
+ 	cpumask_copy(desc->irq_common_data.affinity, affinity);
+ 
+ #ifdef CONFIG_GENERIC_PENDING_IRQ
+-	cpumask_clear(desc->pending_mask);
++	cpumask_clear(irq_desc_get_pending_mask(desc));
+ #endif
+ #ifdef CONFIG_NUMA
+ 	desc->irq_common_data.node = node;
+@@ -365,7 +366,8 @@ static void delete_irq_desc(unsigned int irq)
+ #ifdef CONFIG_SMP
+ static void free_masks(struct irq_desc *desc)
+ {
+-#ifdef CONFIG_GENERIC_PENDING_IRQ
++#if defined(CONFIG_GENERIC_PENDING_IRQ) && \
++	!defined(CONFIG_GENERIC_PENDING_IRQ_FIX_KABI)
+ 	free_cpumask_var(desc->pending_mask);
+ #endif
+ 	free_cpumask_var(desc->irq_common_data.affinity);
+diff --git a/kernel/irq/manage.c b/kernel/irq/manage.c
+index 239f5084bfb2..51a98f5442f0 100644
+--- a/kernel/irq/manage.c
++++ b/kernel/irq/manage.c
+@@ -24,6 +24,12 @@
+ 
+ #include "internals.h"
+ 
++#ifdef CONFIG_GENERIC_PENDING_IRQ_FIX_KABI
++struct cpumask irq_pending_mask[IRQ_BITMAP_BITS] = {
++	[0 ... IRQ_BITMAP_BITS - 1] = { CPU_BITS_NONE }
++};
++#endif
++
+ #if defined(CONFIG_IRQ_FORCED_THREADING) && !defined(CONFIG_PREEMPT_RT)
+ __read_mostly bool force_irqthreads;
+ EXPORT_SYMBOL_GPL(force_irqthreads);
+diff --git a/kernel/irq/migration.c b/kernel/irq/migration.c
+index bcb61ee69c20..01b2669ed29f 100644
+--- a/kernel/irq/migration.c
++++ b/kernel/irq/migration.c
+@@ -26,7 +26,8 @@ bool irq_fixup_move_pending(struct irq_desc *desc, bool force_clear)
+ 	 * The outgoing CPU might be the last online target in a pending
+ 	 * interrupt move. If that's the case clear the pending move bit.
+ 	 */
+-	if (cpumask_any_and(desc->pending_mask, cpu_online_mask) >= nr_cpu_ids) {
++	if (cpumask_any_and(irq_desc_get_pending_mask(desc),
++			    cpu_online_mask) >= nr_cpu_ids) {
+ 		irqd_clr_move_pending(data);
+ 		return false;
+ 	}
+@@ -54,7 +55,7 @@ void irq_move_masked_irq(struct irq_data *idata)
+ 		return;
+ 	}
+ 
+-	if (unlikely(cpumask_empty(desc->pending_mask)))
++	if (unlikely(cpumask_empty(irq_desc_get_pending_mask(desc))))
+ 		return;
+ 
+ 	if (!chip->irq_set_affinity)
+@@ -74,10 +75,12 @@ void irq_move_masked_irq(struct irq_data *idata)
+ 	 * For correct operation this depends on the caller
+ 	 * masking the irqs.
+ 	 */
+-	if (cpumask_any_and(desc->pending_mask, cpu_online_mask) < nr_cpu_ids) {
++	if (cpumask_any_and(irq_desc_get_pending_mask(desc),
++			    cpu_online_mask) < nr_cpu_ids) {
+ 		int ret;
+ 
+-		ret = irq_do_set_affinity(data, desc->pending_mask, false);
++		ret = irq_do_set_affinity(data, irq_desc_get_pending_mask(desc),
++					  false);
+ 		/*
+ 		 * If the there is a cleanup pending in the underlying
+ 		 * vector management, reschedule the move for the next
+@@ -88,7 +91,7 @@ void irq_move_masked_irq(struct irq_data *idata)
+ 			return;
+ 		}
+ 	}
+-	cpumask_clear(desc->pending_mask);
++	cpumask_clear(irq_desc_get_pending_mask(desc));
+ }
+ 
+ void __irq_move_irq(struct irq_data *idata)
+diff --git a/kernel/irq/proc.c b/kernel/irq/proc.c
+index 72513ed2a5fc..590091094ef3 100644
+--- a/kernel/irq/proc.c
++++ b/kernel/irq/proc.c
+@@ -54,7 +54,7 @@ static int show_irq_affinity(int type, struct seq_file *m)
+ 		mask = desc->irq_common_data.affinity;
+ #ifdef CONFIG_GENERIC_PENDING_IRQ
+ 		if (irqd_is_setaffinity_pending(&desc->irq_data))
+-			mask = desc->pending_mask;
++			mask = irq_desc_get_pending_mask(desc);
+ #endif
+ 		break;
+ 	case EFFECTIVE:
+-- 
+2.17.1
+

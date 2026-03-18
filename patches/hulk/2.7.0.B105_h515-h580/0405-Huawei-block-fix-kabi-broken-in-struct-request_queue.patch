@@ -1,0 +1,45 @@
+From a6c47dde41d3d0a7f3ea8f18a7ae331c8179e57c Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Fri, 9 Jun 2023 13:59:45 +0800
+Subject: [PATCH 405/780] [Huawei] block: fix kabi broken in struct
+ request_queue
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188826
+
+--------------------------------
+
+Use kabi reserved field for new member in struct request_queue.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ include/linux/blkdev.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index 6a45fa5fcc8a..ebfab09fd67f 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -603,13 +603,13 @@ struct request_queue {
+ #define BLK_MAX_WRITE_HINTS	5
+ 	u64			write_hints[BLK_MAX_WRITE_HINTS];
+ 
+-#ifdef CONFIG_BLK_IO_HIERARCHY_STATS
+-	struct blk_io_hierarchy_stats *io_hierarchy_stats;
+-#endif
+-
+ 	KABI_REPLACE(unsigned long dtag_wait_time,
+ 		     struct blk_mq_tags *shared_sbitmap_tags)
++#ifdef CONFIG_BLK_IO_HIERARCHY_STATS
++	KABI_USE(1, struct blk_io_hierarchy_stats *io_hierarchy_stats)
++#else
+ 	KABI_RESERVE(1)
++#endif
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+-- 
+2.17.1
+

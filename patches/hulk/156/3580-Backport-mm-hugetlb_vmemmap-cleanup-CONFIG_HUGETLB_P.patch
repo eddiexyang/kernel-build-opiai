@@ -1,0 +1,332 @@
+From a42898d216d26c5481bc90debb6a66239d81c59a Mon Sep 17 00:00:00 2001
+From: Muchun Song <songmuchun@bytedance.com>
+Date: Thu, 28 Apr 2022 23:16:15 -0700
+Subject: [PATCH 3580/4585] [Backport] mm: hugetlb_vmemmap: cleanup
+ CONFIG_HUGETLB_PAGE_FREE_VMEMMAP*
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 47010c040dec8af6347ec6259104fc13f7e7e30a
+category: feature
+bugzilla: 187198
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=47010c040dec8af6347ec6259104fc13f7e7e30a
+
+--------------------------------
+
+The word of "free" is not expressive enough to express the feature of
+optimizing vmemmap pages associated with each HugeTLB, rename this keywork
+to "optimize".  In this patch , cheanup configs to make code more
+expressive.
+
+Link: https://lkml.kernel.org/r/20220404074652.68024-4-songmuchun@bytedance.com
+Signed-off-by: Muchun Song <songmuchun@bytedance.com>
+Cc: Mike Kravetz <mike.kravetz@oracle.com>
+Cc: David Hildenbrand <david@redhat.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Conflicts:
+	arch/arm64/configs/openeuler_defconfig
+	arch/x86/configs/openeuler_defconfig
+	Documentation/admin-guide/kernel-parameters.txt
+	include/linux/hugetlb.h
+	mm/Makefile
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ Documentation/admin-guide/kernel-parameters.txt |  5 ++++-
+ Documentation/admin-guide/mm/hugetlbpage.rst    |  2 +-
+ arch/arm64/Kconfig                              |  2 +-
+ arch/arm64/configs/openeuler_defconfig          |  4 ++--
+ arch/arm64/mm/flush.c                           |  2 +-
+ arch/x86/Kconfig                                |  2 +-
+ arch/x86/configs/openeuler_defconfig            |  4 ++--
+ arch/x86/mm/init_64.c                           |  2 +-
+ fs/Kconfig                                      | 16 ++++++++--------
+ include/linux/hugetlb.h                         |  2 +-
+ include/linux/mm.h                              |  2 +-
+ include/linux/page-flags.h                      |  6 +++---
+ mm/Makefile                                     |  2 +-
+ mm/hugetlb_vmemmap.c                            |  4 ++--
+ mm/hugetlb_vmemmap.h                            |  4 ++--
+ mm/sparse-vmemmap.c                             |  4 ++--
+ 16 files changed, 33 insertions(+), 30 deletions(-)
+
+diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
+index 7890f4045c6a..5931a37826fc 100644
+--- a/Documentation/admin-guide/kernel-parameters.txt
++++ b/Documentation/admin-guide/kernel-parameters.txt
+@@ -1597,7 +1597,7 @@
+ 			Format: size[KMG]
+ 
+ 	hugetlb_free_vmemmap=
+-			[KNL] Reguires CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
++			[KNL] Reguires CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 			enabled.
+ 			Allows heavy hugetlb users to free up some more
+ 			memory (7 * PAGE_SIZE for each 2MB hugetlb page).
+@@ -1606,6 +1606,9 @@
+ 			on:  enable the feature
+ 			off: disable the feature
+ 
++			Built with CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON=y,
++			the default is on.
++
+ 	hugevmalloc	[KNL,PPC,ARM64,X86] Requires CONFIG_HAVE_ARCH_HUGE_VMALLOC
+ 			Format: { on | off }
+ 			Default set by CONFIG_HUGE_VMALLOC_DEFAULT_ENABLED.
+diff --git a/Documentation/admin-guide/mm/hugetlbpage.rst b/Documentation/admin-guide/mm/hugetlbpage.rst
+index d70828c07658..0f8acc4a6cf0 100644
+--- a/Documentation/admin-guide/mm/hugetlbpage.rst
++++ b/Documentation/admin-guide/mm/hugetlbpage.rst
+@@ -164,7 +164,7 @@ default_hugepagesz
+ 	will all result in 256 2M huge pages being allocated.  Valid default
+ 	huge page size is architecture dependent.
+ hugetlb_free_vmemmap
+-	When CONFIG_HUGETLB_PAGE_FREE_VMEMMAP is set, this enables freeing
++	When CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP is set, this enables optimizing
+ 	unused vmemmap pages associated with each HugeTLB page.
+ 
+ When multiple huge page sizes are supported, ``/proc/sys/vm/nr_hugepages``
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index ce467f08fbcc..1cd1dcac5593 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -83,7 +83,7 @@ config ARM64
+ 	select ARCH_WANT_DEFAULT_TOPDOWN_MMAP_LAYOUT
+ 	select ARCH_WANT_FRAME_POINTERS
+ 	select ARCH_WANT_HUGE_PMD_SHARE if ARM64_4K_PAGES || (ARM64_16K_PAGES && !ARM64_VA_BITS_36)
+-	select ARCH_WANT_HUGETLB_PAGE_FREE_VMEMMAP
++	select ARCH_WANT_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	select ARCH_WANT_LD_ORPHAN_WARN
+ 	select ARCH_WANT_RESERVE_CRASH_KERNEL if KEXEC_CORE
+ 	select ARCH_HAS_UBSAN_SANITIZE_ALL
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 03d218859093..5f824fb45928 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -6276,8 +6276,8 @@ CONFIG_TMPFS_XATTR=y
+ # CONFIG_TMPFS_INODE64 is not set
+ CONFIG_HUGETLBFS=y
+ CONFIG_HUGETLB_PAGE=y
+-CONFIG_HUGETLB_PAGE_FREE_VMEMMAP=y
+-# CONFIG_HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON is not set
++CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP=y
++# CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON is not set
+ CONFIG_MEMFD_CREATE=y
+ CONFIG_ARCH_HAS_GIGANTIC_PAGE=y
+ CONFIG_CONFIGFS_FS=y
+diff --git a/arch/arm64/mm/flush.c b/arch/arm64/mm/flush.c
+index 892e53e9c788..c7678e7df53a 100644
+--- a/arch/arm64/mm/flush.c
++++ b/arch/arm64/mm/flush.c
+@@ -72,7 +72,7 @@ void flush_dcache_page(struct page *page)
+ 	/*
+ 	 * Only the head page's flags of HugeTLB can be cleared since the tail
+ 	 * vmemmap pages associated with each HugeTLB page are mapped with
+-	 * read-only when CONFIG_HUGETLB_PAGE_FREE_VMEMMAP is enabled (more
++	 * read-only when CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP is enabled (more
+ 	 * details can refer to vmemmap_remap_pte()).  Although
+ 	 * __sync_icache_dcache() only set PG_dcache_clean flag on the head
+ 	 * page struct, there is more than one page struct with PG_dcache_clean
+diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
+index 01dc91cbf093..93961c366ba0 100644
+--- a/arch/x86/Kconfig
++++ b/arch/x86/Kconfig
+@@ -103,7 +103,7 @@ config X86
+ 	select ARCH_WANT_DEFAULT_BPF_JIT	if X86_64
+ 	select ARCH_WANTS_DYNAMIC_TASK_STRUCT
+ 	select ARCH_WANT_HUGE_PMD_SHARE
+-	select ARCH_WANT_HUGETLB_PAGE_FREE_VMEMMAP	if X86_64
++	select ARCH_WANT_HUGETLB_PAGE_OPTIMIZE_VMEMMAP	if X86_64
+ 	select ARCH_WANT_LD_ORPHAN_WARN
+ 	select ARCH_WANTS_THP_SWAP		if X86_64
+ 	select BUILDTIME_TABLE_SORT
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 3cbfd7ddb89d..02b0c9da1bb4 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -7370,8 +7370,8 @@ CONFIG_TMPFS_XATTR=y
+ # CONFIG_TMPFS_INODE64 is not set
+ CONFIG_HUGETLBFS=y
+ CONFIG_HUGETLB_PAGE=y
+-CONFIG_HUGETLB_PAGE_FREE_VMEMMAP=y
+-# CONFIG_HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON is not set
++CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP=y
++# CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON is not set
+ CONFIG_DYNAMIC_HUGETLB=y
+ CONFIG_MEMFD_CREATE=y
+ CONFIG_ARCH_HAS_GIGANTIC_PAGE=y
+diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
+index 1eed5eaee41f..b1d5c05aeca8 100644
+--- a/arch/x86/mm/init_64.c
++++ b/arch/x86/mm/init_64.c
+@@ -1225,7 +1225,7 @@ static struct kcore_list kcore_vsyscall;
+ 
+ static void __init register_page_bootmem_info(void)
+ {
+-#if defined(CONFIG_NUMA) || defined(CONFIG_HUGETLB_PAGE_FREE_VMEMMAP)
++#if defined(CONFIG_NUMA) || defined(CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP)
+ 	int i;
+ 
+ 	for_each_online_node(i)
+diff --git a/fs/Kconfig b/fs/Kconfig
+index b60a7614cb16..aa097ca64ef6 100644
+--- a/fs/Kconfig
++++ b/fs/Kconfig
+@@ -242,22 +242,22 @@ config HUGETLB_PAGE
+ # to enable the feature of minimizing overhead of struct page associated with
+ # each HugeTLB page.
+ #
+-config ARCH_WANT_HUGETLB_PAGE_FREE_VMEMMAP
++config ARCH_WANT_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	bool
+ 
+-config HUGETLB_PAGE_FREE_VMEMMAP
++config HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	def_bool HUGETLB_PAGE
+-	depends on ARCH_WANT_HUGETLB_PAGE_FREE_VMEMMAP
++	depends on ARCH_WANT_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	depends on SPARSEMEM_VMEMMAP
+ 
+-config HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON
+-	bool "Default freeing vmemmap pages of HugeTLB to on"
++config HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON
++	bool "Default optimizing vmemmap pages of HugeTLB to on"
+ 	default n
+-	depends on HUGETLB_PAGE_FREE_VMEMMAP
++	depends on HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	help
+-	  When using HUGETLB_PAGE_FREE_VMEMMAP, the freeing unused vmemmap
++	  When using HUGETLB_PAGE_OPTIMIZE_VMEMMAP, the optimizing unused vmemmap
+ 	  pages associated with each HugeTLB page is default off. Say Y here
+-	  to enable freeing vmemmap pages of HugeTLB by default. It can then
++	  to enable optimizing vmemmap pages of HugeTLB by default. It can then
+ 	  be disabled on the command line via hugetlb_free_vmemmap=off.
+ 
+ config DYNAMIC_HUGETLB
+diff --git a/include/linux/hugetlb.h b/include/linux/hugetlb.h
+index 218fc150d7f8..0dfe08439095 100644
+--- a/include/linux/hugetlb.h
++++ b/include/linux/hugetlb.h
+@@ -592,7 +592,7 @@ struct hstate {
+ 	unsigned int free_huge_pages_node[MAX_NUMNODES];
+ 	unsigned int surplus_huge_pages_node[MAX_NUMNODES];
+ 	unsigned int resv_huge_pages_node[MAX_NUMNODES];
+-#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
++#ifdef CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ 	unsigned int optimize_vmemmap_pages;
+ #endif
+ #ifdef CONFIG_CGROUP_HUGETLB
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index c0edca0d97ee..0cc1d3e9c97c 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -3061,7 +3061,7 @@ static inline void print_vma_addr(char *prefix, unsigned long rip)
+ }
+ #endif
+ 
+-#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
++#ifdef CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ int vmemmap_remap_free(unsigned long start, unsigned long end,
+ 		       unsigned long reuse);
+ int vmemmap_remap_alloc(unsigned long start, unsigned long end,
+diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
+index d1cf17a71a12..26b36cac9307 100644
+--- a/include/linux/page-flags.h
++++ b/include/linux/page-flags.h
+@@ -194,13 +194,13 @@ enum pageflags {
+ 
+ #ifndef __GENERATING_BOUNDS_H
+ 
+-#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
+-DECLARE_STATIC_KEY_MAYBE(CONFIG_HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON,
++#ifdef CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
++DECLARE_STATIC_KEY_MAYBE(CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON,
+ 			 hugetlb_optimize_vmemmap_key);
+ 
+ static __always_inline bool hugetlb_optimize_vmemmap_enabled(void)
+ {
+-	return static_branch_maybe(CONFIG_HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON,
++	return static_branch_maybe(CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON,
+ 				   &hugetlb_optimize_vmemmap_key);
+ }
+ 
+diff --git a/mm/Makefile b/mm/Makefile
+index 5434a0a443d9..79de0507e219 100644
+--- a/mm/Makefile
++++ b/mm/Makefile
+@@ -72,7 +72,7 @@ obj-$(CONFIG_FRONTSWAP)	+= frontswap.o
+ obj-$(CONFIG_ZSWAP)	+= zswap.o
+ obj-$(CONFIG_HAS_DMA)	+= dmapool.o
+ obj-$(CONFIG_HUGETLBFS)	+= hugetlb.o
+-obj-$(CONFIG_HUGETLB_PAGE_FREE_VMEMMAP)	+= hugetlb_vmemmap.o
++obj-$(CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP)	+= hugetlb_vmemmap.o
+ obj-$(CONFIG_DYNAMIC_HUGETLB) += dynamic_hugetlb.o
+ obj-$(CONFIG_NUMA) 	+= mempolicy.o
+ obj-$(CONFIG_SPARSEMEM)	+= sparse.o
+diff --git a/mm/hugetlb_vmemmap.c b/mm/hugetlb_vmemmap.c
+index f25294973398..2655434a946b 100644
+--- a/mm/hugetlb_vmemmap.c
++++ b/mm/hugetlb_vmemmap.c
+@@ -188,7 +188,7 @@
+ #define RESERVE_VMEMMAP_NR		1U
+ #define RESERVE_VMEMMAP_SIZE		(RESERVE_VMEMMAP_NR << PAGE_SHIFT)
+ 
+-DEFINE_STATIC_KEY_MAYBE(CONFIG_HUGETLB_PAGE_FREE_VMEMMAP_DEFAULT_ON,
++DEFINE_STATIC_KEY_MAYBE(CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON,
+ 			hugetlb_optimize_vmemmap_key);
+ EXPORT_SYMBOL(hugetlb_optimize_vmemmap_key);
+ 
+@@ -276,7 +276,7 @@ void __init hugetlb_vmemmap_init(struct hstate *h)
+ 
+ 	/*
+ 	 * There are only (RESERVE_VMEMMAP_SIZE / sizeof(struct page)) struct
+-	 * page structs that can be used when CONFIG_HUGETLB_PAGE_FREE_VMEMMAP,
++	 * page structs that can be used when CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP,
+ 	 * so add a BUILD_BUG_ON to catch invalid usage of the tail struct page.
+ 	 */
+ 	BUILD_BUG_ON(__NR_USED_SUBPAGE >=
+diff --git a/mm/hugetlb_vmemmap.h b/mm/hugetlb_vmemmap.h
+index 9760537849b5..109b0a53b6fe 100644
+--- a/mm/hugetlb_vmemmap.h
++++ b/mm/hugetlb_vmemmap.h
+@@ -10,7 +10,7 @@
+ #define _LINUX_HUGETLB_VMEMMAP_H
+ #include <linux/hugetlb.h>
+ 
+-#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
++#ifdef CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ int hugetlb_vmemmap_alloc(struct hstate *h, struct page *head);
+ void hugetlb_vmemmap_free(struct hstate *h, struct page *head);
+ void hugetlb_vmemmap_init(struct hstate *h);
+@@ -41,5 +41,5 @@ static inline unsigned int hugetlb_optimize_vmemmap_pages(struct hstate *h)
+ {
+ 	return 0;
+ }
+-#endif /* CONFIG_HUGETLB_PAGE_FREE_VMEMMAP */
++#endif /* CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP */
+ #endif /* _LINUX_HUGETLB_VMEMMAP_H */
+diff --git a/mm/sparse-vmemmap.c b/mm/sparse-vmemmap.c
+index e5ed2680ec57..5b40a7473dc8 100644
+--- a/mm/sparse-vmemmap.c
++++ b/mm/sparse-vmemmap.c
+@@ -34,7 +34,7 @@
+ #include <asm/pgalloc.h>
+ #include <asm/tlbflush.h>
+ 
+-#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
++#ifdef CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP
+ /**
+  * struct vmemmap_remap_walk - walk vmemmap page table
+  *
+@@ -420,7 +420,7 @@ int vmemmap_remap_alloc(unsigned long start, unsigned long end,
+ 
+ 	return 0;
+ }
+-#endif /* CONFIG_HUGETLB_PAGE_FREE_VMEMMAP */
++#endif /* CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP */
+ 
+ /*
+  * Allocate a block of memory to be used to back the virtual memory map
+-- 
+2.17.1
+

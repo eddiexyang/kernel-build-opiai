@@ -1,0 +1,38 @@
+From fc995cc564691281e66f685880d6c84130c1289c Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Thu, 24 Nov 2022 11:12:34 +0800
+Subject: [PATCH 0092/1398] [Huawei] blk-throttle: fix missing prefix "CONFIG_"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188004
+
+-------------------------------
+
+Global limit of blk throttle will be invalid because commit a633be8a278f
+("[Huawei] blk-throttle: add a config to control hierarchical throttle in
+cgroup v1") missed prefix "CONFIG_" in ifdef marco.
+
+Fixes: a633be8a278f ("[Huawei] blk-throttle: add a config to control hierarchical throttle in cgroup v1")
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-throttle.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/blk-throttle.c b/block/blk-throttle.c
+index 32de0928eb7c..20c96ca9aca6 100644
+--- a/block/blk-throttle.c
++++ b/block/blk-throttle.c
+@@ -43,7 +43,7 @@ static struct blkcg_policy blkcg_policy_throtl;
+ /* A workqueue to queue throttle related work */
+ static struct workqueue_struct *kthrotld_workqueue;
+ 
+-#ifdef BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT
++#ifdef CONFIG_BLK_DEV_SUPPORT_LEGACY_GLOBAL_LIMIT
+ /* True if global limit is enabled in cgroup v1 */
+ static bool global_limit;
+ 
+-- 
+2.17.1
+

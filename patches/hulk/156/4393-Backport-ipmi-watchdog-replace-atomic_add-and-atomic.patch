@@ -1,0 +1,69 @@
+From c9bbc878a2460886c217b7f1c8253df2ef6ae6c9 Mon Sep 17 00:00:00 2001
+From: Yejune Deng <yejune.deng@gmail.com>
+Date: Tue, 5 Jul 2022 17:56:23 +0800
+Subject: [PATCH 4393/4585] [Backport] ipmi/watchdog: replace atomic_add() and
+ atomic_sub()
+
+mainline inclusion
+from mainline-v5.11-rc1
+commit a01a89b1db1066a6af23ae08b9a0c345b7966f0b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5DVR9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a01a89b1db1066a6af23ae08b9a0c345b7966f0b
+
+--------------------------------
+
+atomic_inc() and atomic_dec() looks better
+
+Signed-off-by: Yejune Deng <yejune.deng@gmail.com>
+Message-Id: <1605511807-7135-1-git-send-email-yejune.deng@gmail.com>
+Signed-off-by: Corey Minyard <cminyard@mvista.com>
+Signed-off-by: Miaohe Lin <linmiaohe@huawei.com>
+Reviewed-by: Li JinLin <lijinlin3@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ drivers/char/ipmi/ipmi_watchdog.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/char/ipmi/ipmi_watchdog.c b/drivers/char/ipmi/ipmi_watchdog.c
+index 92eda5b2f134..7f71471c7a46 100644
+--- a/drivers/char/ipmi/ipmi_watchdog.c
++++ b/drivers/char/ipmi/ipmi_watchdog.c
+@@ -503,7 +503,7 @@ static void panic_halt_ipmi_heartbeat(void)
+ 	msg.cmd = IPMI_WDOG_RESET_TIMER;
+ 	msg.data = NULL;
+ 	msg.data_len = 0;
+-	atomic_add(1, &panic_done_count);
++	atomic_inc(&panic_done_count);
+ 	rv = ipmi_request_supply_msgs(watchdog_user,
+ 				      (struct ipmi_addr *) &addr,
+ 				      0,
+@@ -513,7 +513,7 @@ static void panic_halt_ipmi_heartbeat(void)
+ 				      &panic_halt_heartbeat_recv_msg,
+ 				      1);
+ 	if (rv)
+-		atomic_sub(1, &panic_done_count);
++		atomic_dec(&panic_done_count);
+ }
+ 
+ static struct ipmi_smi_msg panic_halt_smi_msg = {
+@@ -537,12 +537,12 @@ static void panic_halt_ipmi_set_timeout(void)
+ 	/* Wait for the messages to be free. */
+ 	while (atomic_read(&panic_done_count) != 0)
+ 		ipmi_poll_interface(watchdog_user);
+-	atomic_add(1, &panic_done_count);
++	atomic_inc(&panic_done_count);
+ 	rv = __ipmi_set_timeout(&panic_halt_smi_msg,
+ 				&panic_halt_recv_msg,
+ 				&send_heartbeat_now);
+ 	if (rv) {
+-		atomic_sub(1, &panic_done_count);
++		atomic_dec(&panic_done_count);
+ 		pr_warn("Unable to extend the watchdog timeout\n");
+ 	} else {
+ 		if (send_heartbeat_now)
+-- 
+2.17.1
+

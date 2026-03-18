@@ -1,0 +1,220 @@
+From 35f485e618e9c11e9ff352a848ca5b387b3e4824 Mon Sep 17 00:00:00 2001
+From: Shameer Kolothum <shameerali.kolothum.thodi@huawei.com>
+Date: Tue, 19 Jul 2022 16:51:33 +0800
+Subject: [PATCH 0915/1646] [Backport] hisi_acc_qm: Move VF PCI device IDs to
+ common header
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit fae74feacd2dfb6172c4862fc760f969a991c06f
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=fae74feacd2dfb6172c4862fc760f969a991c06f
+
+--------------------------------
+
+Move the PCI Device IDs of HiSilicon ACC VF devices to a common header
+and also use a uniform naming convention.
+
+This will be useful when we introduce the vfio PCI HiSilicon ACC live
+migration driver in subsequent patches.
+
+Cc: Bjorn Helgaas <bhelgaas@google.com>
+Acked-by: Zhou Wang <wangzhou1@hisilicon.com>
+Acked-by: Longfang Liu <liulongfang@huawei.com>
+Acked-by: Kai Ye <yekai13@huawei.com>
+Signed-off-by: Shameer Kolothum <shameerali.kolothum.thodi@huawei.com>
+Acked-by: Bjorn Helgaas <bhelgaas@google.com>	# pci_ids.h
+Link: https://lore.kernel.org/r/20220308184902.2242-4-shameerali.kolothum.thodi@huawei.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+
+ Conflicts:
+	include/linux/pci_ids.h
+
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/hpre/hpre_main.c | 13 ++++++-------
+ drivers/crypto/hisilicon/sec2/sec_main.c  | 15 +++++++--------
+ drivers/crypto/hisilicon/zip/zip_main.c   | 11 +++++------
+ include/linux/pci_ids.h                   |  3 +++
+ 4 files changed, 21 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/hpre/hpre_main.c b/drivers/crypto/hisilicon/hpre/hpre_main.c
+index ebfab3e14499..3589d8879b5e 100644
+--- a/drivers/crypto/hisilicon/hpre/hpre_main.c
++++ b/drivers/crypto/hisilicon/hpre/hpre_main.c
+@@ -68,8 +68,7 @@
+ #define HPRE_REG_RD_INTVRL_US		10
+ #define HPRE_REG_RD_TMOUT_US		1000
+ #define HPRE_DBGFS_VAL_MAX_LEN		20
+-#define HPRE_PCI_DEVICE_ID		0xa258
+-#define HPRE_PCI_VF_DEVICE_ID		0xa259
++#define PCI_DEVICE_ID_HUAWEI_HPRE_PF	0xa258
+ #define HPRE_QM_USR_CFG_MASK		GENMASK(31, 1)
+ #define HPRE_QM_AXI_CFG_MASK		GENMASK(15, 0)
+ #define HPRE_QM_VFG_AX_MASK		GENMASK(7, 0)
+@@ -111,8 +110,8 @@
+ static const char hpre_name[] = "hisi_hpre";
+ static struct dentry *hpre_debugfs_root;
+ static const struct pci_device_id hpre_dev_ids[] = {
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, HPRE_PCI_DEVICE_ID) },
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, HPRE_PCI_VF_DEVICE_ID) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_HPRE_PF) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_HPRE_VF) },
+ 	{ 0, }
+ };
+ 
+@@ -242,7 +241,7 @@ MODULE_PARM_DESC(uacce_mode, UACCE_MODE_DESC);
+ 
+ static int pf_q_num_set(const char *val, const struct kernel_param *kp)
+ {
+-	return q_num_set(val, kp, HPRE_PCI_DEVICE_ID);
++	return q_num_set(val, kp, PCI_DEVICE_ID_HUAWEI_HPRE_PF);
+ }
+ 
+ static const struct kernel_param_ops hpre_pf_q_num_ops = {
+@@ -921,7 +920,7 @@ static int hpre_debugfs_init(struct hisi_qm *qm)
+ 	qm->debug.sqe_mask_len = HPRE_SQE_MASK_LEN;
+ 	hisi_qm_debug_init(qm);
+ 
+-	if (qm->pdev->device == HPRE_PCI_DEVICE_ID) {
++	if (qm->pdev->device == PCI_DEVICE_ID_HUAWEI_HPRE_PF) {
+ 		ret = hpre_ctrl_debug_init(qm);
+ 		if (ret)
+ 			goto failed_to_create;
+@@ -958,7 +957,7 @@ static int hpre_qm_init(struct hisi_qm *qm, struct pci_dev *pdev)
+ 	qm->sqe_size = HPRE_SQE_SIZE;
+ 	qm->dev_name = hpre_name;
+ 
+-	qm->fun_type = (pdev->device == HPRE_PCI_DEVICE_ID) ?
++	qm->fun_type = (pdev->device == PCI_DEVICE_ID_HUAWEI_HPRE_PF) ?
+ 			QM_HW_PF : QM_HW_VF;
+ 	if (qm->fun_type == QM_HW_PF) {
+ 		qm->qp_base = HPRE_PF_DEF_Q_BASE;
+diff --git a/drivers/crypto/hisilicon/sec2/sec_main.c b/drivers/crypto/hisilicon/sec2/sec_main.c
+index 3dfc28cb8e95..8d3d2345efb7 100644
+--- a/drivers/crypto/hisilicon/sec2/sec_main.c
++++ b/drivers/crypto/hisilicon/sec2/sec_main.c
+@@ -20,8 +20,7 @@
+ 
+ #define SEC_VF_NUM			63
+ #define SEC_QUEUE_NUM_V1		4096
+-#define SEC_PF_PCI_DEVICE_ID		0xa255
+-#define SEC_VF_PCI_DEVICE_ID		0xa256
++#define PCI_DEVICE_ID_HUAWEI_SEC_PF	0xa255
+ 
+ #define SEC_BD_ERR_CHK_EN0		0xEFFFFFFF
+ #define SEC_BD_ERR_CHK_EN1		0x7ffff7fd
+@@ -229,7 +228,7 @@ static const struct debugfs_reg32 sec_dfx_regs[] = {
+ 
+ static int sec_pf_q_num_set(const char *val, const struct kernel_param *kp)
+ {
+-	return q_num_set(val, kp, SEC_PF_PCI_DEVICE_ID);
++	return q_num_set(val, kp, PCI_DEVICE_ID_HUAWEI_SEC_PF);
+ }
+ 
+ static const struct kernel_param_ops sec_pf_q_num_ops = {
+@@ -317,8 +316,8 @@ module_param_cb(uacce_mode, &sec_uacce_mode_ops, &uacce_mode, 0444);
+ MODULE_PARM_DESC(uacce_mode, UACCE_MODE_DESC);
+ 
+ static const struct pci_device_id sec_dev_ids[] = {
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, SEC_PF_PCI_DEVICE_ID) },
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, SEC_VF_PCI_DEVICE_ID) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_SEC_PF) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_SEC_VF) },
+ 	{ 0, }
+ };
+ MODULE_DEVICE_TABLE(pci, sec_dev_ids);
+@@ -748,7 +747,7 @@ static int sec_core_debug_init(struct hisi_qm *qm)
+ 	regset->base = qm->io_base;
+ 	regset->dev = dev;
+ 
+-	if (qm->pdev->device == SEC_PF_PCI_DEVICE_ID)
++	if (qm->pdev->device == PCI_DEVICE_ID_HUAWEI_SEC_PF)
+ 		debugfs_create_file("regs", 0444, tmp_d, regset, &sec_regs_fops);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(sec_dfx_labels); i++) {
+@@ -766,7 +765,7 @@ static int sec_debug_init(struct hisi_qm *qm)
+ 	struct sec_dev *sec = container_of(qm, struct sec_dev, qm);
+ 	int i;
+ 
+-	if (qm->pdev->device == SEC_PF_PCI_DEVICE_ID) {
++	if (qm->pdev->device == PCI_DEVICE_ID_HUAWEI_SEC_PF) {
+ 		for (i = SEC_CLEAR_ENABLE; i < SEC_DEBUG_FILE_NUM; i++) {
+ 			spin_lock_init(&sec->debug.files[i].lock);
+ 			sec->debug.files[i].index = i;
+@@ -906,7 +905,7 @@ static int sec_qm_init(struct hisi_qm *qm, struct pci_dev *pdev)
+ 	qm->sqe_size = SEC_SQE_SIZE;
+ 	qm->dev_name = sec_name;
+ 
+-	qm->fun_type = (pdev->device == SEC_PF_PCI_DEVICE_ID) ?
++	qm->fun_type = (pdev->device == PCI_DEVICE_ID_HUAWEI_SEC_PF) ?
+ 			QM_HW_PF : QM_HW_VF;
+ 	if (qm->fun_type == QM_HW_PF) {
+ 		qm->qp_base = SEC_PF_DEF_Q_BASE;
+diff --git a/drivers/crypto/hisilicon/zip/zip_main.c b/drivers/crypto/hisilicon/zip/zip_main.c
+index b1e665d3e272..b44fde68f6be 100644
+--- a/drivers/crypto/hisilicon/zip/zip_main.c
++++ b/drivers/crypto/hisilicon/zip/zip_main.c
+@@ -15,8 +15,7 @@
+ #include <linux/uacce.h>
+ #include "zip.h"
+ 
+-#define PCI_DEVICE_ID_ZIP_PF		0xa250
+-#define PCI_DEVICE_ID_ZIP_VF		0xa251
++#define PCI_DEVICE_ID_HUAWEI_ZIP_PF	0xa250
+ 
+ #define HZIP_QUEUE_NUM_V1		4096
+ 
+@@ -246,7 +245,7 @@ MODULE_PARM_DESC(uacce_mode, UACCE_MODE_DESC);
+ 
+ static int pf_q_num_set(const char *val, const struct kernel_param *kp)
+ {
+-	return q_num_set(val, kp, PCI_DEVICE_ID_ZIP_PF);
++	return q_num_set(val, kp, PCI_DEVICE_ID_HUAWEI_ZIP_PF);
+ }
+ 
+ static const struct kernel_param_ops pf_q_num_ops = {
+@@ -268,8 +267,8 @@ module_param_cb(vfs_num, &vfs_num_ops, &vfs_num, 0444);
+ MODULE_PARM_DESC(vfs_num, "Number of VFs to enable(1-63), 0(default)");
+ 
+ static const struct pci_device_id hisi_zip_dev_ids[] = {
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_ZIP_PF) },
+-	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_ZIP_VF) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_ZIP_PF) },
++	{ PCI_DEVICE(PCI_VENDOR_ID_HUAWEI, PCI_DEVICE_ID_HUAWEI_ZIP_VF) },
+ 	{ 0, }
+ };
+ MODULE_DEVICE_TABLE(pci, hisi_zip_dev_ids);
+@@ -836,7 +835,7 @@ static int hisi_zip_qm_init(struct hisi_qm *qm, struct pci_dev *pdev)
+ 	qm->sqe_size = HZIP_SQE_SIZE;
+ 	qm->dev_name = hisi_zip_name;
+ 
+-	qm->fun_type = (pdev->device == PCI_DEVICE_ID_ZIP_PF) ?
++	qm->fun_type = (pdev->device == PCI_DEVICE_ID_HUAWEI_ZIP_PF) ?
+ 			QM_HW_PF : QM_HW_VF;
+ 	if (qm->fun_type == QM_HW_PF) {
+ 		qm->qp_base = HZIP_PF_DEF_Q_BASE;
+diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
+index 1d42e7a38182..277ca8277bac 100644
+--- a/include/linux/pci_ids.h
++++ b/include/linux/pci_ids.h
+@@ -2590,6 +2590,9 @@
+ #define PCIE_DEVICE_ID_HISI_8855	0x8855
+ #define PCIE_DEVICE_ID_HISI_5991	0x5991
+ #define PCIE_DEVICE_ID_HISI_5887	0x5887
++#define PCI_DEVICE_ID_HUAWEI_ZIP_VF	0xa251
++#define PCI_DEVICE_ID_HUAWEI_SEC_VF	0xa256
++#define PCI_DEVICE_ID_HUAWEI_HPRE_VF	0xa259
+ 
+ /* Hisilicon PCIe NP devices */
+ #define PCIE_DEVICE_ID_HISI_5896        0x5896
+-- 
+2.17.1
+

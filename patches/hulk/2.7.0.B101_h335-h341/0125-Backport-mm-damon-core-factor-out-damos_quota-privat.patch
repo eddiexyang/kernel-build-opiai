@@ -1,0 +1,73 @@
+From 88bb717646890e1c3a72effd843c214c33b0dc3e Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 13 Sep 2022 17:44:31 +0000
+Subject: [PATCH 125/921] [Backport] mm/damon/core: factor out 'damos_quota'
+ private fileds initialization
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 70e0c1d1bf945328915f52f7132b2d6ee8f25d46
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=70e0c1d1bf945328915f52f7132b2d6ee8f25d46
+
+--------------------------------
+
+The 'struct damos' creation function, 'damon_new_scheme()', does
+initialization of private fileds of 'struct damos_quota' in it.  As its
+verbose and makes the function unnecessarily long, this commit factors it
+out to separate function.
+
+Link: https://lkml.kernel.org/r/20220913174449.50645-5-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core.c | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index a564f83e9efe..6d9f4c2dee35 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -263,6 +263,19 @@ int damon_set_regions(struct damon_target *t, struct damon_addr_range *ranges,
+ 	return 0;
+ }
+ 
++/* initialize private fields of damos_quota and return the pointer */
++static struct damos_quota *damos_quota_init_priv(struct damos_quota *quota)
++{
++	quota->total_charged_sz = 0;
++	quota->total_charged_ns = 0;
++	quota->esz = 0;
++	quota->charged_sz = 0;
++	quota->charged_from = 0;
++	quota->charge_target_from = NULL;
++	quota->charge_addr_from = 0;
++	return quota;
++}
++
+ struct damos *damon_new_scheme(struct damos_access_pattern *pattern,
+ 			enum damos_action action, struct damos_quota *quota,
+ 			struct damos_watermarks *wmarks)
+@@ -277,15 +290,7 @@ struct damos *damon_new_scheme(struct damos_access_pattern *pattern,
+ 	scheme->stat = (struct damos_stat){};
+ 	INIT_LIST_HEAD(&scheme->list);
+ 
+-	scheme->quota = *quota;
+-	/* caller might not zero-initialized the private fileds */
+-	scheme->quota.total_charged_sz = 0;
+-	scheme->quota.total_charged_ns = 0;
+-	scheme->quota.esz = 0;
+-	scheme->quota.charged_sz = 0;
+-	scheme->quota.charged_from = 0;
+-	scheme->quota.charge_target_from = NULL;
+-	scheme->quota.charge_addr_from = 0;
++	scheme->quota = *(damos_quota_init_priv(quota));
+ 
+ 	scheme->wmarks = *wmarks;
+ 	scheme->wmarks.activated = true;
+-- 
+2.17.1
+

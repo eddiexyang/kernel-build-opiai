@@ -1,0 +1,38 @@
+From 1f86f812730dcc9d035673fed8b90a10ec780003 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Wed, 15 Jun 2022 11:19:12 +0800
+Subject: [PATCH 2669/4585] [Huawei] ext4: correct the misjudgment in
+ ext4_iget_extra_inode
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186866
+
+--------------------------------
+
+Use the EXT4_INODE_HAS_XATTR_SPACE macro to more accurately
+determine whether the inode have xattr space.
+
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/inode.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index 097c8ad38983..f4e0c7cc4820 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -4693,8 +4693,7 @@ static inline int ext4_iget_extra_inode(struct inode *inode,
+ 	__le32 *magic = (void *)raw_inode +
+ 			EXT4_GOOD_OLD_INODE_SIZE + ei->i_extra_isize;
+ 
+-	if (EXT4_GOOD_OLD_INODE_SIZE + ei->i_extra_isize + sizeof(__le32) <=
+-	    EXT4_INODE_SIZE(inode->i_sb) &&
++	if (EXT4_INODE_HAS_XATTR_SPACE(inode)  &&
+ 	    *magic == cpu_to_le32(EXT4_XATTR_MAGIC)) {
+ 		ext4_set_inode_state(inode, EXT4_STATE_XATTR);
+ 		return ext4_find_inline_data_nolock(inode);
+-- 
+2.17.1
+

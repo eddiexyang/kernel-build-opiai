@@ -1,0 +1,45 @@
+From 03f09556612831ad013cdcb5ba9bc553f8e0f3f4 Mon Sep 17 00:00:00 2001
+From: Kai Ye <yekai13@huawei.com>
+Date: Tue, 19 Jul 2022 16:51:26 +0800
+Subject: [PATCH 0908/1646] [Backport] crypto: hisilicon/sec - use the correct
+ print format
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 498382593c7c90eb81111d315eeecba9508ddf58
+category: cleanup
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=498382593c7c90eb81111d315eeecba9508ddf58
+
+--------------------------------
+
+Use the correct print format. Printing an unsigned int value should
+use %u instead of %d.
+
+Signed-off-by: Kai Ye <yekai13@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/sec2/sec_crypto.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/hisilicon/sec2/sec_crypto.c b/drivers/crypto/hisilicon/sec2/sec_crypto.c
+index b2b1ec858fe1..77c9f13cf69a 100644
+--- a/drivers/crypto/hisilicon/sec2/sec_crypto.c
++++ b/drivers/crypto/hisilicon/sec2/sec_crypto.c
+@@ -240,7 +240,7 @@ static void sec_req_cb(struct hisi_qp *qp, void *resp)
+ 
+ 	if (unlikely(type != type_supported)) {
+ 		atomic64_inc(&dfx->err_bd_cnt);
+-		pr_err("err bd type [%d]\n", type);
++		pr_err("err bd type [%u]\n", type);
+ 		return;
+ 	}
+ 
+-- 
+2.17.1
+

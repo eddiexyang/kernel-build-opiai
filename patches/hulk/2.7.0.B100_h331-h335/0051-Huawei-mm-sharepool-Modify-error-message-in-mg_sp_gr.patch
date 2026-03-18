@@ -1,0 +1,88 @@
+From 1a1b3aaf839c636adf84482e5e1b71b2472dedfa Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 20 Feb 2023 01:45:10 +0000
+Subject: [PATCH 051/500] [Huawei] mm/sharepool: Modify error message in
+ mg_sp_group_del_task
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6G76L
+
+----------------------------------------------
+
+1. Give more informaton in the error log.
+2. No need to limit thre rate.
+3. Add a '\n' at the end of the format string.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index aab36579727c..ce4837da8a9a 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1599,20 +1599,21 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 		return -EOPNOTSUPP;
+ 
+ 	if (spg_id < SPG_ID_MIN || spg_id > SPG_ID_AUTO) {
+-		pr_err_ratelimited("del from group failed, invalid group id %d\n", spg_id);
++		pr_err("del from group failed, invalid group id %d\n", spg_id);
+ 		return -EINVAL;
+ 	}
+ 
+ 	spg = sp_group_get(tgid, spg_id);
+ 	if (!spg) {
+-		pr_err_ratelimited("spg not found or get task failed.");
++		pr_err("spg not found or get task failed, tgid:%d, spg_id:%d\n",
++			tgid, spg_id);
+ 		return -EINVAL;
+ 	}
+ 	down_write(&sp_group_sem);
+ 
+ 	if (!spg_valid(spg)) {
+ 		up_write(&sp_group_sem);
+-		pr_err_ratelimited("spg dead.");
++		pr_err("spg dead, spg_id:%d\n", spg_id);
+ 		ret = -EINVAL;
+ 		goto out;
+ 	}
+@@ -1620,13 +1621,13 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	ret = get_task(tgid, &tsk);
+ 	if (ret) {
+ 		up_write(&sp_group_sem);
+-		pr_err_ratelimited("task is not found");
++		pr_err("task is not found, tgid:%d\n", tgid);
+ 		goto out;
+ 	}
+ 	mm = get_task_mm(tsk->group_leader);
+ 	if (!mm) {
+ 		up_write(&sp_group_sem);
+-		pr_err_ratelimited("mm is not found");
++		pr_err("mm is not found, tgid:%d\n", tgid);
+ 		ret = -ESRCH;
+ 		goto out_put_task;
+ 	}
+@@ -1649,7 +1650,7 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	spg_node = find_spg_node_by_spg(mm, spg);
+ 	if (!spg_node) {
+ 		up_write(&sp_group_sem);
+-		pr_err_ratelimited("process not in group");
++		pr_err("task(%d) not in group(%d)\n", tgid, spg_id);
+ 		ret = -ESRCH;
+ 		goto out_put_mm;
+ 	}
+@@ -1659,7 +1660,7 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 	if (!list_empty(&spg->spa_list)) {
+ 		up_write(&spg->rw_lock);
+ 		up_write(&sp_group_sem);
+-		pr_err_ratelimited("spa is not empty");
++		pr_err("spa is not empty, task:%d, spg_id:%d\n", tgid, spg_id);
+ 		ret = -EINVAL;
+ 		goto out_put_mm;
+ 	}
+-- 
+2.17.1
+

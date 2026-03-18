@@ -1,0 +1,59 @@
+From 1517bddee8939543b878ac1057657628313d25ff Mon Sep 17 00:00:00 2001
+From: Lecopzer Chen <lecopzer.chen@mediatek.com>
+Date: Sat, 21 May 2022 12:19:11 +0800
+Subject: [PATCH 2235/2592] [Backport] arm64: kasan: abstract _text and _end to
+ KERNEL_START/END
+
+mainline inclusion
+from mainline-5.13-rc1
+commit 7d7b88ff5f8fd79a72baacc521407a3101f0ffae
+category: feature
+bugzilla: 186892
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7d7b88ff5f8fd79a72baacc521407a3101f0ffae
+
+--------------------------------
+
+Arm64 provides defined macro for KERNEL_START and KERNEL_END,
+thus replace them by the abstration instead of using _text and _end.
+
+Signed-off-by: Lecopzer Chen <lecopzer.chen@mediatek.com>
+Acked-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Ard Biesheuvel <ardb@kernel.org>
+Link: https://lore.kernel.org/r/20210324040522.15548-3-lecopzer.chen@mediatek.com
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+(cherry picked from commit 7d7b88ff5f8fd79a72baacc521407a3101f0ffae)
+Signed-off-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Signed-off-by: Peng Liu <liupeng256@huawei.com>
+---
+ arch/arm64/mm/kasan_init.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/mm/kasan_init.c b/arch/arm64/mm/kasan_init.c
+index e7267bff73e3..02051d4074c4 100644
+--- a/arch/arm64/mm/kasan_init.c
++++ b/arch/arm64/mm/kasan_init.c
+@@ -216,8 +216,8 @@ void __init kasan_init(void)
+ 	phys_addr_t pa_start, pa_end;
+ 	u64 i;
+ 
+-	kimg_shadow_start = (u64)kasan_mem_to_shadow(_text) & PAGE_MASK;
+-	kimg_shadow_end = PAGE_ALIGN((u64)kasan_mem_to_shadow(_end));
++	kimg_shadow_start = (u64)kasan_mem_to_shadow(KERNEL_START) & PAGE_MASK;
++	kimg_shadow_end = PAGE_ALIGN((u64)kasan_mem_to_shadow(KERNEL_END));
+ 
+ 	mod_shadow_start = (u64)kasan_mem_to_shadow((void *)MODULES_VADDR);
+ 	mod_shadow_end = (u64)kasan_mem_to_shadow((void *)MODULES_END);
+@@ -238,7 +238,7 @@ void __init kasan_init(void)
+ 	clear_pgds(KASAN_SHADOW_START, KASAN_SHADOW_END);
+ 
+ 	kasan_map_populate(kimg_shadow_start, kimg_shadow_end,
+-			   early_pfn_to_nid(virt_to_pfn(lm_alias(_text))));
++			   early_pfn_to_nid(virt_to_pfn(lm_alias(KERNEL_START))));
+ 
+ 	kasan_populate_early_shadow(kasan_mem_to_shadow((void *)PAGE_END),
+ 				   (void *)mod_shadow_start);
+-- 
+2.17.1
+

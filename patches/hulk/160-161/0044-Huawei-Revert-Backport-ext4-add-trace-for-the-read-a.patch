@@ -1,0 +1,52 @@
+From dcb1c9a58a0f5537825419e0fdb0fcb5083c865a Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Wed, 16 Nov 2022 10:55:06 +0800
+Subject: [PATCH 0044/1398] [Huawei] Revert "[Backport] ext4: add trace for the
+ read and release of regular file"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187975
+
+--------------------------------
+
+This reverts commit 2efe34c54a94c5fe592d23dffffc8056faae3998.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/file.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/fs/ext4/file.c b/fs/ext4/file.c
+index 6f78f7fbf419..3b09ddbe8970 100644
+--- a/fs/ext4/file.c
++++ b/fs/ext4/file.c
+@@ -30,7 +30,6 @@
+ #include <linux/uio.h>
+ #include <linux/mman.h>
+ #include <linux/backing-dev.h>
+-#include <trace/events/fs.h>
+ #include "ext4.h"
+ #include "ext4_jbd2.h"
+ #include "xattr.h"
+@@ -129,7 +128,6 @@ static ssize_t ext4_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
+ 	if (iocb->ki_flags & IOCB_DIRECT)
+ 		return ext4_dio_read_iter(iocb, to);
+ 
+-	fs_file_read_do_trace(iocb);
+ 	return generic_file_read_iter(iocb, to);
+ }
+ 
+@@ -140,8 +138,6 @@ static ssize_t ext4_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
+  */
+ static int ext4_release_file(struct inode *inode, struct file *filp)
+ {
+-	trace_fs_file_release(inode, filp);
+-
+ 	if (ext4_test_inode_state(inode, EXT4_STATE_DA_ALLOC_CLOSE)) {
+ 		ext4_alloc_da_blocks(inode);
+ 		ext4_clear_inode_state(inode, EXT4_STATE_DA_ALLOC_CLOSE);
+-- 
+2.17.1
+

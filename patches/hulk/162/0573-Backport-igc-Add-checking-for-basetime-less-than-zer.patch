@@ -1,0 +1,49 @@
+From 4d0c01b96eeec5ad0ae873cfee39e5cea6ea2bcc Mon Sep 17 00:00:00 2001
+From: Muhammad Husaini Zulkifli <muhammad.husaini.zulkifli@intel.com>
+Date: Fri, 9 Dec 2022 12:15:19 +0800
+Subject: [PATCH 573/905] [Backport] igc: Add checking for basetime less than
+ zero
+
+stable inclusion
+from stable-v5.10.163
+commit 3f2a944c23e869017216355d01ea8940ac7dd4a2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3f2a944c23e869017216355d01ea8940ac7dd4a2
+
+--------------------------------
+
+[ Upstream commit 3b61764fb49a6e147ac90d71dccdddc9d5508ba1 ]
+
+Using the tc qdisc command, the user can set basetime to any value.
+Checking should be done on the driver's side to prevent registering
+basetime values that are less than zero.
+
+Fixes: ec50a9d437f0 ("igc: Add support for taprio offloading")
+Signed-off-by: Muhammad Husaini Zulkifli <muhammad.husaini.zulkifli@intel.com>
+Tested-by: Naama Meir <naamax.meir@linux.intel.com>
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/intel/igc/igc_main.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/ethernet/intel/igc/igc_main.c b/drivers/net/ethernet/intel/igc/igc_main.c
+index 70fc93869f1b..6a18a343136c 100644
+--- a/drivers/net/ethernet/intel/igc/igc_main.c
++++ b/drivers/net/ethernet/intel/igc/igc_main.c
+@@ -4907,6 +4907,9 @@ static int igc_save_qbv_schedule(struct igc_adapter *adapter,
+ 		return 0;
+ 	}
+ 
++	if (qopt->base_time < 0)
++		return -ERANGE;
++
+ 	if (adapter->base_time)
+ 		return -EALREADY;
+ 
+-- 
+2.17.1
+

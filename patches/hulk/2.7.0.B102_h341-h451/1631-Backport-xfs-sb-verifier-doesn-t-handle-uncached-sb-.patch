@@ -1,0 +1,73 @@
+From 6a3f0b4ed77630d88425af4b4475913cbc53772a Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Wed, 18 Aug 2021 18:46:24 -0700
+Subject: [PATCH 1631/1646] [Backport] xfs: sb verifier doesn't handle uncached
+ sb buffer
+
+mainline inclusion
+from mainline-v5.14-rc4
+commit 8cf07f3dd56195316be97758cb8b4e1d7183ea84
+category: bugfix
+bugzilla: 187526
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8cf07f3dd56195316be97758cb8b4e1d7183ea84
+
+--------------------------------
+
+The verifier checks explicitly for bp->b_bn == XFS_SB_DADDR to match
+the primary superblock buffer, but the primary superblock is an
+uncached buffer and so bp->b_bn is always -1ULL. Hence this never
+matches and the CRC error reporting is wholly dependent on the
+mount superblock already being populated so CRC feature checks pass
+and allow CRC errors to be reported.
+
+Fix this so that the primary superblock CRC error reporting is not
+dependent on already having read the superblock into memory.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Guo Xuenan <guoxuenan@huawei.com>
+
+Conflicts:
+	fs/xfs/libxfs/xfs_sb.c
+---
+ fs/xfs/libxfs/xfs_sb.c | 2 +-
+ fs/xfs/xfs_buf.h       | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_sb.c b/fs/xfs/libxfs/xfs_sb.c
+index 8a8e5050352d..d7ac96b137bd 100644
+--- a/fs/xfs/libxfs/xfs_sb.c
++++ b/fs/xfs/libxfs/xfs_sb.c
+@@ -809,7 +809,7 @@ xfs_sb_read_verify(
+ 
+ 		if (!xfs_buf_verify_cksum(bp, XFS_SB_CRC_OFF)) {
+ 			/* Only fail bad secondaries on a known V5 filesystem */
+-			if (bp->b_bn == XFS_SB_DADDR ||
++			if (bp->b_maps[0].bm_bn == XFS_SB_DADDR ||
+ 			    xfs_has_crc(mp)) {
+ 				error = -EFSBADCRC;
+ 				goto out_error;
+diff --git a/fs/xfs/xfs_buf.h b/fs/xfs/xfs_buf.h
+index 200793275c36..23620d8312ee 100644
+--- a/fs/xfs/xfs_buf.h
++++ b/fs/xfs/xfs_buf.h
+@@ -133,7 +133,12 @@ typedef struct xfs_buf {
+ 	 * fast-path on locking.
+ 	 */
+ 	struct rhash_head	b_rhash_head;	/* pag buffer hash node */
+-	xfs_daddr_t		b_bn;		/* block number of buffer */
++
++	/*
++	 * b_bn is the cache index. Do not use directly, use b_maps[0].bm_bn
++	 * for the buffer disk address instead.
++	 */
++	xfs_daddr_t		b_bn;
+ 	int			b_length;	/* size of buffer in BBs */
+ 	atomic_t		b_hold;		/* reference count */
+ 	atomic_t		b_lru_ref;	/* lru reclaim ref count */
+-- 
+2.17.1
+

@@ -1,0 +1,49 @@
+From 856a48bd1a1accfe2455efadf2f6b611bf2c8976 Mon Sep 17 00:00:00 2001
+From: John Sperbeck <jsperbeck@google.com>
+Date: Mon, 1 Aug 2022 19:22:29 +0000
+Subject: [PATCH 321/595] [Backport] iommu/amd: use full 64-bit value in
+ build_completion_wait()
+
+stable inclusion
+from stable-v5.10.143
+commit 5e17967c7ea2c6b167d370a759b16cab54583ac1
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZG5T
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=5e17967c7ea2c6b167d370a759b16cab54583ac1
+
+--------------------------------
+
+[ Upstream commit 94a568ce32038d8ff9257004bb4632e60eb43a49 ]
+
+We started using a 64 bit completion value.  Unfortunately, we only
+stored the low 32-bits, so a very large completion value would never
+be matched in iommu_completion_wait().
+
+Fixes: c69d89aff393 ("iommu/amd: Use 4K page for completion wait write-back semaphore")
+Signed-off-by: John Sperbeck <jsperbeck@google.com>
+Link: https://lore.kernel.org/r/20220801192229.3358786-1-jsperbeck@google.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/iommu/amd/iommu.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/amd/iommu.c b/drivers/iommu/amd/iommu.c
+index 200cf5da5e0a..f216a86d9c81 100644
+--- a/drivers/iommu/amd/iommu.c
++++ b/drivers/iommu/amd/iommu.c
+@@ -923,7 +923,8 @@ static void build_completion_wait(struct iommu_cmd *cmd,
+ 	memset(cmd, 0, sizeof(*cmd));
+ 	cmd->data[0] = lower_32_bits(paddr) | CMD_COMPL_WAIT_STORE_MASK;
+ 	cmd->data[1] = upper_32_bits(paddr);
+-	cmd->data[2] = data;
++	cmd->data[2] = lower_32_bits(data);
++	cmd->data[3] = upper_32_bits(data);
+ 	CMD_SET_TYPE(cmd, CMD_COMPL_WAIT);
+ }
+ 
+-- 
+2.17.1
+

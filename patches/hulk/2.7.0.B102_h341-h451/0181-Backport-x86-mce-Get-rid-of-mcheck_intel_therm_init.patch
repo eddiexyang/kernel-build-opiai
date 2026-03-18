@@ -1,0 +1,98 @@
+From 73c21851b67cf2302db15b86ecb7b657055280da Mon Sep 17 00:00:00 2001
+From: Borislav Petkov <bp@suse.de>
+Date: Thu, 7 Jan 2021 13:23:34 +0100
+Subject: [PATCH 0181/1646] [Backport] x86/mce: Get rid of
+ mcheck_intel_therm_init()
+
+mainline inclusion
+from mainline-v5.12-rc1-dontuse
+commit 4f432e8bb15b352da72525144da025a46695968f
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5DSOL
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4f432e8bb15b352da72525144da025a46695968f
+
+--------------------------------
+
+Move the APIC_LVTTHMR read which needs to happen on the BSP, to
+intel_init_thermal(). One less boot dependency.
+
+No functional changes.
+
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Tested-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Link: https://lkml.kernel.org/r/20210201142704.12495-2-bp@alien8.de
+Signed-off-by: yingbao jia <yingbao.jia@intel.com>
+Signed-off-by: Jun Tian <jun.j.tian@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/mce.h            |  6 ------
+ arch/x86/kernel/cpu/mce/core.c        |  1 -
+ arch/x86/kernel/cpu/mce/therm_throt.c | 15 ++++-----------
+ 3 files changed, 4 insertions(+), 18 deletions(-)
+
+diff --git a/arch/x86/include/asm/mce.h b/arch/x86/include/asm/mce.h
+index 9b5ff423e939..4feed45f0438 100644
+--- a/arch/x86/include/asm/mce.h
++++ b/arch/x86/include/asm/mce.h
+@@ -299,12 +299,6 @@ extern int (*platform_thermal_package_notify)(__u64 msr_val);
+  * callback has rate control */
+ extern bool (*platform_thermal_package_rate_control)(void);
+ 
+-#ifdef CONFIG_X86_THERMAL_VECTOR
+-extern void mcheck_intel_therm_init(void);
+-#else
+-static inline void mcheck_intel_therm_init(void) { }
+-#endif
+-
+ /*
+  * Used by APEI to report memory error via /dev/mcelog
+  */
+diff --git a/arch/x86/kernel/cpu/mce/core.c b/arch/x86/kernel/cpu/mce/core.c
+index 79eee88272b6..d2994e840bc6 100644
+--- a/arch/x86/kernel/cpu/mce/core.c
++++ b/arch/x86/kernel/cpu/mce/core.c
+@@ -2207,7 +2207,6 @@ __setup("mce", mcheck_enable);
+ 
+ int __init mcheck_init(void)
+ {
+-	mcheck_intel_therm_init();
+ 	mce_register_decode_chain(&early_nb);
+ 	mce_register_decode_chain(&mce_uc_nb);
+ 	mce_register_decode_chain(&mce_default_nb);
+diff --git a/arch/x86/kernel/cpu/mce/therm_throt.c b/arch/x86/kernel/cpu/mce/therm_throt.c
+index a7cd2d203ced..5b15d7cef1d1 100644
+--- a/arch/x86/kernel/cpu/mce/therm_throt.c
++++ b/arch/x86/kernel/cpu/mce/therm_throt.c
+@@ -633,17 +633,6 @@ static int intel_thermal_supported(struct cpuinfo_x86 *c)
+ 	return 1;
+ }
+ 
+-void __init mcheck_intel_therm_init(void)
+-{
+-	/*
+-	 * This function is only called on boot CPU. Save the init thermal
+-	 * LVT value on BSP and use that value to restore APs' thermal LVT
+-	 * entry BIOS programmed later
+-	 */
+-	if (intel_thermal_supported(&boot_cpu_data))
+-		lvtthmr_init = apic_read(APIC_LVTTHMR);
+-}
+-
+ void intel_init_thermal(struct cpuinfo_x86 *c)
+ {
+ 	unsigned int cpu = smp_processor_id();
+@@ -653,6 +642,10 @@ void intel_init_thermal(struct cpuinfo_x86 *c)
+ 	if (!intel_thermal_supported(c))
+ 		return;
+ 
++	/* On the BSP? */
++	if (c == &boot_cpu_data)
++		lvtthmr_init = apic_read(APIC_LVTTHMR);
++
+ 	/*
+ 	 * First check if its enabled already, in which case there might
+ 	 * be some SMM goo which handles it, so we can't even put a handler
+-- 
+2.17.1
+

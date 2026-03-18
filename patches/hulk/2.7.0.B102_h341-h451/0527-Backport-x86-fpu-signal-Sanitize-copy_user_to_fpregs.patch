@@ -1,0 +1,103 @@
+From 5f8cb261c981c368e63a3bad0a21f16fcbcd17e6 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 23 Jun 2021 14:02:28 +0200
+Subject: [PATCH 0527/1646] [Backport] x86/fpu/signal: Sanitize
+ copy_user_to_fpregs_zeroing()
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit cdcec1b77001e7f2cd10dccfc6d9b6d5d3f1f3ea
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=cdcec1b77001e7f2cd10dccfc6d9b6d5d3f1f3ea
+
+--------------------------------
+
+Now that user_xfeatures is correctly set when xsave is enabled, remove
+the duplicated initialization of components.
+
+Rename the function while at it.
+
+Intel-SIG: commit cdcec1b77001 x86/fpu/signal: Sanitize
+copy_user_to_fpregs_zeroing().
+Intel Advanced Matrix Extensions(AMX) is one of the key features on Sapphire
+Rapids(SPR) and it depends on xsave, this patch is part of Thomas Gleixner's
+x86 FPU code cleanup that upstream AMX implementation is building on, and is
+also key to all code for being developed in upstream that depends on xsave.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Reviewed-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210623121457.377341297@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kernel/fpu/signal.c | 36 +++++++++++++++---------------------
+ 1 file changed, 15 insertions(+), 21 deletions(-)
+
+diff --git a/arch/x86/kernel/fpu/signal.c b/arch/x86/kernel/fpu/signal.c
+index d55241038871..a1a70134e1fe 100644
+--- a/arch/x86/kernel/fpu/signal.c
++++ b/arch/x86/kernel/fpu/signal.c
+@@ -251,33 +251,27 @@ sanitize_restored_user_xstate(union fpregs_state *state,
+ }
+ 
+ /*
+- * Restore the extended state if present. Otherwise, restore the FP/SSE state.
++ * Restore the FPU state directly from the userspace signal frame.
+  */
+-static int copy_user_to_fpregs_zeroing(void __user *buf, u64 xbv, int fx_only)
++static int restore_fpregs_from_user(void __user *buf, u64 xrestore, bool fx_only)
+ {
+-	u64 init_bv;
+-	int r;
+-
+ 	if (use_xsave()) {
+-		if (fx_only) {
+-			init_bv = xfeatures_mask_uabi() & ~XFEATURE_MASK_FPSSE;
++		u64 init_bv = xfeatures_mask_uabi() & ~xrestore;
++		int ret;
+ 
+-			r = fxrstor_from_user_sigframe(buf);
+-			if (!r)
+-				os_xrstor(&init_fpstate.xsave, init_bv);
+-			return r;
+-		} else {
+-			init_bv = xfeatures_mask_uabi() & ~xbv;
+-
+-			r = xrstor_from_user_sigframe(buf, xbv);
+-			if (!r && unlikely(init_bv))
+-				os_xrstor(&init_fpstate.xsave, init_bv);
+-			return r;
+-		}
++		if (likely(!fx_only))
++			ret = xrstor_from_user_sigframe(buf, xrestore);
++		else
++			ret = fxrstor_from_user_sigframe(buf);
++
++		if (!ret && unlikely(init_bv))
++			os_xrstor(&init_fpstate.xsave, init_bv);
++		return ret;
+ 	} else if (use_fxsr()) {
+ 		return fxrstor_from_user_sigframe(buf);
+-	} else
++	} else {
+ 		return frstor_from_user_sigframe(buf);
++	}
+ }
+ 
+ static int __fpu_restore_sig(void __user *buf, void __user *buf_fx,
+@@ -314,7 +308,7 @@ static int __fpu_restore_sig(void __user *buf, void __user *buf_fx,
+ 		 */
+ 		fpregs_lock();
+ 		pagefault_disable();
+-		ret = copy_user_to_fpregs_zeroing(buf_fx, user_xfeatures, fx_only);
++		ret = restore_fpregs_from_user(buf_fx, user_xfeatures, fx_only);
+ 		pagefault_enable();
+ 		if (!ret) {
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,73 @@
+From 1dc6e9704cc05c5c29e6b79a1f3aa5244b65c1c2 Mon Sep 17 00:00:00 2001
+From: Xu Jia <xujia39@huawei.com>
+Date: Wed, 22 Dec 2021 17:06:59 +0800
+Subject: [PATCH 3661/4585] [Backport] xfrm: Add support for SM4 symmetric
+ cipher algorithm
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 23b6a6df94c6ce434e7947cfad14b1640fb9f794
+category: feature
+bugzilla: https://codehub-y.huawei.com/hulk/hulk/issues/1090
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=23b6a6df94c6ce434e7947cfad14b1640fb9f794
+
+--------------------------------
+
+This patch adds SM4 encryption algorithm entry to ealg_list.
+
+Signed-off-by: Xu Jia <xujia39@huawei.com>
+Signed-off-by: Steffen Klassert <steffen.klassert@secunet.com>
+Signed-off-by: Zhengchao Shao <shaozhengchao@huawei.com>
+---
+ include/uapi/linux/pfkeyv2.h |  1 +
+ net/xfrm/xfrm_algo.c         | 21 +++++++++++++++++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/include/uapi/linux/pfkeyv2.h b/include/uapi/linux/pfkeyv2.h
+index 798ba9ffd48c..8abae1f6749c 100644
+--- a/include/uapi/linux/pfkeyv2.h
++++ b/include/uapi/linux/pfkeyv2.h
+@@ -330,6 +330,7 @@ struct sadb_x_filter {
+ #define SADB_X_EALG_AES_GCM_ICV16	20
+ #define SADB_X_EALG_CAMELLIACBC		22
+ #define SADB_X_EALG_NULL_AES_GMAC	23
++#define SADB_X_EALG_SM4CBC		24
+ #define SADB_EALG_MAX                   253 /* last EALG */
+ /* private allocations should use 249-255 (RFC2407) */
+ #define SADB_X_EALG_SERPENTCBC  252     /* draft-ietf-ipsec-ciph-aes-cbc-00 */
+diff --git a/net/xfrm/xfrm_algo.c b/net/xfrm/xfrm_algo.c
+index 00b5444a4d86..094734fbec96 100644
+--- a/net/xfrm/xfrm_algo.c
++++ b/net/xfrm/xfrm_algo.c
+@@ -572,6 +572,27 @@ static struct xfrm_algo_desc ealg_list[] = {
+ 		.sadb_alg_maxbits = 288
+ 	}
+ },
++{
++	.name = "cbc(sm4)",
++	.compat = "sm4",
++
++	.uinfo = {
++		.encr = {
++			.geniv = "echainiv",
++			.blockbits = 128,
++			.defkeybits = 128,
++		}
++	},
++
++	.pfkey_supported = 1,
++
++	.desc = {
++		.sadb_alg_id = SADB_X_EALG_SM4CBC,
++		.sadb_alg_ivlen	= 16,
++		.sadb_alg_minbits = 128,
++		.sadb_alg_maxbits = 256
++	}
++},
+ };
+ 
+ static struct xfrm_algo_desc calg_list[] = {
+-- 
+2.17.1
+

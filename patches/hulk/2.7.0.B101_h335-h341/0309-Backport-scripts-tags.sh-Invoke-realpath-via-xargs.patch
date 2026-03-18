@@ -1,0 +1,70 @@
+From 82c9a3395d1905819f59febf8ac0d4b2a28b60e6 Mon Sep 17 00:00:00 2001
+From: Cristian Ciocaltea <cristian.ciocaltea@collabora.com>
+Date: Tue, 17 May 2022 02:46:46 +0300
+Subject: [PATCH 309/921] [Backport] scripts/tags.sh: Invoke 'realpath' via
+ 'xargs'
+
+stable inclusion
+from stable-v5.10.171
+commit 65c07e15f2ce7f9e2cf68ea02bd2631cca53594e
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=65c07e15f2ce7f9e2cf68ea02bd2631cca53594e
+
+--------------------------------
+
+commit 7394d2ebb651a9f62e08c6ab864aac015d27c64d upstream.
+
+When COMPILED_SOURCE is set, running
+
+  make ARCH=x86_64 COMPILED_SOURCE=1 cscope tags
+
+could throw the following errors:
+
+scripts/tags.sh: line 98: /usr/bin/realpath: Argument list too long
+cscope: no source files found
+scripts/tags.sh: line 98: /usr/bin/realpath: Argument list too long
+ctags: No files specified. Try "ctags --help".
+
+This is most likely to happen when the kernel is configured to build a
+large number of modules, which has the consequence of passing too many
+arguments when calling 'realpath' in 'all_compiled_sources()'.
+
+Let's improve this by invoking 'realpath' through 'xargs', which takes
+care of properly limiting the argument list.
+
+Signed-off-by: Cristian Ciocaltea <cristian.ciocaltea@collabora.com>
+Link: https://lore.kernel.org/r/20220516234646.531208-1-cristian.ciocaltea@collabora.com
+Cc: Carlos Llamas <cmllamas@google.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ scripts/tags.sh | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/tags.sh b/scripts/tags.sh
+index fd96734deff1..c15f3b4ea2a4 100755
+--- a/scripts/tags.sh
++++ b/scripts/tags.sh
+@@ -95,10 +95,13 @@ all_sources()
+ 
+ all_compiled_sources()
+ {
+-	realpath -es $([ -z "$KBUILD_ABS_SRCTREE" ] && echo --relative-to=.) \
+-		include/generated/autoconf.h $(find $ignore -name "*.cmd" -exec \
+-		grep -Poh '(?(?=^source_.* \K).*|(?=^  \K\S).*(?= \\))' {} \+ |
+-		awk '!a[$0]++') | sort -u
++	{
++		echo include/generated/autoconf.h
++		find $ignore -name "*.cmd" -exec \
++			grep -Poh '(?(?=^source_.* \K).*|(?=^  \K\S).*(?= \\))' {} \+ |
++		awk '!a[$0]++'
++	} | xargs realpath -es $([ -z "$KBUILD_ABS_SRCTREE" ] && echo --relative-to=.) |
++	sort -u
+ }
+ 
+ all_target_sources()
+-- 
+2.17.1
+

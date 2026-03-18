@@ -1,0 +1,45 @@
+From 38d382f3f785271bf018300159f4ba490cdd9bf4 Mon Sep 17 00:00:00 2001
+From: Zhouyi Zhou <zhouzhouyi@gmail.com>
+Date: Sat, 10 Apr 2021 15:35:23 +0800
+Subject: [PATCH 4431/4585] [Backport] preempt/dynamic: Fix typo in macro
+ conditional statement
+
+mainline inclusion
+from mainline-v5.12
+commit 0c89d87d1d43d9fa268d1dc489518564d58bf497
+category: bugfix
+bugzilla: 187460
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0c89d87d1d43d9fa268d1dc489518564d58bf497
+
+-------------------------------------------------
+
+Commit 40607ee97e4e ("preempt/dynamic: Provide irqentry_exit_cond_resched()
+static call") tried to provide irqentry_exit_cond_resched() static call
+in irqentry_exit, but has a typo in macro conditional statement.
+
+Fixes: 40607ee97e4e ("preempt/dynamic: Provide irqentry_exit_cond_resched() static call")
+Signed-off-by: Zhouyi Zhou <zhouzhouyi@gmail.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20210410073523.5493-1-zhouzhouyi@gmail.com
+Signed-off-by: Wang ShaoBo <bobo.shaobowang@huawei.com>
+---
+ kernel/entry/common.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/entry/common.c b/kernel/entry/common.c
+index cea3957ebdbc..2228de39bb4f 100644
+--- a/kernel/entry/common.c
++++ b/kernel/entry/common.c
+@@ -394,7 +394,7 @@ noinstr void irqentry_exit(struct pt_regs *regs, irqentry_state_t state)
+ 
+ 		instrumentation_begin();
+ 		if (IS_ENABLED(CONFIG_PREEMPTION)) {
+-#ifdef CONFIG_PREEMT_DYNAMIC
++#ifdef CONFIG_PREEMPT_DYNAMIC
+ 			static_call(irqentry_exit_cond_resched)();
+ #else
+ 			irqentry_exit_cond_resched();
+-- 
+2.17.1
+

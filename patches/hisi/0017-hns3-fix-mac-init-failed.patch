@@ -1,0 +1,26 @@
+From 0bca50c4c38d0a6f831582170fb9652dcd97d2c0 Mon Sep 17 00:00:00 2001
+Date: Tue, 26 Sep 2023 17:07:25 +0800
+Subject: [PATCH] Description: fix mac init failed
+
+Team:OTHERS
+Feature or Bugfix:Feature
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 5015045..583c151 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -7950,7 +7950,7 @@ static int hclge_cfg_common_loopback_cmd_send(struct hclge_dev *hdev, bool en,
+ static int hclge_cfg_common_loopback_wait(struct hclge_dev *hdev)
+ {
+ #define HCLGE_COMMON_LB_RETRY_MS	10
+-#define HCLGE_COMMON_LB_RETRY_NUM	100
++#define HCLGE_COMMON_LB_RETRY_NUM	1000
+ 
+ 	struct hclge_common_lb_cmd *req;
+ 	struct hclge_desc desc;
+-- 
+2.27.0
+

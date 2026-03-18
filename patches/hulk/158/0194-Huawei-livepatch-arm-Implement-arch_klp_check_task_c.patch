@@ -1,0 +1,110 @@
+From ff276bb3bcb5c06a149e91a91a11f03645245292 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Sat, 13 Aug 2022 15:11:16 +0000
+Subject: [PATCH 0194/1076] [Huawei] livepatch/arm: Implement
+ arch_klp_check_task_calltrace()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187517
+
+--------------------------------
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/arm/kernel/livepatch.c | 67 ++++++++++++++++++++++++++-----------
+ 1 file changed, 48 insertions(+), 19 deletions(-)
+
+diff --git a/arch/arm/kernel/livepatch.c b/arch/arm/kernel/livepatch.c
+index 78fbac5ecaa9..683cb43e435f 100644
+--- a/arch/arm/kernel/livepatch.c
++++ b/arch/arm/kernel/livepatch.c
+@@ -196,36 +196,65 @@ static int klp_check_jump_func(struct stackframe *frame, void *ws_args)
+ 	return !args->check_func(args->data, &args->ret, frame->pc);
+ }
+ 
++static int check_task_calltrace(struct task_struct *t,
++				struct walk_stackframe_args *args,
++				int (*fn)(struct stackframe *, void *))
++{
++	struct stackframe frame;
++
++	if (t == current) {
++		frame.fp = (unsigned long)__builtin_frame_address(0);
++		frame.sp = current_stack_pointer;
++		frame.lr = (unsigned long)__builtin_return_address(0);
++		frame.pc = (unsigned long)check_task_calltrace;
++	} else {
++		frame.fp = thread_saved_fp(t);
++		frame.sp = thread_saved_sp(t);
++		frame.lr = 0;           /* recovered from the stack */
++		frame.pc = thread_saved_pc(t);
++	}
++	walk_stackframe(&frame, fn, args);
++	if (args->ret) {
++		pr_info("PID: %d Comm: %.20s\n", t->pid, t->comm);
++		show_stack(t, NULL, KERN_INFO);
++		return args->ret;
++	}
++	return 0;
++}
++
+ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			      int (*fn)(struct stackframe *, void *))
+ {
++	int ret;
+ 	struct task_struct *g, *t;
+-	struct stackframe frame;
+ 
+ 	for_each_process_thread(g, t) {
+-		if (t == current) {
+-			frame.fp = (unsigned long)__builtin_frame_address(0);
+-			frame.sp = current_stack_pointer;
+-			frame.lr = (unsigned long)__builtin_return_address(0);
+-			frame.pc = (unsigned long)do_check_calltrace;
+-		} else if (klp_is_migration_thread(t->comm)) {
++		if (klp_is_migration_thread(t->comm))
+ 			continue;
+-		} else {
+-			frame.fp = thread_saved_fp(t);
+-			frame.sp = thread_saved_sp(t);
+-			frame.lr = 0;           /* recovered from the stack */
+-			frame.pc = thread_saved_pc(t);
+-		}
+-		walk_stackframe(&frame, fn, args);
+-		if (args->ret) {
+-			pr_info("PID: %d Comm: %.20s\n", t->pid, t->comm);
+-			show_stack(t, NULL, KERN_INFO);
+-			return args->ret;
+-		}
++		ret = check_task_calltrace(t, args, fn);
++		if (ret)
++			return ret;
+ 	}
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE
++int arch_klp_check_task_calltrace(struct task_struct *t,
++				  bool (*check_func)(void *, int *, unsigned long),
++				  void *data)
++{
++	struct walk_stackframe_args args = {
++		.data = data,
++		.ret = 0,
++		.check_func = check_func,
++	};
++
++	if (t == NULL)
++		return -EINVAL;
++	return check_task_calltrace(t, &args, klp_check_jump_func);
++}
++#endif
++
+ int arch_klp_check_calltrace(bool (*check_func)(void *, int *, unsigned long), void *data)
+ {
+ 	struct walk_stackframe_args args = {
+-- 
+2.17.1
+

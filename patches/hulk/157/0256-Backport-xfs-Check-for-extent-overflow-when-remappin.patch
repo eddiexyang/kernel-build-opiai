@@ -1,0 +1,66 @@
+From 56dd97895ce6234ae43a0a0adcb249e5983ef0db Mon Sep 17 00:00:00 2001
+From: Chandan Babu R <chandanrlinux@gmail.com>
+Date: Fri, 22 Jan 2021 16:48:14 -0800
+Subject: [PATCH 256/261] [Backport] xfs: Check for extent overflow when
+ remapping an extent
+
+mainline inclusion
+from mainline-v5.12-rc1
+commit ee898d78c3540b44270a5fdffe208d7bbb219d93
+category: bugfix
+bugzilla: 187510
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=ee898d78c3540b44270a5fdffe208d7bbb219d93
+
+--------------------------------
+
+Remapping an extent involves unmapping the existing extent and mapping
+in the new extent. When unmapping, an extent containing the entire unmap
+range can be split into two extents,
+i.e. | Old extent | hole | Old extent |
+Hence extent count increases by 1.
+
+Mapping in the new extent into the destination file can increase the
+extent count by 1.
+
+Reviewed-by: Allison Henderson <allison.henderson@oracle.com>
+Reviewed-by: Darrick J. Wong <darrick.wong@oracle.com>
+Signed-off-by: Chandan Babu R <chandanrlinux@gmail.com>
+Signed-off-by: Darrick J. Wong <darrick.wong@oracle.com>
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ fs/xfs/xfs_reflink.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/fs/xfs/xfs_reflink.c b/fs/xfs/xfs_reflink.c
+index b85b249df989..5fc128bc7939 100644
+--- a/fs/xfs/xfs_reflink.c
++++ b/fs/xfs/xfs_reflink.c
+@@ -997,6 +997,7 @@ xfs_reflink_remap_extent(
+ 	bool			quota_reserved = true;
+ 	bool			smap_real;
+ 	bool			dmap_written = xfs_bmap_is_written_extent(dmap);
++	int			iext_delta = 0;
+ 	int			nimaps;
+ 	int			error;
+ 
+@@ -1107,6 +1108,16 @@ xfs_reflink_remap_extent(
+ 			goto out_cancel;
+ 	}
+ 
++	if (smap_real)
++		++iext_delta;
++
++	if (dmap_written)
++		++iext_delta;
++
++	error = xfs_iext_count_may_overflow(ip, XFS_DATA_FORK, iext_delta);
++	if (error)
++		goto out_cancel;
++
+ 	if (smap_real) {
+ 		/*
+ 		 * If the extent we're unmapping is backed by storage (written
+-- 
+2.17.1
+

@@ -1,0 +1,58 @@
+From 705143eb1fe9ad79e5256dcc13e62ebb8ce12542 Mon Sep 17 00:00:00 2001
+From: Marcus Folkesson <marcus.folkesson@gmail.com>
+Date: Thu, 17 Nov 2022 13:13:26 +0100
+Subject: [PATCH 283/905] [Backport] HID: hid-sensor-custom: set fixed size for
+ custom attributes
+
+stable inclusion
+from stable-v5.10.163
+commit ad2d0a3dc224657002ce65aa8a50ce3e86e7cd9f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ad2d0a3dc224657002ce65aa8a50ce3e86e7cd9f
+
+--------------------------------
+
+[ Upstream commit 9d013910df22de91333a0acc81d1dbb115bd76f6 ]
+
+This is no bugfix (so no Fixes: tag is necessary) as it is
+taken care of in hid_sensor_custom_add_attributes().
+
+The motivation for this patch is that:
+hid_sensor_custom_field.attr_name and
+hid_sensor_custom_field.attrs
+has the size of HID_CUSTOM_TOTAL_ATTRS and used in same context.
+
+We compare against HID_CUSTOM_TOTAL_ATTRS when
+looping through hid_custom_attrs.
+
+We will silent the smatch error:
+hid_sensor_custom_add_attributes() error: buffer overflow
+'hid_custom_attrs' 8 <= 10
+
+Signed-off-by: Marcus Folkesson <marcus.folkesson@gmail.com>
+Acked-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/hid/hid-sensor-custom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hid/hid-sensor-custom.c b/drivers/hid/hid-sensor-custom.c
+index 4d25577a8573..971600a6397a 100644
+--- a/drivers/hid/hid-sensor-custom.c
++++ b/drivers/hid/hid-sensor-custom.c
+@@ -59,7 +59,7 @@ struct hid_sensor_sample {
+ 	u32 raw_len;
+ } __packed;
+ 
+-static struct attribute hid_custom_attrs[] = {
++static struct attribute hid_custom_attrs[HID_CUSTOM_TOTAL_ATTRS] = {
+ 	{.name = "name", .mode = S_IRUGO},
+ 	{.name = "units", .mode = S_IRUGO},
+ 	{.name = "unit-expo", .mode = S_IRUGO},
+-- 
+2.17.1
+

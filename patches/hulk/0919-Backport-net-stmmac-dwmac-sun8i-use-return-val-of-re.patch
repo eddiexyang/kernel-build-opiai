@@ -1,0 +1,51 @@
+From 351224a565766199f7446d521c128d356222d7a0 Mon Sep 17 00:00:00 2001
+From: Jisheng Zhang <jszhang@kernel.org>
+Date: Thu, 27 Jan 2022 00:52:15 +0800
+Subject: [PATCH 0919/2065] [Backport] net: stmmac: dwmac-sun8i: use return val
+ of readl_poll_timeout()
+
+stable inclusion
+from stable-v5.10.101
+commit 87bbd78a2cd1b40a607f55e5135b222e51f27b9c
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5669Z
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=87bbd78a2cd1b40a607f55e5135b222e51f27b9c
+
+--------------------------------
+
+[ Upstream commit 9e0db41e7a0b6f1271cbcfb16dbf5b8641b4e440 ]
+
+When readl_poll_timeout() timeout, we'd better directly use its return
+value.
+
+Before this patch:
+[    2.145528] dwmac-sun8i: probe of 4500000.ethernet failed with error -14
+
+After this patch:
+[    2.138520] dwmac-sun8i: probe of 4500000.ethernet failed with error -110
+
+Signed-off-by: Jisheng Zhang <jszhang@kernel.org>
+Acked-by: Jernej Skrabec <jernej.skrabec@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
+index 9f5ccf1a0a54..cad6588840d8 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
+@@ -734,7 +734,7 @@ static int sun8i_dwmac_reset(struct stmmac_priv *priv)
+ 
+ 	if (err) {
+ 		dev_err(priv->device, "EMAC reset timeout\n");
+-		return -EFAULT;
++		return err;
+ 	}
+ 	return 0;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,59 @@
+From 8bddbb1e42da01e01c9f82f858aea5f59f02de4d Mon Sep 17 00:00:00 2001
+From: Shengjiu Wang <shengjiu.wang@nxp.com>
+Date: Sat, 7 May 2022 20:14:14 +0800
+Subject: [PATCH 057/905] [Backport] ASoC: fsl_micfil: explicitly clear CHnF
+ flags
+
+stable inclusion
+from stable-v5.10.160
+commit 344739dc56f1b3e33e6a3170b89731d450455df6
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=344739dc56f1b3e33e6a3170b89731d450455df6
+
+--------------------------------
+
+[ Upstream commit b776c4a4618ec1b5219d494c423dc142f23c4e8f ]
+
+There may be failure when start 1 channel recording after
+8 channels recording. The reason is that the CHnF
+flags are not cleared successfully by software reset.
+
+This issue is triggerred by the change of clearing
+software reset bit.
+
+CHnF flags are write 1 clear bits. Clear them by force
+write.
+
+Signed-off-by: Shengjiu Wang <shengjiu.wang@nxp.com>
+Link: https://lore.kernel.org/r/1651925654-32060-2-git-send-email-shengjiu.wang@nxp.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/soc/fsl/fsl_micfil.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/sound/soc/fsl/fsl_micfil.c b/sound/soc/fsl/fsl_micfil.c
+index ead4bfa13561..6c794605e33c 100644
+--- a/sound/soc/fsl/fsl_micfil.c
++++ b/sound/soc/fsl/fsl_micfil.c
+@@ -201,6 +201,14 @@ static int fsl_micfil_reset(struct device *dev)
+ 	if (ret)
+ 		return ret;
+ 
++	/*
++	 * Set SRES should clear CHnF flags, But even add delay here
++	 * the CHnF may not be cleared sometimes, so clear CHnF explicitly.
++	 */
++	ret = regmap_write_bits(micfil->regmap, REG_MICFIL_STAT, 0xFF, 0xFF);
++	if (ret)
++		return ret;
++
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

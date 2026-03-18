@@ -1,0 +1,59 @@
+From 4307a073b48118409d7fa3401b71c58f989d1669 Mon Sep 17 00:00:00 2001
+Date: Thu, 27 Jul 2023 11:27:51 +0800
+Subject: [PATCH] [Huawei] hns fix dscp autoset Offering:ascend Reference:NA
+ 
+---
+ .../ethernet/hisilicon/hns3/hns3pf/hclge_tm.c | 30 +++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+ 
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_tm.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_tm.c
+index 344b377..45a26f1 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_tm.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_tm.c
+@@ -251,6 +251,32 @@ static int hclge_up_to_tc_map(struct hclge_dev *hdev)
+ 	return hclge_cmd_send(&hdev->hw, &desc, 1);
+ }
+ 
++static int hclge_qos_to_tc_map_set(struct hclge_dev *hdev)
++{
++	struct hclge_desc desc[DESC_CNT] = {0};
++	u8 *tos = NULL;
++	u8 tos_id;
++	u8 index;
++	u8 i;
++
++	for (i = 0; i < DESC_CNT; i++) {
++		hclge_cmd_setup_basic_desc(&desc[i], HCLGE_OPC_QOS_MAP, false);
++		/* The first descriptor set the NEXT bit to 1 */
++		if (i == 0)
++			desc[i].flag |= cpu_to_le16(HCLGE_CMD_FLAG_NEXT);
++		else
++			desc[i].flag &= ~cpu_to_le16(HCLGE_CMD_FLAG_NEXT);
++
++		tos = (u8 *)(desc[i].data);
++		for (tos_id = 0; tos_id < HNAE3_MAX_USER_TOS / DESC_CNT; tos_id++) {
++			index = (u8)(tos_id + i * HNAE3_MAX_USER_TOS / DESC_CNT);
++			tos[tos_id >> 1U] |= hdev->tm_info.tos_tc[index] << ((tos_id & 1U) * TC_SHIFT);
++		}
++	}
++
++	return hclge_cmd_send(&hdev->hw, desc, (int)DESC_CNT);
++}
++
+ static int hclge_tm_pg_to_pri_map_cfg(struct hclge_dev *hdev,
+ 				      u8 pg_id, u8 pri_bit_map)
+ {
+@@ -1282,6 +1308,10 @@ static int hclge_tm_map_cfg(struct hclge_dev *hdev)
+ 	if (ret)
+ 		return ret;
+ 
++	ret = hclge_qos_to_tc_map_set(hdev);
++	if (ret)
++		return ret;
++
+ 	ret = hclge_tm_pg_to_pri_map(hdev);
+ 	if (ret)
+ 		return ret;
+-- 
+2.27.0
+ 

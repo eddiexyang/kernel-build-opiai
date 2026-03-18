@@ -1,0 +1,5 @@
+if (${PRODUCT_SIDE} STREQUAL host)
+add_subdirectory(ts_platform_host)
+else ()
+add_subdirectory(ts_platform_device)
+endif()

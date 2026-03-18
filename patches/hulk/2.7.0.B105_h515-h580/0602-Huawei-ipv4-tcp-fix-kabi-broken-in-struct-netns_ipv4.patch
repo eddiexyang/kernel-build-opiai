@@ -1,0 +1,38 @@
+From d8e99e23b23222873635ae75d4e5aae771d70979 Mon Sep 17 00:00:00 2001
+From: Liu Jian <liujian56@huawei.com>
+Date: Thu, 6 Jul 2023 11:50:38 +0800
+Subject: [PATCH 602/780] [Huawei] ipv4/tcp: fix kabi broken in struct
+ netns_ipv4
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+--------------------------------
+
+This broken caused by LTS commit a9ef8b258988
+("ipv4/tcp: do not use per netns ctl sockets"). Use KABI_REPLACE
+to fix this broken.
+
+Signed-off-by: Liu Jian <liujian56@huawei.com>
+---
+ include/net/netns/ipv4.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index 048877f9cc21..e841705a47d2 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -72,6 +72,8 @@ struct netns_ipv4 {
+ 	struct sock		*mc_autojoin_sk;
+ 
+ 	struct inet_peer_base	*peers;
++	KABI_REPLACE(struct sock  * __percpu *tcp_sk,
++		     long obsolete_tcp_sk)
+ 	struct fqdir		*fqdir;
+ #ifdef CONFIG_NETFILTER
+ 	struct xt_table		*iptable_filter;
+-- 
+2.17.1
+

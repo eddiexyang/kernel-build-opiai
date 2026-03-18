@@ -1,0 +1,61 @@
+From 73fa1854b5ed44a8989874a4d740f80815e5042f Mon Sep 17 00:00:00 2001
+From: Xu Qiang <xuqiang36@huawei.com>
+Date: Tue, 21 Feb 2023 02:40:18 +0000
+Subject: [PATCH 0098/1646] [Huawei] mm/sharepool: Delete SPG_FLAG_NON_DVPP.
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6GI0X
+
+----------------------------------------------
+
+SPG_FLAG_NON_DVPP is no longer used in downstream systems.
+
+Signed-off-by: Xu Qiang <xuqiang36@huawei.com>
+---
+ include/linux/share_pool.h | 2 --
+ mm/share_pool.c            | 7 +++----
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index bd7bc6d7a702..88a0117a3145 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -50,8 +50,6 @@
+ #define SPG_ID_LOCAL_MIN	200001
+ #define SPG_ID_LOCAL_MAX	299999
+ 
+-#define SPG_FLAG_NON_DVPP	(1 << 0)
+-
+ #define MAX_DEVID 8	/* the max num of Da-vinci devices */
+ 
+ extern struct static_key_false share_pool_enabled_key;
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 602daf128297..852a70abc73e 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -452,7 +452,7 @@ static int sp_mapping_group_setup(struct mm_struct *mm, struct sp_group *spg)
+ 	local_dvpp_mapping = mm->sp_group_master->local->mapping[SP_MAPPING_DVPP];
+ 	spg_dvpp_mapping = spg->mapping[SP_MAPPING_DVPP];
+ 
+-	if (!list_empty(&spg->procs) && !(spg->flag & SPG_FLAG_NON_DVPP)) {
++	if (!list_empty(&spg->procs)) {
+ 		/*
+ 		 * Don't return an error when the mappings' address range conflict.
+ 		 * As long as the mapping is unused, we can drop the empty mapping.
+@@ -476,9 +476,8 @@ static int sp_mapping_group_setup(struct mm_struct *mm, struct sp_group *spg)
+ 			return -EINVAL;
+ 		}
+ 	} else {
+-		if (!(spg->flag & SPG_FLAG_NON_DVPP))
+-			/* the mapping of local group is always set */
+-			sp_mapping_attach(spg, local_dvpp_mapping);
++		/* the mapping of local group is always set */
++		sp_mapping_attach(spg, local_dvpp_mapping);
+ 		if (!spg->mapping[SP_MAPPING_NORMAL])
+ 			sp_mapping_attach(spg, sp_mapping_normal);
+ 		if (!spg->mapping[SP_MAPPING_RO])
+-- 
+2.17.1
+

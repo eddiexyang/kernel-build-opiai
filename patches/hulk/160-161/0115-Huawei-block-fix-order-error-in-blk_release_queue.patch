@@ -1,0 +1,47 @@
+From c3e44f427d4b613232eff541e1f4807fee64f459 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Mon, 5 Dec 2022 12:54:15 +0800
+Subject: [PATCH 0115/1398] [Huawei] block: fix order error in
+ blk_release_queue
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188093
+
+--------------------------------
+
+blk_stat_free_callback() will check stats->callbacks, and wbt's callback
+is freed in wbt_exit(), which is called by rq_qos_exit(). So move it in
+front of blk_stat_free_callback().
+
+Fixes: 015466fc61f4 ("block: fix null-pointer dereference in ioc_pd_init")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ block/blk-sysfs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/block/blk-sysfs.c b/block/blk-sysfs.c
+index 8b11d9196176..6980db916178 100644
+--- a/block/blk-sysfs.c
++++ b/block/blk-sysfs.c
+@@ -784,14 +784,14 @@ static void blk_release_queue(struct kobject *kobj)
+ 
+ 	might_sleep();
+ 
++	rq_qos_exit(q);
++
+ 	if (test_bit(QUEUE_FLAG_POLL_STATS, &q->queue_flags))
+ 		blk_stat_remove_callback(q, q->poll_cb);
+ 	blk_stat_free_callback(q->poll_cb);
+ 
+ 	blk_free_queue_stats(q->stats);
+ 
+-	rq_qos_exit(q);
+-
+ 	blk_exit_queue(q);
+ 
+ 	blk_queue_free_zone_bitmaps(q);
+-- 
+2.17.1
+

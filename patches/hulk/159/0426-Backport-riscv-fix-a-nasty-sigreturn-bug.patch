@@ -1,0 +1,54 @@
+From 8f624d452775731b6454740ae16d8e3fa13ea91e Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 24 Sep 2021 01:55:27 +0000
+Subject: [PATCH 426/595] [Backport] riscv: fix a nasty sigreturn bug...
+
+stable inclusion
+from stable-v5.10.146
+commit 12fda27a412b62cf136dd2600bff11bc814ee86a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZMX7
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=12fda27a412b62cf136dd2600bff11bc814ee86a
+
+--------------------------------
+
+commit 762df359aa5849e010ef04c3ed79d57588ce17d9 upstream.
+
+riscv has an equivalent of arm bug fixed by 653d48b22166 ("arm: fix
+really nasty sigreturn bug"); if signal gets caught by an interrupt that
+hits when we have the right value in a0 (-513), *and* another signal
+gets delivered upon sigreturn() (e.g. included into the blocked mask for
+the first signal and posted while the handler had been running), the
+syscall restart logics will see regs->cause equal to EXC_SYSCALL (we are
+in a syscall, after all) and a0 already restored to its original value
+(-513, which happens to be -ERESTARTNOINTR) and assume that we need to
+apply the usual syscall restart logics.
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Fixes: e2c0cdfba7f6 ("RISC-V: User-facing API")
+Cc: stable@vger.kernel.org
+Link: https://lore.kernel.org/r/YxJEiSq%2FCGaL6Gm9@ZenIV/
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/riscv/kernel/signal.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/riscv/kernel/signal.c b/arch/riscv/kernel/signal.c
+index bc6841867b51..529c123cf0a4 100644
+--- a/arch/riscv/kernel/signal.c
++++ b/arch/riscv/kernel/signal.c
+@@ -121,6 +121,8 @@ SYSCALL_DEFINE0(rt_sigreturn)
+ 	if (restore_altstack(&frame->uc.uc_stack))
+ 		goto badframe;
+ 
++	regs->cause = -1UL;
++
+ 	return regs->a0;
+ 
+ badframe:
+-- 
+2.17.1
+

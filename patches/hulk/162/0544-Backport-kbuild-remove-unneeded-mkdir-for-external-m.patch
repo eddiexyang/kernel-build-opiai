@@ -1,0 +1,46 @@
+From 4632da3f99778e0825f4d393c95b60776c72fa93 Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Wed, 31 Mar 2021 22:38:02 +0900
+Subject: [PATCH 544/905] [Backport] kbuild: remove unneeded mkdir for external
+ modules_install
+
+stable inclusion
+from stable-v5.10.163
+commit e2155129599f96d29005721803ecb35bbf6d1ceb
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e2155129599f96d29005721803ecb35bbf6d1ceb
+
+--------------------------------
+
+[ Upstream commit 4b97ec0e9cfd5995f41b9726c88566a31f4625cc ]
+
+scripts/Makefile.modinst creates directories as needed.
+
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Stable-dep-of: c7b98de745cf ("phy: qcom-qmp-combo: fix runtime suspend")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ Makefile | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 1f17caffec45..9b4196867fc0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1743,10 +1743,8 @@ $(MODORDER): descend
+ PHONY += modules_install
+ modules_install: _emodinst_ _emodinst_post
+ 
+-install-dir := $(if $(INSTALL_MOD_DIR),$(INSTALL_MOD_DIR),extra)
+ PHONY += _emodinst_
+ _emodinst_:
+-	$(Q)mkdir -p $(MODLIB)/$(install-dir)
+ 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modinst
+ 
+ PHONY += _emodinst_post
+-- 
+2.17.1
+

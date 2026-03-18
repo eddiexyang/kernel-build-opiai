@@ -1,0 +1,191 @@
+From 0465f316ee1e710ad7d70a6cbfd313a370e8d009 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Sat, 8 Apr 2023 03:54:29 +0000
+Subject: [PATCH 30/53] [Huawei] mm/sharepool: Delete global sp_area_lock
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+A sp_area belongs to only one sp_mapping and sp_area from different
+sp_masp_mapping doesn't affect eachother. We can use a sp_mapping
+related lock instead of the global sp_area_lock to protect the creating
+and destroying of each sp_area.
+
+The spg->spa_root should be access under spg->rw_lock instead of
+sp_area_lock so just delete the usage of sp_area_lock in
+sp_group_add_task.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 34 ++++++++++++----------------------
+ 1 file changed, 12 insertions(+), 22 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index ea8906f91493..1d02f23e6fc1 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -137,6 +137,7 @@ struct sp_mapping {
+ 	/* list head for all groups attached to this mapping, dvpp mapping only */
+ 	struct list_head group_head;
+ 	struct list_head spm_node;
++	spinlock_t sp_mapping_lock;
+ };
+ 
+ /* Processes in the same sp_group can share memory.
+@@ -363,6 +364,7 @@ static struct sp_mapping *sp_mapping_create(unsigned long type)
+ 	atomic_set(&spm->user, 0);
+ 	spm->area_root = RB_ROOT;
+ 	INIT_LIST_HEAD(&spm->group_head);
++	spin_lock_init(&spm->sp_mapping_lock);
+ 	sp_mapping_add_to_list(spm);
+ 
+ 	return spm;
+@@ -694,7 +696,6 @@ struct sp_area {
+ 	int preferred_node_id;			/* memory node */
+ 	int device_id;
+ };
+-static DEFINE_SPINLOCK(sp_area_lock);
+ 
+ static unsigned long spa_size(struct sp_area *spa)
+ {
+@@ -1460,29 +1461,22 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	 * create mappings of existing shared memory segments into this
+ 	 * new process' page table.
+ 	 */
+-	spin_lock(&sp_area_lock);
+ 	for (p = rb_first(&spg->spa_root); p; p = rb_next(p)) {
+ 		spa = container_of(p, struct sp_area, spg_link);
+ 		__sp_area_drop_locked(prev);
+ 		prev = spa;
+ 
+ 		atomic_inc(&spa->use_count);
+-
+ 		if (spa->is_dead == true)
+ 			continue;
+ 
+-		spin_unlock(&sp_area_lock);
+-
+ 		ret = sp_map_spa_to_mm(mm, spa, prot, NULL, "add_task");
+ 		if (ret) {
+ 			pr_warn("mmap old spa to new task failed, %d\n", ret);
+ 			ret = 0;
+ 		}
+-
+-		spin_lock(&sp_area_lock);
+ 	}
+ 	__sp_area_drop_locked(prev);
+-	spin_unlock(&sp_area_lock);
+ 
+ 	if (unlikely(ret))
+ 		delete_spg_node(spg, node);
+@@ -1565,7 +1559,7 @@ EXPORT_SYMBOL_GPL(mg_sp_id_of_current);
+ 		rb_insert_color((node), (__root));		\
+ 	} while (0)
+ 
+-/* the caller must hold sp_area_lock */
++/* the caller must hold sp_mapping_lock */
+ static void spm_insert_area(struct sp_mapping *spm, struct sp_area *spa)
+ {
+ 	insert_sp_area(&spm->area_root, spa, &spa->rb_node, rb_node);
+@@ -1628,7 +1622,7 @@ static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
+ 	if (unlikely(!spa))
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	spin_lock(&sp_area_lock);
++	spin_lock(&mapping->sp_mapping_lock);
+ 
+ 	/*
+ 	 * Invalidate cache if we have more permissive parameters.
+@@ -1725,14 +1719,14 @@ static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
+ 	spm_insert_area(mapping, spa);
+ 	mapping->free_area_cache = &spa->rb_node;
+ 
+-	spin_unlock(&sp_area_lock);
++	spin_unlock(&mapping->sp_mapping_lock);
+ 	sp_group_insert_area(spg, spa);
+ 
+ 	spa_inc_usage(spa);
+ 	return spa;
+ 
+ error:
+-	spin_unlock(&sp_area_lock);
++	spin_unlock(&mapping->sp_mapping_lock);
+ 	kfree(spa);
+ 	return err;
+ }
+@@ -1786,9 +1780,8 @@ static void sp_free_area(struct sp_area *spa)
+ 	unsigned long addr = spa->va_start;
+ 	struct sp_mapping *spm;
+ 
+-	lockdep_assert_held(&sp_area_lock);
+-
+ 	spm = sp_mapping_find(spa->spg, addr);
++	spin_lock(&spm->sp_mapping_lock);
+ 	if (spm->free_area_cache) {
+ 		struct sp_area *cache;
+ 
+@@ -1817,6 +1810,7 @@ static void sp_free_area(struct sp_area *spa)
+ 	spa_dec_usage(spa);
+ 
+ 	rb_erase(&spa->rb_node, &spm->area_root);
++	spin_unlock(&spm->sp_mapping_lock);
+ 	RB_CLEAR_NODE(&spa->rb_node);
+ 	kfree(spa);
+ }
+@@ -1842,9 +1836,7 @@ static void __sp_area_drop_locked(struct sp_area *spa)
+ 
+ static void __sp_area_drop(struct sp_area *spa)
+ {
+-	spin_lock(&sp_area_lock);
+ 	__sp_area_drop_locked(spa);
+-	spin_unlock(&sp_area_lock);
+ }
+ 
+ void sp_area_drop(struct vm_area_struct *vma)
+@@ -1859,9 +1851,7 @@ void sp_area_drop(struct vm_area_struct *vma)
+ 	 * find_sp_area_locked() and __sp_area_drop_locked() should be
+ 	 * an atomic operation.
+ 	 */
+-	spin_lock(&sp_area_lock);
+ 	__sp_area_drop_locked(vma->vm_private_data);
+-	spin_unlock(&sp_area_lock);
+ }
+ 
+ /*
+@@ -3307,14 +3297,14 @@ static void spa_stat_of_mapping_show(struct seq_file *seq, struct sp_mapping *sp
+ 	struct rb_node *node;
+ 	struct sp_area *spa, *prev = NULL;
+ 
+-	spin_lock(&sp_area_lock);
++	spin_lock(&spm->sp_mapping_lock);
+ 	for (node = rb_first(&spm->area_root); node; node = rb_next(node)) {
+ 		__sp_area_drop_locked(prev);
+ 
+ 		spa = rb_entry(node, struct sp_area, rb_node);
+ 		prev = spa;
+ 		atomic_inc(&spa->use_count);
+-		spin_unlock(&sp_area_lock);
++		spin_unlock(&spm->sp_mapping_lock);
+ 
+ 		if (spg_valid(spa->spg))  /* k2u to group */
+ 			seq_printf(seq, "%-10d ", spa->spg->id);
+@@ -3349,10 +3339,10 @@ static void spa_stat_of_mapping_show(struct seq_file *seq, struct sp_mapping *sp
+ 		seq_printf(seq, "%-8d ",  spa->applier);
+ 		seq_printf(seq, "%-8d\n", atomic_read(&spa->use_count));
+ 
+-		spin_lock(&sp_area_lock);
++		spin_lock(&spm->sp_mapping_lock);
+ 	}
+ 	__sp_area_drop_locked(prev);
+-	spin_unlock(&sp_area_lock);
++	spin_unlock(&spm->sp_mapping_lock);
+ }
+ 
+ static void spa_ro_stat_show(struct seq_file *seq)
+-- 
+2.17.1
+

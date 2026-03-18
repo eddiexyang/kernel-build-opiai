@@ -1,0 +1,79 @@
+From e8d21113e8c70519126aa8b3bfef39b847bd397c Mon Sep 17 00:00:00 2001
+From: Matthias Schiffer <matthias.schiffer@ew.tq-group.com>
+Date: Fri, 16 Jul 2021 12:00:51 +0200
+Subject: [PATCH 304/780] [Backport] mfd: tqmx86: Add support for TQMx110EB and
+ TQMxE40x
+
+stable inclusion
+from stable-v5.10.180
+commit 640a1f7e36e8b60b94a68bd4525a536647597fec
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=640a1f7e36e8b60b94a68bd4525a536647597fec
+
+--------------------------------
+
+[ Upstream commit 3da48ccb1d0f3b53b1e8c9022edbedc2a6e3f50a ]
+
+Add the board IDs for the TQMx110EB and the TQMxE40x family. All use a
+24MHz LPC clock.
+
+Signed-off-by: Matthias Schiffer <matthias.schiffer@ew.tq-group.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: Lee Jones <lee.jones@linaro.org>
+Stable-dep-of: 051c69ff4f60 ("mfd: tqmx86: Specify IO port register range more precisely")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/mfd/tqmx86.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/drivers/mfd/tqmx86.c b/drivers/mfd/tqmx86.c
+index c5c5846dcf99..1db95aed5012 100644
+--- a/drivers/mfd/tqmx86.c
++++ b/drivers/mfd/tqmx86.c
+@@ -35,6 +35,11 @@
+ #define TQMX86_REG_BOARD_ID_E39x	7
+ #define TQMX86_REG_BOARD_ID_70EB	8
+ #define TQMX86_REG_BOARD_ID_80UC	9
++#define TQMX86_REG_BOARD_ID_110EB	11
++#define TQMX86_REG_BOARD_ID_E40M	12
++#define TQMX86_REG_BOARD_ID_E40S	13
++#define TQMX86_REG_BOARD_ID_E40C1	14
++#define TQMX86_REG_BOARD_ID_E40C2	15
+ #define TQMX86_REG_BOARD_REV	0x21
+ #define TQMX86_REG_IO_EXT_INT	0x26
+ #define TQMX86_REG_IO_EXT_INT_NONE		0
+@@ -126,6 +131,16 @@ static const char *tqmx86_board_id_to_name(u8 board_id)
+ 		return "TQMx70EB";
+ 	case TQMX86_REG_BOARD_ID_80UC:
+ 		return "TQMx80UC";
++	case TQMX86_REG_BOARD_ID_110EB:
++		return "TQMx110EB";
++	case TQMX86_REG_BOARD_ID_E40M:
++		return "TQMxE40M";
++	case TQMX86_REG_BOARD_ID_E40S:
++		return "TQMxE40S";
++	case TQMX86_REG_BOARD_ID_E40C1:
++		return "TQMxE40C1";
++	case TQMX86_REG_BOARD_ID_E40C2:
++		return "TQMxE40C2";
+ 	default:
+ 		return "Unknown";
+ 	}
+@@ -138,6 +153,11 @@ static int tqmx86_board_id_to_clk_rate(u8 board_id)
+ 	case TQMX86_REG_BOARD_ID_60EB:
+ 	case TQMX86_REG_BOARD_ID_70EB:
+ 	case TQMX86_REG_BOARD_ID_80UC:
++	case TQMX86_REG_BOARD_ID_110EB:
++	case TQMX86_REG_BOARD_ID_E40M:
++	case TQMX86_REG_BOARD_ID_E40S:
++	case TQMX86_REG_BOARD_ID_E40C1:
++	case TQMX86_REG_BOARD_ID_E40C2:
+ 		return 24000;
+ 	case TQMX86_REG_BOARD_ID_E39M:
+ 	case TQMX86_REG_BOARD_ID_E39C:
+-- 
+2.17.1
+

@@ -1,0 +1,130 @@
+/*
+* Copyright (c) Huawei Technologies Co., Ltd. 2019-2022. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* Description:
+* Author: huawei
+* Create: 2019-10-15
+*/
+
+#ifndef __DEVDRV_PM_H
+#define __DEVDRV_PM_H
+
+#include <linux/list.h>
+#include <linux/time.h>
+#include <linux/hrtimer.h>
+
+#include "devdrv_user_common.h"
+#include "devdrv_common.h"
+#include "devdrv_parse_pdata.h"
+#include "tsdrv_status.h"
+
+
+#define DFM_CQSQ_INFO_SHOW(tsid, cqsq_info)  \
+    devdrv_drv_debug("[DFM_CQSQ_INFO]:ts_id = %u, sq_0_index=%u, sq_0_addr = 0x%llx, \
+        cq_0_index=%u, cq_0_addr = 0x%llx,", \
+        (tsid), (cqsq_info).sq_index, (cqsq_info).sq_addr, (cqsq_info).cq0_index, (cqsq_info).cq0_addr);
+#define DFM_SEND_SQ_SHOW(tsid, info, sq)  \
+    devdrv_drv_debug("send_heart_beat, ts_id = %u, sq_index = %u, sq_cmd = 0x%x,number: %d\n", \
+        (tsid), (info)->heart_beat[(tsid)].sq, (sq)->cmd, (sq)->number);
+#define DFM_CQ_INFO_SHOW(device_id, tsid, cq)  \
+    devdrv_drv_debug("receive_heart_beat, dev_id = %u, ts_id = %u, cq_ts_status = %u, \
+        cq_ts_report_type = %u, cq_exception_code = %u\n, ", \
+        (device_id), (tsid), (cq)->ts_status, (cq)->report_type, (cq)->exception_code);
+#define DFM_SEND_ERROR_CODE_SHOW(info, tsid, code)  \
+    devdrv_drv_debug("dfm_send_error_code, device_id = %u, ts_id = %u, error_code = 0x%x,", \
+        (info)->dev_id, (tsid), (code));
+
+struct devdrv_pm {
+    int (*suspend)(u32 devid, u32 status);
+    int (*resume)(u32 devid);
+    int run_stage; /* 0-platform call, 1-sleep call */
+    struct list_head list;
+};
+
+struct devdrv_msg_pm {
+    int (*suspend)(void);
+    int (*resume)(void);
+    struct list_head list;
+};
+
+int devdrv_manager_msg_suspend(void);
+int devdrv_manager_msg_resume(void);
+void *devdrv_manager_register_msg_pm(int (*suspend)(void), int (*resume)(void));
+void devdrv_manager_unregister_msg_pm(void *msg_pm_p);
+
+int devdrv_manager_shutdown(struct devdrv_info *info);
+int devdrv_manager_suspend(struct devdrv_info *info);
+int devdrv_manager_resume(struct devdrv_info *info);
+struct devdrv_pm *devdrv_manager_register_pm(int run_stage, int (*suspend)(u32 devid, u32 status), int (*resume)(u32 devid));
+void devdrv_manager_unregister_pm(struct devdrv_pm *pm);
+
+void devdrv_ts_exception_task(unsigned long data);
+irqreturn_t devdrv_nfe_handler(int irq, void *data);
+
+void devdrv_m3_notice_aicore_freq_state(int cmd);
+void devdrv_inform_lpm3_change_aicore_freq(int gpio_value, int flag);
+int devdrv_inform_lpm3_upper_ddr_freq(u32 devid);
+int devdrv_inform_lpm3_lower_ddr_freq(u32 devid);
+void tsdrv_heart_beat_ai_down(u32 devid, u32 tsid, const void *data);
+int devdrv_manager_suspend_proc(int devid, int run_stage);
+
+/*
+ *  time cycle check
+ */
+#define DEVDRV_TIME_THRESHOLD_ERR    10000
+#define DEVDRV_TIME_THRESHOLD_WARN   5000
+
+/*
+ * black box
+ */
+#define MNTN_LPM3_HEART_BEAT_ERROR_CODE 0xA619FFFFU
+#define MNTN_IMU_HEART_BEAT_ERROR_CODE 0xA62FFFFFU
+
+typedef struct ts_physical_addr_t {
+    u64 addr;
+    u32 len;
+} ts_physical_addr;
+
+enum MNTN_BUFFER_TYPE {
+    TS_MNTN_BUFFER = 0x0,      // ts buffer, static reserved, size: 512k
+    TS_MNTN_START_LOG_BUFFER,  // ts start log buffer, dynamic mallocced, size: 50k
+    MNTN_BUFFER_TYPE_MAX,
+};
+
+typedef struct bbox_config_t {
+    u8 enable_bbox;  // (0x1 enable for liteos vmcore);
+    ts_physical_addr ts_paddr[MNTN_BUFFER_TYPE_MAX];
+} bbox_tsconfig;
+
+#if ((!defined CFG_SOC_PLATFORM_MINIV2) && (!defined CFG_SOC_PLATFORM_CLOUD_V2))
+bbox_tsconfig *bbox_get_tsconfig(u32 dev_id);
+#endif
+
+/*
+* os heart beat
+*/
+#define OS_HEART_BEAT_MAX (0xFFFFFFFFFFFFFFFFULL - 1)
+#define OS_HEART_BEAT_INTERVAL 5 /* 5 second */
+
+int devdrv_get_boardid(void);
+bool devdrv_is_pci_rc_mode(void);
+
+struct os_heart_beat {
+    struct hrtimer timer;
+    ktime_t kt;
+    u64 count[DEVDRV_MAX_DAVINCI_NUM];
+};
+void devdrv_os_heart_beat_exit(void);
+void devdrv_refresh_error_code_init(void);
+void devdrv_refresh_error_code_exit(void);
+
+#endif

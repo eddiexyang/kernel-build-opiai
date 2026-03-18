@@ -1,0 +1,115 @@
+From 0da8e2c39d7f7961ed83a90ef774773d0e612275 Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Fri, 21 Jan 2022 15:58:54 +0800
+Subject: [PATCH 1493/2065] [Huawei] selinux: genfscon ns: Use current
+ namespace to create isec
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186697
+
+----------------------------------------
+
+Now processes may switch to a namespace other than the init one, so the
+allocated isec should be in that namespace as well. For inodes that
+don't support genfscon namespace, keep their isec still in the init
+namespace.
+
+Note: there's still direct access to sb->s_security in this patch.
+Remember to modify this patch once LSM blob mechanism in 5.13 kernel is
+back-ported to OLK-5.10.
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c            | 33 ++++++++++++++++++++++++++++-
+ security/selinux/include/security.h |  1 +
+ 2 files changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 2094b324110a..ccd6d3c1b5bc 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -207,6 +207,13 @@ void put_selinux_ns(struct selinux_ns *ns)
+ 		schedule_work(&ns->work);
+ }
+ 
++static bool inode_support_ns(const struct inode *inode)
++{
++	struct superblock_security_struct *sbsec = inode->i_sb->s_security;
++
++	return sbsec->flags & SE_SBSUPPORT_NS;
++}
++
+ static struct inode_security_struct *isec_alloc(struct inode *inode)
+ {
+ 	struct inode_security_struct *isec = kmem_cache_zalloc(
+@@ -222,7 +229,20 @@ static struct inode_security_struct *isec_alloc(struct inode *inode)
+ 	isec->task_sid = current_sid();
+ 	isec->initialized = LABEL_INVALID;
+ 	isec->inode = inode;
+-	isec->ns = &init_selinux_ns;
++	/*
++	 * To prevent overflow of (32-bit) refcount, don't let isec of inodes
++	 * that don't support ns to increase ns's refcount.
++	 */
++	if (inode_support_ns(inode))
++		isec->ns = get_selinux_ns(current_selinux_ns);
++	/*
++	 * inode's superblock info has been lost in inode_free_rcu(). To balance
++	 * the num of get/put operations in alloc/free phase, we point isec
++	 * without ns support to init_ns instead of current_ns, as no one
++	 * modifies init_ns's refcount.
++	 */
++	else
++		isec->ns = &init_selinux_ns;
+ 
+ 	return isec;
+ }
+@@ -399,6 +419,7 @@ static void isech_free_rcu(struct rcu_head *head)
+ 
+ 	isech = container_of(head, struct inode_security_head, rcu);
+ 	list_for_each_entry_safe(entry, tmp, &isech->head, isec_list) {
++		put_selinux_ns(entry->ns);
+ 		kmem_cache_free(inode_security_cache, entry);
+ 	}
+ }
+@@ -691,6 +712,13 @@ static int parse_sid(struct super_block *sb, const char *s, u32 *sid)
+ 	return rc;
+ }
+ 
++static bool support_selinux_ns(struct super_block *sb)
++{
++	int idx = fs_str_idx(sb->s_type->name);
++
++	return idx != NS_TYPE_NUM && selinux_ns_fs_enabled[idx];
++}
++
+ /*
+  * Allow filesystems with binary mount data to explicitly set mount point
+  * labeling information.
+@@ -745,6 +773,9 @@ static int selinux_set_mnt_opts(struct super_block *sb,
+ 	    && !opts)
+ 		goto out;
+ 
++	if (selinux_ns_enabled && support_selinux_ns(sb))
++		sbsec->flags |= SE_SBSUPPORT_NS;
++
+ 	root_isec = backing_inode_security_novalidate(root);
+ 
+ 	/*
+diff --git a/security/selinux/include/security.h b/security/selinux/include/security.h
+index 2ce7dc3c4153..2092ee36e80c 100644
+--- a/security/selinux/include/security.h
++++ b/security/selinux/include/security.h
+@@ -63,6 +63,7 @@
+ #define SE_SBPROC		0x0200
+ #define SE_SBGENFS		0x0400
+ #define SE_SBGENFS_XATTR	0x0800
++#define SE_SBSUPPORT_NS		0x1000
+ 
+ #define CONTEXT_STR	"context"
+ #define FSCONTEXT_STR	"fscontext"
+-- 
+2.17.1
+

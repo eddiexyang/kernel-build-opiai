@@ -1,0 +1,48 @@
+From be60f33bbf8c5dfa73c2324a6f0e16811970d877 Mon Sep 17 00:00:00 2001
+From: Kwanghoon Son <k.son@samsung.com>
+Date: Wed, 27 Apr 2022 03:16:45 +0200
+Subject: [PATCH 3745/4585] [Backport] media: exynos4-is: Fix compile warning
+
+stable inclusion
+from stable-v5.10.121
+commit 86c02171bded33534e418c66320dfd930fda62b3
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=86c02171bded33534e418c66320dfd930fda62b3
+
+--------------------------------
+
+[ Upstream commit e080f5c1f2b6d02c02ee5d674e0e392ccf63bbaf ]
+
+Declare static on function 'fimc_isp_video_device_unregister'.
+
+When VIDEO_EXYNOS4_ISP_DMA_CAPTURE=n, compiler warns about
+warning: no previous prototype for function [-Wmissing-prototypes]
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Kwanghoon Son <k.son@samsung.com>
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/media/platform/exynos4-is/fimc-isp-video.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/exynos4-is/fimc-isp-video.h b/drivers/media/platform/exynos4-is/fimc-isp-video.h
+index edcb3a5e3cb9..2dd4ddbc748a 100644
+--- a/drivers/media/platform/exynos4-is/fimc-isp-video.h
++++ b/drivers/media/platform/exynos4-is/fimc-isp-video.h
+@@ -32,7 +32,7 @@ static inline int fimc_isp_video_device_register(struct fimc_isp *isp,
+ 	return 0;
+ }
+ 
+-void fimc_isp_video_device_unregister(struct fimc_isp *isp,
++static inline void fimc_isp_video_device_unregister(struct fimc_isp *isp,
+ 				enum v4l2_buf_type type)
+ {
+ }
+-- 
+2.17.1
+

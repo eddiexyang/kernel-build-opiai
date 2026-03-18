@@ -1,0 +1,149 @@
+From 35bd5f738d45af059ed59e580113591184f58ba0 Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Thu, 1 Apr 2021 16:14:17 -0400
+Subject: [PATCH 16/36] [Backport] ftrace: Store the order of pages allocated
+ in ftrace_page
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit db42523b4f3e83ff86b53cdda219a9767c8b047f
+category: bugfix
+bugzilla: 188980
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=db42523b4f3e83ff86b53cdda219a9767c8b047f
+
+--------------------------------
+
+Instead of saving the size of the records field of the ftrace_page, store
+the order it uses to allocate the pages, as that is what is needed to know
+in order to free the pages. This simplifies the code.
+
+Link: https://lore.kernel.org/lkml/CAHk-=whyMxheOqXAORt9a7JK9gc9eHTgCJ55Pgs4p=X3RrQubQ@mail.gmail.com/
+
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+[ change log written by Steven Rostedt ]
+Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+Conflict:
+	kernel/trace/ftrace.c
+---
+ kernel/trace/ftrace.c | 35 +++++++++++++++++------------------
+ 1 file changed, 17 insertions(+), 18 deletions(-)
+
+diff --git a/kernel/trace/ftrace.c b/kernel/trace/ftrace.c
+index 66397c10dd2e..139c076eb876 100644
+--- a/kernel/trace/ftrace.c
++++ b/kernel/trace/ftrace.c
+@@ -1092,7 +1092,7 @@ struct ftrace_page {
+ 	struct ftrace_page	*next;
+ 	struct dyn_ftrace	*records;
+ 	int			index;
+-	int			size;
++	int			order;
+ };
+ 
+ #define ENTRY_SIZE sizeof(struct dyn_ftrace)
+@@ -3189,7 +3189,7 @@ static int ftrace_allocate_records(struct ftrace_page *pg, int count)
+ 	ftrace_number_of_groups++;
+ 
+ 	cnt = (PAGE_SIZE << order) / ENTRY_SIZE;
+-	pg->size = cnt;
++	pg->order = order;
+ 
+ 	if (cnt > count)
+ 		cnt = count;
+@@ -3202,7 +3202,6 @@ ftrace_allocate_pages(unsigned long num_to_init)
+ {
+ 	struct ftrace_page *start_pg;
+ 	struct ftrace_page *pg;
+-	int order;
+ 	int cnt;
+ 
+ 	if (!num_to_init)
+@@ -3238,13 +3237,13 @@ ftrace_allocate_pages(unsigned long num_to_init)
+  free_pages:
+ 	pg = start_pg;
+ 	while (pg) {
+-		order = get_count_order(pg->size / ENTRIES_PER_PAGE);
+-		if (order >= 0)
+-			free_pages((unsigned long)pg->records, order);
++		if (pg->records) {
++			free_pages((unsigned long)pg->records, pg->order);
++			ftrace_number_of_pages -= 1 << pg->order;
++		}
+ 		start_pg = pg->next;
+ 		kfree(pg);
+ 		pg = start_pg;
+-		ftrace_number_of_pages -= 1 << order;
+ 		ftrace_number_of_groups--;
+ 	}
+ 	pr_info("ftrace: FAILED to allocate memory for functions\n");
+@@ -6246,6 +6245,7 @@ static int ftrace_process_locs(struct module *mod,
+ 	p = start;
+ 	pg = start_pg;
+ 	while (p < end) {
++		unsigned long end_offset;
+ 		addr = ftrace_call_adjust(*p++);
+ 		/*
+ 		 * Some architecture linkers will pad between
+@@ -6257,7 +6257,8 @@ static int ftrace_process_locs(struct module *mod,
+ 			addr < remove_start + size))
+ 			continue;
+ 
+-		if (pg->index == pg->size) {
++		end_offset = (pg->index+1) * sizeof(pg->records[0]);
++		if (end_offset > PAGE_SIZE << pg->order) {
+ 			/* We should have allocated enough */
+ 			if (WARN_ON(!pg->next))
+ 				break;
+@@ -6426,7 +6427,6 @@ void ftrace_release_mod(struct module *mod)
+ 	struct ftrace_page **last_pg;
+ 	struct ftrace_page *tmp_page = NULL;
+ 	struct ftrace_page *pg;
+-	int order;
+ 
+ 	mutex_lock(&ftrace_lock);
+ 
+@@ -6477,12 +6477,12 @@ void ftrace_release_mod(struct module *mod)
+ 		/* Needs to be called outside of ftrace_lock */
+ 		clear_mod_from_hashes(pg);
+ 
+-		order = get_count_order(pg->size / ENTRIES_PER_PAGE);
+-		if (order >= 0)
+-			free_pages((unsigned long)pg->records, order);
++		if (pg->records) {
++			free_pages((unsigned long)pg->records, pg->order);
++			ftrace_number_of_pages -= 1 << pg->order;
++		}
+ 		tmp_page = pg->next;
+ 		kfree(pg);
+-		ftrace_number_of_pages -= 1 << order;
+ 		ftrace_number_of_groups--;
+ 	}
+ }
+@@ -6800,7 +6800,6 @@ void ftrace_free_mem(struct module *mod, void *start_ptr, void *end_ptr)
+ 	struct ftrace_mod_map *mod_map = NULL;
+ 	struct ftrace_init_func *func, *func_next;
+ 	struct list_head clear_hash;
+-	int order;
+ 
+ 	INIT_LIST_HEAD(&clear_hash);
+ 
+@@ -6838,10 +6837,10 @@ void ftrace_free_mem(struct module *mod, void *start_ptr, void *end_ptr)
+ 		ftrace_update_tot_cnt--;
+ 		if (!pg->index) {
+ 			*last_pg = pg->next;
+-			order = get_count_order(pg->size / ENTRIES_PER_PAGE);
+-			if (order >= 0)
+-				free_pages((unsigned long)pg->records, order);
+-			ftrace_number_of_pages -= 1 << order;
++			if (pg->records) {
++				free_pages((unsigned long)pg->records, pg->order);
++				ftrace_number_of_pages -= 1 << pg->order;
++			}
+ 			ftrace_number_of_groups--;
+ 			kfree(pg);
+ 			pg = container_of(last_pg, struct ftrace_page, next);
+-- 
+2.17.1
+

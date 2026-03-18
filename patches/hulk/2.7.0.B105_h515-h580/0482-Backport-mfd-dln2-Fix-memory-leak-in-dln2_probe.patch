@@ -1,0 +1,47 @@
+From 835bbd335c437e310ce64553f228bbc8a749faf5 Mon Sep 17 00:00:00 2001
+From: Qiang Ning <qning0106@126.com>
+Date: Thu, 30 Mar 2023 10:43:53 +0800
+Subject: [PATCH 482/780] [Backport] mfd: dln2: Fix memory leak in dln2_probe()
+
+stable inclusion
+from stable-v5.10.181
+commit 6a1a72a8cfdad6911a7167405b63545ad781fbe2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6a1a72a8cfdad6911a7167405b63545ad781fbe2
+
+--------------------------------
+
+[ Upstream commit 96da8f148396329ba769246cb8ceaa35f1ddfc48 ]
+
+When dln2_setup_rx_urbs() in dln2_probe() fails, error out_free forgets
+to call usb_put_dev() to decrease the refcount of dln2->usb_dev.
+
+Fix this by adding usb_put_dev() in the error handling code of
+dln2_probe().
+
+Signed-off-by: Qiang Ning <qning0106@126.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230330024353.4503-1-qning0106@126.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/mfd/dln2.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/mfd/dln2.c b/drivers/mfd/dln2.c
+index 852129ea0766..fc65f9e25fda 100644
+--- a/drivers/mfd/dln2.c
++++ b/drivers/mfd/dln2.c
+@@ -836,6 +836,7 @@ static int dln2_probe(struct usb_interface *interface,
+ 	dln2_stop_rx_urbs(dln2);
+ 
+ out_free:
++	usb_put_dev(dln2->usb_dev);
+ 	dln2_free(dln2);
+ 
+ 	return ret;
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From 7b08f7e31fd8b6bc5b4995adbe3856534871529b Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Tue, 23 May 2023 19:07:17 +0800
+Subject: [PATCH 045/263] [Huawei] userswap: add VMA check for uswap
+ registration
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Add VMA check for uswap registration to make sure that swap-in VA is of
+the same type as swap-out VA.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/userswap.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 4884e0fc73b2..ff40a0d82576 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -496,7 +496,7 @@ bool uswap_register(struct uffdio_register *uffdio_register, bool *uswap_mode)
+ bool uswap_adjust_uffd_range(struct uffdio_register *uffdio_register,
+ 			     unsigned long *vm_flags, struct mm_struct *mm)
+ {
+-	struct vm_area_struct *vma;
++	struct vm_area_struct *vma, *cur;
+ 	unsigned long end;
+ 	bool ret = false;
+ 
+@@ -508,6 +508,9 @@ bool uswap_adjust_uffd_range(struct uffdio_register *uffdio_register,
+ 	vma = find_vma(mm, uffdio_register->range.start);
+ 	if (!vma || vma->vm_start >= end)
+ 		goto out_unlock;
++	for (cur = vma; cur && cur->vm_start < end; cur = cur->vm_next)
++		if (!vma_uswap_compatible(cur))
++			goto out_unlock;
+ 	uffdio_register->range.start = vma->vm_start;
+ 	vma = find_vma(mm, end);
+ 	if (vma && end >= vma->vm_start)
+-- 
+2.17.1
+

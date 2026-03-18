@@ -1,0 +1,38 @@
+From bddd0e475bf7f80ce51150b8df83e0430e139387 Mon Sep 17 00:00:00 2001
+From: Xie Haocheng <haocheng.xie@amd.com>
+Date: Fri, 4 Nov 2022 17:03:47 +0800
+Subject: [PATCH 0361/1646] [Backport] defconfig: add CONFIG_AMD_HSMP=m to
+ openeuler_defconfig
+
+amd inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YNPT
+
+Reference: https://gitee.com/openeuler/kernel/commit/e806bce7428b2358ef49d58859cdcfab93634e0b
+
+--------------------------------
+
+Enable AMD Host System Management Port feauture built as a moudle
+in x86 openeuler defconfig.
+
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/configs/openeuler_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 96e2263037d4..1840007c9776 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -6493,6 +6493,7 @@ CONFIG_MXM_WMI=m
+ CONFIG_ACERHDF=m
+ # CONFIG_ACER_WIRELESS is not set
+ CONFIG_ACER_WMI=m
++CONFIG_AMD_HSMP=m
+ CONFIG_APPLE_GMUX=m
+ CONFIG_ASUS_LAPTOP=m
+ # CONFIG_ASUS_WIRELESS is not set
+-- 
+2.17.1
+

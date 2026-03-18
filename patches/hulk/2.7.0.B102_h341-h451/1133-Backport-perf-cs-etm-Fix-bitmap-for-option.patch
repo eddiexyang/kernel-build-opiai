@@ -1,0 +1,76 @@
+From 297319df8d7a549548009f6e8b0a000376671a88 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Fri, 25 Nov 2022 17:50:07 +0800
+Subject: [PATCH 1133/1646] [Backport] perf cs-etm: Fix bitmap for option
+
+mainline inclusion
+from mainline-v5.12-rc3
+commit 6fc5baf5471700fd613f0b4e52ab4563f1942b78
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I636PS
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6fc5baf5471700fd613f0b4e52ab4563f1942b78
+
+--------------------------------
+
+When set option with macros ETM_OPT_CTXTID and ETM_OPT_TS, it wrongly
+takes these two values (14 and 28 prespectively) as bit masks, but
+actually both are the offset for bits.  But this doesn't lead to further
+failure due to the AND logic operation will be always true for
+ETM_OPT_CTXTID / ETM_OPT_TS.
+
+This patch uses the BIT() macro for option bits, thus it can request the
+correct bitmaps for "contextid" and "timestamp" when calling
+cs_etm_set_option().
+
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Reviewed-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Reviewed-by: Mike Leach <mike.leach@linaro.org>
+Link: https://lore.kernel.org/r/20210213113220.292229-3-leo.yan@linaro.org
+Link: https://lore.kernel.org/r/20210224164835.3497311-4-mathieu.poirier@linaro.org
+[Extract the change as a separate patch for easier review]
+Signed-off-by: Leo Yan <leo.yan@linaro.org>
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Signed-off-by: Junhao He <hejunhao3@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ tools/perf/arch/arm/util/cs-etm.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/tools/perf/arch/arm/util/cs-etm.c b/tools/perf/arch/arm/util/cs-etm.c
+index e7fcfe5a36a2..f3fa9dbe191c 100644
+--- a/tools/perf/arch/arm/util/cs-etm.c
++++ b/tools/perf/arch/arm/util/cs-etm.c
+@@ -169,17 +169,17 @@ static int cs_etm_set_option(struct auxtrace_record *itr,
+ 		    !cpu_map__has(online_cpus, i))
+ 			continue;
+ 
+-		if (option & ETM_OPT_CTXTID) {
++		if (option & BIT(ETM_OPT_CTXTID)) {
+ 			err = cs_etm_set_context_id(itr, evsel, i);
+ 			if (err)
+ 				goto out;
+ 		}
+-		if (option & ETM_OPT_TS) {
++		if (option & BIT(ETM_OPT_TS)) {
+ 			err = cs_etm_set_timestamp(itr, evsel, i);
+ 			if (err)
+ 				goto out;
+ 		}
+-		if (option & ~(ETM_OPT_CTXTID | ETM_OPT_TS))
++		if (option & ~(BIT(ETM_OPT_CTXTID) | BIT(ETM_OPT_TS)))
+ 			/* Nothing else is currently supported */
+ 			goto out;
+ 	}
+@@ -406,7 +406,7 @@ static int cs_etm_recording_options(struct auxtrace_record *itr,
+ 		evsel__set_sample_bit(cs_etm_evsel, CPU);
+ 
+ 		err = cs_etm_set_option(itr, cs_etm_evsel,
+-					ETM_OPT_CTXTID | ETM_OPT_TS);
++					BIT(ETM_OPT_CTXTID) | BIT(ETM_OPT_TS));
+ 		if (err)
+ 			goto out;
+ 	}
+-- 
+2.17.1
+

@@ -1,0 +1,164 @@
+From 022512eddcd7c4db13176a3f9da82b6144bcb34b Mon Sep 17 00:00:00 2001
+From: John Garry <john.garry@huawei.com>
+Date: Wed, 30 Nov 2022 19:01:08 +0800
+Subject: [PATCH 1212/1646] [Backport] perf pmu: Add pmu_add_sys_aliases()
+
+mainline inclusion
+from mainline-v5.11-rc1
+commit 4513c719c6f1ccf0c362c8dcef1f9b476f8f5c9c
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I63VF5
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4513c719c6f1ccf0c362c8dcef1f9b476f8f5c9c
+
+--------------------------------
+
+Add pmu_add_sys_aliases() to add system PMU events aliases.
+
+For adding system PMU events, iterate through all the events for all SoC
+event tables in pmu_sys_event_tables[].
+
+Matches must satisfy both:
+- PMU identifier matches event "compat" value
+- event "Unit" member must match, same as uncore event aliases matched by
+  CPUID
+
+Signed-off-by: John Garry <john.garry@huawei.com>
+Acked-by: Kajol Jain <kjain@linux.ibm.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Andi Kleen <ak@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Jiri Olsa <jolsa@redhat.com>
+Cc: Joakim Zhang <qiangqing.zhang@nxp.com>
+Cc: Kan Liang <kan.liang@linux.intel.com>
+Cc: Kim Phillips <kim.phillips@amd.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Shaokun Zhang <zhangshaokun@hisilicon.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: linux-arm-kernel@lists.infradead.org
+Cc: linuxarm@huawei.com
+Link: http://lore.kernel.org/lkml/1607080216-36968-5-git-send-email-john.garry@huawei.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Signed-off-by: Junhao He <hejunhao3@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ tools/perf/util/pmu.c | 78 +++++++++++++++++++++++++++++++++++++++++++
+ tools/perf/util/pmu.h |  2 ++
+ 2 files changed, 80 insertions(+)
+
+diff --git a/tools/perf/util/pmu.c b/tools/perf/util/pmu.c
+index ea50d3c97bff..ca75e45d6745 100644
+--- a/tools/perf/util/pmu.c
++++ b/tools/perf/util/pmu.c
+@@ -817,6 +817,83 @@ static void pmu_add_cpu_aliases(struct list_head *head, struct perf_pmu *pmu)
+ 	pmu_add_cpu_aliases_map(head, pmu, map);
+ }
+ 
++void pmu_for_each_sys_event(pmu_sys_event_iter_fn fn, void *data)
++{
++	int i = 0;
++
++	while (1) {
++		struct pmu_sys_events *event_table;
++		int j = 0;
++
++		event_table = &pmu_sys_event_tables[i++];
++
++		if (!event_table->table)
++			break;
++
++		while (1) {
++			struct pmu_event *pe = &event_table->table[j++];
++			int ret;
++
++			if (!pe->name && !pe->metric_group && !pe->metric_name)
++				break;
++
++			ret = fn(pe, data);
++			if (ret)
++				break;
++		}
++	}
++}
++
++struct pmu_sys_event_iter_data {
++	struct list_head *head;
++	struct perf_pmu *pmu;
++};
++
++static int pmu_add_sys_aliases_iter_fn(struct pmu_event *pe, void *data)
++{
++	struct pmu_sys_event_iter_data *idata = data;
++	struct perf_pmu *pmu = idata->pmu;
++
++	if (!pe->name) {
++		if (pe->metric_group || pe->metric_name)
++			return 0;
++		return -EINVAL;
++	}
++
++	if (!pe->compat || !pe->pmu)
++		return 0;
++
++	if (!strcmp(pmu->id, pe->compat) &&
++	    pmu_uncore_alias_match(pe->pmu, pmu->name)) {
++		__perf_pmu__new_alias(idata->head, NULL,
++				      (char *)pe->name,
++				      (char *)pe->desc,
++				      (char *)pe->event,
++				      (char *)pe->long_desc,
++				      (char *)pe->topic,
++				      (char *)pe->unit,
++				      (char *)pe->perpkg,
++				      (char *)pe->metric_expr,
++				      (char *)pe->metric_name,
++				      (char *)pe->deprecated);
++	}
++
++	return 0;
++}
++
++static void pmu_add_sys_aliases(struct list_head *head, struct perf_pmu *pmu)
++{
++	struct pmu_sys_event_iter_data idata = {
++		.head = head,
++		.pmu = pmu,
++	};
++
++	if (!pmu->id)
++		return;
++
++	pmu_for_each_sys_event(pmu_add_sys_aliases_iter_fn, &idata);
++}
++
+ struct perf_event_attr * __weak
+ perf_pmu__get_default_config(struct perf_pmu *pmu __maybe_unused)
+ {
+@@ -872,6 +949,7 @@ static struct perf_pmu *pmu_lookup(const char *name)
+ 		pmu->id = pmu_id(name);
+ 	pmu->max_precise = pmu_max_precise(name);
+ 	pmu_add_cpu_aliases(&aliases, pmu);
++	pmu_add_sys_aliases(&aliases, pmu);
+ 
+ 	INIT_LIST_HEAD(&pmu->format);
+ 	INIT_LIST_HEAD(&pmu->aliases);
+diff --git a/tools/perf/util/pmu.h b/tools/perf/util/pmu.h
+index ceb913bc121f..94a2035205ff 100644
+--- a/tools/perf/util/pmu.h
++++ b/tools/perf/util/pmu.h
+@@ -119,6 +119,8 @@ struct pmu_events_map *pmu_events_map__find(void);
+ bool pmu_uncore_alias_match(const char *pmu_name, const char *name);
+ void perf_pmu_free_alias(struct perf_pmu_alias *alias);
+ 
++typedef int (*pmu_sys_event_iter_fn)(struct pmu_event *pe, void *data);
++void pmu_for_each_sys_event(pmu_sys_event_iter_fn fn, void *data);
+ int perf_pmu__convert_scale(const char *scale, char **end, double *sval);
+ 
+ int perf_pmu__caps_parse(struct perf_pmu *pmu);
+-- 
+2.17.1
+

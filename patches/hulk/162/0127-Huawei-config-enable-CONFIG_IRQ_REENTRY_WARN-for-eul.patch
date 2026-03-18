@@ -1,0 +1,35 @@
+From 588d01764dd5131ce9aa0b0efad5c893b0d843e7 Mon Sep 17 00:00:00 2001
+From: Yipeng Zou <zouyipeng@huawei.com>
+Date: Wed, 1 Feb 2023 09:24:44 +0800
+Subject: [PATCH 127/905] [Huawei] config: enable CONFIG_IRQ_REENTRY_WARN for
+ euler arm64
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6BO2R
+
+-------------------------------
+
+Enable it only for eulerOS arm64.
+
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 01c7d0d47770..b1e4557b2c5f 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -47,6 +47,7 @@ CONFIG_IRQ_MSI_IOMMU=y
+ CONFIG_HANDLE_DOMAIN_IRQ=y
+ CONFIG_IRQ_FORCED_THREADING=y
+ CONFIG_SPARSE_IRQ=y
++CONFIG_IRQ_REENTRY_WARN=y
+ # CONFIG_GENERIC_IRQ_DEBUGFS is not set
+ # end of IRQ subsystem
+ 
+-- 
+2.17.1
+

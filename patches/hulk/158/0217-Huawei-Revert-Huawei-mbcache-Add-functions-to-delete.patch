@@ -1,0 +1,141 @@
+From 3d6b767e1bc2e569b59ffabbcef7f1a16364440f Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Wed, 14 Sep 2022 11:25:41 +0800
+Subject: [PATCH 0217/1076] [Huawei] Revert "[Huawei] mbcache: Add functions to
+ delete entry if unused"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186975
+
+--------------------------------
+
+This reverts commit 68e92c8b0962c82935b7d3b2ed6be971350639bb.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/mbcache.c            | 63 +----------------------------------------
+ include/linux/mbcache.h | 10 +------
+ 2 files changed, 2 insertions(+), 71 deletions(-)
+
+diff --git a/fs/mbcache.c b/fs/mbcache.c
+index 1ae66b2c75f4..cfc28129fb6f 100644
+--- a/fs/mbcache.c
++++ b/fs/mbcache.c
+@@ -125,19 +125,6 @@ void __mb_cache_entry_free(struct mb_cache_entry *entry)
+ }
+ EXPORT_SYMBOL(__mb_cache_entry_free);
+ 
+-/*
+- * mb_cache_entry_wait_unused - wait to be the last user of the entry
+- *
+- * @entry - entry to work on
+- *
+- * Wait to be the last user of the entry.
+- */
+-void mb_cache_entry_wait_unused(struct mb_cache_entry *entry)
+-{
+-	wait_var_event(&entry->e_refcnt, atomic_read(&entry->e_refcnt) <= 3);
+-}
+-EXPORT_SYMBOL(mb_cache_entry_wait_unused);
+-
+ static struct mb_cache_entry *__entry_find(struct mb_cache *cache,
+ 					   struct mb_cache_entry *entry,
+ 					   u32 key)
+@@ -230,7 +217,7 @@ struct mb_cache_entry *mb_cache_entry_get(struct mb_cache *cache, u32 key,
+ }
+ EXPORT_SYMBOL(mb_cache_entry_get);
+ 
+-/* mb_cache_entry_delete - try to remove a cache entry
++/* mb_cache_entry_delete - remove a cache entry
+  * @cache - cache we work with
+  * @key - key
+  * @value - value
+@@ -267,54 +254,6 @@ void mb_cache_entry_delete(struct mb_cache *cache, u32 key, u64 value)
+ }
+ EXPORT_SYMBOL(mb_cache_entry_delete);
+ 
+-/* mb_cache_entry_try_delete - try to remove a cache entry
+- * @cache - cache we work with
+- * @key - key
+- * @value - value
+- *
+- * Remove entry from cache @cache with key @key and value @value. The removal
+- * happens only if the entry is unused. The function returns NULL in case the
+- * entry was successfully removed or there's no entry in cache. Otherwise the
+- * function returns the entry that we failed to delete because it has users.
+- */
+-struct mb_cache_entry *mb_cache_entry_try_delete(struct mb_cache *cache,
+-						 u32 key, u64 value)
+-{
+-	struct hlist_bl_node *node;
+-	struct hlist_bl_head *head;
+-	struct mb_cache_entry *entry;
+-
+-	head = mb_cache_entry_head(cache, key);
+-	hlist_bl_lock(head);
+-	hlist_bl_for_each_entry(entry, node, head, e_hash_list) {
+-		if (entry->e_key == key && entry->e_value == value) {
+-			if (atomic_read(&entry->e_refcnt) > 2) {
+-				atomic_inc(&entry->e_refcnt);
+-				hlist_bl_unlock(head);
+-				return entry;
+-			}
+-			/* We keep hash list reference to keep entry alive */
+-			hlist_bl_del_init(&entry->e_hash_list);
+-			hlist_bl_unlock(head);
+-			spin_lock(&cache->c_list_lock);
+-			if (!list_empty(&entry->e_list)) {
+-				list_del_init(&entry->e_list);
+-				if (!WARN_ONCE(cache->c_entry_count == 0,
+-		"mbcache: attempt to decrement c_entry_count past zero"))
+-					cache->c_entry_count--;
+-				atomic_dec(&entry->e_refcnt);
+-			}
+-			spin_unlock(&cache->c_list_lock);
+-			mb_cache_entry_put(cache, entry);
+-			return NULL;
+-		}
+-	}
+-	hlist_bl_unlock(head);
+-
+-	return NULL;
+-}
+-EXPORT_SYMBOL(mb_cache_entry_try_delete);
+-
+ /* mb_cache_entry_touch - cache entry got used
+  * @cache - cache the entry belongs to
+  * @entry - entry that got used
+diff --git a/include/linux/mbcache.h b/include/linux/mbcache.h
+index 1176fdfb8d53..20f1e3ff6013 100644
+--- a/include/linux/mbcache.h
++++ b/include/linux/mbcache.h
+@@ -30,23 +30,15 @@ void mb_cache_destroy(struct mb_cache *cache);
+ int mb_cache_entry_create(struct mb_cache *cache, gfp_t mask, u32 key,
+ 			  u64 value, bool reusable);
+ void __mb_cache_entry_free(struct mb_cache_entry *entry);
+-void mb_cache_entry_wait_unused(struct mb_cache_entry *entry);
+ static inline int mb_cache_entry_put(struct mb_cache *cache,
+ 				     struct mb_cache_entry *entry)
+ {
+-	unsigned int cnt = atomic_dec_return(&entry->e_refcnt);
+-
+-	if (cnt > 0) {
+-		if (cnt <= 3)
+-			wake_up_var(&entry->e_refcnt);
++	if (!atomic_dec_and_test(&entry->e_refcnt))
+ 		return 0;
+-	}
+ 	__mb_cache_entry_free(entry);
+ 	return 1;
+ }
+ 
+-struct mb_cache_entry *mb_cache_entry_try_delete(struct mb_cache *cache,
+-						 u32 key, u64 value);
+ void mb_cache_entry_delete(struct mb_cache *cache, u32 key, u64 value);
+ struct mb_cache_entry *mb_cache_entry_get(struct mb_cache *cache, u32 key,
+ 					  u64 value);
+-- 
+2.17.1
+

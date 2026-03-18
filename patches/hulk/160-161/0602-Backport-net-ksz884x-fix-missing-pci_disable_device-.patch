@@ -1,0 +1,48 @@
+From be23fd9a444c810561197a61305cbf60f0e82920 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Mon, 24 Oct 2022 21:13:38 +0800
+Subject: [PATCH 0602/1398] [Backport] net: ksz884x: fix missing
+ pci_disable_device() on error in pcidev_init()
+
+stable inclusion
+from stable-v5.10.153
+commit 1f262d80882ac344ca024523b478b035b5ab3bce
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64YCA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1f262d80882ac344ca024523b478b035b5ab3bce
+
+--------------------------------
+
+[ Upstream commit 5da6d65590a0698199df44d095e54b0ed1708178 ]
+
+pci_disable_device() need be called while module exiting, switch to use
+pcim_enable(), pci_disable_device() will be called in pcim_release()
+while unbinding device.
+
+Fixes: 8ca86fd83eae ("net: Micrel KSZ8841/2 PCI Ethernet driver")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Link: https://lore.kernel.org/r/20221024131338.2848959-1-yangyingliang@huawei.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ drivers/net/ethernet/micrel/ksz884x.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/micrel/ksz884x.c b/drivers/net/ethernet/micrel/ksz884x.c
+index 8a45c4577d38..2523a32d427c 100644
+--- a/drivers/net/ethernet/micrel/ksz884x.c
++++ b/drivers/net/ethernet/micrel/ksz884x.c
+@@ -6927,7 +6927,7 @@ static int pcidev_init(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	char banner[sizeof(version)];
+ 	struct ksz_switch *sw = NULL;
+ 
+-	result = pci_enable_device(pdev);
++	result = pcim_enable_device(pdev);
+ 	if (result)
+ 		return result;
+ 
+-- 
+2.17.1
+

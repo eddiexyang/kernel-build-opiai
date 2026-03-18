@@ -1,0 +1,53 @@
+From 3daab1d5cf506ac2c13687b8439e466177528339 Mon Sep 17 00:00:00 2001
+From: Jia-Ju Bai <baijiaju1990@gmail.com>
+Date: Tue, 21 Jun 2022 17:06:01 +0800
+Subject: [PATCH 3107/4585] [Backport] md: bcache: check the return value of
+ kzalloc() in detached_dev_do_request()
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 40f567bbb3b0639d2ec7d1c6ad4b1b018f80cf19
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I59A5L?from=project-issue
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=40f567bbb3b0639d2ec7d1c6ad4b1b018f80cf19
+
+--------------------------------
+
+The function kzalloc() in detached_dev_do_request() can fail, so its
+return value should be checked.
+
+Fixes: bc082a55d25c ("bcache: fix inaccurate io state for detached bcache devices")
+Reported-by: TOTE Robot <oslab@tsinghua.edu.cn>
+Signed-off-by: Jia-Ju Bai <baijiaju1990@gmail.com>
+Signed-off-by: Coly Li <colyli@suse.de>
+Link: https://lore.kernel.org/r/20220527152818.27545-4-colyli@suse.de
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Reviewed-by: Jason Yan <yanaijie@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/md/bcache/request.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/md/bcache/request.c b/drivers/md/bcache/request.c
+index 19014a87a7db..c1a1bd7aa9ec 100644
+--- a/drivers/md/bcache/request.c
++++ b/drivers/md/bcache/request.c
+@@ -1104,6 +1104,12 @@ static void detached_dev_do_request(struct bcache_device *d, struct bio *bio)
+ 	 * which would call closure_get(&dc->disk.cl)
+ 	 */
+ 	ddip = kzalloc(sizeof(struct detached_dev_io_private), GFP_NOIO);
++	if (!ddip) {
++		bio->bi_status = BLK_STS_RESOURCE;
++		bio->bi_end_io(bio);
++		return;
++	}
++
+ 	ddip->d = d;
+ 	/* Count on the bcache device */
+ 	ddip->start_time = part_start_io_acct(d->disk, &ddip->part, bio);
+-- 
+2.17.1
+

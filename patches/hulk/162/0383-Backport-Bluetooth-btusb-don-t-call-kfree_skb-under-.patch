@@ -1,0 +1,55 @@
+From 858c28873a18b8193f3ffc621e7dbce971526b30 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Tue, 6 Dec 2022 20:59:10 +0800
+Subject: [PATCH 383/905] [Backport] Bluetooth: btusb: don't call kfree_skb()
+ under spin_lock_irqsave()
+
+stable inclusion
+from stable-v5.10.163
+commit f7dc27702b598452141868ec108f40e1151f5171
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f7dc27702b598452141868ec108f40e1151f5171
+
+--------------------------------
+
+[ Upstream commit b15a6bd3c80c77faec8317319b97f976b1a08332 ]
+
+It is not allowed to call kfree_skb() from hardware interrupt
+context or with interrupts being disabled. So replace kfree_skb()
+with dev_kfree_skb_irq() under spin_lock_irqsave().
+
+Fixes: 803b58367ffb ("Bluetooth: btusb: Implement driver internal packet reassembly")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/bluetooth/btusb.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/bluetooth/btusb.c b/drivers/bluetooth/btusb.c
+index 54001ad5de9f..3d905fda9b29 100644
+--- a/drivers/bluetooth/btusb.c
++++ b/drivers/bluetooth/btusb.c
+@@ -661,13 +661,13 @@ static inline void btusb_free_frags(struct btusb_data *data)
+ 
+ 	spin_lock_irqsave(&data->rxlock, flags);
+ 
+-	kfree_skb(data->evt_skb);
++	dev_kfree_skb_irq(data->evt_skb);
+ 	data->evt_skb = NULL;
+ 
+-	kfree_skb(data->acl_skb);
++	dev_kfree_skb_irq(data->acl_skb);
+ 	data->acl_skb = NULL;
+ 
+-	kfree_skb(data->sco_skb);
++	dev_kfree_skb_irq(data->sco_skb);
+ 	data->sco_skb = NULL;
+ 
+ 	spin_unlock_irqrestore(&data->rxlock, flags);
+-- 
+2.17.1
+

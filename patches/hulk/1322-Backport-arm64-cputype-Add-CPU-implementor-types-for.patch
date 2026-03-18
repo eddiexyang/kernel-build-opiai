@@ -1,0 +1,68 @@
+From 83e2ea7d1f596357670307031b8be2c480569e62 Mon Sep 17 00:00:00 2001
+From: Hector Martin <marcan@marcan.st>
+Date: Thu, 4 Feb 2021 22:56:13 +0900
+Subject: [PATCH 1322/2065] [Backport] arm64: cputype: Add CPU implementor &
+ types for the Apple M1 cores
+
+stable inclusion
+from stable-v5.10.105
+commit f3c12fc53e0a1fffbe102a9501c7bb6efdabbe99
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5702G
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f3c12fc53e0a1fffbe102a9501c7bb6efdabbe99
+
+--------------------------------
+
+commit 11ecdad722daafcac09c4859dddf31b3d46449bc upstream.
+
+The implementor will be used to condition the FIQ support quirk.
+
+The specific CPU types are not used at the moment, but let's add them
+for documentation purposes.
+
+Acked-by: Will Deacon <will@kernel.org>
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+Conflicts:
+	arch/arm64/include/asm/cputype.h
+
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm64/include/asm/cputype.h | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/include/asm/cputype.h b/arch/arm64/include/asm/cputype.h
+index 663814c0bfc8..0975eec3a29e 100644
+--- a/arch/arm64/include/asm/cputype.h
++++ b/arch/arm64/include/asm/cputype.h
+@@ -60,6 +60,7 @@
+ #define ARM_CPU_IMP_FUJITSU		0x46
+ #define ARM_CPU_IMP_HISI		0x48
+ #define ARM_CPU_IMP_PHYTIUM		0x70
++#define ARM_CPU_IMP_APPLE		0x61
+ 
+ #define ARM_CPU_PART_AEM_V8		0xD0F
+ #define ARM_CPU_PART_FOUNDATION		0xD00
+@@ -111,6 +112,9 @@
+ #define PHYTIUM_CPU_PART_2004	        0X663
+ #define PHYTIUM_CPU_PART_2500		0X663
+ 
++#define APPLE_CPU_PART_M1_ICESTORM	0x022
++#define APPLE_CPU_PART_M1_FIRESTORM	0x023
++
+ #define MIDR_CORTEX_A53 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A53)
+ #define MIDR_CORTEX_A57 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A57)
+ #define MIDR_CORTEX_A72 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A72)
+@@ -149,6 +153,8 @@
+ #define MIDR_FT_2000PLUS MIDR_CPU_MODEL(ARM_CPU_IMP_PHYTIUM, PHYTIUM_CPU_PART_2000PLUS)
+ #define MIDR_FT_2004     MIDR_CPU_MODEL(ARM_CPU_IMP_PHYTIUM, PHYTIUM_CPU_PART_2004)
+ #define MIDR_FT_2500	 MIDR_CPU_MODEL(ARM_CPU_IMP_PHYTIUM, PHYTIUM_CPU_PART_2500)
++#define MIDR_APPLE_M1_ICESTORM MIDR_CPU_MODEL(ARM_CPU_IMP_APPLE, APPLE_CPU_PART_M1_ICESTORM)
++#define MIDR_APPLE_M1_FIRESTORM MIDR_CPU_MODEL(ARM_CPU_IMP_APPLE, APPLE_CPU_PART_M1_FIRESTORM)
+ 
+ /* Fujitsu Erratum 010001 affects A64FX 1.0 and 1.1, (v0r0 and v1r0) */
+ #define MIDR_FUJITSU_ERRATUM_010001		MIDR_FUJITSU_A64FX
+-- 
+2.17.1
+

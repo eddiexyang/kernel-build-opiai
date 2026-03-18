@@ -1,0 +1,52 @@
+From 9a20eaf738491a9f53d13bed39b91aefad1de234 Mon Sep 17 00:00:00 2001
+From: Dave Stevenson <dave.stevenson@raspberrypi.com>
+Date: Mon, 13 Jun 2022 16:47:43 +0200
+Subject: [PATCH 0584/1076] [Backport] drm/vc4: dsi: Add correct stop condition
+ to vc4_dsi_encoder_disable iteration
+
+stable inclusion
+from stable-v5.10.137
+commit cefc8e7e0ea4e11f750c4abbb6f5ebc8f85110d5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=cefc8e7e0ea4e11f750c4abbb6f5ebc8f85110d5
+
+--------------------------------
+
+[ Upstream commit 7bcb9c8d0bc9f3cab8ac2634b056c2e6b63945ca ]
+
+vc4_dsi_encoder_disable is partially an open coded version of
+drm_bridge_chain_disable, but it missed a termination condition
+in the loop for ->disable which meant that no post_disable
+calls were made.
+
+Add in the termination clause.
+
+Fixes: 033bfe7538a1 ("drm/vc4: dsi: Fix bridge chain handling")
+Signed-off-by: Dave Stevenson <dave.stevenson@raspberrypi.com>
+Link: https://lore.kernel.org/r/20220613144800.326124-17-maxime@cerno.tech
+Signed-off-by: Maxime Ripard <maxime@cerno.tech>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/vc4/vc4_dsi.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_dsi.c b/drivers/gpu/drm/vc4/vc4_dsi.c
+index 43e86f0b5541..0bda40c2d787 100644
+--- a/drivers/gpu/drm/vc4/vc4_dsi.c
++++ b/drivers/gpu/drm/vc4/vc4_dsi.c
+@@ -803,6 +803,9 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
+ 	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
+ 		if (iter->funcs->disable)
+ 			iter->funcs->disable(iter);
++
++		if (iter == dsi->bridge)
++			break;
+ 	}
+ 
+ 	vc4_dsi_ulps(dsi, true);
+-- 
+2.17.1
+

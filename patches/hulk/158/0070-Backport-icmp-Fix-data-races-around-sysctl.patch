@@ -1,0 +1,51 @@
+From d10c6fc76498a1e7c6144749b47aa8589a21a075 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Wed, 6 Jul 2022 16:40:02 -0700
+Subject: [PATCH 0070/1076] [Backport] icmp: Fix data-races around sysctl.
+
+stable inclusion
+from stable-v5.10.132
+commit e088ceb73c24ab4774da391d54a6426f4bfaefce
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5QEX0
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e088ceb73c24ab4774da391d54a6426f4bfaefce
+
+--------------------------------
+
+[ Upstream commit 48d7ee321ea5182c6a70782aa186422a70e67e22 ]
+
+While reading icmp sysctl variables, they can be changed concurrently.
+So, we need to add READ_ONCE() to avoid data-races.
+
+Fixes: 4cdf507d5452 ("icmp: add a global rate limitation")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ net/ipv4/icmp.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/ipv4/icmp.c b/net/ipv4/icmp.c
+index b71b836cc7d1..3c698384c8b9 100644
+--- a/net/ipv4/icmp.c
++++ b/net/ipv4/icmp.c
+@@ -261,11 +261,12 @@ bool icmp_global_allow(void)
+ 	spin_lock(&icmp_global.lock);
+ 	delta = min_t(u32, now - icmp_global.stamp, HZ);
+ 	if (delta >= HZ / 50) {
+-		incr = sysctl_icmp_msgs_per_sec * delta / HZ ;
++		incr = READ_ONCE(sysctl_icmp_msgs_per_sec) * delta / HZ;
+ 		if (incr)
+ 			WRITE_ONCE(icmp_global.stamp, now);
+ 	}
+-	credit = min_t(u32, icmp_global.credit + incr, sysctl_icmp_msgs_burst);
++	credit = min_t(u32, icmp_global.credit + incr,
++		       READ_ONCE(sysctl_icmp_msgs_burst));
+ 	if (credit) {
+ 		/* We want to use a credit of one in average, but need to randomize
+ 		 * it for security reasons.
+-- 
+2.17.1
+

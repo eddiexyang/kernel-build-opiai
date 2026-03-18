@@ -1,0 +1,48 @@
+From 4e016ff058bbea760944da7b158413113b979629 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Wed, 1 Jun 2022 07:51:16 -0700
+Subject: [PATCH 4285/4585] [Backport] dma-debug: make things less spammy under
+ memory pressure
+
+stable inclusion
+from stable-v5.10.124
+commit d7be05aff27278c89c5c2d5518e235a315ce447a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5KATP
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d7be05aff27278c89c5c2d5518e235a315ce447a
+
+--------------------------------
+
+[ Upstream commit e19f8fa6ce1ca9b8b934ba7d2e8f34c95abc6e60 ]
+
+Limit the error msg to avoid flooding the console.  If you have a lot of
+threads hitting this at once, they could have already gotten passed the
+dma_debug_disabled() check before they get to the point of allocation
+failure, resulting in quite a lot of this error message spamming the
+log.  Use pr_err_once() to limit that.
+
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/dma/debug.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/dma/debug.c b/kernel/dma/debug.c
+index ee7da1f2462f..ae9fc1ee6d20 100644
+--- a/kernel/dma/debug.c
++++ b/kernel/dma/debug.c
+@@ -564,7 +564,7 @@ static void add_dma_entry(struct dma_debug_entry *entry)
+ 
+ 	rc = active_cacheline_insert(entry);
+ 	if (rc == -ENOMEM) {
+-		pr_err("cacheline tracking ENOMEM, dma-debug disabled\n");
++		pr_err_once("cacheline tracking ENOMEM, dma-debug disabled\n");
+ 		global_disable = true;
+ 	}
+ 
+-- 
+2.17.1
+

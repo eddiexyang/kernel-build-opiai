@@ -1,0 +1,53 @@
+From 206788ce263d9f0fc0ead5f30c2e5d8c51fb9ddb Mon Sep 17 00:00:00 2001
+From: Steven Rostedt <rostedt@goodmis.org>
+Date: Wed, 18 Jan 2023 11:31:25 -0500
+Subject: [PATCH 770/921] [Backport] ktest.pl: Fix missing "end_monitor" when
+ machine check fails
+
+stable inclusion
+from stable-v5.10.173
+commit 39255e4788fb5a27dd6957540a62b037aa7841ea
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=39255e4788fb5a27dd6957540a62b037aa7841ea
+
+--------------------------------
+
+commit e8bf9b98d40dbdf4e39362e3b85a70c61da68cb7 upstream.
+
+In the "reboot" command, it does a check of the machine to see if it is
+still alive with a simple "ssh echo" command. If it fails, it will assume
+that a normal "ssh reboot" is not possible and force a power cycle.
+
+In this case, the "start_monitor" is executed, but the "end_monitor" is
+not, and this causes the screen will not be given back to the console. That
+is, after the test, a "reset" command needs to be performed, as "echo" is
+turned off.
+
+Cc: stable@vger.kernel.org
+Fixes: 6474ace999edd ("ktest.pl: Powercycle the box on reboot if no connection can be made")
+Signed-off-by: Steven Rostedt <rostedt@goodmis.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ tools/testing/ktest/ktest.pl | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/ktest/ktest.pl b/tools/testing/ktest/ktest.pl
+index a9fb5a48751e..2b2061a70b78 100755
+--- a/tools/testing/ktest/ktest.pl
++++ b/tools/testing/ktest/ktest.pl
+@@ -1433,7 +1433,8 @@ sub reboot {
+ 
+ 	# Still need to wait for the reboot to finish
+ 	wait_for_monitor($time, $reboot_success_line);
+-
++    }
++    if ($powercycle || $time) {
+ 	end_monitor;
+     }
+ }
+-- 
+2.17.1
+

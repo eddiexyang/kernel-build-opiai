@@ -1,0 +1,94 @@
+From c2fc96b6422a611116c15fc2420583eb87a64393 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Thu, 11 Nov 2021 16:47:45 +0800
+Subject: [PATCH 3322/4585] [Huawei] init: Add IAS for intelligent aware
+ scheduler
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 185725
+
+--------------------------------
+
+Add IAS CONFIG for intelligent aware scheduler.
+Fixes: 1659b380c2b5 ("[Huawei] sysctl: Refactor IAS framework").
+
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+Reviewed-by: Chen Hui <judy.chenhui@huawei.com>
+Reviewed-by: Kuohai Xu <xukuohai@huawei.com>
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+Patchwork Links: http://patchwork.huawei.com/project/hulk5.10/list/?series=20333
+---
+ init/Kconfig    | 11 +++++++++--
+ kernel/sysctl.c |  5 +++++
+ 2 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/init/Kconfig b/init/Kconfig
+index a3c854246218..d05ad8d79764 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -823,7 +823,14 @@ config UCLAMP_BUCKETS_COUNT
+ 
+ 	  If in doubt, use the default value.
+ 
+-menu "Intelligent aware scheduler"
++menuconfig IAS
++	bool "Intelligent aware scheduler"
++	default n
++	help
++	  Say Y here to get to see options for using intelligent aware scheduler.
++	  If you say N, all options in this submenu will be skipped and disabled.
++
++if IAS
+ 
+ config IAS_SMART_IDLE
+ 	bool "Enable smart idle"
+@@ -841,7 +848,7 @@ config IAS_SMART_LOAD_TRACKING
+ 	  in system, we close some load tracking in tick and enqueue or dequeue
+ 	  task, in this way, we can save some unnecessary cpu overhead.
+ 
+-endmenu
++endif
+ 
+ endmenu
+ 
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index 5b0da262b98f..73777f233be5 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -1687,6 +1687,8 @@ int proc_do_static_key(struct ctl_table *table, int write,
+ 	mutex_unlock(&static_key_mutex);
+ 	return ret;
+ }
++
++#ifdef CONFIG_IAS
+ static struct ctl_table ias_table[] = {
+ #ifdef CONFIG_IAS_SMART_IDLE
+ 	{
+@@ -1730,6 +1732,7 @@ static struct ctl_table ias_table[] = {
+ #endif
+ 	{ }
+ };
++#endif
+ 
+ static struct ctl_table kern_table[] = {
+ 	{
+@@ -2773,11 +2776,13 @@ static struct ctl_table kern_table[] = {
+ 		.extra2		= &one_hundred,
+ 	},
+ #endif
++#ifdef CONFIG_IAS
+ 	{
+ 		.procname	= "ias",
+ 		.mode		= 0555,
+ 		.child		= ias_table,
+ 	},
++#endif
+ 	{ }
+ };
+ 
+-- 
+2.17.1
+

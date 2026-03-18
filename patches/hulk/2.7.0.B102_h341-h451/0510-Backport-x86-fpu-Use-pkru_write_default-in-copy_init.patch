@@ -1,0 +1,119 @@
+From 9811b297021f184ff2bd3599f19ce91551041a62 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 23 Jun 2021 14:02:11 +0200
+Subject: [PATCH 0510/1646] [Backport] x86/fpu: Use pkru_write_default() in
+ copy_init_fpstate_to_fpregs()
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit 371071131cd1032c1e9172c51234a2a324841cab
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=371071131cd1032c1e9172c51234a2a324841cab
+
+--------------------------------
+
+There is no point in using copy_init_pkru_to_fpregs() which in turn calls
+write_pkru(). write_pkru() tries to fiddle with the task's xstate buffer
+for nothing because the XRSTOR[S](init_fpstate) just cleared the xfeature
+flag in the xstate header which makes get_xsave_addr() fail.
+
+It's a useless exercise anyway because the reinitialization activates the
+FPU so before the task's xstate buffer can be used again a XRSTOR[S] must
+happen which in turn dumps the PKRU value.
+
+Get rid of the now unused copy_init_pkru_to_fpregs().
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210623121455.732508792@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/pkeys.h |  1 -
+ arch/x86/kernel/fpu/core.c   |  3 +--
+ arch/x86/mm/pkeys.c          | 17 -----------------
+ include/linux/pkeys.h        |  4 ----
+ 4 files changed, 1 insertion(+), 24 deletions(-)
+
+diff --git a/arch/x86/include/asm/pkeys.h b/arch/x86/include/asm/pkeys.h
+index 4128f647c755..5c7bcaa79623 100644
+--- a/arch/x86/include/asm/pkeys.h
++++ b/arch/x86/include/asm/pkeys.h
+@@ -124,7 +124,6 @@ extern int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+ 		unsigned long init_val);
+ extern int __arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+ 		unsigned long init_val);
+-extern void copy_init_pkru_to_fpregs(void);
+ 
+ static inline int vma_pkey(struct vm_area_struct *vma)
+ {
+diff --git a/arch/x86/kernel/fpu/core.c b/arch/x86/kernel/fpu/core.c
+index 3866954354a4..fedadcb04ba2 100644
+--- a/arch/x86/kernel/fpu/core.c
++++ b/arch/x86/kernel/fpu/core.c
+@@ -311,8 +311,7 @@ static inline void restore_fpregs_from_init_fpstate(u64 features_mask)
+ 	else
+ 		frstor(&init_fpstate.fsave);
+ 
+-	if (cpu_feature_enabled(X86_FEATURE_OSPKE))
+-		copy_init_pkru_to_fpregs();
++	pkru_write_default();
+ }
+ 
+ /*
+diff --git a/arch/x86/mm/pkeys.c b/arch/x86/mm/pkeys.c
+index 14c98bcb1083..fb171a5d7f33 100644
+--- a/arch/x86/mm/pkeys.c
++++ b/arch/x86/mm/pkeys.c
+@@ -10,7 +10,6 @@
+ 
+ #include <asm/cpufeature.h>             /* boot_cpu_has, ...            */
+ #include <asm/mmu_context.h>            /* vma_pkey()                   */
+-#include <asm/pkru.h>			/* read/write_pkru()		*/
+ 
+ int __execute_only_pkey(struct mm_struct *mm)
+ {
+@@ -125,22 +124,6 @@ u32 init_pkru_value = PKRU_AD_KEY( 1) | PKRU_AD_KEY( 2) | PKRU_AD_KEY( 3) |
+ 		      PKRU_AD_KEY(10) | PKRU_AD_KEY(11) | PKRU_AD_KEY(12) |
+ 		      PKRU_AD_KEY(13) | PKRU_AD_KEY(14) | PKRU_AD_KEY(15);
+ 
+-/*
+- * Called from the FPU code when creating a fresh set of FPU
+- * registers.  This is called from a very specific context where
+- * we know the FPU regstiers are safe for use and we can use PKRU
+- * directly.
+- */
+-void copy_init_pkru_to_fpregs(void)
+-{
+-	u32 init_pkru_value_snapshot = READ_ONCE(init_pkru_value);
+-	/*
+-	 * Override the PKRU state that came from 'init_fpstate'
+-	 * with the baseline from the process.
+-	 */
+-	write_pkru(init_pkru_value_snapshot);
+-}
+-
+ static ssize_t init_pkru_read_file(struct file *file, char __user *user_buf,
+ 			     size_t count, loff_t *ppos)
+ {
+diff --git a/include/linux/pkeys.h b/include/linux/pkeys.h
+index 2955ba976048..6beb26b7151d 100644
+--- a/include/linux/pkeys.h
++++ b/include/linux/pkeys.h
+@@ -44,10 +44,6 @@ static inline bool arch_pkeys_enabled(void)
+ 	return false;
+ }
+ 
+-static inline void copy_init_pkru_to_fpregs(void)
+-{
+-}
+-
+ #endif /* ! CONFIG_ARCH_HAS_PKEYS */
+ 
+ #endif /* _LINUX_PKEYS_H */
+-- 
+2.17.1
+

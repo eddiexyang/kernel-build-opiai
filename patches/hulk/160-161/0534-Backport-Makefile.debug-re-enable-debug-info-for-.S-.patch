@@ -1,0 +1,56 @@
+From 9e67b3a60f3c27bd1390782eba10ac17665b452f Mon Sep 17 00:00:00 2001
+From: Nick Desaulniers <ndesaulniers@google.com>
+Date: Mon, 24 Oct 2022 13:34:14 -0700
+Subject: [PATCH 0534/1398] [Backport] Makefile.debug: re-enable debug info for
+ .S files
+
+stable inclusion
+from stable-v5.10.152
+commit 3a260e9844c97c220603696b0bc225a8acf44d9c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64L17
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3a260e9844c97c220603696b0bc225a8acf44d9c
+
+--------------------------------
+
+This is _not_ an upstream commit and just for 5.10.y only. It is based
+on commit 32ef9e5054ec0321b9336058c58ec749e9c6b0fe upstream.
+
+Alexey reported that the fraction of unknown filename instances in
+kallsyms grew from ~0.3% to ~10% recently; Bill and Greg tracked it down
+to assembler defined symbols, which regressed as a result of:
+
+commit b8a9092330da ("Kbuild: do not emit debug info for assembly with LLVM_IAS=1")
+
+In that commit, I allude to restoring debug info for assembler defined
+symbols in a follow up patch, but it seems I forgot to do so in
+
+commit a66049e2cf0e ("Kbuild: make DWARF version a choice")
+
+Fixes: b8a9092330da ("Kbuild: do not emit debug info for assembly with LLVM_IAS=1")
+Signed-off-by: Nick Desaulniers <ndesaulniers@google.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ Makefile | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index a4a97dcc6581..1f17caffec45 100644
+--- a/Makefile
++++ b/Makefile
+@@ -839,7 +839,9 @@ else
+ DEBUG_CFLAGS	+= -g
+ endif
+ 
+-ifneq ($(LLVM_IAS),1)
++ifeq ($(LLVM_IAS),1)
++KBUILD_AFLAGS	+= -g
++else
+ KBUILD_AFLAGS	+= -Wa,-gdwarf-2
+ endif
+ 
+-- 
+2.17.1
+

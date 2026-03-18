@@ -1,0 +1,78 @@
+From 3a892e63363c1dffa603a6aebf7007a3cae634a2 Mon Sep 17 00:00:00 2001
+From: Xia Fukun <xiafukun@huawei.com>
+Date: Thu, 9 Mar 2023 11:40:05 +0800
+Subject: [PATCH 499/500] [Huawei] kobject: Fix global-out-of-bounds in
+ kobject_action_type()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188504
+
+--------------------------------
+
+The following c language code can trigger KASAN's global variable
+out-of-bounds access error in kobject_action_type():
+
+int main() {
+    int fd;
+    char *filename = "/sys/block/ram12/uevent";
+    char str[86] = "offline";
+    int len = 86;
+
+    fd = open(filename, O_WRONLY);
+    if (fd == -1) {
+        printf("open");
+        exit(1);
+    }
+
+    if (write(fd, str, len) == -1) {
+        printf("write");
+        exit(1);
+    }
+
+    close(fd);
+    return 0;
+}
+
+Function kobject_action_type() receives the input parameters buf and count,
+where count is the length of the string buf.
+
+In the use case we provided, count is 86, the count_first is 85.
+Buf points to a string with a length of 86, and its first seven
+characters are "offline".
+In line 87 of the code, kobject_actions[action] is the string "offline"
+with the length of 7,an out-of-boundary access will appear:
+
+kobject_actions[action][85].
+
+Modify the judgment logic in line 87. If the length of the string
+kobject_actions[action] is greater than count_first(e.g. buf is "off",
+count is 3), continue the loop.
+Otherwise, the match is considered successful.
+
+This change means that our test case will be successfully parsed as an
+offline event and no out-of-bounds access error will occur.
+
+Fixes: f36776fafbaa ("kobject: support passing in variables for synthetic uevents")
+Signed-off-by: Xia Fukun <xiafukun@huawei.com>
+---
+ lib/kobject_uevent.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/kobject_uevent.c b/lib/kobject_uevent.c
+index c87d5b6a8a55..8056def4c028 100644
+--- a/lib/kobject_uevent.c
++++ b/lib/kobject_uevent.c
+@@ -84,7 +84,7 @@ static int kobject_action_type(const char *buf, size_t count,
+ 	for (action = 0; action < ARRAY_SIZE(kobject_actions); action++) {
+ 		if (strncmp(kobject_actions[action], buf, count_first) != 0)
+ 			continue;
+-		if (kobject_actions[action][count_first] != '\0')
++		if (strlen(kobject_actions[action]) > count_first)
+ 			continue;
+ 		if (args)
+ 			*args = args_start;
+-- 
+2.17.1
+

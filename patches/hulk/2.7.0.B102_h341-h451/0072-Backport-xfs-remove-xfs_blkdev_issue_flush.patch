@@ -1,0 +1,125 @@
+From 0d72dc6d46f2cf005e984aadb9198b5f021cf5ea Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Fri, 18 Jun 2021 08:21:49 -0700
+Subject: [PATCH 0072/1646] [Backport] xfs: remove xfs_blkdev_issue_flush
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit b5071ada510a76eac0d02912bf66297b9e30ca59
+category: bugfix
+bugzilla: 187526
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5071ada510a76eac0d02912bf66297b9e30ca59
+
+----------------------------------------
+
+It's a one line wrapper around blkdev_issue_flush(). Just replace it
+with direct calls to blkdev_issue_flush().
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Chandan Babu R <chandanrlinux@gmail.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Brian Foster <bfoster@redhat.com>
+Reviewed-by: Allison Henderson <allison.henderson@oracle.com>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+
+conflicts:
+fs/xfs/xfs_log.c
+fs/xfs/xfs_super.c
+fs/xfs/xfs_super.h
+
+Signed-off-by: Ye Bin <yebin10@huawei.com>
+---
+ fs/xfs/xfs_buf.c   | 2 +-
+ fs/xfs/xfs_file.c  | 6 +++---
+ fs/xfs/xfs_log.c   | 3 ++-
+ fs/xfs/xfs_super.c | 7 -------
+ fs/xfs/xfs_super.h | 1 -
+ 5 files changed, 6 insertions(+), 13 deletions(-)
+
+diff --git a/fs/xfs/xfs_buf.c b/fs/xfs/xfs_buf.c
+index 77c9eebb9c9e..73adabb98aa2 100644
+--- a/fs/xfs/xfs_buf.c
++++ b/fs/xfs/xfs_buf.c
+@@ -1970,7 +1970,7 @@ xfs_free_buftarg(
+ 	percpu_counter_destroy(&btp->bt_io_count);
+ 	list_lru_destroy(&btp->bt_lru);
+ 
+-	xfs_blkdev_issue_flush(btp);
++	blkdev_issue_flush(btp->bt_bdev, GFP_NOFS);
+ 	invalidate_bdev(btp->bt_bdev);
+ 
+ 	kmem_free(btp);
+diff --git a/fs/xfs/xfs_file.c b/fs/xfs/xfs_file.c
+index 17f50316a039..d0b113125abf 100644
+--- a/fs/xfs/xfs_file.c
++++ b/fs/xfs/xfs_file.c
+@@ -196,9 +196,9 @@ xfs_file_fsync(
+ 	 * inode size in case of an extending write.
+ 	 */
+ 	if (XFS_IS_REALTIME_INODE(ip))
+-		xfs_blkdev_issue_flush(mp->m_rtdev_targp);
++		blkdev_issue_flush(mp->m_rtdev_targp->bt_bdev, GFP_NOFS);
+ 	else if (mp->m_logdev_targp != mp->m_ddev_targp)
+-		xfs_blkdev_issue_flush(mp->m_ddev_targp);
++		blkdev_issue_flush(mp->m_ddev_targp->bt_bdev, GFP_NOFS);
+ 
+ 	/*
+ 	 * Any inode that has dirty modifications in the log is pinned.  The
+@@ -218,7 +218,7 @@ xfs_file_fsync(
+ 	 */
+ 	if (!log_flushed && !XFS_IS_REALTIME_INODE(ip) &&
+ 	    mp->m_logdev_targp == mp->m_ddev_targp)
+-		xfs_blkdev_issue_flush(mp->m_ddev_targp);
++		blkdev_issue_flush(mp->m_ddev_targp->bt_bdev, GFP_NOFS);
+ 
+ 	return error;
+ }
+diff --git a/fs/xfs/xfs_log.c b/fs/xfs/xfs_log.c
+index 9ee09b45c561..8c5da47c6470 100644
+--- a/fs/xfs/xfs_log.c
++++ b/fs/xfs/xfs_log.c
+@@ -1809,7 +1809,8 @@ xlog_write_iclog(
+ 		 * but it *must* complete before we issue the external log IO.
+ 		 */
+ 		if (log->l_targ != log->l_mp->m_ddev_targp)
+-			xfs_blkdev_issue_flush(log->l_mp->m_ddev_targp);
++			blkdev_issue_flush(log->l_mp->m_ddev_targp->bt_bdev,
++					   GFP_NOFS);
+ 	}
+ 	if (iclog->ic_flags & XLOG_ICL_NEED_FUA)
+ 		iclog->ic_bio.bi_opf |= REQ_FUA;
+diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c
+index c4500db05a86..e83af9027131 100644
+--- a/fs/xfs/xfs_super.c
++++ b/fs/xfs/xfs_super.c
+@@ -355,13 +355,6 @@ xfs_blkdev_put(
+ 		blkdev_put(bdev, FMODE_READ|FMODE_WRITE|FMODE_EXCL);
+ }
+ 
+-void
+-xfs_blkdev_issue_flush(
+-	xfs_buftarg_t		*buftarg)
+-{
+-	blkdev_issue_flush(buftarg->bt_bdev, GFP_NOFS);
+-}
+-
+ STATIC void
+ xfs_close_devices(
+ 	struct xfs_mount	*mp)
+diff --git a/fs/xfs/xfs_super.h b/fs/xfs/xfs_super.h
+index 1ca484b8357f..79cb2dece811 100644
+--- a/fs/xfs/xfs_super.h
++++ b/fs/xfs/xfs_super.h
+@@ -88,7 +88,6 @@ struct block_device;
+ 
+ extern void xfs_quiesce_attr(struct xfs_mount *mp);
+ extern void xfs_flush_inodes(struct xfs_mount *mp);
+-extern void xfs_blkdev_issue_flush(struct xfs_buftarg *);
+ extern xfs_agnumber_t xfs_set_inode_alloc(struct xfs_mount *,
+ 					   xfs_agnumber_t agcount);
+ 
+-- 
+2.17.1
+

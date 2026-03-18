@@ -1,0 +1,37 @@
+From 1c7edbb8ca30b031a183dc677a058e521b677109 Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Fri, 14 Jul 2023 09:21:34 +0800
+Subject: [PATCH 28/36] [Huawei] PSI: Change the type of input param of
+ psi_memstall_type_change
+
+Offering: HULK
+HULK inclusion
+category: bugfix
+bugzilla: 188780
+
+-------------------------------
+
+Unified input parameters of psi_memstall_type_change to
+enum psi_memstall_type. No function changes.
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ kernel/sched/psi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/psi.c b/kernel/sched/psi.c
+index ac1a073bf4f2..df74fb7e86dd 100644
+--- a/kernel/sched/psi.c
++++ b/kernel/sched/psi.c
+@@ -346,7 +346,7 @@ static void calc_avgs(unsigned long avg[3], int missed_periods,
+ 
+ #ifdef CONFIG_PSI_FINE_GRAINED
+ 
+-void psi_memstall_type_change(unsigned int type)
++void psi_memstall_type_change(enum psi_memstall_type type)
+ {
+ 	struct rq_flags rf;
+ 	struct rq *rq;
+-- 
+2.17.1
+

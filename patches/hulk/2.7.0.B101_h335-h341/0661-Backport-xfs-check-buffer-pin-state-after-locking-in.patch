@@ -1,0 +1,97 @@
+From d28061d5b709f58d1e609105ff226b295b55b8e0 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Thu, 17 Mar 2022 09:09:10 -0700
+Subject: [PATCH 661/921] [Backport] xfs: check buffer pin state after locking
+ in delwri_submit
+
+mainline inclusion
+from mainline-v5.17-rc6
+commit dbd0f5299302f8506637592e2373891a748c6990
+category: bugfix
+bugzilla: 188220
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=dbd0f5299302f8506637592e2373891a748c6990
+
+--------------------------------
+
+AIL flushing can get stuck here:
+
+[316649.005769] INFO: task xfsaild/pmem1:324525 blocked for more than 123 seconds.
+[316649.007807]       Not tainted 5.17.0-rc6-dgc+ #975
+[316649.009186] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[316649.011720] task:xfsaild/pmem1   state:D stack:14544 pid:324525 ppid:     2 flags:0x00004000
+[316649.014112] Call Trace:
+[316649.014841]  <TASK>
+[316649.015492]  __schedule+0x30d/0x9e0
+[316649.017745]  schedule+0x55/0xd0
+[316649.018681]  io_schedule+0x4b/0x80
+[316649.019683]  xfs_buf_wait_unpin+0x9e/0xf0
+[316649.021850]  __xfs_buf_submit+0x14a/0x230
+[316649.023033]  xfs_buf_delwri_submit_buffers+0x107/0x280
+[316649.024511]  xfs_buf_delwri_submit_nowait+0x10/0x20
+[316649.025931]  xfsaild+0x27e/0x9d0
+[316649.028283]  kthread+0xf6/0x120
+[316649.030602]  ret_from_fork+0x1f/0x30
+
+in the situation where flushing gets preempted between the unpin
+check and the buffer trylock under nowait conditions:
+
+	blk_start_plug(&plug);
+	list_for_each_entry_safe(bp, n, buffer_list, b_list) {
+		if (!wait_list) {
+			if (xfs_buf_ispinned(bp)) {
+				pinned++;
+				continue;
+			}
+Here >>>>>>
+			if (!xfs_buf_trylock(bp))
+				continue;
+
+This means submission is stuck until something else triggers a log
+force to unpin the buffer.
+
+To get onto the delwri list to begin with, the buffer pin state has
+already been checked, and hence it's relatively rare we get a race
+between flushing and encountering a pinned buffer in delwri
+submission to begin with. Further, to increase the pin count the
+buffer has to be locked, so the only way we can hit this race
+without failing the trylock is to be preempted between the pincount
+check seeing zero and the trylock being run.
+
+Hence to avoid this problem, just invert the order of trylock vs
+pin check. We shouldn't hit that many pinned buffers here, so
+optimising away the trylock for pinned buffers should not matter for
+performance at all.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Chandan Babu R <chandan.babu@oracle.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_buf.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/fs/xfs/xfs_buf.c b/fs/xfs/xfs_buf.c
+index 2ad68cdf5405..dafef34646ed 100644
+--- a/fs/xfs/xfs_buf.c
++++ b/fs/xfs/xfs_buf.c
+@@ -2173,12 +2173,13 @@ xfs_buf_delwri_submit_buffers(
+ 	blk_start_plug(&plug);
+ 	list_for_each_entry_safe(bp, n, buffer_list, b_list) {
+ 		if (!wait_list) {
++			if (!xfs_buf_trylock(bp))
++				continue;
+ 			if (xfs_buf_ispinned(bp)) {
++				xfs_buf_unlock(bp);
+ 				pinned++;
+ 				continue;
+ 			}
+-			if (!xfs_buf_trylock(bp))
+-				continue;
+ 		} else {
+ 			xfs_buf_lock(bp);
+ 		}
+-- 
+2.17.1
+

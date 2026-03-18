@@ -1,0 +1,42 @@
+From a38fda5a38ab7ae12071e8874dc66b36cdf42f20 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Fri, 22 Sep 2023 11:26:43 +0800
+Subject: [PATCH] mm: support is_cdm_node when CDM turns off
+
+The ai_sdk drivers relies on is_cdm_node to limit usage of cdm node as the
+cdm node cannot be limited by cgroup, support this interface by calling
+is_non_normal_node before they change to other way when CDM turns off and
+ASCEND_ISOLATE_NON_NORMAL_NODE turns on.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ include/linux/nodemask.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/include/linux/nodemask.h b/include/linux/nodemask.h
+index 8ff47003e..a4905829f 100644
+--- a/include/linux/nodemask.h
++++ b/include/linux/nodemask.h
+@@ -505,6 +505,7 @@ static inline int node_random(const nodemask_t *mask)
+ }
+ #endif
+ 
++static inline bool is_non_normal_node(int node);
+ #ifdef CONFIG_COHERENT_DEVICE
+ extern int arch_check_node_cdm(int nid);
+ 
+@@ -566,7 +567,11 @@ static inline nodemask_t system_mem_nodemask(void)
+ 
+ static inline bool is_cdm_node(int node)
+ {
++#ifdef CONFIG_ASCEND_ISOLATE_NON_NORMAL_NODE
++	return is_non_normal_node(node);
++#else
+ 	return false;
++#endif
+ }
+ 
+ static inline bool nodemask_has_cdm(nodemask_t mask)
+-- 
+2.17.1
+

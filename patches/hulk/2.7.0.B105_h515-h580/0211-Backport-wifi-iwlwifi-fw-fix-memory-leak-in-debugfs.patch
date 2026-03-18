@@ -1,0 +1,52 @@
+From 4723ed97e2cc21af4c8fb5d39b1201f62a8ddd13 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Tue, 18 Apr 2023 12:28:05 +0300
+Subject: [PATCH 211/780] [Backport] wifi: iwlwifi: fw: fix memory leak in
+ debugfs
+
+stable inclusion
+from stable-v5.10.180
+commit 89496d6cff297c88fe0286a440c380ceb172da2b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=89496d6cff297c88fe0286a440c380ceb172da2b
+
+--------------------------------
+
+[ Upstream commit 3d90d2f4a018fe8cfd65068bc6350b6222be4852 ]
+
+Fix a memory leak that occurs when reading the fw_info
+file all the way, since we return NULL indicating no
+more data, but don't free the status tracking object.
+
+Fixes: 36dfe9ac6e8b ("iwlwifi: dump api version in yaml format")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230418122405.239e501b3b8d.I4268f87809ef91209cbcd748eee0863195e70fa2@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/intel/iwlwifi/fw/debugfs.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/fw/debugfs.c b/drivers/net/wireless/intel/iwlwifi/fw/debugfs.c
+index 267ad4eddb5c..24d6ed3513ce 100644
+--- a/drivers/net/wireless/intel/iwlwifi/fw/debugfs.c
++++ b/drivers/net/wireless/intel/iwlwifi/fw/debugfs.c
+@@ -344,8 +344,10 @@ static void *iwl_dbgfs_fw_info_seq_next(struct seq_file *seq,
+ 	const struct iwl_fw *fw = priv->fwrt->fw;
+ 
+ 	*pos = ++state->pos;
+-	if (*pos >= fw->ucode_capa.n_cmd_versions)
++	if (*pos >= fw->ucode_capa.n_cmd_versions) {
++		kfree(state);
+ 		return NULL;
++	}
+ 
+ 	return state;
+ }
+-- 
+2.17.1
+

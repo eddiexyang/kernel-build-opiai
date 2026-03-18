@@ -1,0 +1,72 @@
+From b56cdb2875949cbd4742c4f7392168c776e781ad Mon Sep 17 00:00:00 2001
+From: Guangbin Huang <huangguangbin2@huawei.com>
+Date: Tue, 11 Oct 2022 23:14:22 +0800
+Subject: [PATCH 0961/1646] [Backport] net: hns3: add judge fd ability for sync
+ and clear process of flow director
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 236b8f5dc75d59ce970d1c1368f2935bcc6ca224
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5QIIF
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=236b8f5dc75d59ce970d1c1368f2935bcc6ca224
+
+--------------------------------
+
+Currently, driver will always clear user defined field of flow director
+in uninit process and sync flow director table in periodic task. However,
+if hardware does not support flow director driver should not do those
+processes, so add fd ability judgement.
+
+The fd ability judgement in function hclge_clear_fd_rules_in_list() is
+redundant, so delete it.
+
+Signed-off-by: Guangbin Huang <huangguangbin2@huawei.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Jiantao Xiao <xiaojiantao1@h-partners.com>
+Reviewed-by: Jian Shen <shenjian15@huawei.com>
+Reviewed-by: YueHaibing <yuehaibing@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index cdab5a57f6db..5214e3ede54d 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -6470,9 +6470,6 @@ static void hclge_clear_fd_rules_in_list(struct hclge_dev *hdev,
+ 	struct hlist_node *node;
+ 	u16 location;
+ 
+-	if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
+-		return;
+-
+ 	spin_lock_bh(&hdev->fd_rule_lock);
+ 
+ 	for_each_set_bit(location, hdev->fd_bmap,
+@@ -6497,6 +6494,9 @@ static void hclge_clear_fd_rules_in_list(struct hclge_dev *hdev,
+ 
+ static void hclge_del_all_fd_entries(struct hclge_dev *hdev)
+ {
++	if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
++		return;
++
+ 	hclge_clear_fd_rules_in_list(hdev, true);
+ 	hclge_fd_disable_user_def(hdev);
+ }
+@@ -7330,6 +7330,9 @@ static void hclge_sync_fd_list(struct hclge_dev *hdev, struct hlist_head *hlist)
+ 
+ static void hclge_sync_fd_table(struct hclge_dev *hdev)
+ {
++	if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
++		return;
++
+ 	if (test_and_clear_bit(HCLGE_STATE_FD_CLEAR_ALL, &hdev->state)) {
+ 		bool clear_list = hdev->fd_active_type == HCLGE_FD_ARFS_ACTIVE;
+ 
+-- 
+2.17.1
+

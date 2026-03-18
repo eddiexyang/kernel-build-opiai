@@ -1,0 +1,38 @@
+From cd7e16f8ef3b087e7757c94e595fd834e2ddc37f Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Thu, 27 Apr 2023 19:22:34 +0800
+Subject: [PATCH 0880/1646] [Huawei] fix kabi broken due to import new inode
+ operation get_inode_acl
+
+Offering: HULK
+hulk inclusion
+category: perf
+bugzilla: 188725
+
+--------------------------------
+
+Fix kabi broken for importing new inode operation get_inode_acl.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ include/linux/fs.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 8171ad259ff1..b30656879088 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1939,9 +1939,8 @@ struct inode_operations {
+ 			   umode_t create_mode);
+ 	int (*tmpfile) (struct inode *, struct dentry *, umode_t);
+ 	int (*set_acl)(struct inode *, struct posix_acl *, int);
+-	struct posix_acl * (*get_acl2)(struct inode *, int, bool);
+ 
+-	KABI_RESERVE(1)
++	KABI_USE(1, struct posix_acl * (*get_acl2)(struct inode *, int, bool))
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+-- 
+2.17.1
+

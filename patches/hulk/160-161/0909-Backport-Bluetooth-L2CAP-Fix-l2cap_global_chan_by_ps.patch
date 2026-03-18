@@ -1,0 +1,45 @@
+From 1e65a677701ce9bc68449eac796200d134ae291b Mon Sep 17 00:00:00 2001
+From: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Date: Mon, 31 Oct 2022 16:10:33 -0700
+Subject: [PATCH 0909/1398] [Backport] Bluetooth: L2CAP: Fix
+ l2cap_global_chan_by_psm
+
+stable inclusion
+from stable-v5.10.156
+commit bd487932408d462ed86b10833da35c61f618f62f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I67UR2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=bd487932408d462ed86b10833da35c61f618f62f
+
+--------------------------------
+
+[ Upstream commit f937b758a188d6fd328a81367087eddbb2fce50f ]
+
+l2cap_global_chan_by_psm shall not return fixed channels as they are not
+meant to be connected by (S)PSM.
+
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Reviewed-by: Tedd Ho-Jeong An <tedd.an@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/bluetooth/l2cap_core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/bluetooth/l2cap_core.c b/net/bluetooth/l2cap_core.c
+index 48d7bc36462c..675765987794 100644
+--- a/net/bluetooth/l2cap_core.c
++++ b/net/bluetooth/l2cap_core.c
+@@ -1986,7 +1986,7 @@ static struct l2cap_chan *l2cap_global_chan_by_psm(int state, __le16 psm,
+ 		if (link_type == LE_LINK && c->src_type == BDADDR_BREDR)
+ 			continue;
+ 
+-		if (c->psm == psm) {
++		if (c->chan_type != L2CAP_CHAN_FIXED && c->psm == psm) {
+ 			int src_match, dst_match;
+ 			int src_any, dst_any;
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,51 @@
+From 7b0f4f560e6ab29a40d1f9110691517e79ecf8b9 Mon Sep 17 00:00:00 2001
+From: Lyude Paul <lyude@redhat.com>
+Date: Mon, 14 Nov 2022 17:17:53 -0500
+Subject: [PATCH 1182/1398] [Backport] drm/display/dp_mst: Fix
+ drm_dp_mst_add_affected_dsc_crtcs() return code
+
+stable inclusion
+from stable-v5.10.158
+commit 44b204730bf32131f064ebc90145092590c7fe95
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68YE9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=44b204730bf32131f064ebc90145092590c7fe95
+
+--------------------------------
+
+[ Upstream commit 2f3a1273862cb82cca227630cc7f04ce0c94b6bb ]
+
+Looks like that we're accidentally dropping a pretty important return code
+here. For some reason, we just return -EINVAL if we fail to get the MST
+topology state. This is wrong: error codes are important and should never
+be squashed without being handled, which here seems to have the potential
+to cause a deadlock.
+
+Signed-off-by: Lyude Paul <lyude@redhat.com>
+Reviewed-by: Wayne Lin <Wayne.Lin@amd.com>
+Fixes: 8ec046716ca8 ("drm/dp_mst: Add helper to trigger modeset on affected DSC MST CRTCs")
+Cc: <stable@vger.kernel.org> # v5.6+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/drm_dp_mst_topology.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/drm_dp_mst_topology.c b/drivers/gpu/drm/drm_dp_mst_topology.c
+index 4272cd3622f8..0feeac52e4eb 100644
+--- a/drivers/gpu/drm/drm_dp_mst_topology.c
++++ b/drivers/gpu/drm/drm_dp_mst_topology.c
+@@ -5238,7 +5238,7 @@ int drm_dp_mst_add_affected_dsc_crtcs(struct drm_atomic_state *state, struct drm
+ 	mst_state = drm_atomic_get_mst_topology_state(state, mgr);
+ 
+ 	if (IS_ERR(mst_state))
+-		return -EINVAL;
++		return PTR_ERR(mst_state);
+ 
+ 	list_for_each_entry(pos, &mst_state->vcpis, next) {
+ 
+-- 
+2.17.1
+

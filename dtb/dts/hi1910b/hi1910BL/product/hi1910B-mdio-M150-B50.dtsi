@@ -1,0 +1,8 @@
+	mdio@a0190000 {
+		compatible = "hisilicon,hi1910b-mdio";
+		reg = <0x0 0xa0190000 0x0 0x1000>,
+		      <0x0 0xa0120000 0x0 0x1000>;
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		gpio-type = <0x2>;
+	};

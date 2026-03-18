@@ -1,0 +1,324 @@
+From e0cd857d03053a5952966d07f883bc655aae4b72 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 12 Apr 2023 03:57:11 +0000
+Subject: [PATCH 31/53] [Huawei] mm/sharepool: Optimize the refcount management
+ for sp_area
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+1. Rename __sp_area_drop to sp_area_put.
+2. Rename sp_alloc/free_area to sp_area_alloc/free. To make all the
+   operations for sp_area with the same prefix.
+3. Delete the redundant code in sp_group_add_task that increase and
+   decreae the refcount for sp_area.
+4. Delete the redundant code in spa_stat_of_mapping_show that lock and
+   unlock the sp_mapping_lock. Beacuse no schedule would occur while we
+   hold the spin_lock.
+5. Delete __sp_area_drop_locked because no one would use it.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 106 ++++++++++++++++++++++++------------------------
+ 1 file changed, 52 insertions(+), 54 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 1d02f23e6fc1..8789e1da6769 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -673,9 +673,29 @@ enum spa_type {
+ };
+ 
+ /*
+- * We bump the reference when each mmap succeeds, and it will be dropped
+- * when vma is about to release, so sp_area object will be automatically
+- * freed when all tasks in the sp group has exited.
++ * The lifetime for a sp_area:
++ * 1. The sp_area was created from a sp_mapping with sp_mapping_lock held.
++ * 2. The sp_area was added into a sp_group (using rb_tree).
++ * 3. The sp_area was mapped to all tasks in the sp_group and we bump its
++ *    reference when each mmap succeeded.
++ * 4. When a new task was added into the sp_group, we map the sp_area into
++ *    the new task and increase its reference count.
++ * 5. When a task was deleted from the sp_group, we unmap the sp_area for
++ *    the task and decrease its reference count.
++ * 6. Also, we can use sp_free/sp_unshare to unmap the sp_area for all the
++ *    tasks in the sp_group. And the reference count was decreased for each
++ *    munmap.
++ * 7. When the refcount for sp_area reach zero:
++ *      a. the sp_area would firstly be deleted from the sp_group and then
++ *         deleted from sp_mapping.
++ *      b. no one should use the sp_area from the view of sp_group.
++ *      c. the spa->spg should not be used when the sp_area is not on a spg.
++ *
++ * The locking rules:
++ * 1. The newly created sp_area with a refcount of one. This is to distinct
++ *    the new sp_area from a dying sp_area.
++ * 2. Use spg->rw_lock to protect all the sp_area in the sp_group. And the
++ *    sp_area cannot be deleted without spg->rw_lock.
+  */
+ struct sp_area {
+ 	unsigned long va_start;
+@@ -743,8 +763,7 @@ static void spa_inc_usage(struct sp_area *spa)
+ 		atomic64_add(ALIGN(size, PMD_SIZE), &spa_stat.dvpp_va_size);
+ 	}
+ 
+-	atomic_inc(&spa->spg->spa_num);
+-
++	/* FIXME: UAF to be fix */
+ 	if (!is_local_group(spa->spg->id)) {
+ 		atomic_inc(&sp_overall_stat.spa_total_num);
+ 		atomic64_add(size, &sp_overall_stat.spa_total_size);
+@@ -784,8 +803,7 @@ static void spa_dec_usage(struct sp_area *spa)
+ 		atomic64_sub(ALIGN(size, PMD_SIZE), &spa_stat.dvpp_va_size);
+ 	}
+ 
+-	atomic_dec(&spa->spg->spa_num);
+-
++	/* FIXME: UAF to be fix */
+ 	if (!is_local_group(spa->spg->id)) {
+ 		atomic_dec(&sp_overall_stat.spa_total_num);
+ 		atomic64_sub(spa->real_size, &sp_overall_stat.spa_total_size);
+@@ -1204,8 +1222,6 @@ static struct sp_group *find_or_alloc_sp_group(int spg_id)
+ 	return spg;
+ }
+ 
+-static void __sp_area_drop_locked(struct sp_area *spa);
+-
+ /* the caller must hold sp_group_sem */
+ static int mm_add_group_init(struct task_struct *tsk, struct mm_struct *mm,
+ 			     struct sp_group *spg)
+@@ -1335,7 +1351,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	struct sp_group_node *node = NULL;
+ 	int ret = 0;
+ 	bool id_newly_generated = false;
+-	struct sp_area *spa, *prev = NULL;
++	struct sp_area *spa;
+ 
+ 	if (!sp_is_enabled())
+ 		return -EOPNOTSUPP;
+@@ -1463,10 +1479,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	 */
+ 	for (p = rb_first(&spg->spa_root); p; p = rb_next(p)) {
+ 		spa = container_of(p, struct sp_area, spg_link);
+-		__sp_area_drop_locked(prev);
+-		prev = spa;
+ 
+-		atomic_inc(&spa->use_count);
+ 		if (spa->is_dead == true)
+ 			continue;
+ 
+@@ -1476,7 +1489,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 			ret = 0;
+ 		}
+ 	}
+-	__sp_area_drop_locked(prev);
+ 
+ 	if (unlikely(ret))
+ 		delete_spg_node(spg, node);
+@@ -1568,10 +1580,11 @@ static void spm_insert_area(struct sp_mapping *spm, struct sp_area *spa)
+ static void sp_group_insert_area(struct sp_group *spg, struct sp_area *spa)
+ {
+ 	insert_sp_area(&spg->spa_root, spa, &spa->spg_link, spg_link);
++	atomic_inc(&spg->spa_num);
+ }
+ 
+ /**
+- * sp_alloc_area() - Allocate a region of VA from the share pool.
++ * sp_area_alloc() - Allocate a region of VA from the share pool.
+  * @size: the size of VA to allocate.
+  * @flags: how to allocate the memory.
+  * @spg: the share group that the memory is allocated to.
+@@ -1580,7 +1593,7 @@ static void sp_group_insert_area(struct sp_group *spg, struct sp_area *spa)
+  *
+  * Return: a valid pointer for success, NULL on failure.
+  */
+-static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
++static struct sp_area *sp_area_alloc(unsigned long size, unsigned long flags,
+ 				     struct sp_group *spg, enum spa_type type,
+ 				     pid_t applier, int node_id)
+ {
+@@ -1630,7 +1643,7 @@ static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
+ 	 * the sp_area cached in free_area_cache: if size fits
+ 	 * into that hole, we want to scan from vstart to reuse
+ 	 * the hole instead of allocating above free_area_cache.
+-	 * Note that sp_free_area may update free_area_cache
++	 * Note that sp_area_free may update free_area_cache
+ 	 * without updating cached_hole_size.
+ 	 */
+ 	if (!mapping->free_area_cache || size_align < mapping->cached_hole_size ||
+@@ -1716,6 +1729,7 @@ static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
+ 	spa->preferred_node_id = node_id;
+ 	spa->device_id = device_id;
+ 
++	/* the link location could be saved before, to be optimized */
+ 	spm_insert_area(mapping, spa);
+ 	mapping->free_area_cache = &spa->rb_node;
+ 
+@@ -1775,11 +1789,12 @@ static bool vmalloc_area_clr_flag(unsigned long kva, unsigned long flags)
+ /*
+  * Free the VA region starting from addr to the share pool
+  */
+-static void sp_free_area(struct sp_area *spa)
++static void sp_area_free(struct sp_area *spa)
+ {
+ 	unsigned long addr = spa->va_start;
+ 	struct sp_mapping *spm;
+ 
++	/* FIXME: UAF to be fix */
+ 	spm = sp_mapping_find(spa->spg, addr);
+ 	spin_lock(&spm->sp_mapping_lock);
+ 	if (spm->free_area_cache) {
+@@ -1815,30 +1830,17 @@ static void sp_free_area(struct sp_area *spa)
+ 	kfree(spa);
+ }
+ 
+-static void __sp_area_drop_locked(struct sp_area *spa)
++static void sp_area_put(struct sp_area *spa)
+ {
+-	/*
+-	 * Considering a situation where task A and B are in the same spg.
+-	 * A is exiting and calling remove_vma(). Before A calls this func,
+-	 * B calls sp_free() to free the same spa. So spa maybe NULL when A
+-	 * calls this func later.
+-	 */
+-	if (!spa)
+-		return;
+-
+ 	if (atomic_dec_and_test(&spa->use_count)) {
+ 		down_write(&spa->spg->rw_lock);
+ 		rb_erase(&spa->spg_link, &spa->spg->spa_root);
++		atomic_dec(&spa->spg->spa_num);
+ 		up_write(&spa->spg->rw_lock);
+-		sp_free_area(spa);
++		sp_area_free(spa);
+ 	}
+ }
+ 
+-static void __sp_area_drop(struct sp_area *spa)
+-{
+-	__sp_area_drop_locked(spa);
+-}
+-
+ void sp_area_drop(struct vm_area_struct *vma)
+ {
+ 	if (!(vma->vm_flags & VM_SHARE_POOL))
+@@ -1846,19 +1848,21 @@ void sp_area_drop(struct vm_area_struct *vma)
+ 
+ 	/*
+ 	 * Considering a situation where task A and B are in the same spg.
+-	 * A is exiting and calling remove_vma() -> ... -> sp_area_drop().
+-	 * Concurrently, B is calling sp_free() to free the same spa.
+-	 * find_sp_area_locked() and __sp_area_drop_locked() should be
+-	 * an atomic operation.
++	 * A is exiting and calling remove_vma(). Before A calls this func,
++	 * B calls sp_free() to free the same spa. So spa maybe NULL when A
++	 * calls this func later.
+ 	 */
+-	__sp_area_drop_locked(vma->vm_private_data);
++	if (!vma->vm_private_data)
++		return;
++
++	sp_area_put(vma->vm_private_data);
+ }
+ 
+ /*
+  * The function calls of do_munmap() won't change any non-atomic member
+  * of struct sp_group. Please review the following chain:
+  * do_munmap -> remove_vma_list -> remove_vma -> sp_area_drop ->
+- * __sp_area_drop_locked -> sp_free_area
++ * sp_area_free
+  */
+ static void sp_munmap(struct mm_struct *mm, unsigned long addr,
+ 			   unsigned long size)
+@@ -1992,7 +1996,7 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 		sp_update_process_stat(current, false, spa);
+ 
+ drop_spa:
+-	__sp_area_drop(spa);
++	sp_area_put(spa);
+ out:
+ 	sp_group_put(spg);
+ 	return ret;
+@@ -2145,7 +2149,7 @@ static bool sp_alloc_fallback(struct sp_area *spa, struct sp_alloc_context *ac)
+ 	 * when we retry using normal pages.
+ 	 */
+ 	ac->have_mbind = false;
+-	__sp_area_drop(spa);
++	sp_area_put(spa);
+ 	return true;
+ }
+ 
+@@ -2313,7 +2317,7 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 		return ERR_PTR(-EINVAL);
+ 	}
+ try_again:
+-	spa = sp_alloc_area(ac.size_aligned, ac.sp_flags, spg,
++	spa = sp_area_alloc(ac.size_aligned, ac.sp_flags, spg,
+ 			    ac.type, current->tgid, ac.preferred_node_id);
+ 	if (IS_ERR(spa)) {
+ 		up_write(&spg->rw_lock);
+@@ -2331,7 +2335,7 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	if (!ret)
+ 		sp_update_process_stat(current, true, spa);
+ 
+-	__sp_area_drop(spa);
++	sp_area_put(spa);
+ out:
+ 	sp_group_put(spg);
+ 	if (ret)
+@@ -2558,7 +2562,7 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 	}
+ 
+ 	down_write(&spg->rw_lock);
+-	spa = sp_alloc_area(kc.size_aligned, kc.sp_flags, spg, kc.type, current->tgid, 0);
++	spa = sp_area_alloc(kc.size_aligned, kc.sp_flags, spg, kc.type, current->tgid, 0);
+ 	if (IS_ERR(spa)) {
+ 		up_write(&spg->rw_lock);
+ 		pr_err("alloc spa failed in k2u_spg (potential no enough virtual memory when -75): %ld\n",
+@@ -2589,7 +2593,7 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 		vmalloc_area_set_flag(kc.kva_aligned, VM_SHAREPOOL);
+ 	}
+ 
+-	__sp_area_drop(spa);
++	sp_area_put(spa);
+ 	sp_group_put(spg);
+ 
+ 	return ret ? ERR_PTR(ret) : (void *)(spa->va_start + (kc.kva - kc.kva_aligned));
+@@ -3295,17 +3299,13 @@ int proc_sp_group_state(struct seq_file *m, struct pid_namespace *ns,
+ static void spa_stat_of_mapping_show(struct seq_file *seq, struct sp_mapping *spm)
+ {
+ 	struct rb_node *node;
+-	struct sp_area *spa, *prev = NULL;
++	struct sp_area *spa;
+ 
+ 	spin_lock(&spm->sp_mapping_lock);
+ 	for (node = rb_first(&spm->area_root); node; node = rb_next(node)) {
+-		__sp_area_drop_locked(prev);
+-
+ 		spa = rb_entry(node, struct sp_area, rb_node);
+-		prev = spa;
+-		atomic_inc(&spa->use_count);
+-		spin_unlock(&spm->sp_mapping_lock);
+ 
++		/* FIXME: The spg here may have been freed */
+ 		if (spg_valid(spa->spg))  /* k2u to group */
+ 			seq_printf(seq, "%-10d ", spa->spg->id);
+ 		else  /* spg is dead */
+@@ -3339,9 +3339,7 @@ static void spa_stat_of_mapping_show(struct seq_file *seq, struct sp_mapping *sp
+ 		seq_printf(seq, "%-8d ",  spa->applier);
+ 		seq_printf(seq, "%-8d\n", atomic_read(&spa->use_count));
+ 
+-		spin_lock(&spm->sp_mapping_lock);
+ 	}
+-	__sp_area_drop_locked(prev);
+ 	spin_unlock(&spm->sp_mapping_lock);
+ }
+ 
+-- 
+2.17.1
+

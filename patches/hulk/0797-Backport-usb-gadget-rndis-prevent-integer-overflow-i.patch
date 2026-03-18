@@ -1,0 +1,45 @@
+From af15e599a93bcb58372314828df2aa576e9a0dc7 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Tue, 1 Mar 2022 11:04:24 +0300
+Subject: [PATCH 0797/2065] [Backport] usb: gadget: rndis: prevent integer
+ overflow in rndis_set_response()
+
+stable inclusion
+from stable-v5.10.108
+commit 28bc0267399f42f987916a7174e2e32f0833cc65
+bugzilla: 186289
+CVE: CVE-2022-25375
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=28bc0267399f42f987916a7174e2e32f0833cc65
+
+--------------------------------
+
+commit 65f3324f4b6fed78b8761c3b74615ecf0ffa81fa upstream.
+
+If "BufOffset" is very large the "BufOffset + 8" operation can have an
+integer overflow.
+
+Fixes: 38ea1eac7d88 ("usb: gadget: rndis: check size of RNDIS_MSG_SET command")
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Link: https://lore.kernel.org/r/20220301080424.GA17208@kili
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Lijun Fang <fanglijun3@huawei.com>
+---
+ drivers/usb/gadget/function/rndis.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/usb/gadget/function/rndis.c b/drivers/usb/gadget/function/rndis.c
+index 60d89339a563..37635a58d85b 100644
+--- a/drivers/usb/gadget/function/rndis.c
++++ b/drivers/usb/gadget/function/rndis.c
+@@ -658,6 +658,7 @@ static int rndis_set_response(struct rndis_params *params,
+ 	BufLength = le32_to_cpu(buf->InformationBufferLength);
+ 	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
+ 	if ((BufLength > RNDIS_MAX_TOTAL_SIZE) ||
++	    (BufOffset > RNDIS_MAX_TOTAL_SIZE) ||
+ 	    (BufOffset + 8 >= RNDIS_MAX_TOTAL_SIZE))
+ 		    return -EINVAL;
+ 
+-- 
+2.17.1
+

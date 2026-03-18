@@ -1,0 +1,109 @@
+From b9585c8a738cd8871c4cd444763b4cd361b0ced2 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Fri, 2 Jun 2023 16:21:16 +0800
+Subject: [PATCH 398/780] [Huawei] blk-io-hierarchy: add Kconfig and Makefile
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188826
+
+--------------------------------
+
+A new config BLK_IO_HIERARCHY_STATS is added to control
+blk_io_hierarchy.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig |  1 +
+ arch/sw_64/configs/openeuler_defconfig |  1 +
+ arch/x86/configs/openeuler_defconfig   |  1 +
+ block/Kconfig                          | 11 +++++++++++
+ block/Makefile                         |  1 +
+ block/blk-io-hierarchy/Makefile        |  7 +++++++
+ 6 files changed, 22 insertions(+)
+ create mode 100644 block/blk-io-hierarchy/Makefile
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 7faf681f994d..87ebcead977c 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -918,6 +918,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
+ CONFIG_BLK_CGROUP_LEGACY_IOCOST=y
+ CONFIG_BLK_WBT_MQ=y
+ CONFIG_BLK_DEBUG_FS=y
++CONFIG_BLK_IO_HIERARCHY_STATS=y
+ CONFIG_BLK_DEBUG_FS_SWITCH=y
+ CONFIG_BLK_DEBUG_FS_ZONED=y
+ # CONFIG_BLK_SED_OPAL is not set
+diff --git a/arch/sw_64/configs/openeuler_defconfig b/arch/sw_64/configs/openeuler_defconfig
+index 792d33743d59..ae4346404583 100644
+--- a/arch/sw_64/configs/openeuler_defconfig
++++ b/arch/sw_64/configs/openeuler_defconfig
+@@ -532,6 +532,7 @@ CONFIG_BLK_DEV_INTEGRITY_T10=y
+ # CONFIG_BLK_CGROUP_IOLATENCY is not set
+ # CONFIG_BLK_CGROUP_IOCOST is not set
+ CONFIG_BLK_DEBUG_FS=y
++CONFIG_BLK_IO_HIERARCHY_STATS=y
+ CONFIG_BLK_DEBUG_FS_SWITCH=y
+ # CONFIG_BLK_SED_OPAL is not set
+ # CONFIG_BLK_INLINE_ENCRYPTION is not set
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index e1bbd182be19..36ad3c6cad99 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -909,6 +909,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
+ CONFIG_BLK_CGROUP_LEGACY_IOCOST=y
+ CONFIG_BLK_WBT_MQ=y
+ CONFIG_BLK_DEBUG_FS=y
++CONFIG_BLK_IO_HIERARCHY_STATS=y
+ CONFIG_BLK_DEBUG_FS_SWITCH=y
+ CONFIG_BLK_DEBUG_FS_ZONED=y
+ # CONFIG_BLK_SED_OPAL is not set
+diff --git a/block/Kconfig b/block/Kconfig
+index e3d4619d956a..12c9ef85a195 100644
+--- a/block/Kconfig
++++ b/block/Kconfig
+@@ -193,6 +193,17 @@ config BLK_DEBUG_FS
+ 	Unless you are building a kernel for a tiny system, you should
+ 	say Y here.
+ 
++config BLK_IO_HIERARCHY_STATS
++	bool "Enable hierarchy io stats"
++	default y
++	depends on BLK_DEBUG_FS
++	help
++	Enabling this lets the block layer to record additional information
++	in different io stages. Such information can be helpful to debug
++	problems like io hang.
++
++	If unsure, say N.
++
+ config BLK_DEBUG_FS_SWITCH
+ 	bool "Disable/Enable block layer debugfs by demands"
+ 	default y
+diff --git a/block/Makefile b/block/Makefile
+index 8d841f5f986f..82c12db4b2a0 100644
+--- a/block/Makefile
++++ b/block/Makefile
+@@ -38,3 +38,4 @@ obj-$(CONFIG_BLK_SED_OPAL)	+= sed-opal.o
+ obj-$(CONFIG_BLK_PM)		+= blk-pm.o
+ obj-$(CONFIG_BLK_INLINE_ENCRYPTION)	+= keyslot-manager.o blk-crypto.o
+ obj-$(CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK)	+= blk-crypto-fallback.o
++obj-$(CONFIG_BLK_IO_HIERARCHY_STATS)	+= blk-io-hierarchy/
+diff --git a/block/blk-io-hierarchy/Makefile b/block/blk-io-hierarchy/Makefile
+new file mode 100644
+index 000000000000..d528fd7cf196
+--- /dev/null
++++ b/block/blk-io-hierarchy/Makefile
+@@ -0,0 +1,7 @@
++#
++# Make file for blk_io_hierarchy_stats
++#
++
++obj-$(CONFIG_BLK_IO_HIERARCHY_STATS) += blk_io_hierarchy_stats.o
++
++blk_io_hierarchy_stats-y := stats.o
+-- 
+2.17.1
+

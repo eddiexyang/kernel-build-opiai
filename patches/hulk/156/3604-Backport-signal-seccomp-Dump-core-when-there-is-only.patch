@@ -1,0 +1,43 @@
+From 96c8251d2f4f51675d716014c947c6e53a2e8299 Mon Sep 17 00:00:00 2001
+From: "Eric W. Biederman" <ebiederm@xmission.com>
+Date: Wed, 23 Jun 2021 16:51:49 -0500
+Subject: [PATCH 3604/4585] [Backport] signal/seccomp: Dump core when there is
+ only one live thread
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit d21918e5a94a862ccb297b9f2be38574c865fda0
+category: bugfix
+bugzilla: 187336
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d21918e5a94a862ccb297b9f2be38574c865fda0
+
+--------------------------------
+
+Replace get_nr_threads with atomic_read(&current->signal->live) as
+that is a more accurate number that is decremented sooner.
+
+Acked-by: Kees Cook <keescook@chromium.org>
+Link: https://lkml.kernel.org/r/87lf6z6qbd.fsf_-_@disp2133
+Signed-off-by: "Eric W. Biederman" <ebiederm@xmission.com>
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ kernel/seccomp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/seccomp.c b/kernel/seccomp.c
+index b2dd045d6afe..1e0b33dd681b 100644
+--- a/kernel/seccomp.c
++++ b/kernel/seccomp.c
+@@ -1260,7 +1260,7 @@ static int __seccomp_filter(int this_syscall, const struct seccomp_data *sd,
+ 		seccomp_log(this_syscall, SIGSYS, action, true);
+ 		/* Dump core only if this is the last remaining thread. */
+ 		if (action != SECCOMP_RET_KILL_THREAD ||
+-		    get_nr_threads(current) == 1) {
++		    (atomic_read(&current->signal->live) == 1)) {
+ 			kernel_siginfo_t info;
+ 
+ 			/* Show the original registers in the dump. */
+-- 
+2.17.1
+

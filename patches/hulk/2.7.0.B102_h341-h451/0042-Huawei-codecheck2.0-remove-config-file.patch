@@ -1,0 +1,58 @@
+From f97c813daa7a203a7413c2c8ae8bd0d56e34be5c Mon Sep 17 00:00:00 2001
+From: Chen Sai <chensai6@huawei.com>
+Date: Fri, 14 Apr 2023 09:22:00 +0800
+Subject: [PATCH 0042/1646] [Huawei] codecheck2.0: remove config file
+
+Offering: HULK
+hulk inclusion
+category: other
+bugzilla: 188674
+
+--------------------------
+
+remove code check config file
+
+Signed-off-by: Chen Sai <chensai6@huawei.com>
+---
+ .cloudbuild/build.yml | 29 -----------------------------
+ 1 file changed, 29 deletions(-)
+ delete mode 100644 .cloudbuild/build.yml
+
+diff --git a/.cloudbuild/build.yml b/.cloudbuild/build.yml
+deleted file mode 100644
+index ba822e5275c5..000000000000
+--- a/.cloudbuild/build.yml
++++ /dev/null
+@@ -1,29 +0,0 @@
+----
+-version: 2.0
+-#....
+-env:
+-  resource:
+-    image: >-
+-      kweecr04.his.huawei.com:80/ecr-build-arm-gzkunpeng/csinewtool_1655364810051:hulk-5.10
+-    class: 4U4G
+-    type: docker
+-    mode: toolbox
+-#....
+-steps:
+-  PRE_BUILD:
+-    - checkout:
+-        path: hulk
+-  BUILD:
+-    - build_execute:
+-        command: cd hulk && make olddefconfig && make -j$(nproc)
+-        check: 
+-          buildcheck:
+-            ruleset: default #配置后启用构建规范问题屏蔽能力
+-            task_name: ${CLOUD_BUILD_PROJECT_NAME}_buildcheck   #必配项，此参数指定codecheck检查任务名称
+-                                                                # ${CLOUD_BUILD_PROJECT_NAME}是环境变量，值为构建工程名称
+-                                                                #（可以自定义配置此参数，不会配置就直接复制）
+-          compileoption:
+-            ruleset: default #配置后启用编译选项规范问题屏蔽能力(C/C++通用部分)
+-            task_name: ${CLOUD_BUILD_PROJECT_NAME}_compileoption   #必配项，此参数指定codecheck检查任务名称
+-                                                                # ${CLOUD_BUILD_PROJECT_NAME}是环境变量，值为构建工程名称
+-                                                                #（可以自定义配置此参数，不会配置就直接复制）
+-- 
+2.17.1
+

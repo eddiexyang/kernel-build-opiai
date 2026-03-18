@@ -1,0 +1,465 @@
+From 0bda8dd3e0e660a8159c64e82a78bae104d8b083 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 14 Apr 2023 07:17:28 +0000
+Subject: [PATCH 35/53] [Huawei] mm/sharepool: Rename sp_group_sem to
+ sp_global_sem
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+The sp_group_sem is used to protect the relationship  between sp_group
+and tasks. Make its name more meaningful.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 124 ++++++++++++++++++++++++------------------------
+ 1 file changed, 62 insertions(+), 62 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 0bcdcb4ff1ee..9233486001fe 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -78,7 +78,7 @@ static int system_group_count;
+ /* idr of all sp_groups */
+ static DEFINE_IDR(sp_group_idr);
+ /* rw semaphore for sp_group_idr and mm->sp_group_master */
+-static DECLARE_RWSEM(sp_group_sem);
++static DECLARE_RWSEM(sp_global_sem);
+ 
+ static DEFINE_IDA(sp_group_id_ida);
+ 
+@@ -441,7 +441,7 @@ static bool can_mappings_merge(struct sp_mapping *m1, struct sp_mapping *m2)
+  * 3. The normal mapping exists for all groups.
+  * 4. The dvpp mappings for the new group and local group can merge _iff_ at
+  *    least one of the mapping is empty.
+- * the caller must hold sp_group_sem
++ * the caller must hold sp_global_sem
+  * NOTE: undo the mergeing when the later process failed.
+  */
+ static int sp_mapping_group_setup(struct mm_struct *mm, struct sp_group *spg)
+@@ -539,7 +539,7 @@ static int init_local_group(struct mm_struct *mm)
+ 	return ret;
+ }
+ 
+-/* The caller must hold sp_group_sem */
++/* The caller must hold sp_global_sem */
+ static int sp_init_group_master_locked(struct task_struct *tsk, struct mm_struct *mm)
+ {
+ 	int ret;
+@@ -585,24 +585,24 @@ static struct sp_group *sp_get_local_group(struct task_struct *tsk, struct mm_st
+ 	int ret;
+ 	struct sp_group_master *master;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	master = mm->sp_group_master;
+ 	if (master && master->local) {
+ 		atomic_inc(&master->local->use_count);
+-		up_read(&sp_group_sem);
++		up_read(&sp_global_sem);
+ 		return master->local;
+ 	}
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 	ret = sp_init_group_master_locked(tsk, mm);
+ 	if (ret) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		return ERR_PTR(ret);
+ 	}
+ 	master = mm->sp_group_master;
+ 	atomic_inc(&master->local->use_count);
+-	up_write(&sp_group_sem);
++	up_write(&sp_global_sem);
+ 
+ 	return master->local;
+ }
+@@ -829,11 +829,11 @@ static void sp_update_process_stat(struct task_struct *tsk, bool inc,
+ 	unsigned long size = spa->real_size;
+ 	enum spa_type type = spa->type;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	spg_node = find_spg_node_by_spg(tsk->mm, spa->spg);
+ 	if (spg_node != NULL)
+ 		update_mem_usage(size, inc, spa->is_hugepage, spg_node, type);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ }
+ 
+ static inline void check_interrupt_context(void)
+@@ -908,14 +908,14 @@ static void free_sp_group_locked(struct sp_group *spg)
+ 
+ static void free_sp_group(struct sp_group *spg)
+ {
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 	free_sp_group_locked(spg);
+-	up_write(&sp_group_sem);
++	up_write(&sp_global_sem);
+ }
+ 
+ static void sp_group_put_locked(struct sp_group *spg)
+ {
+-	lockdep_assert_held_write(&sp_group_sem);
++	lockdep_assert_held_write(&sp_global_sem);
+ 
+ 	if (atomic_dec_and_test(&spg->use_count))
+ 		free_sp_group_locked(spg);
+@@ -970,17 +970,17 @@ static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id)
+ 	struct sp_group_node *spg_node;
+ 	struct sp_group_master *master;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 
+ 	master = mm->sp_group_master;
+ 	if (!master) {
+-		up_read(&sp_group_sem);
++		up_read(&sp_global_sem);
+ 		return NULL;
+ 	}
+ 
+ 	if (spg_id == SPG_ID_DEFAULT) {
+ 		atomic_inc(&master->local->use_count);
+-		up_read(&sp_group_sem);
++		up_read(&sp_global_sem);
+ 		return master->local;
+ 	}
+ 
+@@ -990,7 +990,7 @@ static struct sp_group *sp_group_get_from_mm(struct mm_struct *mm, int spg_id)
+ 				spg = spg_node->spg;
+ 			break;
+ 		}
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+ 	return spg;
+ }
+@@ -1029,9 +1029,9 @@ static struct sp_group *sp_group_get(int tgid, int spg_id)
+ {
+ 	struct sp_group *spg;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	spg = sp_group_get_locked(tgid, spg_id);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 	return spg;
+ }
+ 
+@@ -1066,7 +1066,7 @@ int mg_sp_group_id_by_pid(int tgid, int *spg_ids, int *num)
+ 	if (ret)
+ 		return ret;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	task_lock(tsk);
+ 	if (tsk->mm)
+ 		master = tsk->mm->sp_group_master;
+@@ -1101,7 +1101,7 @@ int mg_sp_group_id_by_pid(int tgid, int *spg_ids, int *num)
+ 	}
+ 
+ out_up_read:
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 	put_task_struct(tsk);
+ 	return ret;
+ }
+@@ -1183,7 +1183,7 @@ static struct sp_group *create_spg(int spg_id)
+ 	return ERR_PTR(ret);
+ }
+ 
+-/* the caller must hold sp_group_sem */
++/* the caller must hold sp_global_sem */
+ static struct sp_group *find_or_alloc_sp_group(int spg_id)
+ {
+ 	struct sp_group *spg;
+@@ -1206,7 +1206,7 @@ static struct sp_group *find_or_alloc_sp_group(int spg_id)
+ 	return spg;
+ }
+ 
+-/* the caller must hold sp_group_sem */
++/* the caller must hold sp_global_sem */
+ static int mm_add_group_init(struct task_struct *tsk, struct mm_struct *mm,
+ 			     struct sp_group *spg)
+ {
+@@ -1233,7 +1233,7 @@ static int mm_add_group_init(struct task_struct *tsk, struct mm_struct *mm,
+ 	return 0;
+ }
+ 
+-/* the caller must hold sp_group_sem */
++/* the caller must hold sp_global_sem */
+ static struct sp_group_node *create_spg_node(struct mm_struct *mm,
+ 	unsigned long prot, struct sp_group *spg)
+ {
+@@ -1278,7 +1278,7 @@ static void delete_spg_node(struct sp_group *spg, struct sp_group_node *node)
+ 	spg->proc_num--;
+ }
+ 
+-/* the caller must hold sp_group_sem */
++/* the caller must hold sp_global_sem */
+ static void free_spg_node(struct mm_struct *mm, struct sp_group *spg,
+ 	struct sp_group_node *spg_node)
+ {
+@@ -1290,7 +1290,7 @@ static void free_spg_node(struct mm_struct *mm, struct sp_group *spg,
+ 	kfree(spg_node);
+ }
+ 
+-/* the caller must hold sp_group_sem and down_write(&spg->rw_lock) in order */
++/* the caller must hold sp_global_sem and down_write(&spg->rw_lock) in order */
+ static struct sp_group_node *group_add_task(struct mm_struct *mm, struct sp_group *spg,
+ 					    unsigned long prot)
+ {
+@@ -1384,17 +1384,17 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		id_newly_generated = true;
+ 	}
+ 
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 
+ 	ret = get_task(tgid, &tsk);
+ 	if (ret) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out;
+ 	}
+ 
+ 	if (check_aoscore_process(tsk)) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		ret = -EACCES;
+ 		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_task;
+@@ -1414,14 +1414,14 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	 */
+ 	mm = get_task_mm(tsk->group_leader);
+ 	if (!mm) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		ret = -ESRCH;
+ 		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_task;
+ 	}
+ 
+ 	if (mm->sp_group_master && mm->sp_group_master->tgid != tgid) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		pr_err("add: task(%d) is a vfork child of the original task(%d)\n",
+ 			tgid, mm->sp_group_master->tgid);
+ 		ret = -EINVAL;
+@@ -1431,7 +1431,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 
+ 	spg = find_or_alloc_sp_group(spg_id);
+ 	if (IS_ERR(spg)) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		ret = PTR_ERR(spg);
+ 		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_mm;
+@@ -1484,10 +1484,10 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	 */
+ out_drop_group:
+ 	if (unlikely(ret)) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		sp_group_put(spg);
+ 	} else
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ out_put_mm:
+ 	/* No need to put the mm if the sp group adds this mm successfully */
+ 	if (unlikely(ret))
+@@ -1510,24 +1510,24 @@ int mg_sp_id_of_current(void)
+ 	if ((current->flags & PF_KTHREAD) || !current->mm)
+ 		return -EINVAL;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	master = current->mm->sp_group_master;
+ 	if (master) {
+ 		spg_id = master->local->id;
+-		up_read(&sp_group_sem);
++		up_read(&sp_global_sem);
+ 		return spg_id;
+ 	}
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 	ret = sp_init_group_master_locked(current, current->mm);
+ 	if (ret) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		return ret;
+ 	}
+ 	master = current->mm->sp_group_master;
+ 	spg_id = master->local->id;
+-	up_write(&sp_group_sem);
++	up_write(&sp_global_sem);
+ 
+ 	return spg_id;
+ }
+@@ -1908,11 +1908,11 @@ static struct sp_group *sp_group_get_from_idr(int spg_id)
+ {
+ 	struct sp_group *spg;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	spg = idr_find(&sp_group_idr, spg_id);
+ 	if (!spg || !atomic_inc_not_zero(&spg->use_count))
+ 		spg = NULL;
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+ 	return spg;
+ }
+@@ -2096,9 +2096,9 @@ static int sp_alloc_prepare(unsigned long size, unsigned long sp_flags,
+ 		 * We should first init the group_master in pass through scene and
+ 		 * don't free it until we release the mm_struct.
+ 		 */
+-		down_write(&sp_group_sem);
++		down_write(&sp_global_sem);
+ 		ret = sp_init_group_master_locked(current, current->mm);
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		if (ret) {
+ 			pr_err("sp_alloc init local mapping failed %d\n", ret);
+ 			return ret;
+@@ -2484,9 +2484,9 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 
+ 	if (spg_id == SPG_ID_DEFAULT) {
+ 		int ret;
+-		down_write(&sp_group_sem);
++		down_write(&sp_global_sem);
+ 		ret = sp_init_group_master_locked(current, current->mm);
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		if (ret) {
+ 			pr_err("k2u_task init local mapping failed %d\n", ret);
+ 			return ret;
+@@ -3235,7 +3235,7 @@ int proc_sp_group_state(struct seq_file *m, struct pid_namespace *ns,
+ 	if (!mm)
+ 		return 0;
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	down_read(&mm->mmap_lock);
+ 	master = mm->sp_group_master;
+ 	if (!master)
+@@ -3274,7 +3274,7 @@ int proc_sp_group_state(struct seq_file *m, struct pid_namespace *ns,
+ 
+ out:
+ 	up_read(&mm->mmap_lock);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 	mmput(mm);
+ 	return 0;
+ }
+@@ -3409,9 +3409,9 @@ static void spg_overview_show(struct seq_file *seq)
+ 			byte2kb(atomic64_read(&sp_overall_stat.spa_total_size)),
+ 			atomic_read(&sp_overall_stat.spa_total_num));
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	idr_for_each(&sp_group_idr, spg_info_show, seq);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+ 	SEQ_printf(seq, "\n");
+ }
+@@ -3491,9 +3491,9 @@ static int proc_group_usage_show(struct seq_file *seq, void *offset)
+ 			"PID", "Group_ID", "SP_ALLOC", "SP_K2U", "SP_RES",
+ 			"VIRT", "RES", "Shm", "PROT");
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	idr_for_each(&sp_group_idr, proc_usage_by_group, seq);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+ 	return 0;
+ }
+@@ -3512,7 +3512,7 @@ static int proc_usage_show(struct seq_file *seq, void *offset)
+ 			"PID", "COMM", "SP_ALLOC", "SP_K2U", "SP_RES", "Non-SP_RES",
+ 			"Non-SP_Shm", "VIRT");
+ 
+-	down_read(&sp_group_sem);
++	down_read(&sp_global_sem);
+ 	mutex_lock(&master_list_lock);
+ 	list_for_each_entry(master, &master_list, list_node) {
+ 		meminfo = &master->meminfo;
+@@ -3528,7 +3528,7 @@ static int proc_usage_show(struct seq_file *seq, void *offset)
+ 				page2kb(master->mm->total_vm));
+ 	}
+ 	mutex_unlock(&master_list_lock);
+-	up_read(&sp_group_sem);
++	up_read(&sp_global_sem);
+ 
+ 	return 0;
+ }
+@@ -3685,16 +3685,16 @@ int sp_group_exit(void)
+ 		return 0;
+ 
+ 	mm = current->mm;
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 
+ 	master = mm->sp_group_master;
+ 	if (!master) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		return 0;
+ 	}
+ 
+ 	if (master->tgid != current->tgid) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		return 0;
+ 	}
+ 
+@@ -3711,12 +3711,12 @@ int sp_group_exit(void)
+ 
+ 	/* match with get_task_mm() in sp_group_add_task() */
+ 	if (atomic_sub_and_test(master->group_num, &mm->mm_users)) {
+-		up_write(&sp_group_sem);
++		up_write(&sp_global_sem);
+ 		WARN(1, "Invalid user counting\n");
+ 		return 1;
+ 	}
+ 
+-	up_write(&sp_group_sem);
++	up_write(&sp_global_sem);
+ 	return 0;
+ }
+ 
+@@ -3755,7 +3755,7 @@ void sp_group_post_exit(struct mm_struct *mm)
+ 			master->comm, master->tgid,
+ 			byte2kb(alloc_size), byte2kb(k2u_size));
+ 
+-	down_write(&sp_group_sem);
++	down_write(&sp_global_sem);
+ 	list_for_each_entry_safe(spg_node, tmp, &master->group_head, group_node) {
+ 		spg = spg_node->spg;
+ 		/* match with refcount inc in sp_group_add_task */
+@@ -3764,7 +3764,7 @@ void sp_group_post_exit(struct mm_struct *mm)
+ 		list_del(&spg_node->group_node);
+ 		kfree(spg_node);
+ 	}
+-	up_write(&sp_group_sem);
++	up_write(&sp_global_sem);
+ 
+ 	sp_del_group_master(master);
+ 
+-- 
+2.17.1
+

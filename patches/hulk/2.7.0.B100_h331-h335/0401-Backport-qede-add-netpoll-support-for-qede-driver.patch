@@ -1,0 +1,48 @@
+From d59d89d2bf06d7be121f1530f2051d2394f4a8e1 Mon Sep 17 00:00:00 2001
+From: Bhaskar Upadhaya <bupadhaya@marvell.com>
+Date: Wed, 10 Feb 2021 12:28:29 -0800
+Subject: [PATCH 401/500] [Backport] qede: add netpoll support for qede driver
+
+stable inclusion
+from stable-v5.10.168
+commit 8aba483f70344aaeca03630d4e8b8de31febcddd
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6IXN2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8aba483f70344aaeca03630d4e8b8de31febcddd
+
+--------------------------------
+
+[ Upstream commit 961aa716235f58088e99acafbe66027d678061ce ]
+
+handle netpoll case when qede_poll is called by
+netpoll layer with budget 0
+
+Signed-off-by: Bhaskar Upadhaya <bupadhaya@marvell.com>
+Signed-off-by: Igor Russkikh <irusskikh@marvell.com>
+Signed-off-by: Ariel Elior <aelior@marvell.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Stable-dep-of: 2ccce20d51fa ("qede: execute xdp_do_flush() before napi_complete_done()")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/qlogic/qede/qede_fp.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/qlogic/qede/qede_fp.c b/drivers/net/ethernet/qlogic/qede/qede_fp.c
+index d210632676d3..5b1885c0a8bd 100644
+--- a/drivers/net/ethernet/qlogic/qede/qede_fp.c
++++ b/drivers/net/ethernet/qlogic/qede/qede_fp.c
+@@ -1456,7 +1456,8 @@ int qede_poll(struct napi_struct *napi, int budget)
+ 	rx_work_done = (likely(fp->type & QEDE_FASTPATH_RX) &&
+ 			qede_has_rx_work(fp->rxq)) ?
+ 			qede_rx_int(fp, budget) : 0;
+-	if (rx_work_done < budget) {
++	/* Handle case where we are called by netpoll with a budget of 0 */
++	if (rx_work_done < budget || !budget) {
+ 		if (!qede_poll_is_more_work(fp)) {
+ 			napi_complete_done(napi, rx_work_done);
+ 
+-- 
+2.17.1
+

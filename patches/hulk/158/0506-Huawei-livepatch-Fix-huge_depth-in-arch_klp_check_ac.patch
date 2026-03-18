@@ -1,0 +1,883 @@
+From aa02f52b48a5f88f88ec9a34c2541f5c9508feac Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Tue, 20 Sep 2022 21:43:15 +0000
+Subject: [PATCH 0506/1076] [Huawei] livepatch: Fix huge_depth in
+ arch_klp_check_activeness_func()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187321
+
+--------------------------------
+
+Fix cmetrics warning like below:
+  cmetrics-the depth of the method {arch_klp_check_activeness_func()}
+  is 6, it is over 4
+
+At the same time, arch_klp_check_activeness_func() in x86/arm/arm64/ppc32
+are almost the same, so move it out of arch and reduce duplicate codes.
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/arm/kernel/livepatch.c        | 105 +---------------
+ arch/arm64/kernel/livepatch.c      | 103 +--------------
+ arch/powerpc/kernel/livepatch_32.c | 105 +---------------
+ arch/powerpc/kernel/livepatch_64.c | 193 ++++++++++++++---------------
+ arch/x86/kernel/livepatch.c        | 102 +--------------
+ kernel/livepatch/core.c            | 114 ++++++++++++++++-
+ 6 files changed, 205 insertions(+), 517 deletions(-)
+
+diff --git a/arch/arm/kernel/livepatch.c b/arch/arm/kernel/livepatch.c
+index 2afac130c742..3379fbf16dd4 100644
+--- a/arch/arm/kernel/livepatch.c
++++ b/arch/arm/kernel/livepatch.c
+@@ -69,7 +69,7 @@ struct walk_stackframe_args {
+ 	bool (*check_func)(void *data, int *ret, unsigned long pc);
+ };
+ 
+-static bool check_jump_insn(unsigned long func_addr)
++bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+ 	u32 *insn = (u32*)func_addr;
+@@ -83,109 +83,6 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
+-				   klp_add_func_t add_func, struct list_head *func_list)
+-{
+-	int ret;
+-	struct klp_object *obj;
+-	struct klp_func_node *func_node;
+-	struct klp_func *func;
+-	unsigned long func_addr, func_size;
+-
+-	for (obj = patch->objs; obj->funcs; obj++) {
+-		for (func = obj->funcs; func->old_name; func++) {
+-			if (enable) {
+-				if (func->patched || func->force == KLP_ENFORCEMENT)
+-					continue;
+-				/*
+-				 * When enable, checking the currently
+-				 * active functions.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node ||
+-				    list_empty(&func_node->func_stack)) {
+-					/*
+-					 * No patched on this function
+-					 * [ the origin one ]
+-					 */
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					/*
+-					 * Previously patched function
+-					 * [ the active one ]
+-					 */
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				/*
+-				 * When preemption is disabled and the
+-				 * replacement area does not contain a jump
+-				 * instruction, the migration thread is
+-				 * scheduled to run stop machine only after the
+-				 * excution of intructions to be replaced is
+-				 * complete.
+-				 */
+-				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+-				    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
+-				    (func->force == KLP_NORMAL_FORCE) ||
+-				    check_jump_insn(func_addr)) {
+-					ret = add_func(func_list, func_addr, func_size,
+-							func->old_name, func->force);
+-					if (ret)
+-						return ret;
+-				}
+-			} else {
+-				/*
+-				 * When disable, check for the previously
+-				 * patched function and the function itself
+-				 * which to be unpatched.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node)
+-					return -EINVAL;
+-#ifdef CONFIG_PREEMPTION
+-				/*
+-				 * No scheduling point in the replacement
+-				 * instructions. Therefore, when preemption is
+-				 * not enabled, atomic execution is performed
+-				 * and these instructions will not appear on
+-				 * the stack.
+-				 */
+-				if (list_is_singular(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				ret = add_func(func_list, func_addr, func_size,
+-						func->old_name, 0);
+-				if (ret)
+-					return ret;
+-#endif
+-				func_addr = (unsigned long)func->new_func;
+-				func_size = func->new_size;
+-				ret = add_func(func_list, func_addr, func_size,
+-						func->old_name, 0);
+-				if (ret)
+-					return ret;
+-			}
+-		}
+-	}
+-	return 0;
+-}
+-
+ static int klp_check_jump_func(struct stackframe *frame, void *ws_args)
+ {
+ 	struct walk_stackframe_args *args = ws_args;
+diff --git a/arch/arm64/kernel/livepatch.c b/arch/arm64/kernel/livepatch.c
+index 6f5e652c24ec..6675569c8a4b 100644
+--- a/arch/arm64/kernel/livepatch.c
++++ b/arch/arm64/kernel/livepatch.c
+@@ -62,7 +62,7 @@ struct walk_stackframe_args {
+ 	bool (*check_func)(void *data, int *ret, unsigned long pc);
+ };
+ 
+-static bool check_jump_insn(unsigned long func_addr)
++bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+ 	u32 *insn = (u32*)func_addr;
+@@ -76,107 +76,6 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
+-				   klp_add_func_t add_func, struct list_head *func_list)
+-{
+-	int ret;
+-	struct klp_object *obj;
+-	struct klp_func *func;
+-	unsigned long func_addr, func_size;
+-	struct klp_func_node *func_node;
+-
+-	for (obj = patch->objs; obj->funcs; obj++) {
+-		for (func = obj->funcs; func->old_name; func++) {
+-			if (enable) {
+-				if (func->patched || func->force == KLP_ENFORCEMENT)
+-					continue;
+-				/*
+-				 * When enable, checking the currently
+-				 * active functions.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node ||
+-				    list_empty(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					/*
+-					 * Previously patched function
+-					 * [the active one]
+-					 */
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				/*
+-				 * When preemption is disabled and the
+-				 * replacement area does not contain a jump
+-				 * instruction, the migration thread is
+-				 * scheduled to run stop machine only after the
+-				 * excution of instructions to be replaced is
+-				 * complete.
+-				 */
+-				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+-				    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
+-				    (func->force == KLP_NORMAL_FORCE) ||
+-				    check_jump_insn(func_addr)) {
+-					ret = add_func(func_list, func_addr, func_size,
+-							func->old_name, func->force);
+-					if (ret)
+-						return ret;
+-				}
+-			} else {
+-				/*
+-				 * When disable, check for the previously
+-				 * patched function and the function itself
+-				 * which to be unpatched.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node) {
+-					return -EINVAL;
+-				}
+-#ifdef CONFIG_PREEMPTION
+-				/*
+-				 * No scheduling point in the replacement
+-				 * instructions. Therefore, when preemption is
+-				 * not enabled, atomic execution is performed
+-				 * and these instructions will not appear on
+-				 * the stack.
+-				 */
+-				if (list_is_singular(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				ret = add_func(func_list, func_addr, func_size,
+-						func->old_name, 0);
+-				if (ret)
+-					return ret;
+-#endif
+-
+-				func_addr = (unsigned long)func->new_func;
+-				func_size = func->new_size;
+-				ret = add_func(func_list, func_addr, func_size,
+-						func->old_name, 0);
+-				if (ret)
+-					return ret;
+-			}
+-		}
+-	}
+-	return 0;
+-}
+-
+ static bool klp_check_jump_func(void *ws_args, unsigned long pc)
+ {
+ 	struct walk_stackframe_args *args = ws_args;
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index e68602c8d097..e45cd3deae08 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -59,7 +59,7 @@ struct walk_stackframe_args {
+ 	bool (*check_func)(void *data, int *ret, unsigned long pc);
+ };
+ 
+-static bool check_jump_insn(unsigned long func_addr)
++bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+ 	u32 *insn = (u32*)func_addr;
+@@ -73,109 +73,6 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
+-				   klp_add_func_t add_func, struct list_head *func_list)
+-{
+-	int ret;
+-	struct klp_object *obj;
+-	struct klp_func *func;
+-	unsigned long func_addr, func_size;
+-	struct klp_func_node *func_node;
+-
+-	for (obj = patch->objs; obj->funcs; obj++) {
+-		for (func = obj->funcs; func->old_name; func++) {
+-			if (enable) {
+-				if (func->patched || func->force == KLP_ENFORCEMENT)
+-					continue;
+-				/*
+-				 * When enable, checking the currently
+-				 * active functions.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node ||
+-				    list_empty(&func_node->func_stack)) {
+-					/*
+-					 * No patched on this function
+-					 * [ the origin one ]
+-					 */
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					/*
+-					 * Previously patched function
+-					 * [ the active one ]
+-					 */
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				/*
+-				 * When preemtion is disabled and the
+-				 * replacement area does not contain a jump
+-				 * instruction, the migration thread is
+-				 * scheduled to run stop machine only after the
+-				 * excution of instructions to be replaced is
+-				 * complete.
+-				 */
+-				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+-				    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
+-				    (func->force == KLP_NORMAL_FORCE) ||
+-				    check_jump_insn(func_addr)) {
+-					ret = add_func(func_list, func_addr, func_size,
+-							func->old_name, func->force);
+-					if (ret)
+-						return ret;
+-				}
+-			} else {
+-				/*
+-				 * When disable, check for the previously
+-				 * patched function and the function itself
+-				 * which to be unpatched.
+-				 */
+-				func_node = klp_find_func_node(func->old_func);
+-				if (!func_node)
+-					return -EINVAL;
+-#ifdef CONFIG_PREEMPTION
+-				/*
+-				 * No scheduling point in the replacement
+-				 * instructions. Therefore, when preemption is
+-				 * not enabled, atomic execution is performed
+-				 * and these instructions will not appear on
+-				 * the stack.
+-				 */
+-				if (list_is_singular(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				ret = add_func(func_list, func_addr,
+-						func_size, func->old_name, 0);
+-				if (ret)
+-					return ret;
+-#endif
+-				func_addr = (unsigned long)func->new_func;
+-				func_size = func->new_size;
+-				ret = add_func(func_list, func_addr,
+-						func_size, func->old_name, 0);
+-				if (ret)
+-					return ret;
+-			}
+-		}
+-	}
+-	return 0;
+-}
+-
+ void notrace klp_walk_stackframe(struct stackframe *frame,
+ 		int (*fn)(struct stackframe *, void *),
+ 		struct task_struct *tsk, void *data)
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index 74274f42730a..413ecb5f206a 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -78,120 +78,109 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
++int arch_klp_check_activeness_func(struct klp_func *func, int enable,
+ 				   klp_add_func_t add_func, struct list_head *func_list)
+ {
+ 	int ret;
+-	struct klp_object *obj;
+-	struct klp_func *func;
+ 	unsigned long func_addr, func_size;
+ 	struct klp_func_node *func_node = NULL;
+ 
+-	for (obj = patch->objs; obj->funcs; obj++) {
+-		for (func = obj->funcs; func->old_name; func++) {
+-			func_node = klp_find_func_node(func->old_func);
+-
+-			/* Check func address in stack */
+-			if (enable) {
+-				if (func->patched || func->force == KLP_ENFORCEMENT)
+-					continue;
+-				/*
+-				 * When enable, checking the currently
+-				 * active functions.
+-				 */
+-				if (!func_node ||
+-				    list_empty(&func_node->func_stack)) {
+-					/*
+-					 * No patched on this function
+-					 * [ the origin one ]
+-					 */
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					/*
+-					 * Previously patched function
+-					 * [ the active one ]
+-					 */
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = ppc_function_entry(
+-						(void *)prev->new_func);
+-					func_size = prev->new_size;
+-				}
+-				/*
+-				 * When preemption is disabled and the
+-				 * replacement area does not contain a jump
+-				 * instruction, the migration thread is
+-				 * scheduled to run stop machine only after the
+-				 * excution of instructions to be repalced is
+-				 * complete.
+-				 */
+-				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+-				    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
+-				    (func->force == KLP_NORMAL_FORCE) ||
+-				    check_jump_insn(func_addr)) {
+-					ret = add_func(func_list, func_addr, func_size,
+-							func->old_name, func->force);
+-					if (ret)
+-						return ret;
+-				}
+-			} else {
+-				/*
+-				 * When disable, check for the function itself
+-				 * which to be unpatched.
+-				 */
+-				func_addr = ppc_function_entry(
+-						(void *)func->new_func);
+-				func_size = func->new_size;
+-				ret = add_func(func_list, func_addr,
+-						func_size, func->old_name, 0);
+-				if (ret)
+-					return ret;
+-			}
+-
+-#ifdef PPC64_ELF_ABI_v1
++	func_node = klp_find_func_node(func->old_func);
++	/* Check func address in stack */
++	if (enable) {
++		if (func->patched || func->force == KLP_ENFORCEMENT)
++			return 0;
++		/*
++		 * When enable, checking the currently
++		 * active functions.
++		 */
++		if (!func_node || list_empty(&func_node->func_stack)) {
+ 			/*
+-			 * Check trampoline in stack
+-			 * new_func callchain:
+-			 *	old_func
+-			 *	-=> trampoline
+-			 *	    -=> new_func
+-			 * so, we should check all the func in the callchain
++			 * No patched on this function
++			 * [ the origin one ]
+ 			 */
+-			if (func_addr != (unsigned long)func->old_func) {
++			func_addr = (unsigned long)func->old_func;
++			func_size = func->old_size;
++		} else {
++			/*
++			 * Previously patched function
++			 * [ the active one ]
++			 */
++			struct klp_func *prev;
++
++			prev = list_first_or_null_rcu(&func_node->func_stack,
++						      struct klp_func, stack_node);
++			func_addr = ppc_function_entry((void *)prev->new_func);
++			func_size = prev->new_size;
++		}
++		/*
++		 * When preemption is disabled and the
++		 * replacement area does not contain a jump
++		 * instruction, the migration thread is
++		 * scheduled to run stop machine only after the
++		 * excution of instructions to be repalced is
++		 * complete.
++		 */
++		if (IS_ENABLED(CONFIG_PREEMPTION) ||
++		    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
++		    (func->force == KLP_NORMAL_FORCE) ||
++		    check_jump_insn(func_addr)) {
++			ret = add_func(func_list, func_addr, func_size,
++				       func->old_name, func->force);
++			if (ret)
++				return ret;
++		}
++	} else {
++		/*
++		 * When disable, check for the function itself
++		 * which to be unpatched.
++		 */
++		func_addr = ppc_function_entry((void *)func->new_func);
++		func_size = func->new_size;
++		ret = add_func(func_list, func_addr,
++			       func_size, func->old_name, 0);
++		if (ret)
++			return ret;
++	}
++
++#ifdef PPC64_ELF_ABI_v1
++	/*
++	 * Check trampoline in stack
++	 * new_func callchain:
++	 *	old_func
++	 *	-=> trampoline
++	 *	    -=> new_func
++	 * so, we should check all the func in the callchain
++	 */
++	if (func_addr != (unsigned long)func->old_func) {
+ #ifdef CONFIG_PREEMPTION
+-				/*
+-				 * No scheduling point in the replacement
+-				 * instructions. Therefore, when preemption is
+-				 * not enabled, atomic execution is performed
+-				 * and these instructions will not appear on
+-				 * the stack.
+-				 */
+-				func_addr = (unsigned long)func->old_func;
+-				func_size = func->old_size;
+-				ret = add_func(func_list, func_addr,
+-						func_size, "OLD_FUNC", 0);
+-				if (ret)
+-					return ret;
++		/*
++		 * No scheduling point in the replacement
++		 * instructions. Therefore, when preemption is
++		 * not enabled, atomic execution is performed
++		 * and these instructions will not appear on
++		 * the stack.
++		 */
++		func_addr = (unsigned long)func->old_func;
++		func_size = func->old_size;
++		ret = add_func(func_list, func_addr,
++			       func_size, "OLD_FUNC", 0);
++		if (ret)
++			return ret;
+ #endif
+ 
+-				if (func_node == NULL ||
+-				    func_node->arch_data.trampoline.magic != BRANCH_TRAMPOLINE_MAGIC)
+-					continue;
+-
+-				func_addr = (unsigned long)&func_node->arch_data.trampoline;
+-				func_size = sizeof(struct ppc64_klp_btramp_entry);
+-				ret = add_func(func_list, func_addr,
+-						func_size, "trampoline", 0);
+-				if (ret)
+-					return ret;
+-			}
+-#endif
+-		}
++		if (func_node == NULL ||
++		    func_node->arch_data.trampoline.magic != BRANCH_TRAMPOLINE_MAGIC)
++			return 0;
++
++		func_addr = (unsigned long)&func_node->arch_data.trampoline;
++		func_size = sizeof(struct ppc64_klp_btramp_entry);
++		ret = add_func(func_list, func_addr,
++				func_size, "trampoline", 0);
++		if (ret)
++			return ret;
+ 	}
++#endif
+ 	return 0;
+ }
+ 
+diff --git a/arch/x86/kernel/livepatch.c b/arch/x86/kernel/livepatch.c
+index 47135e14bb4e..99b72629637d 100644
+--- a/arch/x86/kernel/livepatch.c
++++ b/arch/x86/kernel/livepatch.c
+@@ -52,7 +52,7 @@ static bool is_jump_insn(u8 *insn)
+ 	return false;
+ }
+ 
+-static bool check_jump_insn(unsigned long func_addr)
++bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	int len = JMP_E9_INSN_SIZE;
+ 	struct insn insn;
+@@ -72,106 +72,6 @@ static bool check_jump_insn(unsigned long func_addr)
+ 	return false;
+ }
+ 
+-int arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
+-				   klp_add_func_t add_func, struct list_head *func_list)
+-{
+-	int ret;
+-	struct klp_object *obj;
+-	struct klp_func *func;
+-	unsigned long func_addr, func_size;
+-	struct klp_func_node *func_node = NULL;
+-
+-	for (obj = patch->objs; obj->funcs; obj++) {
+-		for (func = obj->funcs; func->old_name; func++) {
+-			func_node = klp_find_func_node(func->old_func);
+-
+-			/* Check func address in stack */
+-			if (enable) {
+-				if (func->patched || func->force == KLP_ENFORCEMENT)
+-					continue;
+-				/*
+-				 * When enable, checking the currently
+-				 * active functions.
+-				 */
+-				if (!func_node ||
+-				    list_empty(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					/*
+-					 * Previously patched function
+-					 * [the active one]
+-					 */
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				/*
+-				 * When preemtion is disabled and the
+-				 * replacement area does not contain a jump
+-				 * instruction, the migration thread is
+-				 * scheduled to run stop machine only after the
+-				 * excution of instructions to be replaced is
+-				 * complete.
+-				 */
+-				if (IS_ENABLED(CONFIG_PREEMPTION) ||
+-				    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
+-				    (func->force == KLP_NORMAL_FORCE) ||
+-				    check_jump_insn(func_addr)) {
+-					ret = add_func(func_list, func_addr, func_size,
+-							func->old_name, func->force);
+-					if (ret)
+-						return ret;
+-				}
+-			} else {
+-				/*
+-				 * When disable, check for the function
+-				 * itself which to be unpatched.
+-				 */
+-				if (!func_node)
+-					return -EINVAL;
+-#ifdef CONFIG_PREEMPTION
+-				/*
+-				 * No scheduling point in the replacement
+-				 * instructions. Therefore, when preemption is
+-				 * not enabled, atomic execution is performed
+-				 * and these instructions will not appear on
+-				 * the stack.
+-				 */
+-				if (list_is_singular(&func_node->func_stack)) {
+-					func_addr = (unsigned long)func->old_func;
+-					func_size = func->old_size;
+-				} else {
+-					struct klp_func *prev;
+-
+-					prev = list_first_or_null_rcu(
+-						&func_node->func_stack,
+-						struct klp_func, stack_node);
+-					func_addr = (unsigned long)prev->new_func;
+-					func_size = prev->new_size;
+-				}
+-				ret = add_func(func_list, func_addr,
+-						func_size, func->old_name, 0);
+-				if (ret)
+-					return ret;
+-#endif
+-
+-				func_addr = (unsigned long)func->new_func;
+-				func_size = func->new_size;
+-				ret = add_func(func_list, func_addr,
+-						func_size, func->old_name, 0);
+-				if (ret)
+-					return ret;
+-			}
+-		}
+-	}
+-	return 0;
+-}
+-
+ static void klp_print_stack_trace(void *trace_ptr, int trace_len)
+ {
+ 	int i;
+diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
+index e740aa26c38d..8e90a711f115 100644
+--- a/kernel/livepatch/core.c
++++ b/kernel/livepatch/core.c
+@@ -1330,11 +1330,98 @@ int __weak arch_klp_check_calltrace(bool (*fn)(void *, int *, unsigned long), vo
+ 	return -EINVAL;
+ }
+ 
+-int __weak arch_klp_check_activeness_func(struct klp_patch *patch, int enable,
++bool __weak arch_check_jump_insn(unsigned long func_addr)
++{
++	return true;
++}
++
++int __weak arch_klp_check_activeness_func(struct klp_func *func, int enable,
+ 					  klp_add_func_t add_func,
+ 					  struct list_head *func_list)
+ {
+-	return -EINVAL;
++	int ret;
++	unsigned long func_addr, func_size;
++	struct klp_func_node *func_node = NULL;
++
++	func_node = klp_find_func_node(func->old_func);
++	/* Check func address in stack */
++	if (enable) {
++		if (func->patched || func->force == KLP_ENFORCEMENT)
++			return 0;
++		/*
++		 * When enable, checking the currently active functions.
++		 */
++		if (!func_node ||
++		    list_empty(&func_node->func_stack)) {
++			/*
++			 * Not patched on this function [the origin one]
++			 */
++			func_addr = (unsigned long)func->old_func;
++			func_size = func->old_size;
++		} else {
++			/*
++			 * Previously patched function [the active one]
++			 */
++			struct klp_func *prev;
++
++			prev = list_first_or_null_rcu(&func_node->func_stack,
++						      struct klp_func, stack_node);
++			func_addr = (unsigned long)prev->new_func;
++			func_size = prev->new_size;
++		}
++		/*
++		 * When preemption is disabled and the replacement area
++		 * does not contain a jump instruction, the migration
++		 * thread is scheduled to run stop machine only after the
++		 * execution of instructions to be replaced is complete.
++		 */
++		if (IS_ENABLED(CONFIG_PREEMPTION) ||
++		    IS_ENABLED(CONFIG_LIVEPATCH_BREAKPOINT_NO_STOP_MACHINE) ||
++		    (func->force == KLP_NORMAL_FORCE) ||
++		    arch_check_jump_insn(func_addr)) {
++			ret = add_func(func_list, func_addr, func_size,
++				       func->old_name, func->force);
++			if (ret)
++				return ret;
++		}
++	} else {
++		/*
++		 * When disable, check for the function itself which to be unpatched.
++		 */
++		if (!func_node)
++			return -EINVAL;
++#ifdef CONFIG_PREEMPTION
++		/*
++		 * No scheduling point in the replacement instructions. Therefore,
++		 * when preemption is not enabled, atomic execution is performed
++		 * and these instructions will not appear on the stack.
++		 */
++		if (list_is_singular(&func_node->func_stack)) {
++			func_addr = (unsigned long)func->old_func;
++			func_size = func->old_size;
++		} else {
++			struct klp_func *prev;
++
++			prev = list_first_or_null_rcu(
++					&func_node->func_stack,
++					struct klp_func, stack_node);
++			func_addr = (unsigned long)prev->new_func;
++			func_size = prev->new_size;
++		}
++		ret = add_func(func_list, func_addr,
++				func_size, func->old_name, 0);
++		if (ret)
++			return ret;
++#endif
++
++		func_addr = (unsigned long)func->new_func;
++		func_size = func->new_size;
++		ret = add_func(func_list, func_addr,
++				func_size, func->old_name, 0);
++		if (ret)
++			return ret;
++	}
++	return 0;
+ }
+ 
+ static inline unsigned long klp_size_to_check(unsigned long func_size,
+@@ -1396,12 +1483,31 @@ static void free_func_list(struct list_head *func_list)
+ 	}
+ }
+ 
++static int klp_check_activeness_func(struct klp_patch *patch, int enable,
++				     struct list_head *func_list)
++{
++	int ret;
++	struct klp_object *obj = NULL;
++	struct klp_func *func = NULL;
++
++	klp_for_each_object(patch, obj) {
++		klp_for_each_func(obj, func) {
++			ret = arch_klp_check_activeness_func(func, enable,
++							     add_func_to_list,
++							     func_list);
++			if (ret)
++				return ret;
++		}
++	}
++	return 0;
++}
++
+ static int klp_check_calltrace(struct klp_patch *patch, int enable)
+ {
+ 	int ret = 0;
+ 	LIST_HEAD(func_list);
+ 
+-	ret = arch_klp_check_activeness_func(patch, enable, add_func_to_list, &func_list);
++	ret = klp_check_activeness_func(patch, enable, &func_list);
+ 	if (ret) {
+ 		pr_err("collect active functions failed, ret=%d\n", ret);
+ 		goto out;
+@@ -2161,7 +2267,7 @@ static int klp_breakpoint_enable_patch(struct klp_patch *patch, int *cnt)
+ 	int i;
+ 	int retry_cnt = 0;
+ 
+-	ret = arch_klp_check_activeness_func(patch, true, add_func_to_list, &func_list);
++	ret = klp_check_activeness_func(patch, true, &func_list);
+ 	if (ret) {
+ 		pr_err("break optimize collecting active functions failed, ret=%d\n", ret);
+ 		goto out;
+-- 
+2.17.1
+

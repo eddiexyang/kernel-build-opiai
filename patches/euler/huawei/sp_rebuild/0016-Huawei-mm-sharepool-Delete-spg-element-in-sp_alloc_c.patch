@@ -1,0 +1,180 @@
+From 376a08581466deedff1bf708f23a0b92cee6fabc Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 3 Apr 2023 02:34:26 +0000
+Subject: [PATCH 16/53] [Huawei] mm/sharepool: Delete spg element in
+ sp_alloc_context
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+Move the sp_group_get_from_mm() from sp_alloc_prepare() to
+__mg_sp_alloc_nodemask() and unwrap sp_alloc_finish. This would avoid
+locking spg->rw_sem at one function and releasing it at another.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 96 ++++++++++++++++++++++---------------------------
+ 1 file changed, 43 insertions(+), 53 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 961aef7dd4dd..6b788773c43e 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -848,7 +848,6 @@ static inline bool check_aoscore_process(struct task_struct *tsk)
+ }
+ 
+ struct sp_alloc_context {
+-	struct sp_group *spg;
+ 	unsigned long size;
+ 	unsigned long size_aligned;
+ 	unsigned long sp_flags;
+@@ -2093,7 +2092,6 @@ static unsigned long sp_mmap(struct mm_struct *mm, struct file *file,
+ static int sp_alloc_prepare(unsigned long size, unsigned long sp_flags,
+ 	int spg_id, struct sp_alloc_context *ac)
+ {
+-	struct sp_group *spg;
+ 	int device_id, node_id;
+ 
+ 	if (!sp_is_enabled())
+@@ -2132,38 +2130,28 @@ static int sp_alloc_prepare(unsigned long size, unsigned long sp_flags,
+ 	if (sp_flags & SP_HUGEPAGE_ONLY)
+ 		sp_flags |= SP_HUGEPAGE;
+ 
+-	if (spg_id != SPG_ID_DEFAULT) {
+-		spg = sp_group_get_from_mm(current->mm, spg_id);
+-		if (!spg) {
+-			pr_err("allocation failed, can't find group(%d)\n", spg_id);
+-			return -ENODEV;
+-		}
+-
+-		/* up_read will be at the end of sp_alloc */
+-		down_read(&spg->rw_lock);
+-		if (!spg_valid(spg)) {
+-			up_read(&spg->rw_lock);
+-			sp_group_put(spg);
+-			pr_err_ratelimited("allocation failed, spg is dead\n");
+-			return -ENODEV;
++	if (spg_id == SPG_ID_DEFAULT) {
++		int ret;
++		/*
++		 * We should first init the group_master in pass through scene and
++		 * don't free it until we release the mm_struct.
++		 */
++		down_write(&sp_group_sem);
++		ret = sp_init_group_master_locked(current, current->mm);
++		up_write(&sp_group_sem);
++		if (ret) {
++			pr_err("sp_alloc init local mapping failed %d\n", ret);
++			return ret;
+ 		}
+-	} else {  /* allocation pass through scene */
+-		spg = sp_get_local_group(current, current->mm);
+-		if (IS_ERR(spg))
+-			return PTR_ERR(spg);
+-		down_read(&spg->rw_lock);
+ 	}
+ 
+-	ac->type = SPA_TYPE_ALLOC;
+-	if (sp_flags & SP_HUGEPAGE)
+-		ac->size_aligned = ALIGN(size, PMD_SIZE);
+-	else
+-		ac->size_aligned = ALIGN(size, PAGE_SIZE);
++	ac->type         = SPA_TYPE_ALLOC;
++	ac->size         = size;
++	ac->sp_flags     = sp_flags;
++	ac->have_mbind   = false;
++	ac->size_aligned = (sp_flags & SP_HUGEPAGE) ? ALIGN(size, PMD_SIZE) :
++						      ALIGN(size, PAGE_SIZE);
+ 
+-	ac->spg = spg;
+-	ac->size = size;
+-	ac->sp_flags = sp_flags;
+-	ac->have_mbind = false;
+ 	return 0;
+ }
+ 
+@@ -2298,31 +2286,13 @@ static int sp_alloc_mmap_populate(struct sp_area *spa, struct sp_alloc_context *
+ 	return mmap_ret;
+ }
+ 
+-/* spa maybe an error pointer, so introduce variable spg */
+-static void sp_alloc_finish(int result, struct sp_area *spa,
+-		struct sp_alloc_context *ac)
+-{
+-	struct sp_group *spg = ac->spg;
+-
+-	/* match sp_alloc_prepare */
+-	up_read(&spg->rw_lock);
+-
+-	if (!result)
+-		sp_update_process_stat(current, true, spa);
+-
+-	/* this will free spa if mmap failed */
+-	if (spa && !IS_ERR(spa))
+-		__sp_area_drop(spa);
+-
+-	sp_group_put(spg);
+-}
+-
+ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg_id,
+ 			     nodemask_t *nodemask)
+ {
+ 	int ret = 0;
++	struct sp_area *spa;
++	struct sp_group *spg;
+ 	nodemask_t __nodemask;
+-	struct sp_area *spa = NULL;
+ 	struct sp_alloc_context ac;
+ 
+ 	ret = sp_alloc_prepare(size, sp_flags, spg_id, &ac);
+@@ -2336,11 +2306,25 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	} else /* mg_sp_alloc_nodemask */
+ 		ac.nodemask = nodemask;
+ 
++	spg = sp_group_get_from_mm(current->mm, spg_id);
++	if (!spg) {
++		pr_err("allocation failed, can't find group(%d)\n", spg_id);
++		return ERR_PTR(-ENODEV);
++	}
++
++	down_read(&spg->rw_lock);
++	if (!spg_valid(spg)) {
++		up_read(&spg->rw_lock);
++		sp_group_put(spg);
++		pr_info("allocation failed, spg is dead\n");
++		return ERR_PTR(-EINVAL);
++	}
+ try_again:
+-	spa = sp_alloc_area(ac.size_aligned, ac.sp_flags, ac.spg,
++	spa = sp_alloc_area(ac.size_aligned, ac.sp_flags, spg,
+ 			    ac.type, current->tgid, ac.preferred_node_id);
+ 	if (IS_ERR(spa)) {
+-		pr_err_ratelimited("alloc spa failed in allocation(potential no enough virtual memory when -75): %ld\n",
++		up_read(&spg->rw_lock);
++		pr_err("alloc spa failed in allocation(potential no enough virtual memory when -75): %ld\n",
+ 			PTR_ERR(spa));
+ 		ret = PTR_ERR(spa);
+ 		goto out;
+@@ -2350,8 +2334,14 @@ void *__mg_sp_alloc_nodemask(unsigned long size, unsigned long sp_flags, int spg
+ 	if (ret == -ENOMEM && sp_alloc_fallback(spa, &ac))
+ 		goto try_again;
+ 
++	up_read(&spg->rw_lock);
++
++	if (!ret)
++		sp_update_process_stat(current, true, spa);
++
++	__sp_area_drop(spa);
+ out:
+-	sp_alloc_finish(ret, spa, &ac);
++	sp_group_put(spg);
+ 	if (ret)
+ 		return ERR_PTR(ret);
+ 	else
+-- 
+2.17.1
+

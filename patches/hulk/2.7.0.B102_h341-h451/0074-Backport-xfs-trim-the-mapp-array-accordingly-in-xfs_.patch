@@ -1,0 +1,62 @@
+From 866a21c89c11a3fc1da60b71a51b422c677f9817 Mon Sep 17 00:00:00 2001
+From: Shida Zhang <zhangshida@kylinos.cn>
+Date: Tue, 4 Oct 2022 16:39:42 +1100
+Subject: [PATCH 0074/1646] [Backport] xfs: trim the mapp array accordingly in
+ xfs_da_grow_inode_int
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 44159659df8ca381b84261e11058b2176fa03ba0
+category: bugfix
+bugzilla: 187526
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=44159659df8ca381b84261e11058b2176fa03ba0
+
+----------------------------------------
+
+Take a look at the for-loop in xfs_da_grow_inode_int:
+======
+for(){
+        nmap = min(XFS_BMAP_MAX_NMAP, count);
+        ...
+        error = xfs_bmapi_write(...,&mapp[mapi], &nmap);//(..., $1, $2)
+        ...
+        mapi += nmap;
+}
+=====
+where $1 stands for the start address of the array,
+while $2 is used to indicate the size of the array.
+
+The array $1 will advance by $nmap in each iteration after
+the allocation of extents.
+But the size $2 still remains unchanged, which is determined by
+min(XFS_BMAP_MAX_NMAP, count).
+
+It seems that it has forgotten to trim the mapp array after each
+iteration, so change it.
+
+Signed-off-by: Shida Zhang <zhangshida@kylinos.cn>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Dave Chinner <david@fromorbit.com>
+Signed-off-by: Ye Bin <yebin10@huawei.com>
+---
+ fs/xfs/libxfs/xfs_da_btree.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/xfs/libxfs/xfs_da_btree.c b/fs/xfs/libxfs/xfs_da_btree.c
+index b1f4014f9bcc..66b646269d29 100644
+--- a/fs/xfs/libxfs/xfs_da_btree.c
++++ b/fs/xfs/libxfs/xfs_da_btree.c
+@@ -2180,8 +2180,8 @@ xfs_da_grow_inode_int(
+ 		 */
+ 		mapp = kmem_alloc(sizeof(*mapp) * count, 0);
+ 		for (b = *bno, mapi = 0; b < *bno + count; ) {
+-			nmap = min(XFS_BMAP_MAX_NMAP, count);
+ 			c = (int)(*bno + count - b);
++			nmap = min(XFS_BMAP_MAX_NMAP, c);
+ 			error = xfs_bmapi_write(tp, dp, b, c,
+ 					xfs_bmapi_aflag(w)|XFS_BMAPI_METADATA,
+ 					args->total, &mapp[mapi], &nmap);
+-- 
+2.17.1
+

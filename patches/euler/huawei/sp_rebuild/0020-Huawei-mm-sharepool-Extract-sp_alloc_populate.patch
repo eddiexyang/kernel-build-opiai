@@ -1,0 +1,103 @@
+From b98b144cfc0d6e504d830b6d5f7cc2653f8f0e39 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 16:42:43 +0800
+Subject: [PATCH 20/53] [Huawei] mm/sharepool: Extract sp_alloc_populate()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+This is used to build the pagetable for the task during sp_alloc.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 59 ++++++++++++++++++++++++++++---------------------
+ 1 file changed, 34 insertions(+), 25 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 4ea51ec5dd98..d951bb55f066 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2179,6 +2179,39 @@ static long sp_mbind(struct mm_struct *mm, unsigned long start, unsigned long le
+ 			nodemask, MPOL_MF_STRICT, mm);
+ }
+ 
++static int sp_alloc_populate(struct mm_struct *mm, struct sp_area *spa,
++			     unsigned long populate, struct sp_alloc_context *ac)
++{
++	int ret;
++
++	if (ac && !ac->have_mbind) {
++		ret = sp_mbind(mm, spa->va_start, spa->real_size, ac->nodemask);
++		if (ret < 0) {
++			pr_err("cannot bind the memory range to node[%*pbl], err:%d\n",
++					nodemask_pr_args(ac->nodemask), ret);
++			return ret;
++		}
++		ac->have_mbind = true;
++	}
++
++	/*
++	 * We are not ignoring errors, so if we fail to allocate
++	 * physical memory we just return failure, so we won't encounter
++	 * page fault later on, and more importantly sp_make_share_u2k()
++	 * depends on this feature (and MAP_LOCKED) to work correctly.
++	 */
++	ret = do_mm_populate(mm, spa->va_start, populate, 0);
++	if (ret) {
++		if (unlikely(fatal_signal_pending(current)))
++			pr_warn("allocation failed, current thread is killed\n");
++		else
++			pr_warn("allocation failed due to mm populate failed(potential no enough memory when -12): %d\n",
++					ret);
++	}
++
++	return ret;
++}
++
+ #define SP_SKIP_ERR 1
+ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 				    unsigned long prot, struct sp_alloc_context *ac)
+@@ -2204,35 +2237,11 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 
+ 	up_write(&mm->mmap_lock);
+ 
+-	if (ac && !ac->have_mbind) {
+-		ret = sp_mbind(mm, spa->va_start, spa->real_size, ac->nodemask);
+-		if (ret < 0) {
+-			pr_err("cannot bind the memory range to node[%*pbl], err:%d\n",
+-					nodemask_pr_args(ac->nodemask), ret);
+-			down_write(&mm->mmap_lock);
+-			do_munmap(mm, mmap_addr, spa_size(spa), NULL);
+-			up_write(&mm->mmap_lock);
+-			return ret;
+-		}
+-		ac->have_mbind = true;
+-	}
+-
+-	/*
+-	 * We are not ignoring errors, so if we fail to allocate
+-	 * physical memory we just return failure, so we won't encounter
+-	 * page fault later on, and more importantly sp_make_share_u2k()
+-	 * depends on this feature (and MAP_LOCKED) to work correctly.
+-	 */
+-	ret = do_mm_populate(mm, spa->va_start, populate, 0);
++	ret = sp_alloc_populate(mm, spa, populate, ac);
+ 	if (ret) {
+ 		down_write(&mm->mmap_lock);
+ 		do_munmap(mm, mmap_addr, spa_size(spa), NULL);
+ 		up_write(&mm->mmap_lock);
+-		if (unlikely(fatal_signal_pending(current)))
+-			pr_warn_ratelimited("allocation failed, current thread is killed\n");
+-		else
+-			pr_warn_ratelimited("allocation failed due to mm populate failed(potential no enough memory when -12): %d\n",
+-					ret);
+ 	}
+ 
+ 	return ret;
+-- 
+2.17.1
+

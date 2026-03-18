@@ -1,0 +1,47 @@
+From 6cbbe98e6750018cf6a4f6f0440afd319c676601 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Tue, 24 May 2022 11:39:54 +0800
+Subject: [PATCH 2159/2592] [Huawei] block: fix sleeping function called from
+ invalid context in part_get_stat_info()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186825
+
+--------------------------------
+
+commit d49f1bc4d7f4 ("[Huawei] block: fix kabi broken in struct
+hd_struct") call mutex_lock() inside part_stat_lock(), which is wrong
+because part_stat_lock() disables preempt.
+
+Fix the problem by hold mutex first.
+
+Fixes: d49f1bc4d7f4 ("[Huawei] block: fix kabi broken in struct hd_struct")
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/genhd.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/block/genhd.c b/block/genhd.c
+index cc114dd0265b..fcd6210417bc 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -1311,12 +1311,12 @@ static void part_get_stat_info(struct hd_struct *hd, struct disk_stats *stat,
+ 	struct request_queue *q = part_to_disk(hd)->queue;
+ 
+ 	if (queue_is_mq(q)) {
+-		part_stat_lock();
+ 		mutex_lock(&part_to_dev(hd)->mutex);
++		part_stat_lock();
+ 		part_set_stat_time(hd);
+ 		*inflight = blk_mq_in_flight_with_stat(q, hd);
+-		mutex_unlock(&part_to_dev(hd)->mutex);
+ 		part_stat_unlock();
++		mutex_unlock(&part_to_dev(hd)->mutex);
+ 	} else {
+ 		*inflight = part_in_flight(hd);
+ 	}
+-- 
+2.17.1
+

@@ -1,0 +1,85 @@
+From 69c8e4bba840af15452e0df6cb01f166582446d3 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:38:11 +0800
+Subject: [PATCH 1109/1646] [Backport] coresight: trbe: Drop duplicate TRUNCATE
+ flags
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit acee3ef86d5cfda094fa9806935aee45833444e3
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=acee3ef86d5cfda094fa9806935aee45833444e3
+
+--------------------------------
+
+We mark the buffer as TRUNCATED when there is no space left
+in the buffer. But we do it at different points.
+    __trbe_normal_offset()
+and also, at all the callers of the above function via
+compute_trbe_buffer_limit(), when the limit == base (i.e
+offset = 0 as returned by the __trbe_normal_offset()).
+
+So, given that the callers already mark the buffer as TRUNCATED
+drop the caller inside the __trbe_normal_offset().
+
+This is in preparation to moving the handling of TRUNCATED
+into a central place.
+
+Cc: Anshuman Khandual <anshuman.khandual@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Leo Yan <leo.yan@linaro.org>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Reviewed-by: Anshuman Khandual <anshuman.khandual@arm.com>
+Link: https://lore.kernel.org/r/20210914102641.1852544-6-suzuki.poulose@arm.com
+[Moved comment as Anshuman requested]
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/hwtracing/coresight/coresight-trbe.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-trbe.c b/drivers/hwtracing/coresight/coresight-trbe.c
+index bef6e0932978..e63bd2fbbba2 100644
+--- a/drivers/hwtracing/coresight/coresight-trbe.c
++++ b/drivers/hwtracing/coresight/coresight-trbe.c
+@@ -252,13 +252,9 @@ static unsigned long __trbe_normal_offset(struct perf_output_handle *handle)
+ 	 * trbe_base				trbe_base + nr_pages
+ 	 *
+ 	 * Perf aux buffer does not have any space for the driver to write into.
+-	 * Just communicate trace truncation event to the user space by marking
+-	 * it with PERF_AUX_FLAG_TRUNCATED.
+ 	 */
+-	if (!handle->size) {
+-		perf_aux_output_flag(handle, PERF_AUX_FLAG_TRUNCATED);
++	if (!handle->size)
+ 		return 0;
+-	}
+ 
+ 	/* Compute the tail and wakeup indices now that we've aligned head */
+ 	tail = PERF_IDX2OFF(handle->head + handle->size, buf);
+@@ -360,7 +356,6 @@ static unsigned long __trbe_normal_offset(struct perf_output_handle *handle)
+ 		return limit;
+ 
+ 	trbe_pad_buf(handle, handle->size);
+-	perf_aux_output_flag(handle, PERF_AUX_FLAG_TRUNCATED);
+ 	return 0;
+ }
+ 
+@@ -688,6 +683,11 @@ static void trbe_handle_spurious(struct perf_output_handle *handle)
+ 	buf->trbe_write = buf->trbe_base + PERF_IDX2OFF(handle->head, buf);
+ 	if (buf->trbe_limit == buf->trbe_base) {
+ 		trbe_drain_and_disable_local();
++		/*
++		 * Just communicate trace truncation event to the user space by
++		 * marking it with PERF_AUX_FLAG_TRUNCATED.
++		 */
++		perf_aux_output_flag(handle, PERF_AUX_FLAG_TRUNCATED);
+ 		return;
+ 	}
+ 	trbe_enable_hw(buf);
+-- 
+2.17.1
+

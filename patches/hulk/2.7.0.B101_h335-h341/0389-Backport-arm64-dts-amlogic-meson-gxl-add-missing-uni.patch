@@ -1,0 +1,45 @@
+From 9a2d34dfa8594f2141dbe9fdb6405f5482bf3291 Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 24 Jan 2023 11:34:30 +0100
+Subject: [PATCH 389/921] [Backport] arm64: dts: amlogic: meson-gxl: add
+ missing unit address to eth-phy-mux node name
+
+stable inclusion
+from stable-v5.10.173
+commit 373bb505ffe605086fa470790d806d661ac111fa
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=373bb505ffe605086fa470790d806d661ac111fa
+
+--------------------------------
+
+[ Upstream commit d19189f70ba596798ea49166d2d1ef36a8df5289 ]
+
+Fixes:
+bus@c8834000: eth-phy-mux: {...} should not be valid under {'type': 'object'}
+
+Link: https://lore.kernel.org/r/20230124-b4-amlogic-bindings-fixups-v1-9-44351528957e@linaro.org
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm64/boot/dts/amlogic/meson-gxl.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gxl.dtsi b/arch/arm64/boot/dts/amlogic/meson-gxl.dtsi
+index c3ac531c4f84..350022935052 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gxl.dtsi
++++ b/arch/arm64/boot/dts/amlogic/meson-gxl.dtsi
+@@ -759,7 +759,7 @@
+ 		};
+ 	};
+ 
+-	eth-phy-mux {
++	eth-phy-mux@55c {
+ 		compatible = "mdio-mux-mmioreg", "mdio-mux";
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+-- 
+2.17.1
+

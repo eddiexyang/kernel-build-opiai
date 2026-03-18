@@ -1,0 +1,79 @@
+From bc54e6d877d13a877180775f59de3caa232dfec1 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Sat, 18 Mar 2023 12:15:19 +0200
+Subject: [PATCH 1429/1646] [Backport] xfs: fallocate() should call
+ file_modified()
+
+stable inclusion
+from stable-v5.10.176
+commit 308dfe49eb753d7263fa4e001251d733c710ed14
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=308dfe49eb753d7263fa4e001251d733c710ed14
+
+--------------------------------
+
+commit fbe7e520036583a783b13ff9744e35c2a329d9a4 upstream.
+
+In XFS, we always update the inode change and modification time when
+any fallocate() operation succeeds.  Furthermore, as various
+fallocate modes can change the file contents (extending EOF,
+punching holes, zeroing things, shifting extents), we should drop
+file privileges like suid just like we do for a regular write().
+There's already a VFS helper that figures all this out for us, so
+use that.
+
+The net effect of this is that we no longer drop suid/sgid if the
+caller is root, but we also now drop file capabilities.
+
+We also move the xfs_update_prealloc_flags() function so that it now
+is only called by the scope that needs to set the the prealloc flag.
+
+Based on a patch from Darrick Wong.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Amir Goldstein <amir73il@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/xfs/xfs_file.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/fs/xfs/xfs_file.c b/fs/xfs/xfs_file.c
+index 9e92eea35138..11e71977e5ee 100644
+--- a/fs/xfs/xfs_file.c
++++ b/fs/xfs/xfs_file.c
+@@ -937,6 +937,10 @@ xfs_file_fallocate(
+ 			goto out_unlock;
+ 	}
+ 
++	error = file_modified(file);
++	if (error)
++		goto out_unlock;
++
+ 	if (mode & FALLOC_FL_PUNCH_HOLE) {
+ 		error = xfs_free_file_space(ip, offset, len);
+ 		if (error)
+@@ -1038,11 +1042,12 @@ xfs_file_fallocate(
+ 			if (error)
+ 				goto out_unlock;
+ 		}
+-	}
+ 
+-	error = xfs_update_prealloc_flags(ip, flags);
+-	if (error)
+-		goto out_unlock;
++		error = xfs_update_prealloc_flags(ip, XFS_PREALLOC_SET);
++		if (error)
++			goto out_unlock;
++
++	}
+ 
+ 	/* Change file size if needed */
+ 	if (new_size) {
+-- 
+2.17.1
+

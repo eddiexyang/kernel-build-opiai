@@ -1,0 +1,52 @@
+From 2b7978e928716e96fe155e2a325d514324ed4815 Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@kernel.org>
+Date: Tue, 17 Jan 2023 14:38:30 -0500
+Subject: [PATCH 693/921] [Backport] nfsd: zero out pointers after putting
+ nfsd_files on COPY setup error
+
+stable inclusion
+from stable-v5.10.173
+commit 759f6a72bc5aaa44634adbac26e14fac709a3c8b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=759f6a72bc5aaa44634adbac26e14fac709a3c8b
+
+--------------------------------
+
+[ Upstream commit 1f0001d43d0c0ac2a19a34a914f6595ad97cbc1d ]
+
+At first, I thought this might be a source of nfsd_file overputs, but
+the current callers seem to avoid an extra put when nfsd4_verify_copy
+returns an error.
+
+Still, it's "bad form" to leave the pointers filled out when we don't
+have a reference to them anymore, and that might lead to bugs later.
+Zero them out as a defensive coding measure.
+
+Signed-off-by: Jeff Layton <jlayton@kernel.org>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/nfsd/nfs4proc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fs/nfsd/nfs4proc.c b/fs/nfsd/nfs4proc.c
+index 735ee8a79870..f82cfe843b99 100644
+--- a/fs/nfsd/nfs4proc.c
++++ b/fs/nfsd/nfs4proc.c
+@@ -1075,8 +1075,10 @@ nfsd4_verify_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
+ 	return status;
+ out_put_dst:
+ 	nfsd_file_put(*dst);
++	*dst = NULL;
+ out_put_src:
+ 	nfsd_file_put(*src);
++	*src = NULL;
+ 	goto out;
+ }
+ 
+-- 
+2.17.1
+

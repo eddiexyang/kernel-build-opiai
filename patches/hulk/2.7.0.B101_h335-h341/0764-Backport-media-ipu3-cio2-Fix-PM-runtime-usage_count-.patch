@@ -1,0 +1,49 @@
+From d97a93a2d3be142996a132f5c3bd94e701939068 Mon Sep 17 00:00:00 2001
+From: Sakari Ailus <sakari.ailus@linux.intel.com>
+Date: Wed, 21 Dec 2022 09:30:11 +0100
+Subject: [PATCH 764/921] [Backport] media: ipu3-cio2: Fix PM runtime
+ usage_count in driver unbind
+
+stable inclusion
+from stable-v5.10.173
+commit 3b78c2482bbe1889bc8c441e113c666ff6b6b329
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3b78c2482bbe1889bc8c441e113c666ff6b6b329
+
+--------------------------------
+
+commit 909d3096ac99fa2289f9b8945a3eab2269947a0a upstream.
+
+Get the PM runtime usage_count and forbid PM runtime at driver unbind. The
+opposite is being done in probe() already.
+
+Fixes: commit c2a6a07afe4a ("media: intel-ipu3: cio2: add new MIPI-CSI2 driver")
+Cc: stable@vger.kernel.org # for >= 4.16
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Reviewed-by: Bingbu Cao <bingbu.cao@intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/media/pci/intel/ipu3/ipu3-cio2.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/media/pci/intel/ipu3/ipu3-cio2.c b/drivers/media/pci/intel/ipu3/ipu3-cio2.c
+index 2fe4a0bd0284..d6838c8ebd7e 100644
+--- a/drivers/media/pci/intel/ipu3/ipu3-cio2.c
++++ b/drivers/media/pci/intel/ipu3/ipu3-cio2.c
+@@ -1831,6 +1831,9 @@ static void cio2_pci_remove(struct pci_dev *pci_dev)
+ 	v4l2_device_unregister(&cio2->v4l2_dev);
+ 	media_device_cleanup(&cio2->media_dev);
+ 	mutex_destroy(&cio2->lock);
++
++	pm_runtime_forbid(&pci_dev->dev);
++	pm_runtime_get_noresume(&pci_dev->dev);
+ }
+ 
+ static int __maybe_unused cio2_runtime_suspend(struct device *dev)
+-- 
+2.17.1
+

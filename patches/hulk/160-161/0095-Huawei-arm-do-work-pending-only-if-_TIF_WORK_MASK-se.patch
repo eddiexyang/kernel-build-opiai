@@ -1,0 +1,44 @@
+From 991cbb29e6a7d1d3129971e2218bea0d7fe8a66f Mon Sep 17 00:00:00 2001
+From: Hui Tang <tanghui20@huawei.com>
+Date: Thu, 24 Nov 2022 17:29:49 +0800
+Subject: [PATCH 0095/1398] [Huawei] arm: do work pending only if
+ _TIF_WORK_MASK set
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188046
+
+--------------------------------
+
+Since commit 204a18120d43 ("arm: add support for TIF_NOTIFY_SIGNAL"),
+it will do work pending if 0-15 bit set. Before the commit, it does
+work pending only test the bit 0-3. Test more bit cause worse
+performance for syscall.
+
+In fact, the commit 204a18120d43  only needs to add test for
+TIF_NOTIFY_SIGNAL. So change test bit 0-15 to _TIF_WORK_MASK.
+
+Fixes: 204a18120d43 ("arm: add support for TIF_NOTIFY_SIGNAL")
+Signed-off-by: Hui Tang <tanghui20@huawei.com>
+---
+ arch/arm/kernel/entry-common.S | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/kernel/entry-common.S b/arch/arm/kernel/entry-common.S
+index b22813760210..48d5948c87be 100644
+--- a/arch/arm/kernel/entry-common.S
++++ b/arch/arm/kernel/entry-common.S
+@@ -134,7 +134,8 @@ ENTRY(ret_to_user_from_irq)
+ 	cmp	r2, r1
+ 	blne	addr_limit_check_failed
+ 	ldr	r1, [tsk, #TI_FLAGS]
+-	movs	r1, r1, lsl #16
++	ldr	r2, =#_TIF_WORK_MASK
++	tst	r1, r2
+ 	bne	slow_work_pending
+ no_work_pending:
+ 	asm_trace_hardirqs_on save = 0
+-- 
+2.17.1
+

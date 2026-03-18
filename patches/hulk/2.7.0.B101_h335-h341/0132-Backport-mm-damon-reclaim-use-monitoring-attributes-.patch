@@ -1,0 +1,100 @@
+From b37dd43df05d1ce5850203b518f7fa8173034f6c Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 13 Sep 2022 17:44:38 +0000
+Subject: [PATCH 132/921] [Backport] mm/damon/reclaim: use monitoring
+ attributes parameters generator macro
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit fdfc119c17cfbc0aa26be6b070f49aa1584a7e08
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=fdfc119c17cfbc0aa26be6b070f49aa1584a7e08
+
+--------------------------------
+
+This commit makes DAMON_RECLAIM to generate the module parameters for
+DAMON monitoring attributes using the generator macro to simplify the code
+and reduce duplicates.
+
+Link: https://lkml.kernel.org/r/20220913174449.50645-12-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/reclaim.c | 47 +++++-----------------------------------------
+ 1 file changed, 5 insertions(+), 42 deletions(-)
+
+diff --git a/mm/damon/reclaim.c b/mm/damon/reclaim.c
+index d35a00d8dde2..48326bef20f5 100644
+--- a/mm/damon/reclaim.c
++++ b/mm/damon/reclaim.c
+@@ -13,6 +13,8 @@
+ #include <linux/sched.h>
+ #include <linux/workqueue.h>
+ 
++#include "modules-common.h"
++
+ #ifdef MODULE_PARAM_PREFIX
+ #undef MODULE_PARAM_PREFIX
+ #endif
+@@ -130,52 +132,13 @@ static unsigned long wmarks_low __read_mostly = 200;
+ module_param(wmarks_low, ulong, 0600);
+ 
+ static struct damon_attrs damon_reclaim_mon_attrs = {
+-	.sample_interval = 5000,
+-	.aggr_interval = 100000,
++	.sample_interval = 5000,	/* 5 ms */
++	.aggr_interval = 100000,	/* 100 ms */
+ 	.ops_update_interval = 0,
+ 	.min_nr_regions = 10,
+ 	.max_nr_regions = 1000,
+ };
+-
+-/*
+- * Sampling interval for the monitoring in microseconds.
+- *
+- * The sampling interval of DAMON for the cold memory monitoring.  Please refer
+- * to the DAMON documentation for more detail.  5 ms by default.
+- */
+-module_param_named(sample_interval, damon_reclaim_mon_attrs.sample_interval,
+-		ulong, 0600);
+-
+-/*
+- * Aggregation interval for the monitoring in microseconds.
+- *
+- * The aggregation interval of DAMON for the cold memory monitoring.  Please
+- * refer to the DAMON documentation for more detail.  100 ms by default.
+- */
+-module_param_named(aggr_interval, damon_reclaim_mon_attrs.aggr_interval, ulong,
+-		0600);
+-
+-/*
+- * Minimum number of monitoring regions.
+- *
+- * The minimal number of monitoring regions of DAMON for the cold memory
+- * monitoring.  This can be used to set lower-bound of the monitoring quality.
+- * But, setting this too high could result in increased monitoring overhead.
+- * Please refer to the DAMON documentation for more detail.  10 by default.
+- */
+-module_param_named(min_nr_regions, damon_reclaim_mon_attrs.min_nr_regions,
+-		ulong, 0600);
+-
+-/*
+- * Maximum number of monitoring regions.
+- *
+- * The maximum number of monitoring regions of DAMON for the cold memory
+- * monitoring.  This can be used to set upper-bound of the monitoring overhead.
+- * However, setting this too low could result in bad monitoring quality.
+- * Please refer to the DAMON documentation for more detail.  1000 by default.
+- */
+-module_param_named(max_nr_regions, damon_reclaim_mon_attrs.max_nr_regions,
+-		ulong, 0600);
++DEFINE_DAMON_MODULES_MON_ATTRS_PARAMS(damon_reclaim_mon_attrs);
+ 
+ /*
+  * Start of the target memory region in physical address.
+-- 
+2.17.1
+

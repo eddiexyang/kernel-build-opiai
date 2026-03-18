@@ -1,0 +1,199 @@
+From cd13174a218ec8500f0b467f2d50a9467f181216 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Sat, 6 May 2023 01:05:32 +0000
+Subject: [PATCH 46/53] [Huawei] mm/sharepool: Merge sp_group_exit and
+ sp_group_post_exit
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We don't need two steps to exit a sp_group when the process is exiting
+since the last commit. And what we actually do here is to clean the
+mm_struct that has been added into sharepool subsystem, clean the
+sp_group is just one step. Rename the function name and make it more
+reasonable.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ include/linux/share_pool.h | 10 +----
+ kernel/exit.c              |  8 ----
+ kernel/fork.c              |  2 +-
+ mm/share_pool.c            | 76 ++++++--------------------------------
+ 4 files changed, 15 insertions(+), 81 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index 9fc59ed9e8a2..0c92883e0f59 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -277,8 +277,7 @@ extern bool mg_is_sharepool_addr(unsigned long addr);
+ extern int mg_sp_id_of_current(void);
+ 
+ extern void sp_area_drop(struct vm_area_struct *vma);
+-extern int sp_group_exit(void);
+-extern void sp_group_post_exit(struct mm_struct *mm);
++extern void sp_mm_clean(struct mm_struct *mm);
+ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 			     struct vm_area_struct *vma,
+ 			     struct address_space *mapping, pgoff_t idx,
+@@ -324,12 +323,7 @@ static inline int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	return -EPERM;
+ }
+ 
+-static inline int sp_group_exit(void)
+-{
+-	return 0;
+-}
+-
+-static inline void sp_group_post_exit(struct mm_struct *mm)
++static inline void sp_mm_clean(struct mm_struct *mm)
+ {
+ }
+ 
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 61d82ae97b56..3b7620f2d624 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -64,7 +64,6 @@
+ #include <linux/rcuwait.h>
+ #include <linux/compat.h>
+ #include <linux/io_uring.h>
+-#include <linux/share_pool.h>
+ 
+ #include <linux/uaccess.h>
+ #include <asm/unistd.h>
+@@ -823,13 +822,6 @@ void __noreturn do_exit(long code)
+ 	tsk->exit_code = code;
+ 	taskstats_exit(tsk, group_dead);
+ 
+-	/*
+-	 * sp_group_exit must be executed before exit_mm,
+-	 * otherwise it will cause mm leakage.
+-	 */
+-	if (group_dead)
+-		sp_group_exit();
+-
+ 	exit_mm();
+ 
+ 	if (group_dead)
+diff --git a/kernel/fork.c b/kernel/fork.c
+index f63bcd6172e2..f5ac688cdb27 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1176,7 +1176,7 @@ static inline void __mmput(struct mm_struct *mm)
+ 	khugepaged_exit(mm); /* must run before exit_mmap */
+ 	exit_mmap(mm);
+ 
+-	sp_group_post_exit(mm);
++	sp_mm_clean(mm);
+ 
+ 	mm_put_huge_zero_page(mm);
+ 	set_mm_exe_file(mm, NULL);
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 5b946849dddd..152042ee18af 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1198,13 +1198,6 @@ static struct sp_group_node *spg_node_alloc(struct mm_struct *mm,
+ 	return spg_node;
+ }
+ 
+-/* the caller must down_write(&spg->rw_lock) */
+-static void delete_spg_node(struct sp_group *spg, struct sp_group_node *node)
+-{
+-	list_del(&node->proc_node);
+-	spg->proc_num--;
+-}
+-
+ /*
+  * sp_group_link_task - Actually add a task into a group
+  * @mm: specify the input task
+@@ -3617,60 +3610,7 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 	goto out;
+ }
+ 
+-/**
+- * The caller must ensure that this function is called
+- * when the last thread in the thread group exits.
+- */
+-int sp_group_exit(void)
+-{
+-	struct mm_struct *mm;
+-	struct sp_group *spg;
+-	struct sp_group_master *master;
+-	struct sp_group_node *spg_node, *tmp;
+-
+-	if (!sp_is_enabled())
+-		return 0;
+-
+-	if (current->flags & PF_KTHREAD)
+-		return 0;
+-
+-	mm = current->mm;
+-	down_write(&sp_global_sem);
+-
+-	master = mm->sp_group_master;
+-	if (!master) {
+-		up_write(&sp_global_sem);
+-		return 0;
+-	}
+-
+-	if (master->tgid != current->tgid) {
+-		up_write(&sp_global_sem);
+-		return 0;
+-	}
+-
+-	list_for_each_entry_safe(spg_node, tmp, &master->group_head, group_node) {
+-		spg = spg_node->spg;
+-
+-		down_write(&spg->rw_lock);
+-		/* a dead group should NOT be reactive again */
+-		if (spg_valid(spg) && list_is_singular(&spg->proc_head))
+-			spg->is_alive = false;
+-		delete_spg_node(spg, spg_node);
+-		up_write(&spg->rw_lock);
+-	}
+-
+-	/* match with get_task_mm() in sp_group_add_task() */
+-	if (atomic_sub_and_test(master->group_num, &mm->mm_count)) {
+-		up_write(&sp_global_sem);
+-		WARN(1, "Invalid user counting\n");
+-		return 1;
+-	}
+-
+-	up_write(&sp_global_sem);
+-	return 0;
+-}
+-
+-void sp_group_post_exit(struct mm_struct *mm)
++void sp_mm_clean(struct mm_struct *mm)
+ {
+ 	struct sp_meminfo *meminfo;
+ 	long alloc_size, k2u_size;
+@@ -3708,10 +3648,18 @@ void sp_group_post_exit(struct mm_struct *mm)
+ 	down_write(&sp_global_sem);
+ 	list_for_each_entry_safe(spg_node, tmp, &master->group_head, group_node) {
+ 		spg = spg_node->spg;
+-		/* match with refcount inc in sp_group_add_task */
+-		if (atomic_dec_and_test(&spg->use_count))
+-			free_sp_group_locked(spg);
++
++		down_write(&spg->rw_lock);
++
++		list_del(&spg_node->proc_node);
++		spg->proc_num--;
+ 		list_del(&spg_node->group_node);
++		master->group_num--;
++
++		up_write(&spg->rw_lock);
++
++		mmdrop(mm);
++		sp_group_put_locked(spg);
+ 		kfree(spg_node);
+ 	}
+ 	up_write(&sp_global_sem);
+-- 
+2.17.1
+

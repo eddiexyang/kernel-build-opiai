@@ -1,0 +1,262 @@
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h b/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
+index b8e10f5..b7dd24c 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3_common/hclge_comm_cmd.h
+@@ -105,6 +105,7 @@ enum hclge_opcode_type {
+ 	HCLGE_OPC_QUERY_MAC_TNL_INT	= 0x0310,
+ 	HCLGE_OPC_MAC_TNL_INT_EN	= 0x0311,
+ 	HCLGE_OPC_CLEAR_MAC_TNL_INT	= 0x0312,
++	HCLGE_OPC_QUERY_SIMPLIFY_STAT = 0x0314,
+ 	HCLGE_OPC_COMMON_LOOPBACK       = 0x0315,
+ 	HCLGE_OPC_CONFIG_FEC_MODE	= 0x031A,
+ 	HCLGE_OPC_QUERY_ROH_TYPE_INFO	= 0x0389,
+@@ -263,6 +264,10 @@ enum hclge_opcode_type {
+ 	HCLGE_OPC_IMP_STATS_INFO		= 0x7013,
+ 	HCLGE_OPC_IMP_COMPAT_CFG		= 0x701A,
+ 
++	/* IMP RETIEMR command */
++	HCLGE_OPC_IMP_RETIMER_FW_VERSION_INFO = 0x0066,
++	HCLGE_OPC_IMP_RETIMER_TEMP_INFO       = 0x0067,
++
+ 	/* SFP command */
+ 	HCLGE_OPC_GET_SFP_EEPROM	= 0x7100,
+ 	HCLGE_OPC_GET_SFP_EXIST		= 0x7101,
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_cmd.h b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_cmd.h
+old mode 100644
+new mode 100755
+index 8a064ef..f357006
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_cmd.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_cmd.h
+@@ -725,6 +725,11 @@ struct hclge_fd_tcam_config_3_cmd {
+ 	u8 rsv[4];
+ };
+ 
++struct hclge_simplify_stat_cmd {
++    u64 trs_total_pkt_num;
++    u64 tcv_total_pkt_num;
++};
++
+ #define HCLGE_FD_AD_DROP_B		0
+ #define HCLGE_FD_AD_DIRECT_QID_B	1
+ #define HCLGE_FD_AD_QID_S		2
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+old mode 100644
+new mode 100755
+index bad0132..74a93e4
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -571,7 +571,7 @@ int hclge_cmd_send(struct hclge_hw *hw, struct hclge_desc *desc, int num)
+ }
+ EXPORT_SYMBOL(hclge_cmd_send);
+ 
+-struct hclge_comm_stats_str *hclge_get_mac_stats_array(size_t *array_size)
++const struct hclge_comm_stats_str *hclge_get_mac_stats_array(size_t *array_size)
+ {
+ 	*array_size = ARRAY_SIZE(g_mac_stats_string);
+ 	return g_mac_stats_string;
+@@ -2621,6 +2621,52 @@ static int hclge_common_wl_config(struct hclge_dev *hdev,
+ 	return ret;
+ }
+ 
++static int hclge_rx_tc_buffer_alloc(struct hclge_dev *hdev, struct hclge_pkt_buf_alloc *pkt_buf)
++{
++    int ret = 0;
++
++    mutex_lock(&hdev->rx_tc_cfg_lock);
++    if (hdev->is_rx_tc_manual_cfg) {
++        dev_info(&hdev->pdev->dev, "The rx tc has been manually configured.\n");
++        goto unlock_rx_tc_cfg;
++    }
++
++    ret = hclge_rx_buffer_calc(hdev, pkt_buf);
++    if (ret) {
++        dev_err(&hdev->pdev->dev, "could not calc rx priv buffer size for all TCs %d\n", ret);
++        goto unlock_rx_tc_cfg;
++    }
++
++    ret = hclge_rx_priv_buf_alloc(hdev, pkt_buf);
++    if (ret) {
++        dev_err(&hdev->pdev->dev, "could not alloc rx priv buffer %d\n", ret);
++        goto unlock_rx_tc_cfg;
++    }
++
++    if (hnae3_dev_dcb_supported(hdev)) {
++        ret = hclge_rx_priv_wl_config(hdev, pkt_buf);
++        if (ret) {
++            dev_err(&hdev->pdev->dev, "could not configure rx private waterline %d\n", ret);
++            goto unlock_rx_tc_cfg;
++        }
++ 
++        ret = hclge_common_thrd_config(hdev, pkt_buf);
++        if (ret) {
++            dev_err(&hdev->pdev->dev, "could not configure common threshold %d\n", ret);
++            goto unlock_rx_tc_cfg;
++        }
++    }
++
++    ret = hclge_common_wl_config(hdev, pkt_buf);
++    if (ret) {
++        dev_err(&hdev->pdev->dev, "could not configure common waterline %d\n", ret);
++    }
++
++unlock_rx_tc_cfg:
++    mutex_unlock(&hdev->rx_tc_cfg_lock);
++    return ret;
++}
++
+ int hclge_buffer_alloc(struct hclge_dev *hdev)
+ {
+ 	struct hclge_pkt_buf_alloc *pkt_buf;
+@@ -2644,44 +2690,11 @@ int hclge_buffer_alloc(struct hclge_dev *hdev)
+ 		goto out;
+ 	}
+ 
+-	ret = hclge_rx_buffer_calc(hdev, pkt_buf);
+-	if (ret) {
+-		dev_err(&hdev->pdev->dev,
+-			"could not calc rx priv buffer size for all TCs %d\n",
+-			ret);
+-		goto out;
+-	}
+-
+-	ret = hclge_rx_priv_buf_alloc(hdev, pkt_buf);
++	ret = hclge_rx_tc_buffer_alloc(hdev, pkt_buf);
+ 	if (ret) {
+-		dev_err(&hdev->pdev->dev, "could not alloc rx priv buffer %d\n",
+-			ret);
+-		goto out;
+-	}
+-
+-	if (hnae3_dev_dcb_supported(hdev)) {
+-		ret = hclge_rx_priv_wl_config(hdev, pkt_buf);
+-		if (ret) {
+-			dev_err(&hdev->pdev->dev,
+-				"could not configure rx private waterline %d\n",
+-				ret);
+-			goto out;
+-		}
+-
+-		ret = hclge_common_thrd_config(hdev, pkt_buf);
+-		if (ret) {
+-			dev_err(&hdev->pdev->dev,
+-				"could not configure common threshold %d\n",
+-				ret);
+-			goto out;
+-		}
++		dev_err(&hdev->pdev->dev, "Could not calc rx priv buffer size for all TCs %d\n", ret);
+ 	}
+ 
+-	ret = hclge_common_wl_config(hdev, pkt_buf);
+-	if (ret)
+-		dev_err(&hdev->pdev->dev,
+-			"could not configure common waterline %d\n", ret);
+-
+ out:
+ 	kfree(pkt_buf);
+ 	return ret;
+@@ -9552,7 +9565,6 @@ static int hclge_read_mac(void *arg)
+ {
+ 	u8 crc_data[HCLGE_CRC_DATA_LEN];
+ 	struct hclge_mac_info mac_info;
+-	struct hclge_dev *hdev = NULL;
+ 	unsigned int len = 0;
+ 	u16 crc_ret;
+ 	int ret = 0;
+@@ -9591,7 +9603,6 @@ static void hclge_get_mac_addr(struct hnae3_handle *handle, u8 *p)
+ 	struct hclge_vport *vport = hclge_get_vport(handle);
+ 	struct task_struct *get_mac_task = NULL;
+ 	struct hclge_dev *hdev = vport->back;
+-	int timeout = 0;
+ 
+ #if defined(HNS_DEVICE_READ_MAC)
+ 	/* Only the first PF obtains the MAC address from the flash. */
+@@ -12106,8 +12117,11 @@ static int hclge_init_ae_dev(struct hnae3_ae_dev *ae_dev)
+ 
+ 	/* HW supprt 2 layer vlan */
+ 	hdev->mps = ETH_FRAME_LEN + ETH_FCS_LEN + 2 * VLAN_HLEN;
++    hdev->is_rx_tc_manual_cfg = 0;
+ 
+ 	mutex_init(&hdev->vport_lock);
++	mutex_init(&hdev->rx_tc_cfg_lock);
++
+ 	spin_lock_init(&hdev->fd_rule_lock);
+ 	sema_init(&hdev->reset_sem, 1);
+ 
+@@ -12314,6 +12328,7 @@ err_pci_uninit:
+ 	pci_disable_device(pdev);
+ out:
+ 	mutex_destroy(&hdev->vport_lock);
++	mutex_destroy(&hdev->rx_tc_cfg_lock);
+ 	return ret;
+ }
+ 
+@@ -12702,6 +12717,7 @@ static void hclge_uninit_ae_dev(struct hnae3_ae_dev *ae_dev)
+ 	hclge_pci_uninit(hdev);
+ 	hclge_uninit_vport_vlan_table(hdev);
+ 	mutex_destroy(&hdev->vport_lock);
++	mutex_destroy(&hdev->rx_tc_cfg_lock);
+ 	ae_dev->priv = NULL;
+ }
+ 
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
+old mode 100644
+new mode 100755
+index fcade6f..adda7c2
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.h
+@@ -232,6 +232,7 @@ enum HCLGE_DEV_STATE {
+ 	HCLGE_STATE_PTP_TX_HANDLING,
+ 	HCLGE_STATE_SYNC_HANDLING,
+ 	HCLGE_STATE_H60_ADAPT_HANDLING,
++	HCLGE_STATE_SOFT_LIGHTING_TASK,
+ 	HCLGE_STATE_IMP_BBOX_REPORT_HANDLING,
+ 	HCLGE_STATE_MAX
+ };
+@@ -870,6 +871,12 @@ struct hclge_vf_vlan_cfg {
+ 
+ #define HCLGE_MAC_TNL_LOG_SIZE	8
+ #define HCLGE_VPORT_NUM 256
++
++struct hclge_lighting {
++    u32 fail_cnt;
++    struct hclge_simplify_stat_cmd stat;
++};
++
+ struct hclge_dev {
+ 	struct pci_dev *pdev;
+ 	struct hnae3_ae_dev *ae_dev;
+@@ -941,6 +948,7 @@ struct hclge_dev {
+ 	struct delayed_work service_task;
+ 	struct delayed_work sync_time_task;
+ 	struct delayed_work h60_adapt_task;
++	struct delayed_work soft_lighting_task;
+ 	struct delayed_work imp_bbox_report_task;
+ 	u32 sync_time_flag; /* 0:stop 1:set */
+ 	u32 h60_adapt_flag;
+@@ -971,7 +979,7 @@ struct hclge_dev {
+ 	u32 mps; /* Max packet size */
+ 	/* vport_lock protect resource shared by vports */
+ 	struct mutex vport_lock;
+-
++    struct mutex rx_tc_cfg_lock;
+ 	struct hclge_vlan_type_cfg vlan_type_cfg;
+ 
+ 	unsigned long vlan_table[VLAN_N_VID][BITS_TO_LONGS(HCLGE_VPORT_NUM)];
+@@ -1013,6 +1021,9 @@ struct hclge_dev {
+ 	struct hclge_ptp *ptp;
+ 	struct devlink *devlink;
+ 	struct hclge_comm_rss_cfg rss_cfg;
++        /* for software lighting */
++        struct hclge_lighting lighting;
++        u8 is_rx_tc_manual_cfg;
+ };
+ 
+ typedef struct hclge_dev compat_hdev;
+@@ -1204,6 +1215,6 @@ int hclge_enable_vport_vlan_filter(struct hclge_vport *vport, bool request_en);
+ int hclge_mac_update_stats(struct hclge_dev *hdev);
+ 
+ struct pci_dev *hclge_get_pci_dev(int dev_id);
+-struct hclge_comm_stats_str *hclge_get_mac_stats_array(size_t *array_size);
++const struct hclge_comm_stats_str *hclge_get_mac_stats_array(size_t *array_size);
+ int hclge_hilink_init(struct hclge_dev *hdev);
+ #endif

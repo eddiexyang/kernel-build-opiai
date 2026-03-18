@@ -1,0 +1,57 @@
+From f9e21847c3434653f93729ddbc34580efcf4ec93 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 13 Oct 2021 16:55:33 +0200
+Subject: [PATCH 0579/1646] [Backport] x86/KVM: Convert to fpstate
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 1c57572d754fc54e0b8ac0df5350969ce6292d12
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1c57572d754fc54e0b8ac0df5350969ce6292d12
+
+--------------------------------
+
+Convert KVM code to the new register storage mechanism in preparation for
+dynamically sized buffers.
+
+No functional change.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Acked-by: Paolo Bonzini <pbonzini@redhat.com>
+Cc: kvm@vger.kernel.org
+Link: https://lkml.kernel.org/r/20211013145322.451439983@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kvm/x86.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index d670c6a2bdb1..2dcb40a6d993 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -10107,7 +10107,7 @@ int kvm_arch_vcpu_ioctl_get_fpu(struct kvm_vcpu *vcpu, struct kvm_fpu *fpu)
+ 
+ 	vcpu_load(vcpu);
+ 
+-	fxsave = &vcpu->arch.guest_fpu->state.fxsave;
++	fxsave = &vcpu->arch.guest_fpu->fpstate->regs.fxsave;
+ 	memcpy(fpu->fpr, fxsave->st_space, 128);
+ 	fpu->fcw = fxsave->cwd;
+ 	fpu->fsw = fxsave->swd;
+@@ -10127,7 +10127,7 @@ int kvm_arch_vcpu_ioctl_set_fpu(struct kvm_vcpu *vcpu, struct kvm_fpu *fpu)
+ 
+ 	vcpu_load(vcpu);
+ 
+-	fxsave = &vcpu->arch.guest_fpu->state.fxsave;
++	fxsave = &vcpu->arch.guest_fpu->fpstate->regs.fxsave;
+ 
+ 	memcpy(fxsave->st_space, fpu->fpr, 128);
+ 	fxsave->cwd = fpu->fcw;
+-- 
+2.17.1
+

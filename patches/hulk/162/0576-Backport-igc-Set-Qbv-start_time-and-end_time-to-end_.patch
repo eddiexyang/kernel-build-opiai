@@ -1,0 +1,79 @@
+From 5d32d059b1bb7eb0a2f6afa5d6aa72618cc0a216 Mon Sep 17 00:00:00 2001
+From: Tan Tee Min <tee.min.tan@linux.intel.com>
+Date: Fri, 9 Dec 2022 12:15:22 +0800
+Subject: [PATCH 576/905] [Backport] igc: Set Qbv start_time and end_time to
+ end_time if not being configured in GCL
+
+stable inclusion
+from stable-v5.10.163
+commit 1e2a27dab1e5aefeeff963ace5ffb066ebf82a20
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1e2a27dab1e5aefeeff963ace5ffb066ebf82a20
+
+--------------------------------
+
+[ Upstream commit 72abeedd83982c1bc6023f631e412db78374d9b4 ]
+
+The default setting of end_time minus start_time is whole 1 second.
+Thus, if it's not being configured in any GCL entry then it will be
+staying at original 1 second.
+
+This patch is changing the start_time and end_time to be end_time as
+if setting zero will be having weird HW behavior where the gate will
+not be fully closed.
+
+Fixes: ec50a9d437f0 ("igc: Add support for taprio offloading")
+Signed-off-by: Tan Tee Min <tee.min.tan@linux.intel.com>
+Signed-off-by: Muhammad Husaini Zulkifli <muhammad.husaini.zulkifli@intel.com>
+Tested-by: Naama Meir <naamax.meir@linux.intel.com>
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/intel/igc/igc_main.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/intel/igc/igc_main.c b/drivers/net/ethernet/intel/igc/igc_main.c
+index 0c76332ada7d..37845437c5fc 100644
+--- a/drivers/net/ethernet/intel/igc/igc_main.c
++++ b/drivers/net/ethernet/intel/igc/igc_main.c
+@@ -4908,6 +4908,7 @@ static int igc_save_qbv_schedule(struct igc_adapter *adapter,
+ 	bool queue_configured[IGC_MAX_TX_QUEUES] = { };
+ 	u32 start_time = 0, end_time = 0;
+ 	size_t n;
++	int i;
+ 
+ 	if (!qopt->enable) {
+ 		adapter->base_time = 0;
+@@ -4928,7 +4929,6 @@ static int igc_save_qbv_schedule(struct igc_adapter *adapter,
+ 
+ 	for (n = 0; n < qopt->num_entries; n++) {
+ 		struct tc_taprio_sched_entry *e = &qopt->entries[n];
+-		int i;
+ 
+ 		end_time += e->interval;
+ 
+@@ -4967,6 +4967,18 @@ static int igc_save_qbv_schedule(struct igc_adapter *adapter,
+ 		start_time += e->interval;
+ 	}
+ 
++	/* Check whether a queue gets configured.
++	 * If not, set the start and end time to be end time.
++	 */
++	for (i = 0; i < adapter->num_tx_queues; i++) {
++		if (!queue_configured[i]) {
++			struct igc_ring *ring = adapter->tx_ring[i];
++
++			ring->start_time = end_time;
++			ring->end_time = end_time;
++		}
++	}
++
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

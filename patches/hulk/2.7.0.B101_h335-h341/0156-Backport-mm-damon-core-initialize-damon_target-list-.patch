@@ -1,0 +1,52 @@
+From d8025d9f53b6dc0a55238db725169533fe7a379f Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Sun, 2 Oct 2022 19:31:30 +0000
+Subject: [PATCH 156/921] [Backport] mm/damon/core: initialize
+ damon_target->list in damon_new_target()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit b1f44cdabad8c50cd72d6b6731e9fdf3730a8f4f
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b1f44cdabad8c50cd72d6b6731e9fdf3730a8f4f
+
+--------------------------------
+
+'struct damon_target' creation function, 'damon_new_target()' is not
+initializing its '->list' field, unlike other DAMON structs creator
+functions such as 'damon_new_region()'.  Normal users of
+'damon_new_target()' initializes the field by adding the target to DAMON
+context's targets list, but some code could access the uninitialized
+field.
+
+This commit avoids the case by initializing the field in
+'damon_new_target()'.
+
+Link: https://lkml.kernel.org/r/20221002193130.8227-1-sj@kernel.org
+Fixes: f23b8eee1871 ("mm/damon/core: implement region-based sampling")
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Reported-by: Hyeonggon Yoo <42.hyeyoo@gmail.com>
+Tested-by: Hyeonggon Yoo <42.hyeyoo@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index 4de8c7c52979..8e1ab38d0f1f 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -335,6 +335,7 @@ struct damon_target *damon_new_target(void)
+ 	t->pid = NULL;
+ 	t->nr_regions = 0;
+ 	INIT_LIST_HEAD(&t->regions_list);
++	INIT_LIST_HEAD(&t->list);
+ 
+ 	return t;
+ }
+-- 
+2.17.1
+

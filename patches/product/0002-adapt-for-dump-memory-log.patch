@@ -1,0 +1,150 @@
+From 8eb415baaea9f1fd675563d21f9edccd10547387 Mon Sep 17 00:00:00 2001
+From: d00583127 <d00583127@huawei.com>
+Date: Wed, 22 Mar 2023 21:27:57 +0800
+Subject: [PATCH] DTS:AR20230126960694 Description:sbsa wdt support dump memory
+ log
+
+Team:OTHERS
+Feature or Bugfix:Feature
+---
+ drivers/watchdog/sbsa_gwdt.c | 89 +++++++++++++++++++++++++++++++++++-
+ 1 file changed, 88 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/watchdog/sbsa_gwdt.c b/drivers/watchdog/sbsa_gwdt.c
+index ee9ff3892..bfcda8bf4 100644
+--- a/drivers/watchdog/sbsa_gwdt.c
++++ b/drivers/watchdog/sbsa_gwdt.c
+@@ -51,6 +51,11 @@
+ #include <linux/uaccess.h>
+ #include <linux/watchdog.h>
+ #include <asm/arch_timer.h>
++#include <linux/kthread.h>
++#include <linux/delay.h>
++#include <linux/slab.h>
++#include <linux/spinlock.h>
++#include <linux/securec.h>
+ 
+ #define DRV_NAME		"sbsa-gwdt"
+ #define WATCHDOG_NAME		"SBSA Generic Watchdog"
+@@ -76,6 +81,9 @@
+ #define SBSA_GWDT_VERSION_MASK  0xF
+ #define SBSA_GWDT_VERSION_SHIFT 16
+ 
++static int  sbsa_gwdt_int_cnt = 0;
++static int  sbsa_gwdt_int_flag = 0;
++static DEFINE_SPINLOCK(g_sbsa_gwdt_lock);
+ /**
+  * struct sbsa_gwdt - Internal representation of the SBSA GWDT
+  * @wdd:		kernel watchdog_device structure
+@@ -230,10 +238,81 @@ static int sbsa_gwdt_stop(struct watchdog_device *wdd)
+ 	return 0;
+ }
+ 
++int reboot_call_dump_memory_log(void)
++{
++    char *argv[1] = {NULL};
++    char *envp[] = {
++        "HOME=/",
++        "PATH=/sbin:/bin:/usr/sbin:/usr/bin",
++        NULL
++    };
++    int ret;
++
++    argv[0] = (char *)kzalloc((strlen("/usr/local/scripts/dump_memory_log.sh") + 1), GFP_KERNEL);
++    if (argv[0] == NULL) {
++        printk(KERN_ERR "kzalloc argv[0] fail !\n");
++        ret = -ENOMEM;
++        goto kzalloc_argv0_fail;
++    }
++
++    /* argument 0, for script path */
++    ret = snprintf_s(argv[0], (strlen("/usr/local/scripts/dump_memory_log.sh") + 1),
++		    strlen("/usr/local/scripts/dump_memory_log.sh"), "%s", "/usr/local/scripts/dump_memory_log.sh");
++    if (ret < 0) {
++        printk(KERN_ERR "snprintf_s argv[0] fail, ret = %d.\n", ret);
++        goto snprintf_s_fail;
++    }
++    printk(KERN_WARNING "call_usermodehelper /usr/local/scripts/dump_memory_log.sh");
++    ret = call_usermodehelper("/usr/local/scripts/dump_memory_log.sh", argv, envp, UMH_WAIT_EXEC);
++    if (ret) {
++        printk(KERN_ERR "call_usermodehelper fail, ret=%d\n", ret);
++        goto call_usermodehelper_fail;
++    }
++
++    kfree(argv[0]);
++    return 0;
++
++call_usermodehelper_fail:
++snprintf_s_fail:
++    kfree(argv[0]);
++kzalloc_argv0_fail:
++    return ret;
++}
++EXPORT_SYMBOL_GPL(reboot_call_dump_memory_log);
++
++static int sbsa_gwdt_deamon(void *data)
++{
++	struct sbsa_gwdt *gwdt = data;
++    unsigned long flags;
++
++    while (sbsa_gwdt_int_cnt != 2) {
++        /* sleep; when self feed dog, only use the default margin */
++        if (sbsa_gwdt_int_cnt == 1) {
++            spin_lock_irqsave(&g_sbsa_gwdt_lock, flags);
++            sbsa_gwdt_int_cnt = 2;
++            spin_unlock_irqrestore(&g_sbsa_gwdt_lock, flags);
++            writel(0, gwdt->refresh_base + SBSA_GWDT_WRR);
++            printk(KERN_EMERG "sbsa wdt timeout start collect memory log.");
++            reboot_call_dump_memory_log();
++            ssleep(3);
++            panic(WATCHDOG_NAME "timeout");
++        }
++        msleep(500);
++    }
++
++    return 0;
++}
++
+ static irqreturn_t sbsa_gwdt_interrupt(int irq, void *dev_id)
+ {
+-	panic(WATCHDOG_NAME " timeout");
++	struct sbsa_gwdt *gwdt = dev_id;
++
++    if (sbsa_gwdt_int_flag && (sbsa_gwdt_int_cnt == 0)) {
++        sbsa_gwdt_int_cnt = 1;
+ 
++        writel(0, gwdt->refresh_base + SBSA_GWDT_WRR);
++        return IRQ_HANDLED;
++    }
+ 	return IRQ_HANDLED;
+ }
+ 
+@@ -262,6 +341,7 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
+ 	struct sbsa_gwdt *gwdt;
+ 	int ret, irq;
+ 	u32 status;
++    struct task_struct *sbsa_gwdt_thread;
+ 
+ 	gwdt = devm_kzalloc(dev, sizeof(*gwdt), GFP_KERNEL);
+ 	if (!gwdt)
+@@ -348,10 +428,17 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
++	sbsa_gwdt_thread = kthread_run(sbsa_gwdt_deamon, gwdt, "sbsa_gwdt_deamon");
++	if (IS_ERR(sbsa_gwdt_thread)) {
++		dev_err(dev, "Failed to create the sbsa gwd thread\n");
++		sbsa_gwdt_thread = NULL;
++	}
++
+ 	dev_info(dev, "Initialized with %ds timeout @ %u Hz, action=%d.%s\n",
+ 		 wdd->timeout, gwdt->clk, action,
+ 		 status & SBSA_GWDT_WCS_EN ? " [enabled]" : "");
+ 
++    sbsa_gwdt_int_flag = 1;
+ 	return 0;
+ }
+ 
+-- 
+2.24.0
+

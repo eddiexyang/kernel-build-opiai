@@ -1,0 +1,57 @@
+From f61c3d9138f9182ba03d80d0c0832203c3970fb5 Mon Sep 17 00:00:00 2001
+From: Guo Mengqi <guomengqi3@huawei.com>
+Date: Mon, 6 Feb 2023 10:14:54 +0800
+Subject: [PATCH 128/905] [Huawei] mm: sharepool: add static modifier to
+ find_spg_node_by_spg()
+
+Offering: HULK
+hulk inclusion
+category: cleanup
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6D0N5
+
+-------------------------------
+
+Add static modifier to find_spg_node_by_spg(), for this function is
+designed as an internal helper function, should only be used in
+share_pool.c scope.
+Also add static modifier to spa_overview_show and spg_overview_show.
+
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ mm/share_pool.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 1c63ab2f7d18..9ef0a18e0e34 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -885,7 +885,7 @@ static void update_mem_usage(unsigned long size, bool inc, bool is_hugepage,
+ 	}
+ }
+ 
+-struct sp_group_node *find_spg_node_by_spg(struct mm_struct *mm,
++static struct sp_group_node *find_spg_node_by_spg(struct mm_struct *mm,
+ 		struct sp_group *spg)
+ {
+ 	struct sp_group_node *spg_node;
+@@ -3995,7 +3995,7 @@ static void spa_dvpp_stat_show(struct seq_file *seq)
+ }
+ 
+ 
+-void spa_overview_show(struct seq_file *seq)
++static void spa_overview_show(struct seq_file *seq)
+ {
+ 	unsigned int total_num, alloc_num, k2u_task_num, k2u_spg_num;
+ 	unsigned long total_size, alloc_size, k2u_task_size, k2u_spg_size;
+@@ -4051,7 +4051,7 @@ static int spg_info_show(int id, void *p, void *data)
+ 	return 0;
+ }
+ 
+-void spg_overview_show(struct seq_file *seq)
++static void spg_overview_show(struct seq_file *seq)
+ {
+ 	if (!sp_is_enabled())
+ 		return;
+-- 
+2.17.1
+

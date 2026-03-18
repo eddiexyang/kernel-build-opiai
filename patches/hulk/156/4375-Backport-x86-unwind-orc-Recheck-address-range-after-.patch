@@ -1,0 +1,82 @@
+From 7304ea7a4a9f2017aaae7cc8592ab3a4c1935bd5 Mon Sep 17 00:00:00 2001
+From: Dmitry Monakhov <dmtrmonakhov@yandex-team.ru>
+Date: Tue, 19 Apr 2022 10:34:16 +0300
+Subject: [PATCH 4375/4585] [Backport] x86/unwind/orc: Recheck address range
+ after stack info was updated
+
+mainline inclusion
+from mainline-v5.18-rc5
+commit 6c8ef58a50b5fab6e364b558143490a2014e2a4f
+category: bugfix
+bugzilla: 187215
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?h=v5.19-rc6&id=6c8ef58a50b5fab6e364b558143490a2014e2a4f
+
+--------------------------------
+
+A crash was observed in the ORC unwinder:
+
+  BUG: stack guard page was hit at 000000000dd984a2 (stack is 00000000d1caafca..00000000613712f0)
+  kernel stack overflow (page fault): 0000 [#1] SMP NOPTI
+  CPU: 93 PID: 23787 Comm: context_switch1 Not tainted 5.4.145 #1
+  RIP: 0010:unwind_next_frame
+  Call Trace:
+   <NMI>
+   perf_callchain_kernel
+   get_perf_callchain
+   perf_callchain
+   perf_prepare_sample
+   perf_event_output_forward
+   __perf_event_overflow
+   perf_ibs_handle_irq
+   perf_ibs_nmi_handler
+   nmi_handle
+   default_do_nmi
+   do_nmi
+   end_repeat_nmi
+
+This was really two bugs:
+
+  1) The perf IBS code passed inconsistent regs to the unwinder.
+
+  2) The unwinder didn't handle the bad input gracefully.
+
+Fix the latter bug.  The ORC unwinder needs to be immune against bad
+inputs.  The problem is that stack_access_ok() doesn't recheck the
+validity of the full range of registers after switching to the next
+valid stack with get_stack_info().  Fix that.
+
+[ jpoimboe: rewrote commit log ]
+
+Signed-off-by: Dmitry Monakhov <dmtrmonakhov@yandex-team.ru>
+Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
+Link: https://lore.kernel.org/r/1650353656-956624-1-git-send-email-dmtrmonakhov@yandex-team.ru
+Signed-off-by: Peter Zijlstra <peterz@infradead.org>
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ arch/x86/kernel/unwind_orc.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/kernel/unwind_orc.c b/arch/x86/kernel/unwind_orc.c
+index a1202536fc57..774ed7b35d49 100644
+--- a/arch/x86/kernel/unwind_orc.c
++++ b/arch/x86/kernel/unwind_orc.c
+@@ -339,11 +339,11 @@ static bool stack_access_ok(struct unwind_state *state, unsigned long _addr,
+ 	struct stack_info *info = &state->stack_info;
+ 	void *addr = (void *)_addr;
+ 
+-	if (!on_stack(info, addr, len) &&
+-	    (get_stack_info(addr, state->task, info, &state->stack_mask)))
+-		return false;
++	if (on_stack(info, addr, len))
++		return true;
+ 
+-	return true;
++	return !get_stack_info(addr, state->task, info, &state->stack_mask) &&
++		on_stack(info, addr, len);
+ }
+ 
+ static bool deref_stack_reg(struct unwind_state *state, unsigned long addr,
+-- 
+2.17.1
+

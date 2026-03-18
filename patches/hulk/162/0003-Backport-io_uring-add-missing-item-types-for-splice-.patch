@@ -1,0 +1,44 @@
+From 48e46a146cbc4124de2702c920674985d086b381 Mon Sep 17 00:00:00 2001
+From: Bing-Jhong Billy Jheng <billy@starlabs.sg>
+Date: Thu, 15 Dec 2022 06:43:56 -0800
+Subject: [PATCH 003/905] [Backport] io_uring: add missing item types for
+ splice request
+
+stable inclusion
+from stable-v5.10.160
+commit 75454b4bbfc7e6a4dd8338556f36ea9107ddf61a
+category: bugfix
+bugzilla: 188252
+CVE: CVE-2022-4696
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=linux-5.10.y&id=75454b4bbfc7e6a4dd8338556f36ea9107ddf61a
+
+--------------------------------
+
+Splice is like read/write and should grab current->nsproxy, denoted by
+IO_WQ_WORK_FILES as it refers to current->files as well
+
+Signed-off-by: Bing-Jhong Billy Jheng <billy@starlabs.sg>
+Reviewed-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/io_uring.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index ce00991d1419..f4db311e926d 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -936,7 +936,7 @@ static const struct io_op_def io_op_defs[] = {
+ 		.needs_file		= 1,
+ 		.hash_reg_file		= 1,
+ 		.unbound_nonreg_file	= 1,
+-		.work_flags		= IO_WQ_WORK_BLKCG,
++		.work_flags		= IO_WQ_WORK_BLKCG | IO_WQ_WORK_FILES,
+ 	},
+ 	[IORING_OP_PROVIDE_BUFFERS] = {},
+ 	[IORING_OP_REMOVE_BUFFERS] = {},
+-- 
+2.17.1
+

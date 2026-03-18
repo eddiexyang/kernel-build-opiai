@@ -1,0 +1,1329 @@
+From 3fa84008e18afff53c542858949f4e92be8939c6 Mon Sep 17 00:00:00 2001
+From: Yang Shiyu <yangshiyu9@huawei.com>
+Date: Wed, 30 Nov 2022 16:03:24 +0800
+Subject: [PATCH 0877/1398] [Huawei] ocfs2: add support for ADL(Atomic Disk
+ Lock) feature: implement disk lock API
+
+Offering: HULK
+ocfs2 inclusion
+category: feature
+bugzilla: NA
+
+----------------------------------------
+
+Add basic lock and unlock API for adl.
+
+Signed-off-by: Yang Shiyu <yangshiyu9@huawei.com>
+---
+ fs/ocfs2/adl/adlapi.h    | 105 +++++
+ fs/ocfs2/adl/adlcommon.h | 331 +++++++++++++++
+ fs/ocfs2/adl/adldomain.c | 847 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 1283 insertions(+)
+ create mode 100644 fs/ocfs2/adl/adlapi.h
+ create mode 100644 fs/ocfs2/adl/adlcommon.h
+ create mode 100644 fs/ocfs2/adl/adldomain.c
+
+diff --git a/fs/ocfs2/adl/adlapi.h b/fs/ocfs2/adl/adlapi.h
+new file mode 100644
+index 000000000000..e602d63e095b
+--- /dev/null
++++ b/fs/ocfs2/adl/adlapi.h
+@@ -0,0 +1,105 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#ifndef ADLAPI_H
++#define ADLAPI_H
++
++struct ocfs2_super;
++
++typedef void (adl_eviction_func)(int, void *);
++struct adl_eviction_cb {
++	struct list_head        ec_item;
++	adl_eviction_func       *ec_func;
++	void                    *ec_data;
++};
++
++enum adl_cb_type {
++	ADL_QUERY_LOCK_CB = 0,
++	ADL_UNLOCK_LOCK_CB,
++	ADL_NUM_CB,
++};
++
++typedef void (adl_net_request_cb_func)(u64, int, void *);
++struct adl_net_request_cb {
++	enum adl_cb_type net_cb_type;
++	adl_net_request_cb_func *net_cb_func;
++	void *net_cb_data;
++	struct list_head net_cb_item;
++};
++
++#define ADL_LKF_NOQUEUE		0x00000001
++#define ADL_LKF_NONBLOCK	0x00000002
++#define ADL_LKF_USER_MODE		0x00000004
++#define ADL_LKF_NEED_RECOVERY	0x00000008
++#define ADL_LKF_PRINT_LOG	0x00000010
++
++#define DISK_RETRY_TIME_MS 50
++#define DISK_RETRY_MAX_MX (2 * 60 * 1000)
++#define DISK_RETRY_MAX_TIMS (DISK_RETRY_MAX_MX / DISK_RETRY_TIME_MS)
++#define DISK_PRINT_LOG_INTERNAL_MS (5 * 60 * 1000)  //5min
++
++struct o2adl_private {
++	struct adl_eviction_cb op_eviction_cb;
++};
++
++struct adl_ctxt {
++	spinlock_t spinlock;
++	char *name;
++	u32 key;
++	u16 node_num;
++
++	/* block device, obtained from osb->sb->s_bdev during initialization. */
++	struct block_device *bdev;
++
++	/* protected by spinlock */
++	int orphan;
++	unsigned long live_nodes_map[BITS_TO_LONGS(O2NM_MAX_NODES)];
++	unsigned long recovery_map[BITS_TO_LONGS(O2NM_MAX_NODES)];
++	u32 **HBGen;
++
++	struct list_head list;
++	struct kref adl_refs;
++	unsigned int num_joins;
++
++	struct adl_debug_ctxt *adl_debug_ctxt;
++	struct dentry *adl_debugfs_subroot;
++
++	struct o2hb_callback_func adl_region_up;
++	struct o2hb_callback_func adl_region_down;
++	struct o2hb_callback_func adl_node_up;
++	struct o2hb_callback_func adl_node_down;
++	struct o2hb_callback_func adl_disk_timeout;
++	struct list_head adl_eviction_callbacks;
++
++	/* For async messages sending */
++	struct list_head adl_net_request_callbacks;
++
++	struct workqueue_struct *async_msg_worker;
++	struct work_struct async_msg_work;
++	struct list_head async_msg_list;
++	spinlock_t async_msg_lock;
++
++	struct list_head adl_domain_handlers;
++};
++
++struct adl_ctxt *adl_register_domain(char *name, u32 key,
++		struct block_device *bdev);
++void adl_unregister_domain(struct adl_ctxt *adl);
++void adl_setup_eviction_cb(struct adl_eviction_cb *cb,  adl_eviction_func *f, void *data);
++void adl_register_eviction_cb(struct adl_ctxt *adl,
++		struct adl_eviction_cb *cb);
++void adl_unregister_eviction_cb(struct adl_eviction_cb *cb);
++int adl_initialize_lock_block(struct ocfs2_super *osb,
++		u64 fe_lock_blkno);
++void adl_clear_recovery_map(struct adl_ctxt *adl,
++		unsigned int node_num);
++void adl_set_recovery_map(struct adl_ctxt *adl,
++		unsigned int node_num);
++int adl_other_nodes_pending(struct adl_ctxt *adl, u64 blkno, int offset);
++void adl_setup_net_request_cb(struct adl_net_request_cb *cb,
++		adl_net_request_cb_func *f,
++		enum adl_cb_type type,
++		void *data);
++void adl_register_net_request_cb(struct adl_ctxt *adl,
++		struct adl_net_request_cb *cb);
++void adl_unregister_net_request_cb(struct adl_net_request_cb *cb);
++
++#endif /* ADLAPI_H */
+diff --git a/fs/ocfs2/adl/adlcommon.h b/fs/ocfs2/adl/adlcommon.h
+new file mode 100644
+index 000000000000..67378776cc90
+--- /dev/null
++++ b/fs/ocfs2/adl/adlcommon.h
+@@ -0,0 +1,331 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#ifndef DLMCOMMON_H
++#define DLMCOMMON_H
++
++#include "cluster/heartbeat.h"
++#include "adl/adlapi.h"
++
++/* Valid lock modes. */
++#define LKM_NLMODE      0               /* null lock */
++#define LKM_PRMODE      3               /* protected read */
++#define LKM_EXMODE      5               /* exclusive */
++
++#define ADL_HB_NODE_DOWN_PRI     (0xf000000)
++#define ADL_HB_NODE_UP_PRI       (0x8000000)
++#define ADL_TIMEOUT_PRI          (0x1000000)  /* OCFS2_TIMEOUT_PRI - 1 */
++
++#define LOG_RATELIMIT_INTERVAL_MSES (10 * 1000)
++
++enum caw_mode {
++	MODE_LOCK = 0,
++	MODE_UNLOCK,
++	MODE_PENDING,
++	NUM_MODE
++};
++
++struct adl_debug_ctxt {
++	struct dentry *debug_state_dentry;
++};
++
++#define ADL_MAX_NODES		64
++#define LOCK_MAX_HOLDERS	ADL_MAX_NODES
++
++/* ocfs2_adl_lock.lk_flags */
++#define ADL_LOCK_INVALID		0x00
++#define ADL_LOCK_LOCKED			0x01
++#define ADL_LOCK_USER_MODE		0x02
++#define ADL_LOCK_KERNEL_MODE	0x04
++#define ADL_LOCK_MODE_MASK		(ADL_LOCK_USER_MODE | ADL_LOCK_KERNEL_MODE)
++#define ADL_LOCK_FLAGS_MASK		\
++	(ADL_LOCK_INVALID | ADL_LOCK_LOCKED | ADL_LOCK_USER_MODE | \
++	ADL_LOCK_KERNEL_MODE)
++
++/* ocfs2_adl_lock.lk_level */
++#define DISK_LOCK_LEVEL_NL		0x00
++#define DISK_LOCK_LEVEL_PR		0x01
++#define DISK_LOCK_LEVEL_EX		0x02
++#define DISK_LOCK_LEVEL_MASK	\
++	(DISK_LOCK_LEVEL_NL | DISK_LOCK_LEVEL_PR | DISK_LOCK_LEVEL_EX)
++
++#define ADL_INVALID_INDEX		LOCK_MAX_HOLDERS
++
++#define LOCK_BLOCK_SIGNATURE		"LOCK01"
++
++enum {
++	ADL_QUERY_LOCK_MSG    = 600,
++	ADL_UNLOCK_LOCK_MSG   = 601,
++	ADL_VALET_LOCK_MSG    = 602, /* reserved */
++};
++
++struct adl_lock_packet {
++	__be16 sender_idx;
++	u8 sector_offset;
++	u8 pad1[5];
++	__be64 blkno;
++};
++
++typedef void (adl_async_msg_cb)(void *, int);
++
++struct adl_async_msg_priv {
++	u32                     am_type;
++	u32                     am_len;
++	u16                     am_target_node;
++	adl_async_msg_cb	*am_callback;
++};
++
++struct adl_work_item;
++typedef void (adl_workfunc_t)(struct adl_work_item *, void *);
++struct adl_work_item {
++	struct list_head list;
++	adl_workfunc_t *func;
++	struct adl_ctxt *adl;
++	void *msg;  /* caller should free item->msg in xxxx_worker */
++	union {
++		struct adl_async_msg_priv am;
++	} u;
++};
++
++struct ocfs2_adl_lock {
++/*00*/	__u8 lk_signature[7]; /* LOCK01 */
++	__u8 lk_level;		/* 0x01 - pr; 0x02 - ex */
++	__le64 lk_generation;			/* monotone increasing */
++
++/*10*/	__le16 lk_host_id[LOCK_MAX_HOLDERS];	/* 128 bytes, 2 byte per lock */
++/*90*/	__le32 lk_hb_gen[LOCK_MAX_HOLDERS];	/* 256 bytes, 4 byte per lock */
++/*190*/	__u8 lk_flags[LOCK_MAX_HOLDERS];	/* use 3 bit per lock. 01 - locked;
++							* 02 - user_mode; 04 - kernel_mode */
++/*1D0*/ __le16	lk_pending_host;
++		__le16	pad1;
++		__le32	lk_pending_hb_gen;
++		__le32 seqno;
++		__le64 pad2[4];
++		__le32 pad3;
++};
++
++static inline u16 hostid_to_key(u16 id)
++{
++	return id == 0 ? O2NM_MAX_NODES : id;
++}
++
++static inline u16 host_id(struct ocfs2_adl_lock *lock, int i)
++{
++	return le16_to_cpu(lock->lk_host_id[i]);
++}
++
++static inline u32 host_hb_gen(struct ocfs2_adl_lock *lock, int i)
++{
++	return le32_to_cpu(lock->lk_hb_gen[i]);
++}
++
++static inline u8 host_flags(struct ocfs2_adl_lock *lock, int i)
++{
++	return lock->lk_flags[i];
++}
++
++static inline u16 pending_host_id(struct ocfs2_adl_lock *lock)
++{
++	return le16_to_cpu(lock->lk_pending_host);
++}
++
++static inline u32 pending_host_hb_gen(struct ocfs2_adl_lock *lock)
++{
++	return le32_to_cpu(lock->lk_pending_hb_gen);
++}
++
++static inline int lock_free(struct ocfs2_adl_lock *lock, int i)
++{
++	return (lock->lk_flags[i] == ADL_LOCK_INVALID);
++}
++
++static inline int lock_locked(struct ocfs2_adl_lock *lock, int i)
++{
++	return (lock->lk_flags[i] & ADL_LOCK_LOCKED);
++}
++
++static inline int lock_mode(struct ocfs2_adl_lock *lock, int i)
++{
++	return (lock->lk_flags[i] & ADL_LOCK_MODE_MASK);
++}
++
++static inline int test_lock_mode(struct ocfs2_adl_lock *lock, int i,
++		int mode)
++{
++	return ((lock->lk_flags[i] & mode) == mode);
++}
++
++static inline int same_lock_mode(struct ocfs2_adl_lock *lock, int i,
++		int mode)
++{
++	return (lock_mode(lock, i) == mode);
++}
++
++static inline void clear_lock_mode(struct ocfs2_adl_lock *lock, int i,
++		int mode)
++{
++	lock->lk_flags[i] &= ~mode;
++}
++
++typedef int (*lock_valid_func)(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int i);
++
++static inline int lock_valid(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int i)
++{
++	int valid;
++	u16 hostid = host_id(lock, i);
++
++	spin_lock(&adl->spinlock);
++	valid = test_bit(hostid, adl->live_nodes_map) &&
++			(host_hb_gen(lock, i) == *adl->HBGen[hostid]);
++	spin_unlock(&adl->spinlock);
++
++	return valid;
++}
++
++static inline int lock_valid_wait_for_recovery(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int i)
++{
++	int valid;
++	u16 hostid = host_id(lock, i);
++
++	spin_lock(&adl->spinlock);
++	valid = test_bit(hostid, adl->recovery_map) ||
++			(test_bit(hostid, adl->live_nodes_map) &&
++			(host_hb_gen(lock, i) == *adl->HBGen[hostid]));
++	spin_unlock(&adl->spinlock);
++
++	return valid;
++}
++
++static inline int lock_pending_valid(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock)
++{
++	int valid;
++	u16 hostid = pending_host_id(lock);
++
++	spin_lock(&adl->spinlock);
++	valid = test_bit(hostid, adl->live_nodes_map) &&
++			(pending_host_hb_gen(lock) == *adl->HBGen[hostid]);
++	spin_unlock(&adl->spinlock);
++
++	return valid;
++}
++
++static inline int lock_level(struct ocfs2_adl_lock *lock)
++{
++	return (lock->lk_level & DISK_LOCK_LEVEL_MASK);
++}
++
++static inline int pr_locked(struct ocfs2_adl_lock *lock)
++{
++	return (lock_level(lock) == DISK_LOCK_LEVEL_PR);
++}
++
++static inline int ex_locked(struct ocfs2_adl_lock *lock)
++{
++	return (lock_level(lock) == DISK_LOCK_LEVEL_EX);
++}
++
++static inline int to_disk_level(int level)
++{
++	if (level == LKM_PRMODE)
++		return DISK_LOCK_LEVEL_PR;
++	else if (level == LKM_EXMODE)
++		return DISK_LOCK_LEVEL_EX;
++	else
++		return DISK_LOCK_LEVEL_NL;
++}
++
++static inline void set_lock_level(struct ocfs2_adl_lock *lock, int level)
++{
++	lock->lk_level = to_disk_level(level);
++}
++
++static inline void add_locked_lock(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int i, int lock_mode)
++{
++	lock->lk_flags[i] |= (ADL_LOCK_LOCKED | lock_mode);
++	lock->lk_host_id[i] = cpu_to_le16(adl->node_num);
++
++	spin_lock(&adl->spinlock);
++	lock->lk_hb_gen[i] = cpu_to_le32(*adl->HBGen[adl->node_num]);
++	spin_unlock(&adl->spinlock);
++}
++
++static inline void add_pending_lock(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock)
++{
++	lock->lk_pending_host = cpu_to_le16(adl->node_num);
++	spin_lock(&adl->spinlock);
++	lock->lk_pending_hb_gen = cpu_to_le32(*adl->HBGen[adl->node_num]);
++	spin_unlock(&adl->spinlock);
++}
++
++static inline void clear_one_lock(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock, int i)
++{
++	lock->lk_flags[i] = ADL_LOCK_INVALID;
++	lock->lk_host_id[i] = cpu_to_le16(O2NM_INVALID_NODE_NUM);
++	lock->lk_hb_gen[i] = 0;
++}
++
++static inline void clear_pending_lock(struct ocfs2_adl_lock *lock)
++{
++	lock->lk_pending_host = cpu_to_le16(O2NM_INVALID_NODE_NUM);
++	lock->lk_pending_hb_gen = 0;
++}
++
++static inline int adl_is_invalid(struct adl_ctxt *adl)
++{
++	int invalid;
++
++	spin_lock(&adl->spinlock);
++	invalid = adl->orphan;
++	spin_unlock(&adl->spinlock);
++	return invalid;
++}
++
++static inline int adl_lock_pending_exist(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock)
++{
++	if (lock_pending_valid(adl, lock))
++		return 1;
++	else
++		return 0;
++}
++
++static inline int adl_lock_other_pending_exist(struct adl_ctxt *adl,
++		struct ocfs2_adl_lock *lock)
++{
++	if (lock_pending_valid(adl, lock) &&
++			adl->node_num != pending_host_id(lock))
++		return 1;
++	else
++		return 0;
++}
++
++static inline void adl_lock_initialize(struct ocfs2_adl_lock *lock)
++{
++	int i;
++
++	strcpy(lock->lk_signature, LOCK_BLOCK_SIGNATURE);
++
++	for (i = 0; i < LOCK_MAX_HOLDERS; i++)
++		lock->lk_host_id[i] = cpu_to_le16(O2NM_INVALID_NODE_NUM);
++	lock->lk_pending_host = cpu_to_le16(O2NM_INVALID_NODE_NUM);
++}
++
++int adl_query_lock_request_handler(struct o2net_msg *msg, u32 len, void *data,
++		void **ret_data);
++int adl_unlock_lock_handler(struct o2net_msg *msg, u32 len, void *data,
++		void **ret_data);
++void adl_fire_callbacks(struct adl_ctxt *adl, enum adl_cb_type type,
++		u64 blkno, int sector_offset);
++int adl_send_async_msg(struct adl_ctxt *adl, u32 msg_type,
++		void *msg, u32 len,
++		u16 target_node, adl_async_msg_cb *callback);
++struct adl_ctxt *adl_grab(struct adl_ctxt *adl);
++void adl_put(struct adl_ctxt *adl);
++int adl_is_node_authorized(struct adl_ctxt *adl, u16 node);
++
++#endif
+diff --git a/fs/ocfs2/adl/adldomain.c b/fs/ocfs2/adl/adldomain.c
+new file mode 100644
+index 000000000000..21e3eadd2b06
+--- /dev/null
++++ b/fs/ocfs2/adl/adldomain.c
+@@ -0,0 +1,847 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++#include <linux/module.h>
++#include <linux/debugfs.h>
++#include <linux/kthread.h>
++
++#include "cluster/tcp.h"
++#include "adlcommon.h"
++#include "adlapi.h"
++
++#define MLOG_MASK_PREFIX (ML_ADL|ML_ADL_DOMAIN)
++#include "cluster/masklog.h"
++
++static DEFINE_MUTEX(adl_domain_mutex_lock);
++LIST_HEAD(adl_domains);
++
++static struct dentry *adl_debugfs_root;
++
++#define ADL_DEBUGFS_DIR				"o2adl"
++#define ADL_DEBUGFS_ADL_STATE			"adl_state"
++
++static int stringify_nodemap(unsigned long *nodemap, int maxnodes,
++			     char *buf, int len)
++{
++	int out = 0;
++	int i = -1;
++
++	while ((i = find_next_bit(nodemap, maxnodes, i + 1)) < maxnodes)
++		out += snprintf(buf + out, len - out, "%d ", i);
++
++	return out;
++}
++
++static int adl_debug_release(struct inode *inode, struct file *file)
++{
++	free_page((unsigned long)file->private_data);
++	return 0;
++}
++
++static ssize_t adl_debug_read(struct file *file, char __user *buf,
++			  size_t nbytes, loff_t *ppos)
++{
++	return simple_read_from_buffer(buf, nbytes, ppos, file->private_data,
++				       i_size_read(file->f_mapping->host));
++}
++
++static int adl_debug_state_print(struct adl_ctxt *adl, char *buf, int len)
++{
++	int out = 0;
++	int i = -1;
++
++	spin_lock(&adl->spinlock);
++	/* Live Node Map: xx xx */
++	out += snprintf(buf + out, len - out, "Live Node Map: ");
++	out += stringify_nodemap(adl->live_nodes_map, O2NM_MAX_NODES,
++			buf + out, len - out);
++	out += snprintf(buf + out, len - out, "\n");
++
++	/* Live Node Heartbeat Generation */
++	out += snprintf(buf + out, len - out, "heartbeat generation:\n");
++	while ((i = find_next_bit(adl->live_nodes_map, O2NM_MAX_NODES, i + 1))
++			< O2NM_MAX_NODES) {
++		out += snprintf(buf + out, len - out, "\t%d - 0x%x\n",
++				i, *adl->HBGen[i]);
++	}
++
++	/* Live Node Map: xx xx */
++	out += snprintf(buf + out, len - out, "Recovery Map: ");
++	out += stringify_nodemap(adl->recovery_map, O2NM_MAX_NODES,
++			buf + out, len - out);
++	out += snprintf(buf + out, len - out, "\n");
++
++	/* Refs: xxx */
++	out += snprintf(buf + out, len - out,
++			"Refs: %d\n", kref_read(&adl->adl_refs));
++
++	out += snprintf(buf + out, len - out,
++			"Invalid: %d\n", adl->orphan);
++
++	spin_unlock(&adl->spinlock);
++
++	return out;
++}
++
++static int adl_debug_state_open(struct inode *inode, struct file *file)
++{
++	struct adl_ctxt *adl = inode->i_private;
++	char *buf = NULL;
++
++	buf = (char *) get_zeroed_page(GFP_NOFS);
++	if (!buf)
++		goto bail;
++
++	i_size_write(inode, adl_debug_state_print(adl, buf, PAGE_SIZE - 1));
++
++	file->private_data = buf;
++
++	return 0;
++bail:
++	return -ENOMEM;
++}
++
++/* files in subroot */
++static const struct file_operations adl_debug_state_fops = {
++	.open =		adl_debug_state_open,
++	.release =	adl_debug_release,
++	.read =		adl_debug_read,
++	.llseek =	generic_file_llseek,
++};
++
++/* files in subroot */
++void adl_debug_shutdown(struct adl_ctxt *adl)
++{
++	struct adl_debug_ctxt *dc = adl->adl_debug_ctxt;
++
++	if (dc) {
++		debugfs_remove(dc->debug_state_dentry);
++		kfree(dc);
++		adl->adl_debug_ctxt = NULL;
++	}
++}
++
++int adl_debug_init(struct adl_ctxt *adl)
++{
++	struct adl_debug_ctxt *dc = adl->adl_debug_ctxt;
++
++	/* for dumping adl_ctxt */
++	dc->debug_state_dentry = debugfs_create_file(ADL_DEBUGFS_ADL_STATE,
++						     S_IFREG|S_IRUSR,
++						     adl->adl_debugfs_subroot,
++						     adl, &adl_debug_state_fops);
++	if (!dc->debug_state_dentry) {
++		mlog_errno(-ENOMEM);
++		return -ENOMEM;
++	}
++
++	return 0;
++}
++
++/* subroot - domain dir */
++void adl_destroy_debugfs_subroot(struct adl_ctxt *adl)
++{
++	debugfs_remove(adl->adl_debugfs_subroot);
++}
++
++int adl_create_debugfs_subroot(struct adl_ctxt *adl)
++{
++	adl->adl_debugfs_subroot = debugfs_create_dir(adl->name,
++			adl_debugfs_root);
++	if (!adl->adl_debugfs_subroot) {
++		mlog_errno(-ENOMEM);
++		goto bail;
++	}
++
++	adl->adl_debug_ctxt = kzalloc(sizeof(struct adl_debug_ctxt),
++			GFP_KERNEL);
++	if (!adl->adl_debug_ctxt) {
++		mlog_errno(-ENOMEM);
++		goto bail;
++	}
++
++	return 0;
++bail:
++	adl_destroy_debugfs_subroot(adl);
++	return -ENOMEM;
++}
++
++/* debugfs root */
++int adl_create_debugfs_root(void)
++{
++	adl_debugfs_root = debugfs_create_dir(ADL_DEBUGFS_DIR, NULL);
++	if (!adl_debugfs_root) {
++		mlog_errno(-ENOMEM);
++		return -ENOMEM;
++	}
++	return 0;
++}
++
++void adl_destroy_debugfs_root(void)
++{
++	debugfs_remove(adl_debugfs_root);
++}
++
++static DECLARE_RWSEM(adl_callback_sem);
++void adl_fire_domain_eviction_callbacks(struct adl_ctxt *adl,
++					int node_num)
++{
++	struct adl_eviction_cb *cb;
++
++	down_read(&adl_callback_sem);
++	list_for_each_entry(cb, &adl->adl_eviction_callbacks, ec_item) {
++		cb->ec_func(node_num, cb->ec_data);
++	}
++	up_read(&adl_callback_sem);
++}
++
++void adl_setup_eviction_cb(struct adl_eviction_cb *cb,
++		adl_eviction_func *f, void *data)
++{
++	INIT_LIST_HEAD(&cb->ec_item);
++	cb->ec_func = f;
++	cb->ec_data = data;
++
++}
++EXPORT_SYMBOL_GPL(adl_setup_eviction_cb);
++
++void adl_register_eviction_cb(struct adl_ctxt *adl,
++		struct adl_eviction_cb *cb)
++{
++	down_write(&adl_callback_sem);
++	list_add_tail(&cb->ec_item, &adl->adl_eviction_callbacks);
++	up_write(&adl_callback_sem);
++}
++EXPORT_SYMBOL_GPL(adl_register_eviction_cb);
++
++void adl_unregister_eviction_cb(struct adl_eviction_cb *cb)
++{
++	down_write(&adl_callback_sem);
++	list_del_init(&cb->ec_item);
++	up_write(&adl_callback_sem);
++}
++EXPORT_SYMBOL_GPL(adl_unregister_eviction_cb);
++
++void adl_hb_disk_timeout_cb(struct o2nm_node *node, int idx,
++		void *data, u64 hb_generation)
++{
++	struct adl_ctxt *adl = data;
++
++	mlog(ML_NOTICE, "domain %s is invalid\n", adl->name);
++
++	spin_lock(&adl->spinlock);
++	adl->orphan = 1;
++	spin_unlock(&adl->spinlock);
++}
++
++static inline void adl_init_work_item(struct adl_ctxt *adl,
++				      struct adl_work_item *i,
++				      adl_workfunc_t *f, void *msg)
++{
++	i->func = f;
++	INIT_LIST_HEAD(&i->list);
++	i->msg = msg;
++	i->adl = adl;  /* must have already done a adl_get on this! */
++}
++
++void adl_clear_recovery_map(struct adl_ctxt *adl,
++		unsigned int node_num)
++{
++	mlog(ML_NOTICE, "%s: clear recovery map %d.\n", adl->name, node_num);
++
++	spin_lock(&adl->spinlock);
++	if (!test_bit(node_num, adl->recovery_map)) {
++		mlog(ML_NOTICE, "%s: node %d is already dead.\n", adl->name, node_num);
++		spin_unlock(&adl->spinlock);
++		return;
++	}
++	clear_bit(node_num, adl->recovery_map);
++	spin_unlock(&adl->spinlock);
++}
++EXPORT_SYMBOL_GPL(adl_clear_recovery_map);
++
++void adl_set_recovery_map(struct adl_ctxt *adl,
++		unsigned int node_num)
++{
++	mlog(ML_NOTICE, "%s: set recovery map %d.\n", adl->name, node_num);
++
++	spin_lock(&adl->spinlock);
++	if (test_bit(node_num, adl->recovery_map)) {
++		mlog(ML_NOTICE, "%s: node %d is already in recovery.\n", adl->name, node_num);
++		spin_unlock(&adl->spinlock);
++		return;
++	}
++	set_bit(node_num, adl->recovery_map);
++	spin_unlock(&adl->spinlock);
++}
++EXPORT_SYMBOL_GPL(adl_set_recovery_map);
++
++void adl_hb_node_down_cb(struct o2nm_node *node, int idx,
++		void *data, u64 hb_generation)
++{
++	struct adl_ctxt *adl = data;
++
++	mlog(ML_NOTICE, "%s: node %d goes down. generation 0x%x => 0x%llx.\n",
++			adl->name, idx, *adl->HBGen[idx],
++			(unsigned long long)hb_generation);
++
++	/* Generation is zero means node umount, don't need to recover */
++	if (hb_generation)
++		adl_fire_domain_eviction_callbacks(adl, idx);
++
++	spin_lock(&adl->spinlock);
++	if (!test_bit(idx, adl->live_nodes_map)) {
++		mlog(ML_NOTICE, "%s: node %d is already dead.\n", adl->name, idx);
++		spin_unlock(&adl->spinlock);
++		return;
++	}
++	clear_bit(idx, adl->live_nodes_map);
++	spin_unlock(&adl->spinlock);
++}
++
++void adl_hb_node_up_cb(struct o2nm_node *node, int idx,
++		void *data, u64 hb_generation)
++{
++	struct adl_ctxt *adl = data;
++
++	mlog(ML_NOTICE, "%s: node %d up. generation 0x%x\n", adl->name,
++			idx, (u32)hb_generation);
++
++	spin_lock(&adl->spinlock);
++	*adl->HBGen[idx] = (u32)hb_generation;
++	set_bit(idx, adl->live_nodes_map);
++	spin_unlock(&adl->spinlock);
++}
++
++static void adl_unregister_domain_handlers(struct adl_ctxt *adl)
++{
++	o2hb_unregister_callback(adl->name, &adl->adl_region_up);
++	o2hb_unregister_callback(adl->name, &adl->adl_region_down);
++	o2hb_unregister_callback(adl->name, &adl->adl_node_up);
++	o2hb_unregister_callback(adl->name, &adl->adl_node_down);
++	o2hb_unregister_callback(adl->name, &adl->adl_disk_timeout);
++
++	o2net_unregister_handler_list(&adl->adl_domain_handlers);
++}
++
++static void adl_free_ctxt_mem(struct adl_ctxt *adl)
++{
++	int i;
++
++	mlog_bug_on_msg(!list_empty(&adl->async_msg_list),
++			"%s: async msg list is not empty\n",
++			adl->name);
++
++	adl_destroy_debugfs_subroot(adl);
++	if (adl->HBGen) {
++		for (i = 0; i < O2NM_MAX_NODES; i++)
++			kfree(adl->HBGen[i]);
++		kfree(adl->HBGen);
++	}
++
++	kfree(adl->name);
++	kfree(adl);
++}
++
++static void adl_ctxt_release(struct kref *kref)
++{
++	struct adl_ctxt *adl;
++
++	adl = container_of(kref, struct adl_ctxt, adl_refs);
++
++	BUG_ON(adl->num_joins);
++	mlog(0, "freeing memory from domain %s\n", adl->name);
++
++	list_del_init(&adl->list);
++	adl_free_ctxt_mem(adl);
++}
++
++void adl_put(struct adl_ctxt *adl)
++{
++	mutex_lock(&adl_domain_mutex_lock);
++	kref_put(&adl->adl_refs, adl_ctxt_release);
++	mutex_unlock(&adl_domain_mutex_lock);
++}
++
++static void adl_get(struct adl_ctxt *adl)
++{
++	kref_get(&adl->adl_refs);
++}
++
++struct adl_ctxt *adl_grab(struct adl_ctxt *adl)
++{
++	struct adl_ctxt *target;
++	struct adl_ctxt *ret = NULL;
++
++	mutex_lock(&adl_domain_mutex_lock);
++	list_for_each_entry(target, &adl_domains, list) {
++		if (target == adl) {
++			adl_get(target);
++			ret = target;
++		}
++	}
++	mutex_unlock(&adl_domain_mutex_lock);
++
++	return ret;
++}
++
++static void adl_async_msg_work(struct work_struct *work)
++{
++	struct adl_ctxt *adl =
++		container_of(work, struct adl_ctxt, async_msg_work);
++	LIST_HEAD(tmp_list);
++	struct adl_work_item *item, *next;
++	adl_workfunc_t *workfunc;
++
++	spin_lock(&adl->async_msg_lock);
++	list_splice_init(&adl->async_msg_list, &tmp_list);
++	spin_unlock(&adl->async_msg_lock);
++
++	list_for_each_entry_safe(item, next, &tmp_list, list) {
++		workfunc = item->func;
++		list_del_init(&item->list);
++
++		/* already have ref on adl to avoid having
++		 * it disappear.  just double-check. */
++		BUG_ON(item->adl != adl);
++
++		/* this is allowed to sleep and
++		 * call network stuff */
++		workfunc(item, item->msg);
++
++		adl_put(adl);
++		kfree(item);
++	}
++}
++
++static struct adl_ctxt *adl_alloc_ctxt(const char *domain, u32 key,
++				struct block_device *bdev)
++{
++	int i, ret;
++	struct adl_ctxt *adl;
++
++	adl = kzalloc(sizeof(*adl), GFP_KERNEL);
++	if (!adl) {
++		mlog_errno(-ENOMEM);
++		return NULL;
++	}
++
++	adl->name = kstrdup(domain, GFP_KERNEL);
++	if (!adl->name) {
++		mlog_errno(-ENOMEM);
++		goto bail;
++	}
++
++	adl->bdev = bdev;
++
++	adl->HBGen = kcalloc(O2NM_MAX_NODES, sizeof(u32 *), GFP_KERNEL);
++	if (!adl->HBGen) {
++		mlog_errno(-ENOMEM);
++		goto bail;
++	}
++
++	for (i = 0; i < O2NM_MAX_NODES; i++) {
++		adl->HBGen[i] = kzalloc(sizeof(u32), GFP_KERNEL);
++		if (!adl->HBGen[i]) {
++			mlog_errno(-ENOMEM);
++			goto bail;
++		}
++	}
++
++	adl->key = key;
++	adl->node_num = o2nm_this_node();
++
++	ret = adl_create_debugfs_subroot(adl);
++	if (ret < 0)
++		goto bail;
++
++	memset(adl->live_nodes_map, 0, sizeof(adl->live_nodes_map));
++	spin_lock_init(&adl->spinlock);
++	INIT_LIST_HEAD(&adl->adl_eviction_callbacks);
++	INIT_LIST_HEAD(&adl->list);
++	kref_init(&adl->adl_refs);
++
++	/* async message sending */
++	INIT_LIST_HEAD(&adl->adl_domain_handlers);
++	INIT_LIST_HEAD(&adl->adl_net_request_callbacks);
++
++	spin_lock_init(&adl->async_msg_lock);
++	INIT_LIST_HEAD(&adl->async_msg_list);
++	INIT_WORK(&adl->async_msg_work, adl_async_msg_work);
++
++	return adl;
++
++bail:
++	if (adl->HBGen) {
++		for (i = 0; i < O2NM_MAX_NODES; i++)
++			kfree(adl->HBGen[i]);
++		kfree(adl->HBGen);
++	}
++
++	kfree(adl->name);
++	kfree(adl);
++	return NULL;
++}
++
++static int adl_register_domain_handlers(struct adl_ctxt *adl)
++{
++	int status = 0;
++
++	mlog(0, "registering handlers.\n");
++
++	o2hb_setup_callback(&adl->adl_region_down, O2HB_REGION_DOWN_CB,
++			adl_hb_node_down_cb, adl, ADL_HB_NODE_DOWN_PRI, adl->name);
++	o2hb_setup_callback(&adl->adl_region_up, O2HB_REGION_UP_CB,
++			adl_hb_node_up_cb, adl, ADL_HB_NODE_UP_PRI, adl->name);
++	o2hb_setup_callback(&adl->adl_disk_timeout, O2HB_DISK_TIMEOUT_CB,
++			adl_hb_disk_timeout_cb, adl, ADL_TIMEOUT_PRI, adl->name);
++	o2hb_setup_callback(&adl->adl_node_down, O2HB_NODE_DOWN_CB,
++			adl_hb_node_down_cb, adl, ADL_HB_NODE_DOWN_PRI, adl->name);
++	o2hb_setup_callback(&adl->adl_node_up, O2HB_NODE_UP_CB,
++			adl_hb_node_up_cb, adl, ADL_HB_NODE_UP_PRI, adl->name);
++
++	status = o2hb_register_callback(adl->name, &adl->adl_region_down);
++	if (status)
++		goto bail;
++
++	status = o2hb_register_callback(adl->name, &adl->adl_region_up);
++	if (status)
++		goto bail;
++
++	status = o2hb_register_callback(adl->name, &adl->adl_disk_timeout);
++	if (status)
++		goto bail;
++
++	status = o2hb_register_callback(adl->name, &adl->adl_node_down);
++	if (status)
++		goto bail;
++
++	status = o2hb_register_callback(adl->name, &adl->adl_node_up);
++	if (status)
++		goto bail;
++
++	status = o2net_register_handler(ADL_QUERY_LOCK_MSG, adl->key,
++			sizeof(struct adl_lock_packet),
++			sizeof(struct adl_lock_packet),
++			adl_query_lock_request_handler,
++			adl, NULL, &adl->adl_domain_handlers);
++	if (status)
++		goto bail;
++
++	status = o2net_register_handler(ADL_UNLOCK_LOCK_MSG, adl->key,
++			sizeof(struct adl_lock_packet),
++			sizeof(struct adl_lock_packet),
++			adl_unlock_lock_handler,
++			adl, NULL, &adl->adl_domain_handlers);
++
++bail:
++	if (status < 0)
++		adl_unregister_domain_handlers(adl);
++
++	return status;
++}
++
++/* For null terminated domain strings ONLY */
++static struct adl_ctxt *__adl_lookup_domain(const char *domain,
++		struct block_device *bdev)
++{
++	struct adl_ctxt *tmp;
++
++	/* tmp->name here is always NULL terminated,
++	 * but domain may not be! */
++	list_for_each_entry(tmp, &adl_domains, list) {
++		if (strlen(tmp->name) == strlen(domain) &&
++				memcmp(tmp->name, domain, strlen(domain)) == 0 &&
++				tmp->bdev == bdev)
++			return tmp;
++	}
++
++	return NULL;
++}
++
++void adl_unregister_domain(struct adl_ctxt *adl)
++{
++	mlog(0, "Unregistering domain %s\n", adl->name);
++	mutex_lock(&adl_domain_mutex_lock);
++	BUG_ON(!adl->num_joins);
++	adl->num_joins--;
++	if (adl->num_joins) {
++		mutex_unlock(&adl_domain_mutex_lock);
++		adl_put(adl);
++		return;
++	}
++
++	list_del_init(&adl->list);
++	mutex_unlock(&adl_domain_mutex_lock);
++
++	mlog(0, "shutting down domain %s\n", adl->name);
++	spin_lock(&adl->spinlock);
++	memset(adl->live_nodes_map, 0, sizeof(adl->live_nodes_map));
++	spin_unlock(&adl->spinlock);
++
++	adl_unregister_domain_handlers(adl);
++	adl_debug_shutdown(adl);
++
++	if (adl->async_msg_worker) {
++		destroy_workqueue(adl->async_msg_worker);
++		adl->async_msg_worker = NULL;
++	}
++
++	adl_put(adl);
++}
++EXPORT_SYMBOL_GPL(adl_unregister_domain);
++
++static int adl_join_domain(struct adl_ctxt *adl)
++{
++	int ret;
++	char wq_name[O2NM_MAX_NAME_LEN];
++
++	ret = adl_debug_init(adl);
++	if (ret < 0) {
++		mlog_errno(ret);
++		return ret;
++	}
++
++	snprintf(wq_name, O2NM_MAX_NAME_LEN, "adl_msg_wq-%s", adl->name);
++	adl->async_msg_worker = alloc_ordered_workqueue(wq_name, WQ_MEM_RECLAIM);
++	if (!adl->async_msg_worker) {
++		adl_debug_shutdown(adl);
++		ret = -ENOMEM;
++		mlog_errno(ret);
++	}
++
++	return ret;
++}
++
++struct adl_ctxt *adl_register_domain(char *domain, u32 key,
++				struct block_device *bdev)
++{
++	int ret;
++	struct adl_ctxt *adl = NULL;
++
++	if (strlen(domain) >= O2NM_MAX_NAME_LEN) {
++		ret = -ENAMETOOLONG;
++		mlog(ML_ERROR, "domain name length too long\n");
++		return ERR_PTR(ret);
++	}
++
++	mlog(0, "register called for domain \"%s\"\n", domain);
++
++	mutex_lock(&adl_domain_mutex_lock);
++	adl = __adl_lookup_domain(domain, bdev);
++	if (adl) {
++		adl_get(adl);
++		adl->num_joins++;
++		ret = 0;
++		goto leave;
++	}
++
++	adl = adl_alloc_ctxt(domain, key, bdev);
++	if (!adl) {
++		ret = -ENOMEM;
++		mlog_errno(ret);
++		goto leave;
++	}
++
++	if (o2hb_get_livenode_nr(domain) > ADL_MAX_NODES) {
++		mlog(ML_ERROR, "%s: ADL doesn't support exceed %d nodes\n",
++				domain, ADL_MAX_NODES);
++		ret = -EPERM;
++		goto leave;
++	}
++
++	ret = adl_register_domain_handlers(adl);
++	if (ret) {
++		mlog_errno(ret);
++		goto leave;
++	}
++
++	o2hb_fill_node_map_and_generation(adl->live_nodes_map,
++			sizeof(adl->live_nodes_map), adl->HBGen, adl->name);
++
++	if (!test_bit(adl->node_num, adl->live_nodes_map)) {
++		mlog(ML_ERROR, "the local node is not heartbeating in domain %s\n",
++				adl->name);
++		ret = -EINVAL;
++		goto unregister;
++	}
++
++	ret = adl_join_domain(adl);
++	if (ret) {
++		mlog_errno(ret);
++		goto unregister;
++	}
++	adl->num_joins++;
++	list_add_tail(&adl->list, &adl_domains);
++
++unregister:
++	if (ret < 0)
++		adl_unregister_domain_handlers(adl);
++
++leave:
++	mutex_unlock(&adl_domain_mutex_lock);
++
++	if (ret < 0) {
++		if (adl)
++			adl_put(adl);
++		adl = ERR_PTR(ret);
++	}
++
++	return adl;
++}
++EXPORT_SYMBOL_GPL(adl_register_domain);
++
++void adl_setup_net_request_cb(struct adl_net_request_cb *cb,
++		adl_net_request_cb_func *f, enum adl_cb_type type, void *data)
++{
++	cb->net_cb_type = type;
++	cb->net_cb_func = f;
++	cb->net_cb_data = data;
++
++	INIT_LIST_HEAD(&cb->net_cb_item);
++	mlog(0, "cb %p, f %p, data %p\n", cb, f, data);
++}
++EXPORT_SYMBOL_GPL(adl_setup_net_request_cb);
++
++void adl_register_net_request_cb(struct adl_ctxt *adl,
++		struct adl_net_request_cb *cb)
++{
++	down_write(&adl_callback_sem);
++	list_add_tail(&cb->net_cb_item, &adl->adl_net_request_callbacks);
++	up_write(&adl_callback_sem);
++
++	mlog(0, "cb %p, f %p, data %p\n", cb, cb->net_cb_func, cb->net_cb_data);
++}
++EXPORT_SYMBOL_GPL(adl_register_net_request_cb);
++
++void adl_unregister_net_request_cb(struct adl_net_request_cb *cb)
++{
++	down_write(&adl_callback_sem);
++	list_del_init(&cb->net_cb_item);
++	up_write(&adl_callback_sem);
++}
++EXPORT_SYMBOL_GPL(adl_unregister_net_request_cb);
++
++void adl_fire_callbacks(struct adl_ctxt *adl, enum adl_cb_type type,
++		u64 blkno, int sector_offset)
++{
++	struct adl_net_request_cb *cb;
++	int found = 0;
++
++	down_write(&adl_callback_sem);
++	list_for_each_entry(cb, &adl->adl_net_request_callbacks, net_cb_item) {
++		if (cb->net_cb_type == type) {
++			found = 1;
++			break;
++		}
++	}
++	up_write(&adl_callback_sem);
++
++	if (found)
++		cb->net_cb_func(blkno, sector_offset, cb->net_cb_data);
++}
++
++static void adl_async_msg_worker(struct adl_work_item *item, void *data)
++{
++	int tmpret, authorized = 1;
++	int r = 0;
++	struct adl_ctxt *adl = item->adl;
++	u32 msg_type = item->u.am.am_type;
++	u32 msg_len = item->u.am.am_len;
++	u16 to = item->u.am.am_target_node;
++	adl_async_msg_cb *cb = item->u.am.am_callback;
++	struct adl_lock_packet *lock_packet = (struct adl_lock_packet *)data;
++
++	mlog(0,
++		"%s: worker about to send async message. from=%u to=%u, type=%u len=%u, blkno=%llu, sector=%d\n",
++		adl->name, adl->node_num, to, msg_type, msg_len,
++		(unsigned long long)be64_to_cpu(lock_packet->blkno),
++		lock_packet->sector_offset);
++
++	authorized = adl_is_node_authorized(adl, to);
++	tmpret = o2net_send_message_authorized_sequence(msg_type, adl->key,
++				data, msg_len, to, authorized, 0, &r);
++	if (tmpret < 0) {
++		static unsigned long async_msg_jiffies;
++
++		if (printk_timed_ratelimit(&async_msg_jiffies,
++				LOG_RATELIMIT_INTERVAL_MSES)) {
++			mlog(ML_ERROR,
++					"%s: Error %d when sending message %u (key 0x%x) to node %u, blkno=%llu, sector=%d\n",
++					adl->name, tmpret, msg_type, adl->key, to,
++					(unsigned long long)be64_to_cpu(lock_packet->blkno),
++					lock_packet->sector_offset);
++		}
++	} else if (r < 0) {
++		mlog(ML_ERROR, "%s: sending async message to %u, got %d.\n",
++			adl->name, to, r);
++	}
++
++	/* execute the callback */
++	if (cb)
++		cb((struct adl_lock_packet *)data, r);
++
++	kfree(data);
++}
++
++int adl_send_async_msg(struct adl_ctxt *adl, u32 msg_type,
++			void *msg, u32 len,
++			u16 target_node, adl_async_msg_cb *callback)
++{
++	struct adl_work_item *item;
++
++	/* get an extra ref for the work item */
++	if (!adl_grab(adl))
++		return -EINVAL;
++
++	item = kzalloc(sizeof(*item), GFP_ATOMIC);
++	if (!item) {
++		adl_put(adl);
++		return -ENOMEM;
++	}
++
++	adl_init_work_item(adl, item, adl_async_msg_worker, msg);
++	item->u.am.am_type = msg_type;
++	item->u.am.am_len = len;
++	item->u.am.am_target_node = target_node;
++	item->u.am.am_callback = callback;
++
++	spin_lock(&adl->async_msg_lock);
++	list_add_tail(&item->list, &adl->async_msg_list);
++	spin_unlock(&adl->async_msg_lock);
++
++	queue_work(adl->async_msg_worker, &adl->async_msg_work);
++	/* worker is responsible for adl_put */
++	return 0;
++}
++
++int adl_is_node_authorized(struct adl_ctxt *adl, u16 node)
++{
++	int authorized;
++
++	spin_lock(&adl->spinlock);
++	authorized = !adl->orphan && test_bit(node, adl->live_nodes_map);
++	spin_unlock(&adl->spinlock);
++	return authorized;
++}
++
++static int __init adl_init(void)
++{
++	int status;
++
++	status = adl_create_debugfs_root();
++	if (status)
++		return -1;
++
++	return 0;
++}
++
++static void __exit adl_exit(void)
++{
++	adl_destroy_debugfs_root();
++}
++
++MODULE_AUTHOR("Oracle");
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("OCFS2 atomic disk lock");
++
++module_init(adl_init);
++module_exit(adl_exit);
+-- 
+2.17.1
+

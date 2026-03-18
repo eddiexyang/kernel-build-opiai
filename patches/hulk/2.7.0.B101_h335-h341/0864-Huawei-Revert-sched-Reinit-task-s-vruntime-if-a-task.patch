@@ -1,0 +1,61 @@
+From fd44c420382595c964eb8b7819e9d3f418622ce6 Mon Sep 17 00:00:00 2001
+From: Songping Yu <yusongping@huawei.com>
+Date: Thu, 30 Mar 2023 19:01:47 +0800
+Subject: [PATCH 864/921] [Huawei] Revert "sched: Reinit task's vruntime if a
+ task sleep over 200 days"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188204
+
+--------------------------------
+
+This reverts commit 356fdb1ea7b1ed7b92127c5bfa74eb59942ce3fd.
+
+Signed-off-by: Songping Yu <yusongping.huawei.com>
+---
+ kernel/sched/fair.c | 16 ++--------------
+ 1 file changed, 2 insertions(+), 14 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index bfefa540e513..c22f57041e72 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -4461,17 +4461,10 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
+ #endif
+ }
+ 
+-/*
+- * The threshold when the wakee's vruntime should be set
+- * cfs_rq->min_vruntime, default: 200 days
+- */
+-#define WAKEUP_REINIT_THRESHOLD_NS     (200LL * 24 * 3600 * NSEC_PER_SEC)
+-
+ static void
+ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
+ {
+ 	u64 vruntime = cfs_rq->min_vruntime;
+-	struct rq *rq = rq_of(cfs_rq);
+ 
+ 	/*
+ 	 * The 'current' period is already promised to the current tasks,
+@@ -4496,13 +4489,8 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
+ 		vruntime -= thresh;
+ 	}
+ 
+-	if (unlikely(!initial &&
+-	    (s64)(rq_clock_task(rq) - se->exec_start) > WAKEUP_REINIT_THRESHOLD_NS))
+-		se->vruntime = vruntime;
+-	else {
+-		/* ensure we never gain time by being placed backwards. */
+-		se->vruntime = max_vruntime(se->vruntime, vruntime);
+-	}
++	/* ensure we never gain time by being placed backwards. */
++	se->vruntime = max_vruntime(se->vruntime, vruntime);
+ }
+ 
+ static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
+-- 
+2.17.1
+

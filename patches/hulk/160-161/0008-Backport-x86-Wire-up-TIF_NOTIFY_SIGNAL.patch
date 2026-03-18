@@ -1,0 +1,53 @@
+From 34bcc59580176e382bff2f8ff80aff38e3a84e89 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Mon, 26 Oct 2020 14:32:29 -0600
+Subject: [PATCH 0008/1398] [Backport] x86: Wire up TIF_NOTIFY_SIGNAL
+
+mainline inclusion
+from mainline-v5.10-rc1
+commit c8d5ed67936fddbe2ae845fc80397718006322d7
+category: bugfix
+bugzilla: 187623
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git/commit/?id=c8d5ed67936fddbe2ae845fc80397718006322d7
+
+--------------------------------
+
+The generic entry code has support for TIF_NOTIFY_SIGNAL already. Just
+provide the TIF bit.
+
+[ tglx: Adopted to other TIF changes in x86 ]
+
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://lore.kernel.org/r/20201026203230.386348-4-axboe@kernel.dk
+Conflicts:
+	arch/x86/include/asm/thread_info.h
+Signed-off-by: Hui Tang <tanghui20@huawei.com>
+---
+ arch/x86/include/asm/thread_info.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/x86/include/asm/thread_info.h b/arch/x86/include/asm/thread_info.h
+index a225c6e2ca6d..a5433a3949db 100644
+--- a/arch/x86/include/asm/thread_info.h
++++ b/arch/x86/include/asm/thread_info.h
+@@ -108,6 +108,7 @@ struct thread_info {
+ #define TIF_SYSCALL_TRACEPOINT	28	/* syscall tracepoint instrumentation */
+ #define TIF_ADDR32		29	/* 32-bit address space on 64 bits */
+ #define TIF_X32			30	/* 32-bit native x86-64 binary */
++#define TIF_NOTIFY_SIGNAL	31	/* signal notifications exist */
+ 
+ #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
+ #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
+@@ -136,6 +137,7 @@ struct thread_info {
+ #define _TIF_SYSCALL_TRACEPOINT	(1 << TIF_SYSCALL_TRACEPOINT)
+ #define _TIF_ADDR32		(1 << TIF_ADDR32)
+ #define _TIF_X32		(1 << TIF_X32)
++#define _TIF_NOTIFY_SIGNAL	(1 << TIF_NOTIFY_SIGNAL)
+ 
+ /* flags to check in __switch_to() */
+ #define _TIF_WORK_CTXSW_BASE					\
+-- 
+2.17.1
+

@@ -1,0 +1,79 @@
+From 7ff06e3e66fa7abbf287ffd42549467662aa97f2 Mon Sep 17 00:00:00 2001
+From: l00469936 <lansheng@huawei.com>
+Date: Mon, 25 Jul 2022 20:25:00 +0800
+Subject: [PATCH] huawei kbox add kconfig
+
+---
+ drivers/Kconfig      |  2 ++
+ drivers/kbox/Kconfig | 48 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 50 insertions(+)
+ create mode 100644 drivers/kbox/Kconfig
+
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index 9310808ee..4ed11d931 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -237,4 +237,6 @@ source "drivers/interconnect/Kconfig"
+ source "drivers/counter/Kconfig"
+ 
+ source "drivers/most/Kconfig"
++
++source "drivers/kbox/Kconfig"
+ endmenu
+diff --git a/drivers/kbox/Kconfig b/drivers/kbox/Kconfig
+new file mode 100644
+index 000000000..1542b3637
+--- /dev/null
++++ b/drivers/kbox/Kconfig
+@@ -0,0 +1,48 @@
++menu "KBOX configs menu"
++
++config KBOX
++	bool "kernel kbox recorder"
++	default n
++
++config KBOX_DRV
++	tristate
++	depends on KBOX
++	default m
++
++config KBOX_CORE
++	tristate
++	depends on KBOX_DRV
++	default m
++
++config EULEROS_CPU_STAT_AND_IRQ
++	bool
++	depends on KBOX_CORE
++	default y
++
++config EULEROS_KBOX_WATCHDOG_NOTIFIER_LIST
++        bool
++        depends on KBOX_CORE
++        default y
++
++config EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++        bool
++        depends on KBOX_CORE
++        default y
++
++config EULEROS_EMERGE_REBOOT_NOTIFIER
++        bool
++        depends on KBOX_CORE
++        default y
++
++config EULEROS_KBOX_SMP_IPI_CALLBACK
++        bool
++        depends on KBOX_CORE
++        default y
++
++config EULEROS_KBOX_EXPORT_SECURITY_HOOKS
++        bool
++        depends on KBOX_CORE
++        default y
++
++endmenu
++
+-- 
+2.17.1
+

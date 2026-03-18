@@ -1,0 +1,73 @@
+From 37707dec9ecb842b1f116b1fb980e05013547b3d Mon Sep 17 00:00:00 2001
+From: Chen Jiahao <chenjiahao16@huawei.com>
+Date: Sun, 13 Nov 2022 01:16:59 +0800
+Subject: [PATCH 0036/1398] [Huawei] ARM: Introduce CONFIG_ARM_NOSPECTRE_BHB
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186682
+
+-------------------------------
+
+Introduce CONFIG_ARM_NOSPECTRE_BHB to isolate feature
+which providing cmdline option "nospectre_bhb" to disable
+Spectre-BHB mitigation for better performance.
+
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/arm/mm/Kconfig        | 7 +++++++
+ arch/arm/mm/proc-v7-bugs.c | 4 ++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/arch/arm/mm/Kconfig b/arch/arm/mm/Kconfig
+index 951e33c43373..817f3efb42f5 100644
+--- a/arch/arm/mm/Kconfig
++++ b/arch/arm/mm/Kconfig
+@@ -1148,3 +1148,10 @@ config ARM_NOSPECTRE_V2
+ 	help
+ 	  This option allows ARM32 systems to turn off Spectre mitigation via
+ 	  `nospectre_v2=` kernel cmdline for better performance.
++
++config ARM_NOSPECTRE_BHB
++	bool "`nospectre_bhb` cmdline support for 32-bit ARM"
++	default n
++	help
++	  This option allows ARM32 systems to turn off Spectre-bhb mitigation
++	  via `nospectre_bhb` kernel cmdline for better performance.
+diff --git a/arch/arm/mm/proc-v7-bugs.c b/arch/arm/mm/proc-v7-bugs.c
+index 2858bd056a17..1976ddc79267 100644
+--- a/arch/arm/mm/proc-v7-bugs.c
++++ b/arch/arm/mm/proc-v7-bugs.c
+@@ -24,6 +24,7 @@ static int __init nospectre_v2_setup(char *str)
+ early_param("nospectre_v2", nospectre_v2_setup);
+ #endif
+ 
++#ifdef CONFIG_ARM_NOSPECTRE_BHB
+ static int nospectre_bhb __read_mostly;
+ 
+ static int __init nospectre_bhb_setup(char *str)
+@@ -32,6 +33,7 @@ static int __init nospectre_bhb_setup(char *str)
+ 	return 0;
+ }
+ early_param("nospectre_bhb", nospectre_bhb_setup);
++#endif
+ 
+ #ifdef CONFIG_ARM_PSCI
+ static int __maybe_unused spectre_v2_get_cpu_fw_mitigation_state(void)
+@@ -257,10 +259,12 @@ static void cpu_v7_spectre_bhb_init(void)
+ {
+ 	unsigned int state, method = 0;
+ 
++#ifdef CONFIG_ARM_NOSPECTRE_BHB
+ 	if (nospectre_bhb) {
+ 		pr_info_once("Spectre bhb: hardening is disabled\n");
+ 		return;
+ 	}
++#endif
+ 
+ 	switch (read_cpuid_part()) {
+ 	case ARM_CPU_PART_CORTEX_A15:
+-- 
+2.17.1
+

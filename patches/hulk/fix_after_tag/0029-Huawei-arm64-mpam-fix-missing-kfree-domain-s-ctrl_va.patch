@@ -1,0 +1,93 @@
+From 6a81177f3d927456944881f7ab2f75fcf736609d Mon Sep 17 00:00:00 2001
+From: Wang ShaoBo <bobo.shaobowang@huawei.com>
+Date: Thu, 13 Jul 2023 19:23:16 +0800
+Subject: [PATCH 29/36] [Huawei] arm64/mpam: fix missing kfree domain's
+ ctrl_val arrray
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187154
+
+--------------------------------
+
+Fix mpam memleak issue found by kmemleak:
+unreferenced object 0xffff204000d1d000 (size 128):
+  comm "cpuhp/24", pid 132, jiffies 4294896121 (age 146328.256s)
+  hex dump (first 32 bytes):
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+  backtrace:
+    [<00000000dd76fed3>] __kmalloc+0x478/0x664
+    [<00000000e2fa4b32>] mpam_resctrl_setup_domain+0x290/0x5d0
+    [<0000000088adc589>] mpam_resctrl_cpu_online+0x14c/0x1d0
+    [<00000000b223bfaa>] mpam_cpu_online+0x1c8/0x2e4
+    [<000000004438534a>] cpuhp_invoke_callback+0x1f4/0x11b0
+    [<0000000049ede841>] cpuhp_thread_fun+0x2b8/0x510
+    [<000000000d731c73>] smpboot_thread_fn+0x260/0x5a0
+    [<0000000093c61bad>] kthread+0x27c/0x350
+    [<00000000379f0572>] ret_from_fork+0x10/0x18
+
+There are two cases causing memleak:
+1. When offline all cpus of a domain in mpam_resctrl_cpu_offline(),
+we only free domain's space but not the space of ctrl_val array.
+2. When allocating ctrl_val array failed in mpam_resctrl_setup_domain(),
+the space of ctrl_val array may not be freed.
+
+Fixes: e1ff5fac8ffc ("arm64/mpam: resctrl: Handle cpuhp and resctrl_dom allocation")
+Signed-off-by: Wang ShaoBo <bobo.shaobowang@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/arm64/kernel/mpam/mpam_setup.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/mpam/mpam_setup.c b/arch/arm64/kernel/mpam/mpam_setup.c
+index cef66a5e6f2f..4d0ec0052133 100644
+--- a/arch/arm64/kernel/mpam/mpam_setup.c
++++ b/arch/arm64/kernel/mpam/mpam_setup.c
+@@ -65,7 +65,7 @@ static int mpam_resctrl_setup_domain(unsigned int cpu,
+ 	struct mpam_component *comp_iter, *comp;
+ 	u32 num_partid;
+ 	u32 **ctrlval_ptr;
+-	enum resctrl_ctrl_type type;
++	enum resctrl_ctrl_type type, type_free;
+ 	struct list_head *tmp;
+ 
+ 	num_partid = mpam_sysprops_num_partid();
+@@ -96,6 +96,12 @@ static int mpam_resctrl_setup_domain(unsigned int cpu,
+ 		*ctrlval_ptr = kmalloc_array(num_partid,
+ 			sizeof(**ctrlval_ptr), GFP_KERNEL);
+ 		if (!*ctrlval_ptr) {
++			for_each_ctrl_type(type_free) {
++				if (type_free == type)
++					break;
++				ctrlval_ptr = &dom->resctrl_dom.ctrl_val[type_free];
++				kfree(*ctrlval_ptr);
++			}
+ 			kfree(dom);
+ 			return -ENOMEM;
+ 		}
+@@ -156,6 +162,8 @@ int mpam_resctrl_cpu_offline(unsigned int cpu)
+ 	struct rdt_domain *d;
+ 	struct mpam_resctrl_res *res;
+ 	struct mpam_resctrl_dom *dom;
++	u32 **ctrlval_ptr;
++	enum resctrl_ctrl_type type;
+ 
+ 	for_each_supported_resctrl_exports(res) {
+ 		 d = resctrl_get_domain_from_cpu(cpu, &res->resctrl_res);
+@@ -171,6 +179,11 @@ int mpam_resctrl_cpu_offline(unsigned int cpu)
+ 
+ 		list_del(&d->list);
+ 		dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
++		for_each_ctrl_type(type) {
++			ctrlval_ptr = &dom->resctrl_dom.ctrl_val[type];
++			kfree(*ctrlval_ptr);
++		}
++
+ 		kfree(dom);
+ 
+ 		res->resctrl_res.dom_num--;
+-- 
+2.17.1
+

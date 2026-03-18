@@ -1,0 +1,47 @@
+From 81319c6d22f7de89afab2ce6bc47a4923c7e3080 Mon Sep 17 00:00:00 2001
+From: Corey Minyard <cminyard@mvista.com>
+Date: Fri, 15 Apr 2022 07:23:32 -0500
+Subject: [PATCH 3734/4585] [Backport] ipmi: Fix pr_fmt to avoid compilation
+ issues
+
+stable inclusion
+from stable-v5.10.121
+commit eb7a71b7b2b8ed33d05bc68f6c6f408cc3dc96f3
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=eb7a71b7b2b8ed33d05bc68f6c6f408cc3dc96f3
+
+--------------------------------
+
+[ Upstream commit 2ebaf18a0b7fb764bba6c806af99fe868cee93de ]
+
+The was it was wouldn't work in some situations, simplify it.  What was
+there was unnecessary complexity.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Corey Minyard <cminyard@mvista.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/char/ipmi/ipmi_msghandler.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/char/ipmi/ipmi_msghandler.c b/drivers/char/ipmi/ipmi_msghandler.c
+index 8f147274f826..05e7339752ac 100644
+--- a/drivers/char/ipmi/ipmi_msghandler.c
++++ b/drivers/char/ipmi/ipmi_msghandler.c
+@@ -11,8 +11,8 @@
+  * Copyright 2002 MontaVista Software Inc.
+  */
+ 
+-#define pr_fmt(fmt) "%s" fmt, "IPMI message handler: "
+-#define dev_fmt pr_fmt
++#define pr_fmt(fmt) "IPMI message handler: " fmt
++#define dev_fmt(fmt) pr_fmt(fmt)
+ 
+ #include <linux/module.h>
+ #include <linux/errno.h>
+-- 
+2.17.1
+

@@ -1,0 +1,46 @@
+From 429cb06e182fd79fb0ee193fe8b0e44a74895515 Mon Sep 17 00:00:00 2001
+From: Peng Li <lipeng321@huawei.com>
+Date: Tue, 14 Jun 2022 16:22:54 +0800
+Subject: [PATCH 3065/4585] [Backport] net: hns3: replace magic value by
+ HCLGE_RING_REG_OFFSET
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 350cb44092461d719fd1a9662b2f7fb7263891d5
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XHY
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=350cb44092461d719fd1a9662b2f7fb7263891d5
+
+--------------------------------
+
+Magic values are not recommended.
+
+Signed-off-by: Peng Li<lipeng321@huawei.com>
+Signed-off-by: Guangbin Huang <huangguangbin2@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Jiantao Xiao <xiaojiantao1@h-partners.com>
+Reviewed-by: Yue Haibing <yuehaibing@huawei.com>
+Reviewed-by: Jian Shen <shenjian15@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
+index be4171e0bab0..cbb2a8891c52 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3vf/hclgevf_main.c
+@@ -3315,7 +3315,7 @@ static void hclgevf_get_regs(struct hnae3_handle *handle, u32 *version,
+ 		for (i = 0; i < reg_um; i++)
+ 			*reg++ = hclgevf_read_dev(&hdev->hw,
+ 						  ring_reg_addr_list[i] +
+-						  0x200 * j);
++						  HCLGEVF_TQP_REG_SIZE * j);
+ 		for (i = 0; i < separator_num; i++)
+ 			*reg++ = SEPARATOR_VALUE;
+ 	}
+-- 
+2.17.1
+

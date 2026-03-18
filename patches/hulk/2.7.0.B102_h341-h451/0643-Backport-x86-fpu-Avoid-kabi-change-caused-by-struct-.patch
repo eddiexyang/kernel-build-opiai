@@ -1,0 +1,83 @@
+From aaff3e8076ce01e35c22ae6ad2ce0fda8fd4af8e Mon Sep 17 00:00:00 2001
+From: Zheng Zengkai <zhengzengkai@huawei.com>
+Date: Sat, 29 Oct 2022 22:12:35 +0800
+Subject: [PATCH 0643/1646] [Backport] x86/fpu: Avoid kabi change caused by
+ struct fpu
+
+Intel inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://gitee.com/openeuler/kernel/commit/5a2451f105509e51d98284e0bd354417ae303e95
+
+--------------------------------
+
+Assuming that struct fpu won't be accessed directly by drivers,
+Using KABI_EXTEND and KABI_DEPRECATE macros to avoid kabi change caused by following
+commits:
+87d0e5be0fac ("x86/fpu: Provide struct fpstate")
+2f27b5034244 ("x86/fpu: Remove fpu::state")
+75c52dad5e32 ("x86/fpu: Prepare for sanitizing KVM FPU code")
+6f6a7c09c406 ("x86/fpu: Add members to struct fpu to cache permission
+information")
+
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/fpu/types.h | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/include/asm/fpu/types.h b/arch/x86/include/asm/fpu/types.h
+index 3c06c82ab355..408a6dbe1d61 100644
+--- a/arch/x86/include/asm/fpu/types.h
++++ b/arch/x86/include/asm/fpu/types.h
+@@ -5,6 +5,8 @@
+ #ifndef _ASM_X86_FPU_H
+ #define _ASM_X86_FPU_H
+ 
++#include <linux/kabi.h>
++
+ /*
+  * The legacy x87 FPU state format, as saved by FSAVE and
+  * restored by the FRSTOR instructions:
+@@ -459,7 +461,7 @@ struct fpu {
+ 	 * Pointer to the active struct fpstate. Initialized to
+ 	 * point at @__fpstate below.
+ 	 */
+-	struct fpstate			*fpstate;
++	KABI_EXTEND(struct fpstate *fpstate)
+ 
+ 	/*
+ 	 * @__task_fpstate:
+@@ -467,14 +469,14 @@ struct fpu {
+ 	 * Pointer to an inactive struct fpstate. Initialized to NULL. Is
+ 	 * used only for KVM support to swap out the regular task fpstate.
+ 	 */
+-	struct fpstate			*__task_fpstate;
++	KABI_EXTEND(struct fpstate *__task_fpstate)
+ 
+ 	/*
+ 	 * @perm:
+ 	 *
+ 	 * Permission related information
+ 	 */
+-	struct fpu_state_perm		perm;
++	KABI_EXTEND(struct fpu_state_perm perm)
+ 
+ 	/*
+ 	 * @__fpstate:
+@@ -484,7 +486,8 @@ struct fpu {
+ 	 * are restored from this storage on return to user space if they
+ 	 * are not longer containing the tasks FPU register state.
+ 	 */
+-	struct fpstate			__fpstate;
++	KABI_DEPRECATE(union fpregs_state, state)
++	KABI_EXTEND(struct fpstate __fpstate)
+ 	/*
+ 	 * WARNING: '__fpstate' is dynamically-sized.  Do not put
+ 	 * anything after it here.
+-- 
+2.17.1
+

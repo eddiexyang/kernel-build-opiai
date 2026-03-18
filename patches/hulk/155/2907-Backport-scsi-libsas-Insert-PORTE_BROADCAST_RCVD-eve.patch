@@ -1,0 +1,84 @@
+From cc8d16728a7d408762c78c57566867e61a62908d Mon Sep 17 00:00:00 2001
+From: Xiang Chen <chenxiang66@hisilicon.com>
+Date: Tue, 19 Apr 2022 17:06:59 +0800
+Subject: [PATCH 2907/4585] [Backport] scsi: libsas: Insert
+ PORTE_BROADCAST_RCVD event for resuming host
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit e31e18128eb9dbcda8c169cb33421ae4813afa71
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I4ZHSV
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e31e18128eb9dbcda8c169cb33421ae4813afa71
+
+--------------------------------
+
+If a new disk is inserted through an expander when the host was suspended,
+it will not necessarily be detected as the topology is not re-scanned
+during resume.  To detect possible changes in topology during suspension,
+insert a PORTE_BROADCAST_RCVD event per port when resuming to trigger a
+revalidation.
+
+Link: https://lore.kernel.org/r/1639999298-244569-8-git-send-email-chenxiang66@hisilicon.com
+Reviewed-by: John Garry <john.garry@huawei.com>
+Signed-off-by: Xiang Chen <chenxiang66@hisilicon.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+Signed-off-by: Fujai Ni<nifuijia1@hisilicon.com>
+Reviewed-by: Jason Yan <yanaijie@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/scsi/libsas/sas_init.c | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/drivers/scsi/libsas/sas_init.c b/drivers/scsi/libsas/sas_init.c
+index c13f9f8a1d2e..a66d50b5426c 100644
+--- a/drivers/scsi/libsas/sas_init.c
++++ b/drivers/scsi/libsas/sas_init.c
+@@ -384,6 +384,30 @@ static int phys_suspended(struct sas_ha_struct *ha)
+ 	return rc;
+ }
+ 
++static void sas_resume_insert_broadcast_ha(struct sas_ha_struct *ha)
++{
++	int i;
++
++	for (i = 0; i < ha->num_phys; i++) {
++		struct asd_sas_port *port = ha->sas_port[i];
++		struct domain_device *dev = port->port_dev;
++
++		if (dev && dev_is_expander(dev->dev_type)) {
++			struct asd_sas_phy *first_phy;
++
++			spin_lock(&port->phy_list_lock);
++			first_phy = list_first_entry_or_null(
++				&port->phy_list, struct asd_sas_phy,
++				port_phy_el);
++			spin_unlock(&port->phy_list_lock);
++
++			if (first_phy)
++				sas_notify_port_event(first_phy,
++					PORTE_BROADCAST_RCVD, GFP_KERNEL);
++		}
++	}
++}
++
+ static void _sas_resume_ha(struct sas_ha_struct *ha, bool drain)
+ {
+ 	const unsigned long tmo = msecs_to_jiffies(25000);
+@@ -416,6 +440,11 @@ static void _sas_resume_ha(struct sas_ha_struct *ha, bool drain)
+ 	scsi_unblock_requests(ha->core.shost);
+ 	if (drain)
+ 		sas_drain_work(ha);
++
++	/* send event PORTE_BROADCAST_RCVD to identify some new inserted
++	 * disks for expander
++	 */
++	sas_resume_insert_broadcast_ha(ha);
+ }
+ 
+ void sas_resume_ha(struct sas_ha_struct *ha)
+-- 
+2.17.1
+

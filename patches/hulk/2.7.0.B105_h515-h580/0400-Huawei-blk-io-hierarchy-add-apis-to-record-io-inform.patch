@@ -1,0 +1,137 @@
+From af904bd31ce3a9db88c569452fc0c3f77d6b9993 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Fri, 2 Jun 2023 16:10:22 +0800
+Subject: [PATCH 400/780] [Huawei] blk-io-hierarchy: add apis to record io
+ information
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188826
+
+--------------------------------
+
+Like bio_start/end_io_acct(), add new apis for blk-io-hierarchy to
+account bio.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-io-hierarchy/stats.c | 44 ++++++++++++++++++++++++++++++++++
+ block/blk-io-hierarchy/stats.h | 20 ++++++++++++++++
+ include/linux/blk_types.h      |  4 ++++
+ 3 files changed, 68 insertions(+)
+
+diff --git a/block/blk-io-hierarchy/stats.c b/block/blk-io-hierarchy/stats.c
+index 7d6e12845fbf..0ebed8cd179b 100644
+--- a/block/blk-io-hierarchy/stats.c
++++ b/block/blk-io-hierarchy/stats.c
+@@ -21,6 +21,11 @@ typedef void (register_fn)(struct request_queue *);
+ static register_fn *register_ops[NR_STAGE_GROUPS] = {
+ };
+ 
++#define io_hierarchy_add(statsp, stage, field, group, nr) \
++	this_cpu_add((statsp)->field[stage][group], nr)
++#define io_hierarchy_inc(statsp, stage, field, group) \
++	io_hierarchy_add(statsp, stage, field, group, 1)
++
+ static struct blk_io_hierarchy_stats *hierarchy_stats_alloc(void)
+ {
+ 	struct blk_io_hierarchy_stats *stats =
+@@ -103,3 +108,42 @@ void blk_io_hierarchy_stats_free(struct request_queue *q)
+ 	q->io_hierarchy_stats = NULL;
+ 	hierarchy_stats_free(stats);
+ }
++
++void bio_hierarchy_start_io_acct(struct bio *bio, enum stage_group stage)
++{
++	struct blk_io_hierarchy_stats *stats =
++		bio->bi_disk->queue->io_hierarchy_stats;
++
++	if (!stats)
++		return;
++
++	io_hierarchy_inc(stats->stats, stage, dispatched,
++			 op_stat_group(bio_op(bio)));
++	bio->hierarchy_time = ktime_get_ns();
++}
++
++void bio_hierarchy_end_io_acct(struct bio *bio, enum stage_group stage,
++			       u64 time)
++{
++	struct blk_io_hierarchy_stats *stats =
++		bio->bi_disk->queue->io_hierarchy_stats;
++	int op;
++
++	if (!stats)
++		return;
++
++	op = op_stat_group(bio_op(bio));
++	io_hierarchy_inc(stats->stats, stage, completed, op);
++	io_hierarchy_add(stats->stats, stage, nsecs, op,
++			 time - bio->hierarchy_time);
++}
++
++void bio_list_hierarchy_end_io_acct(struct bio_list *list,
++				    enum stage_group stage)
++{
++	u64 time = ktime_get_ns();
++	struct bio *bio;
++
++	bio_list_for_each(bio, list)
++		bio_hierarchy_end_io_acct(bio, stage, time);
++}
+diff --git a/block/blk-io-hierarchy/stats.h b/block/blk-io-hierarchy/stats.h
+index f7dde64fd21d..1210a0b12b57 100644
+--- a/block/blk-io-hierarchy/stats.h
++++ b/block/blk-io-hierarchy/stats.h
+@@ -34,6 +34,11 @@ void blk_mq_debugfs_register_hierarchy_stats(struct request_queue *q);
+ void blk_mq_debugfs_unregister_hierarchy_stats(struct request_queue *q);
+ int blk_io_hierarchy_stats_alloc(struct request_queue *q);
+ void blk_io_hierarchy_stats_free(struct request_queue *q);
++void bio_hierarchy_start_io_acct(struct bio *bio, enum stage_group stage);
++void bio_hierarchy_end_io_acct(struct bio *bio, enum stage_group stage,
++			       u64 time);
++void bio_list_hierarchy_end_io_acct(struct bio_list *list,
++				    enum stage_group stage);
+ 
+ #else /* CONFIG_BLK_IO_HIERARCHY_STATS */
+ 
+@@ -55,5 +60,20 @@ static inline int blk_io_hierarchy_stats_alloc(struct request_queue *q)
+ static inline void blk_io_hierarchy_stats_free(struct request_queue *q)
+ {
+ }
++
++static inline void
++bio_hierarchy_start_io_acct(struct bio *bio, enum stage_group stage)
++{
++}
++
++static inline void
++bio_hierarchy_end_io_acct(struct bio *bio, enum stage_group stage, u64 time)
++{
++}
++
++static inline void
++bio_list_hierarchy_end_io_acct(struct bio_list *list, enum stage_group stage)
++{
++}
+ #endif /* CONFIG_BLK_IO_HIERARCHY_STATS */
+ #endif /* BLK_IO_HIERARCHY_STATS_H */
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index e900de98982f..1b7867f22c68 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -264,6 +264,10 @@ struct bio {
+ 
+ 	struct bio_set		*bi_pool;
+ 
++#ifdef CONFIG_BLK_IO_HIERARCHY_STATS
++	u64			hierarchy_time;
++#endif
++
+ 	/*
+ 	 * Use the first RESERVE field for EulerOS
+ 	 * scsi log enhance feature
+-- 
+2.17.1
+

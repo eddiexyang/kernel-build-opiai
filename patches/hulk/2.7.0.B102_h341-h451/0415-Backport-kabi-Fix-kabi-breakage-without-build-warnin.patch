@@ -1,0 +1,183 @@
+From cb2885b5760932c3455b4e3c70ffff4af675cdb5 Mon Sep 17 00:00:00 2001
+From: Xie Haocheng <haocheng.xie@amd.com>
+Date: Tue, 25 Apr 2023 14:36:38 +0800
+Subject: [PATCH 0415/1646] [Backport] kabi: Fix kabi breakage without build
+ warning.
+
+amd inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XNL2
+
+Reference: https://gitee.com/openeuler/kernel/commit/600130a3b3f73d76dbfa38d63f68d1c2520e582d
+
+-------------------------------------------------
+
+Error report detail:
+*** ERROR - ABI BREAKAGE WAS DETECTED ***
+
+The following symbols have been changed (this will cause an ABI breakage):
+new kabi:
+0x65d25289	__SCK__tp_func_xdp_exception	vmlinux	EXPORT_SYMBOL_GPL
+0x5e9265ee	__tracepoint_xdp_exception	vmlinux	EXPORT_SYMBOL_GPL
+old kabi:
+0x5e0fbbff	__SCK__tp_func_xdp_exception	vmlinux	EXPORT_SYMBOL_GPL
+0x017cc464	__tracepoint_xdp_exception	vmlinux	EXPORT_SYMBOL_GPL
+
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/events/amd/brs.c         |  1 +
+ arch/x86/events/amd/core.c        |  1 +
+ arch/x86/include/asm/perf_event.h | 22 ---------------------
+ drivers/acpi/acpi_pad.c           |  1 +
+ drivers/acpi/processor_idle.c     |  1 +
+ include/linux/perf_event.h        |  7 -------
+ include/linux/perf_event_lopwr.h  | 32 +++++++++++++++++++++++++++++++
+ 7 files changed, 36 insertions(+), 29 deletions(-)
+ create mode 100644 include/linux/perf_event_lopwr.h
+
+diff --git a/arch/x86/events/amd/brs.c b/arch/x86/events/amd/brs.c
+index 895c82165d85..4137213dff46 100644
+--- a/arch/x86/events/amd/brs.c
++++ b/arch/x86/events/amd/brs.c
+@@ -12,6 +12,7 @@
+ #include <asm/cpufeature.h>
+ 
+ #include "../perf_event.h"
++#include <linux/static_call.h>
+ 
+ #define BRS_POISON	0xFFFFFFFFFFFFFFFEULL /* mark limit of valid entries */
+ 
+diff --git a/arch/x86/events/amd/core.c b/arch/x86/events/amd/core.c
+index 99a1a0de32f7..0c18f88c5bf8 100644
+--- a/arch/x86/events/amd/core.c
++++ b/arch/x86/events/amd/core.c
+@@ -10,6 +10,7 @@
+ #include <asm/apicdef.h>
+ #include <asm/apic.h>
+ #include <asm/nmi.h>
++#include <linux/static_call.h>
+ 
+ #include "../perf_event.h"
+ 
+diff --git a/arch/x86/include/asm/perf_event.h b/arch/x86/include/asm/perf_event.h
+index c8fa0c981435..ec11561457dc 100644
+--- a/arch/x86/include/asm/perf_event.h
++++ b/arch/x86/include/asm/perf_event.h
+@@ -2,7 +2,6 @@
+ #ifndef _ASM_X86_PERF_EVENT_H
+ #define _ASM_X86_PERF_EVENT_H
+ 
+-#include <linux/static_call.h>
+ 
+ /*
+  * Performance event hw details:
+@@ -554,27 +553,6 @@ static inline void intel_pt_handle_vmx(int on)
+ #if defined(CONFIG_PERF_EVENTS) && defined(CONFIG_CPU_SUP_AMD)
+  extern void amd_pmu_enable_virt(void);
+  extern void amd_pmu_disable_virt(void);
+-
+-#if defined(CONFIG_PERF_EVENTS_AMD_BRS)
+-
+-#define PERF_NEEDS_LOPWR_CB 1
+-
+-/*
+- * architectural low power callback impacts
+- * drivers/acpi/processor_idle.c
+- * drivers/acpi/acpi_pad.c
+- */
+-extern void perf_amd_brs_lopwr_cb(bool lopwr_in);
+-
+-DECLARE_STATIC_CALL(perf_lopwr_cb, perf_amd_brs_lopwr_cb);
+-
+-static inline void perf_lopwr_cb(bool lopwr_in)
+-{
+-	static_call_mod(perf_lopwr_cb)(lopwr_in);
+-}
+-
+-#endif /* PERF_NEEDS_LOPWR_CB */
+-
+ #else
+  static inline void amd_pmu_enable_virt(void) { }
+  static inline void amd_pmu_disable_virt(void) { }
+diff --git a/drivers/acpi/acpi_pad.c b/drivers/acpi/acpi_pad.c
+index 4472f7355abf..c9aec6967365 100644
+--- a/drivers/acpi/acpi_pad.c
++++ b/drivers/acpi/acpi_pad.c
+@@ -18,6 +18,7 @@
+ #include <linux/slab.h>
+ #include <linux/acpi.h>
+ #include <linux/perf_event.h>
++#include <linux/perf_event_lopwr.h>
+ #include <asm/mwait.h>
+ #include <xen/xen.h>
+ 
+diff --git a/drivers/acpi/processor_idle.c b/drivers/acpi/processor_idle.c
+index 12c05e9699e8..6ab492934a6f 100644
+--- a/drivers/acpi/processor_idle.c
++++ b/drivers/acpi/processor_idle.c
+@@ -21,6 +21,7 @@
+ #include <linux/cpuidle.h>
+ #include <linux/cpu.h>
+ #include <linux/perf_event.h>
++#include <linux/perf_event_lopwr.h>
+ #include <acpi/processor.h>
+ 
+ /*
+diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
+index f0a55bc3f3d7..39b391d6469a 100644
+--- a/include/linux/perf_event.h
++++ b/include/linux/perf_event.h
+@@ -1626,11 +1626,4 @@ extern void __weak arch_perf_update_userpage(struct perf_event *event,
+ 					     struct perf_event_mmap_page *userpg,
+ 					     u64 now);
+ 
+-
+-#ifndef PERF_NEEDS_LOPWR_CB
+-static inline void perf_lopwr_cb(bool mode)
+-{
+-}
+-#endif
+-
+ #endif /* _LINUX_PERF_EVENT_H */
+diff --git a/include/linux/perf_event_lopwr.h b/include/linux/perf_event_lopwr.h
+new file mode 100644
+index 000000000000..d21ef9ad3b1e
+--- /dev/null
++++ b/include/linux/perf_event_lopwr.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++
++#ifndef _PERF_EVENT_LOPWR_H
++#define _PERF_EVENT_LOPWR_H
++
++#include <linux/static_call.h>
++
++#if defined(CONFIG_PERF_EVENTS_AMD_BRS)
++#define PERF_NEEDS_LOPWR_CB 1
++/*
++ * architectural low power callback impacts
++ * drivers/acpi/processor_idle.c
++ * drivers/acpi/acpi_pad.c
++ */
++extern void perf_amd_brs_lopwr_cb(bool lopwr_in);
++
++DECLARE_STATIC_CALL(perf_lopwr_cb, perf_amd_brs_lopwr_cb);
++
++static inline void perf_lopwr_cb(bool lopwr_in)
++{
++	static_call_mod(perf_lopwr_cb)(lopwr_in);
++}
++
++#endif /* PERF_NEEDS_LOPWR_CB */
++
++#ifndef PERF_NEEDS_LOPWR_CB
++static inline void perf_lopwr_cb(bool mode)
++{
++}
++#endif
++
++#endif /*_PERF_EVENT_LOPWR_H*/
+-- 
+2.17.1
+

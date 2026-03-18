@@ -1,0 +1,45 @@
+From 39f5fcbfb2f497b9f19e1772916f9ea3386d5f22 Mon Sep 17 00:00:00 2001
+From: Yang Jihong <yangjihong1@huawei.com>
+Date: Thu, 26 Oct 2023 09:14:33 +0000
+Subject: [PATCH] [Huawei] perf: Fix kabi breakage in struct perf_event
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 189314
+CVE: CVE-2023-5717
+
+--------------------------------
+
+Fix kabi breakage in commit 207865f25ebf ("[Backport] perf: Disallow
+mis-matched inherited group reads")
+
+Signed-off-by: Yang Jihong <yangjihong1@huawei.com>
+---
+ include/linux/perf_event.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
+index 30405e633b14..f3d61f16c7fa 100644
+--- a/include/linux/perf_event.h
++++ b/include/linux/perf_event.h
+@@ -667,7 +667,6 @@ struct perf_event {
+ 	/* The cumulative AND of all event_caps for events in this group. */
+ 	int				group_caps;
+ 
+-	unsigned int			group_generation;
+ 	struct perf_event		*group_leader;
+ 	struct pmu			*pmu;
+ 	void				*pmu_private;
+@@ -790,6 +789,8 @@ struct perf_event {
+ 	void *security;
+ #endif
+ 	struct list_head		sb_list;
++
++	KABI_EXTEND(unsigned int group_generation)
+ #endif /* CONFIG_PERF_EVENTS */
+ };
+ 
+-- 
+2.17.1
+

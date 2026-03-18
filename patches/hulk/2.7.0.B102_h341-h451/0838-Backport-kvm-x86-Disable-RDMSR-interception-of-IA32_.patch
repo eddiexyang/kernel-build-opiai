@@ -1,0 +1,71 @@
+From f7b59b8df07c8a713bd8ed01d90b0236d962cb7f Mon Sep 17 00:00:00 2001
+From: Jing Liu <jing2.liu@intel.com>
+Date: Wed, 5 Jan 2022 04:35:25 -0800
+Subject: [PATCH 0838/1646] [Backport] kvm: x86: Disable RDMSR interception of
+ IA32_XFD_ERR
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 61f208134a871047f1d642ed3b813f4f71e30b0e
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=61f208134a871047f1d642ed3b813f4f71e30b0e
+
+--------------------------------
+
+This saves one unnecessary VM-exit in guest #NM handler, given that the
+MSR is already restored with the guest value before the guest is resumed.
+
+Suggested-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Jing Liu <jing2.liu@intel.com>
+Signed-off-by: Yang Zhong <yang.zhong@intel.com>
+Message-Id: <20220105123532.12586-15-yang.zhong@intel.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kvm/vmx/vmx.c | 6 ++++++
+ arch/x86/kvm/vmx/vmx.h | 2 +-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/vmx/vmx.c b/arch/x86/kvm/vmx/vmx.c
+index 98b6fbe7d785..0deaa9c0f98d 100644
+--- a/arch/x86/kvm/vmx/vmx.c
++++ b/arch/x86/kvm/vmx/vmx.c
+@@ -166,6 +166,7 @@ static u32 vmx_possible_passthrough_msrs[MAX_POSSIBLE_PASSTHROUGH_MSRS] = {
+ 	MSR_FS_BASE,
+ 	MSR_GS_BASE,
+ 	MSR_KERNEL_GS_BASE,
++	MSR_IA32_XFD_ERR,
+ #endif
+ 	MSR_IA32_SYSENTER_CS,
+ 	MSR_IA32_SYSENTER_ESP,
+@@ -7747,6 +7748,11 @@ static void vmx_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
+ 		}
+ 	}
+ 
++	if (kvm_cpu_cap_has(X86_FEATURE_XFD))
++		vmx_set_intercept_for_msr(vcpu, MSR_IA32_XFD_ERR, MSR_TYPE_R,
++					  !guest_cpuid_has(vcpu, X86_FEATURE_XFD));
++
++
+ 	set_cr4_guest_host_mask(vmx);
+ 
+ 	vmx_write_encls_bitmap(vcpu, NULL);
+diff --git a/arch/x86/kvm/vmx/vmx.h b/arch/x86/kvm/vmx/vmx.h
+index 030dbd5c5a1f..cf23008b5029 100644
+--- a/arch/x86/kvm/vmx/vmx.h
++++ b/arch/x86/kvm/vmx/vmx.h
+@@ -336,7 +336,7 @@ struct vcpu_vmx {
+ 	struct lbr_desc lbr_desc;
+ 
+ 	/* Save desired MSR intercept (read: pass-through) state */
+-#define MAX_POSSIBLE_PASSTHROUGH_MSRS	13
++#define MAX_POSSIBLE_PASSTHROUGH_MSRS	14
+ 	struct {
+ 		DECLARE_BITMAP(read, MAX_POSSIBLE_PASSTHROUGH_MSRS);
+ 		DECLARE_BITMAP(write, MAX_POSSIBLE_PASSTHROUGH_MSRS);
+-- 
+2.17.1
+

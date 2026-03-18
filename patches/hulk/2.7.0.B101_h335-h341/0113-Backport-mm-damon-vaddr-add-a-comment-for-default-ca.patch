@@ -1,0 +1,48 @@
+From dd1dafadee4e19bdadb556cb4eaff7f5cdf34f54 Mon Sep 17 00:00:00 2001
+From: Kaixu Xia <kaixuxia@tencent.com>
+Date: Thu, 8 Sep 2022 11:13:17 +0800
+Subject: [PATCH 113/921] [Backport] mm/damon/vaddr: add a comment for
+ 'default' case in damon_va_apply_scheme()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 5934ec1362b235c4341807c28f79b6a596ce1b40
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=5934ec1362b235c4341807c28f79b6a596ce1b40
+
+--------------------------------
+
+The switch case 'DAMOS_STAT' and switch case 'default' have same return
+value in damon_va_apply_scheme(), and the 'default' case is for DAMOS
+actions that not supported by 'vaddr'.  It might make sense to add a
+comment here.
+
+[akpm@linux-foundation.org: fx comment grammar]
+Link: https://lkml.kernel.org/r/1662606797-23534-1-git-send-email-kaixuxia@tencent.com
+Signed-off-by: Kaixu Xia <kaixuxia@tencent.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/vaddr.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mm/damon/vaddr.c b/mm/damon/vaddr.c
+index a8505ad47c60..03e33d8b1991 100644
+--- a/mm/damon/vaddr.c
++++ b/mm/damon/vaddr.c
+@@ -657,6 +657,9 @@ static unsigned long damon_va_apply_scheme(struct damon_ctx *ctx,
+ 	case DAMOS_STAT:
+ 		return 0;
+ 	default:
++		/*
++		 * DAMOS actions that are not yet supported by 'vaddr'.
++		 */
+ 		return 0;
+ 	}
+ 
+-- 
+2.17.1
+

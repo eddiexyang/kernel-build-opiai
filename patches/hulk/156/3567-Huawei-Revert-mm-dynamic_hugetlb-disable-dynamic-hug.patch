@@ -1,0 +1,47 @@
+From b2bd71b5a015080dac7c9777104805420d3bc6b5 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Tue, 12 Jul 2022 21:07:32 +0800
+Subject: [PATCH 3567/4585] [Huawei] Revert "mm/dynamic_hugetlb: disable
+ dynamic hugetlb if hugetlb_vmemmap is enabled"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187198
+
+--------------------------------
+
+Will disable hugetlb_vmemmap when dynamic hugetlb is enabled in later patch.
+
+This reverts commit c7ae7c0dd37aa112f9cb3e23878f4c5fe67f86bc.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ mm/dynamic_hugetlb.c | 11 -----------
+ 1 file changed, 11 deletions(-)
+
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index eb9b528b73de..f8ebc8ab7d60 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -1133,17 +1133,6 @@ void __init dynamic_hugetlb_init(void)
+ 	if (!enable_dhugetlb)
+ 		return;
+ 
+-	/*
+-	 * The dynamic_hugetlb feature need to split and merge pages frequently.
+-	 * hugetlb_vmemmap will affects the perforemance of page split and merge.
+-	 * If want to use dynamic hugetlb, please disable hugetlb_vmemmap.
+-	 */
+-	if (hugetlb_free_vmemmap_enabled) {
+-		enable_dhugetlb = false;
+-		pr_info("Please set hugetlb_free_vmemmap=off if want to enable dynamic hugetlb\n");
+-		return;
+-	}
+-
+ 	count = max(hugepage_index(max_pfn), (unsigned long)DEFAULT_PAGELIST_COUNT);
+ 	size = sizeof(struct dhugetlb_pagelist) + count * sizeof(struct dhugetlb_pool *);
+ 	dhugetlb_pagelist_t = kzalloc(size, GFP_KERNEL);
+-- 
+2.17.1
+

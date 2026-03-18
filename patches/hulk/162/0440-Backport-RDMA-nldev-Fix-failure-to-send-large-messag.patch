@@ -1,0 +1,48 @@
+From 1045fb411f5710d4c08914d634cab8afbbef4d1d Mon Sep 17 00:00:00 2001
+From: Mark Zhang <markzhang@nvidia.com>
+Date: Mon, 28 Nov 2022 13:52:46 +0200
+Subject: [PATCH 440/905] [Backport] RDMA/nldev: Fix failure to send large
+ messages
+
+stable inclusion
+from stable-v5.10.163
+commit 357f3e1756309a7fd43999cd51691d4275b98064
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=357f3e1756309a7fd43999cd51691d4275b98064
+
+--------------------------------
+
+[ Upstream commit fc8f93ad3e5485d45c992233c96acd902992dfc4 ]
+
+Return "-EMSGSIZE" instead of "-EINVAL" when filling a QP entry, so that
+new SKBs will be allocated if there's not enough room in current SKB.
+
+Fixes: 65959522f806 ("RDMA: Add support to dump resource tracker in RAW format")
+Signed-off-by: Mark Zhang <markzhang@nvidia.com>
+Reviewed-by: Patrisious Haddad <phaddad@nvidia.com>
+Link: https://lore.kernel.org/r/b5e9c62f6b8369acab5648b661bf539cbceeffdc.1669636336.git.leonro@nvidia.com
+Signed-off-by: Leon Romanovsky <leon@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/infiniband/core/nldev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/core/nldev.c b/drivers/infiniband/core/nldev.c
+index 78534340d282..f7f80707af4b 100644
+--- a/drivers/infiniband/core/nldev.c
++++ b/drivers/infiniband/core/nldev.c
+@@ -502,7 +502,7 @@ static int fill_res_qp_entry(struct sk_buff *msg, bool has_cap_net_admin,
+ 
+ 	/* In create_qp() port is not set yet */
+ 	if (qp->port && nla_put_u32(msg, RDMA_NLDEV_ATTR_PORT_INDEX, qp->port))
+-		return -EINVAL;
++		return -EMSGSIZE;
+ 
+ 	ret = nla_put_u32(msg, RDMA_NLDEV_ATTR_RES_LQPN, qp->qp_num);
+ 	if (ret)
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From d0653116c8c15686b97327233aab1378d4ff9280 Mon Sep 17 00:00:00 2001
+From: Vincent Donnefort <vincent.donnefort@arm.com>
+Date: Wed, 27 Apr 2022 11:11:07 +0800
+Subject: [PATCH 0199/2065] [Backport] sched/fair: Fix per-CPU kthread and
+ wakee stacking for asym CPU capacity
+
+stable inclusion
+from stable-v5.10.94
+commit b77ef5b4ead6a17baa1728d98c1f6a4ba1dd44c8
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b77ef5b4ead6a17baa1728d98c1f6a4ba1dd44c8
+
+--------------------------------
+
+[ Upstream commit 014ba44e8184e1acf93e0cbb7089ee847802f8f0 ]
+
+select_idle_sibling() has a special case for tasks woken up by a per-CPU
+kthread where the selected CPU is the previous one. For asymmetric CPU
+capacity systems, the assumption was that the wakee couldn't have a
+bigger utilization during task placement than it used to have during the
+last activation. That was not considering uclamp.min which can completely
+change between two task activations and as a consequence mandates the
+fitness criterion asym_fits_capacity(), even for the exit path described
+above.
+
+Fixes: b4c9c9f15649 ("sched/fair: Prefer prev cpu in asymmetric wakeup path")
+Signed-off-by: Vincent Donnefort <vincent.donnefort@arm.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Reviewed-by: Valentin Schneider <valentin.schneider@arm.com>
+Reviewed-by: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Link: https://lkml.kernel.org/r/20211129173115.4006346-1-vincent.donnefort@arm.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+
+ Conflicts:
+	kernel/sched/fair.c
+
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Cheng Jian <cj.chengjian@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ kernel/sched/fair.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index a6c46b83a49a..6d4797b9f89b 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -6406,7 +6406,8 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
+ 	if (is_per_cpu_kthread(current) &&
+ 	    in_task() &&
+ 	    prev == smp_processor_id() &&
+-	    this_rq()->nr_running <= 1) {
++	    this_rq()->nr_running <= 1 &&
++	    asym_fits_capacity(task_util, prev)) {
+ 		SET_STAT(found_idle_cpu_easy);
+ 		return prev;
+ 	}
+-- 
+2.17.1
+

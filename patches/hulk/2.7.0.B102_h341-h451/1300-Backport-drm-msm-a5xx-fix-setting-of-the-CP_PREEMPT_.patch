@@ -1,0 +1,51 @@
+From 0689aa6f20347e139159c268cfcedb19c6fa12a9 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Tue, 14 Feb 2023 05:09:53 +0300
+Subject: [PATCH 1300/1646] [Backport] drm/msm/a5xx: fix setting of the
+ CP_PREEMPT_ENABLE_LOCAL register
+
+stable inclusion
+from stable-v5.10.175
+commit 00c2020b8bb8914f08b5df63992a7ea3c87cdb45
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=00c2020b8bb8914f08b5df63992a7ea3c87cdb45
+
+--------------------------------
+
+[ Upstream commit a7a4c19c36de1e4b99b06e4060ccc8ab837725bc ]
+
+Rather than writing CP_PREEMPT_ENABLE_GLOBAL twice, follow the vendor
+kernel and set CP_PREEMPT_ENABLE_LOCAL register instead. a5xx_submit()
+will override it during submission, but let's get the sequence correct.
+
+Fixes: b1fc2839d2f9 ("drm/msm: Implement preemption for A5XX targets")
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/522638/
+Link: https://lore.kernel.org/r/20230214020956.164473-2-dmitry.baryshkov@linaro.org
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/msm/adreno/a5xx_gpu.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/adreno/a5xx_gpu.c b/drivers/gpu/drm/msm/adreno/a5xx_gpu.c
+index 0ca7e53db112..64da65ae6d67 100644
+--- a/drivers/gpu/drm/msm/adreno/a5xx_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/a5xx_gpu.c
+@@ -144,8 +144,8 @@ static void a5xx_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit)
+ 	OUT_RING(ring, 1);
+ 
+ 	/* Enable local preemption for finegrain preemption */
+-	OUT_PKT7(ring, CP_PREEMPT_ENABLE_GLOBAL, 1);
+-	OUT_RING(ring, 0x02);
++	OUT_PKT7(ring, CP_PREEMPT_ENABLE_LOCAL, 1);
++	OUT_RING(ring, 0x1);
+ 
+ 	/* Allow CP_CONTEXT_SWITCH_YIELD packets in the IB2 */
+ 	OUT_PKT7(ring, CP_YIELD_ENABLE, 1);
+-- 
+2.17.1
+

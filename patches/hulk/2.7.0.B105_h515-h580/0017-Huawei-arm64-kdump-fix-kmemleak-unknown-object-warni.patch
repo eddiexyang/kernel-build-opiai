@@ -1,0 +1,63 @@
+From 82a4e8d51c0c2af0b0dfe3e1137fd92c75af9695 Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Fri, 2 Jun 2023 16:27:27 +0800
+Subject: [PATCH 017/780] [Huawei] arm64: kdump: fix kmemleak unknown object
+ warning
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188829
+
+--------------------------------
+
+In reserve_crashkernel(), only memblock_find_in_range() and
+memblock_reserve() are called. kmemleak_alloc_phys() is not called, so
+the kmemleak object is not created. Therefore, there is no need to call
+kmemleak_ignore_phys().
+To fix the kmemleak unknown object warning, remove
+kmemleak_ignore_phys() from reserve_crashkernel().
+In reserve_crashkernel_high(), memblock_phys_alloc_range() is called.
+kmemleak_alloc_phys() creates an object of kmemleak, so
+kmemleak_ignore_phys() needs to be called.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ kernel/crash_core.c | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/crash_core.c b/kernel/crash_core.c
+index 368d8d1dd03c..a0ea5fe6fa60 100644
+--- a/kernel/crash_core.c
++++ b/kernel/crash_core.c
+@@ -415,6 +415,12 @@ void __init reserve_crashkernel_high(void)
+ 		crash_high_mem_reserved = true;
+ 	}
+ 
++	/*
++	 * The crashkernel memory will be removed from the kernel linear
++	 * map. Inform kmemleak so that it won't try to access it.
++	 */
++	kmemleak_ignore_phys(crash_base);
++
+ 	/* Mark the memory range that requires page-level mappings */
+ 	crashk_res.start = crash_base;
+ 	crashk_res.end   = crash_base + crash_size - 1;
+@@ -557,14 +563,6 @@ void __init reserve_crashkernel(void)
+ 		(unsigned long)(crash_base >> 20),
+ 		(unsigned long)(total_mem >> 20));
+ 
+-#ifdef CONFIG_ARM64
+-	/*
+-	 * The crashkernel memory will be removed from the kernel linear
+-	 * map. Inform kmemleak so that it won't try to access it.
+-	 */
+-	kmemleak_ignore_phys(crash_base);
+-#endif
+-
+ 	crashk_res.start = crash_base;
+ 	crashk_res.end   = crash_base + crash_size - 1;
+ }
+-- 
+2.17.1
+

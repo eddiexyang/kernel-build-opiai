@@ -1,0 +1,54 @@
+From 269a40241c54fdf7a50497145d53afe8a48e7f4d Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Tue, 13 Dec 2022 11:38:43 +0800
+Subject: [PATCH 0840/1398] [Huawei] block: only use cmpxchg64 in 64bit
+ platform
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187003
+
+--------------------------------
+
+Use cmpxchg64() in some 32bit platform will cause compile error, because
+it might not be implemented, for example PCC32. Hence only compile it in
+64bit platform.
+
+Fixes: dc43af1a1c12 ("blk-mq: don't access request_wrapper if request is not allocated from block layer")
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-core.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 1436d5a1fdde..e5beaf19b161 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -1315,10 +1315,11 @@ static void blk_account_io_completion(struct request *req, unsigned int bytes)
+ 
+ static void blk_account_io_latency(struct request *req, u64 now, const int sgrp)
+ {
++#ifdef CONFIG_64BIT
+ 	u64 stat_time;
+ 	struct request_wrapper *rq_wrapper;
+ 
+-	if (!IS_ENABLED(CONFIG_64BIT) || !(req->rq_flags & RQF_FROM_BLOCK)) {
++	if (!(req->rq_flags & RQF_FROM_BLOCK)) {
+ 		part_stat_add(req->part, nsecs[sgrp], now - req->start_time_ns);
+ 		return;
+ 	}
+@@ -1337,6 +1338,10 @@ static void blk_account_io_latency(struct request *req, u64 now, const int sgrp)
+ 
+ 		part_stat_add(req->part, nsecs[sgrp], duration);
+ 	}
++#else
++	part_stat_add(req->part, nsecs[sgrp], now - req->start_time_ns);
++
++#endif
+ }
+ 
+ void blk_account_io_done(struct request *req, u64 now)
+-- 
+2.17.1
+

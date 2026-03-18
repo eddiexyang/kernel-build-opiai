@@ -1,0 +1,51 @@
+From b7f00d2be0aa19192144eda448fde83393ee82a8 Mon Sep 17 00:00:00 2001
+From: Kunkun Jiang <jiangkunkun@huawei.com>
+Date: Thu, 16 Feb 2023 15:26:56 +0800
+Subject: [PATCH 061/500] [Huawei] vfio/iommu_type1: replace kvmalloc with
+ kvzalloc and kfree with kvfree
+
+Offering: HULK
+virt inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6FHYK
+
+--------------------------------
+
+For security purposes, kvzalloc is used to allocate memory. Because
+the memory may be allocated by vmalloc. So we replace kfree with
+kvfree here.
+
+Reported-by: Zhaolong Wang <wangzhaolong1@huawei.com>
+Signed-off-by: Kunkun Jiang <jiangkunkun@huawei.com>
+Reviewed-by: Keqian Zhu <zhukeqian1@huawei.com>
+Reviewed-by: Zhang Yi <yi.zhang@huawei.com>
+Signed-off-by: ZhaoLong Wang <wangzhaolong1@huawei.com>
+---
+ drivers/vfio/vfio_iommu_type1.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vfio/vfio_iommu_type1.c b/drivers/vfio/vfio_iommu_type1.c
+index b3f37a82ec0b..a1ad62102607 100644
+--- a/drivers/vfio/vfio_iommu_type1.c
++++ b/drivers/vfio/vfio_iommu_type1.c
+@@ -1100,7 +1100,7 @@ static int vfio_iova_dirty_log_clear(u64 __user *bitmap,
+ 	int ret = 0;
+ 
+ 	bitmap_size = DIRTY_BITMAP_BYTES(size >> pgshift);
+-	bitmap_buffer = kvmalloc(bitmap_size, GFP_KERNEL);
++	bitmap_buffer = kvzalloc(bitmap_size, GFP_KERNEL);
+ 	if (!bitmap_buffer) {
+ 		ret = -ENOMEM;
+ 		goto out;
+@@ -1150,7 +1150,7 @@ static int vfio_iova_dirty_log_clear(u64 __user *bitmap,
+ 	}
+ 
+ out:
+-	kfree(bitmap_buffer);
++	kvfree(bitmap_buffer);
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

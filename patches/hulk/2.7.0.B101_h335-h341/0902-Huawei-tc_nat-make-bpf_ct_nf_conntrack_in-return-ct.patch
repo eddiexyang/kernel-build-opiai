@@ -1,0 +1,65 @@
+From c008ed0e281409ea9cb8b99830c14508ce149b9f Mon Sep 17 00:00:00 2001
+From: Baisong Zhong <zhongbaisong@huawei.com>
+Date: Mon, 3 Apr 2023 10:08:27 +0800
+Subject: [PATCH 902/921] [Huawei] tc_nat: make bpf_ct_nf_conntrack_in return
+ ct
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188604
+
+--------------------------------
+
+This patch makes bpf_ct_nf_conntrack_in return ct
+
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ net/netfilter/nf_conntrack_bpf.c | 19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_bpf.c b/net/netfilter/nf_conntrack_bpf.c
+index c9bdabc88e44..583bd3763192 100644
+--- a/net/netfilter/nf_conntrack_bpf.c
++++ b/net/netfilter/nf_conntrack_bpf.c
+@@ -359,9 +359,9 @@ void bpf_ct_release(struct nf_conn *nfct)
+ 	nf_ct_put(nfct);
+ }
+ 
+-static inline void bpf_nf_hook_state_init(struct nf_hook_state *p, struct sk_buff *skb)
++static inline void bpf_nf_hook_state_init(struct nf_hook_state *p, struct sk_buff *skb, int hook)
+ {
+-	p->hook = NF_INET_PRE_ROUTING;
++	p->hook = hook;
+ 	p->pf = NFPROTO_IPV4;
+ 	p->in = skb->dev;
+ 	p->out = NULL;
+@@ -370,13 +370,22 @@ static inline void bpf_nf_hook_state_init(struct nf_hook_state *p, struct sk_buf
+ 	p->okfn = NULL;
+ }
+ 
+-int bpf_ct_nf_conntrack_in(struct __sk_buff *skb_ctx)
++struct nf_conn *bpf_ct_nf_conntrack_in(struct __sk_buff *skb_ctx)
+ {
+ 	struct nf_hook_state state;
+ 	struct sk_buff *skb = (struct sk_buff *)skb_ctx;
++	enum ip_conntrack_info ctinfo;
++	struct nf_conn *ct;
++	int ret;
+ 
+-	bpf_nf_hook_state_init(&state, skb);
+-	return nf_conntrack_in(skb, &state);
++	bpf_nf_hook_state_init(&state, skb, NF_INET_PRE_ROUTING);
++	ret = nf_conntrack_in(skb, &state);
++	if (ret == NF_ACCEPT) {
++		ct = nf_ct_get(skb, &ctinfo);
++		nf_conntrack_get(&ct->ct_general);
++		return ct;
++	}
++	return NULL;
+ }
+ 
+ int bpf_ct_nf_conntrack_confirm(struct __sk_buff *skb_ctx)
+-- 
+2.17.1
+

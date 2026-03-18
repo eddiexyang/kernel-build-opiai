@@ -1,0 +1,64 @@
+From f2e1cac7ec29bcfa8f4ded5c6248c3a32b97f62c Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Fri, 13 Jan 2023 18:24:09 +0800
+Subject: [PATCH 453/921] [Backport] crypto: essiv - Handle EBUSY correctly
+
+stable inclusion
+from stable-v5.10.173
+commit 796e02cca30a67322161f0745e5ce994bbe75605
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=796e02cca30a67322161f0745e5ce994bbe75605
+
+--------------------------------
+
+[ Upstream commit b5a772adf45a32c68bef28e60621f12617161556 ]
+
+As it is essiv only handles the special return value of EINPROGERSS,
+which means that in all other cases it will free data related to the
+request.
+
+However, as the caller of essiv may specify MAY_BACKLOG, we also need
+to expect EBUSY and treat it in the same way.  Otherwise backlogged
+requests will trigger a use-after-free.
+
+Fixes: be1eb7f78aa8 ("crypto: essiv - create wrapper template...")
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Acked-by: Ard Biesheuvel <ardb@kernel.org>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ crypto/essiv.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/essiv.c b/crypto/essiv.c
+index d012be23d496..85bb624e32b9 100644
+--- a/crypto/essiv.c
++++ b/crypto/essiv.c
+@@ -170,7 +170,12 @@ static void essiv_aead_done(struct crypto_async_request *areq, int err)
+ 	struct aead_request *req = areq->data;
+ 	struct essiv_aead_request_ctx *rctx = aead_request_ctx(req);
+ 
++	if (err == -EINPROGRESS)
++		goto out;
++
+ 	kfree(rctx->assoc);
++
++out:
+ 	aead_request_complete(req, err);
+ }
+ 
+@@ -246,7 +251,7 @@ static int essiv_aead_crypt(struct aead_request *req, bool enc)
+ 	err = enc ? crypto_aead_encrypt(subreq) :
+ 		    crypto_aead_decrypt(subreq);
+ 
+-	if (rctx->assoc && err != -EINPROGRESS)
++	if (rctx->assoc && err != -EINPROGRESS && err != -EBUSY)
+ 		kfree(rctx->assoc);
+ 	return err;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From cc8aa0b70f4820d25e892b0bd1d36d485f5ac567 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Wed, 27 Apr 2022 11:10:06 +0800
+Subject: [PATCH 0138/2065] [Backport] media: atomisp: fix uninitialized bug in
+ gmin_get_pmic_id_and_addr()
+
+stable inclusion
+from stable-v5.10.94
+commit 8d132d9dd8bae9f2d5ff153b3fe6eb31a000fe39
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8d132d9dd8bae9f2d5ff153b3fe6eb31a000fe39
+
+--------------------------------
+
+[ Upstream commit cb4d67a998e97365afdf34965b069601da1dae60 ]
+
+The "power" pointer is not initialized on the else path and that would
+lead to an Oops.
+
+Link: https://lore.kernel.org/linux-media/20211012082150.GA31086@kili
+Fixes: c30f4cb2d4c7 ("media: atomisp: Refactor PMIC detection to a separate function")
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Reviewed-by: Kieran Bingham <kieran.bingham+renesas@ideasonboard.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab+huawei@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/staging/media/atomisp/pci/atomisp_gmin_platform.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/staging/media/atomisp/pci/atomisp_gmin_platform.c b/drivers/staging/media/atomisp/pci/atomisp_gmin_platform.c
+index 135994d44802..34480ca16474 100644
+--- a/drivers/staging/media/atomisp/pci/atomisp_gmin_platform.c
++++ b/drivers/staging/media/atomisp/pci/atomisp_gmin_platform.c
+@@ -481,7 +481,7 @@ static int atomisp_get_acpi_power(struct device *dev)
+ 
+ static u8 gmin_get_pmic_id_and_addr(struct device *dev)
+ {
+-	struct i2c_client *power;
++	struct i2c_client *power = NULL;
+ 	static u8 pmic_i2c_addr;
+ 
+ 	if (pmic_id)
+-- 
+2.17.1
+

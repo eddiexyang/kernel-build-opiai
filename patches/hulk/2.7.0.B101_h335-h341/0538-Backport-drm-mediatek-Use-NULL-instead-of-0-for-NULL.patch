@@ -1,0 +1,47 @@
+From 7f6ec613d1bb0b5083c09a05120f87bb730f5b8b Mon Sep 17 00:00:00 2001
+From: Miles Chen <miles.chen@mediatek.com>
+Date: Wed, 11 Jan 2023 10:44:41 +0800
+Subject: [PATCH 538/921] [Backport] drm/mediatek: Use NULL instead of 0 for
+ NULL pointer
+
+stable inclusion
+from stable-v5.10.173
+commit 55bc7babc094db91342a8dc98270fe240e35e96b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=55bc7babc094db91342a8dc98270fe240e35e96b
+
+--------------------------------
+
+[ Upstream commit 4744cde06f57dd6fbaac468663b1fe2f653eaa16 ]
+
+Use NULL for NULL pointer to fix the following sparse warning:
+drivers/gpu/drm/mediatek/mtk_drm_gem.c:265:27: sparse: warning: Using plain integer as NULL pointer
+
+Fixes: 3df64d7b0a4f ("drm/mediatek: Implement gem prime vmap/vunmap function")
+Signed-off-by: Miles Chen <miles.chen@mediatek.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Link: https://patchwork.kernel.org/project/linux-mediatek/patch/20230111024443.24559-1-miles.chen@mediatek.com/
+Signed-off-by: Chun-Kuang Hu <chunkuang.hu@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/mediatek/mtk_drm_gem.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/mediatek/mtk_drm_gem.c b/drivers/gpu/drm/mediatek/mtk_drm_gem.c
+index 0583e557ad37..43c54dde2f3f 100644
+--- a/drivers/gpu/drm/mediatek/mtk_drm_gem.c
++++ b/drivers/gpu/drm/mediatek/mtk_drm_gem.c
+@@ -266,6 +266,6 @@ void mtk_drm_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
+ 		return;
+ 
+ 	vunmap(vaddr);
+-	mtk_gem->kvaddr = 0;
++	mtk_gem->kvaddr = NULL;
+ 	kfree(mtk_gem->pages);
+ }
+-- 
+2.17.1
+

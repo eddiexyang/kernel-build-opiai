@@ -1,0 +1,48 @@
+From 285ab1dc91697e76e5e1c801f4452f2b7e835cc0 Mon Sep 17 00:00:00 2001
+From: Daniil Tatianin <d-tatianin@yandex-team.ru>
+Date: Mon, 26 Dec 2022 14:48:23 +0300
+Subject: [PATCH 165/500] [Backport] net/ethtool/ioctl: return -EOPNOTSUPP if
+ we have no phy stats
+
+stable inclusion
+from stable-v5.10.165
+commit 0040e48492f375a63ab68df35be4d228e64b41c8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6IXN2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0040e48492f375a63ab68df35be4d228e64b41c8
+
+--------------------------------
+
+[ Upstream commit 9deb1e9fb88b1120a908676fa33bdf9e2eeaefce ]
+
+It's not very useful to copy back an empty ethtool_stats struct and
+return 0 if we didn't actually have any stats. This also allows for
+further simplification of this function in the future commits.
+
+Signed-off-by: Daniil Tatianin <d-tatianin@yandex-team.ru>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ethtool/ioctl.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/ethtool/ioctl.c b/net/ethtool/ioctl.c
+index bc4f21a1f0bc..3c593ac2eb6f 100644
+--- a/net/ethtool/ioctl.c
++++ b/net/ethtool/ioctl.c
+@@ -2065,7 +2065,8 @@ static int ethtool_get_phy_stats(struct net_device *dev, void __user *useraddr)
+ 		return n_stats;
+ 	if (n_stats > S32_MAX / sizeof(u64))
+ 		return -ENOMEM;
+-	WARN_ON_ONCE(!n_stats);
++	if (WARN_ON_ONCE(!n_stats))
++		return -EOPNOTSUPP;
+ 
+ 	if (copy_from_user(&stats, useraddr, sizeof(stats)))
+ 		return -EFAULT;
+-- 
+2.17.1
+

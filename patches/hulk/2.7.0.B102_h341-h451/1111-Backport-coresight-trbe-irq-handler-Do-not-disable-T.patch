@@ -1,0 +1,68 @@
+From 10ecfbd0bd481445bfb050cff65e737f4f403898 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:38:13 +0800
+Subject: [PATCH 1111/1646] [Backport] coresight: trbe: irq handler: Do not
+ disable TRBE if no action is needed
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 85fb92353e0dece18048bdb35c7e6b682129deff
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=85fb92353e0dece18048bdb35c7e6b682129deff
+
+--------------------------------
+
+The IRQ handler of the TRBE driver could race against the update_buffer()
+in consuming the  IRQ. So, if the update_buffer() gets to processing the
+TRBE irq, the TRBSR will be cleared. Thus by the time IRQ handler is
+triggered, there is nothing to do there. Handle these cases and do not
+disable the TRBE unnecessarily. Since the TRBSR can be read without
+stopping the TRBE, we can check that before disabling the TRBE.
+
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Anshuman Khandual <anshuman.khandual@arm.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20210923143919.2944311-2-suzuki.poulose@arm.com
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/hwtracing/coresight/coresight-trbe.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-trbe.c b/drivers/hwtracing/coresight/coresight-trbe.c
+index bdecf5ffb9b6..a7e80a91346b 100644
+--- a/drivers/hwtracing/coresight/coresight-trbe.c
++++ b/drivers/hwtracing/coresight/coresight-trbe.c
+@@ -762,12 +762,7 @@ static irqreturn_t arm_trbe_irq_handler(int irq, void *dev)
+ 	enum trbe_fault_action act;
+ 	u64 status;
+ 
+-	/*
+-	 * Ensure the trace is visible to the CPUs and
+-	 * any external aborts have been resolved.
+-	 */
+-	trbe_drain_and_disable_local();
+-
++	/* Reads to TRBSR_EL1 is fine when TRBE is active */
+ 	status = read_sysreg_s(SYS_TRBSR_EL1);
+ 	/*
+ 	 * If the pending IRQ was handled by update_buffer callback
+@@ -776,6 +771,11 @@ static irqreturn_t arm_trbe_irq_handler(int irq, void *dev)
+ 	if (!is_trbe_irq(status))
+ 		return IRQ_NONE;
+ 
++	/*
++	 * Ensure the trace is visible to the CPUs and
++	 * any external aborts have been resolved.
++	 */
++	trbe_drain_and_disable_local();
+ 	clr_trbe_irq();
+ 	isb();
+ 
+-- 
+2.17.1
+

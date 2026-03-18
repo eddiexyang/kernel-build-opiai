@@ -1,0 +1,43 @@
+From 22467ef3f78b3324a043b3581138460b904db925 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Mon, 13 Jun 2022 19:22:59 +0000
+Subject: [PATCH 094/921] [Backport] Docs/admin-guide/damon/sysfs: document
+ 'LRU_DEPRIO' scheme action
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit b57e39a743e4efc6945523f121691ac76f9161de
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b57e39a743e4efc6945523f121691ac76f9161de
+
+--------------------------------
+
+This commit documents the 'LRU_DEPRIO' scheme action for DAMON sysfs
+interface.`
+
+Link: https://lkml.kernel.org/r/20220613192301.8817-8-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ Documentation/admin-guide/mm/damon/usage.rst | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/admin-guide/mm/damon/usage.rst b/Documentation/admin-guide/mm/damon/usage.rst
+index 089bc3fd4b80..f5d692fff1ed 100644
+--- a/Documentation/admin-guide/mm/damon/usage.rst
++++ b/Documentation/admin-guide/mm/damon/usage.rst
+@@ -265,6 +265,7 @@ that can be written to and read from the file and their meaning are as below.
+  - ``hugepage``: Call ``madvise()`` for the region with ``MADV_HUGEPAGE``
+  - ``nohugepage``: Call ``madvise()`` for the region with ``MADV_NOHUGEPAGE``
+  - ``lru_prio``: Prioritize the region on its LRU lists.
++ - ``lru_deprio``: Deprioritize the region on its LRU lists.
+  - ``stat``: Do nothing but count the statistics
+ 
+ schemes/<N>/access_pattern/
+-- 
+2.17.1
+

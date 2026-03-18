@@ -1,0 +1,90 @@
+From 7be04f395c26e883191f0dafe96a8434822a465e Mon Sep 17 00:00:00 2001
+From: Reinette Chatre <reinette.chatre@intel.com>
+Date: Thu, 12 May 2022 14:50:59 -0700
+Subject: [PATCH 0253/1646] [Backport] x86/sgx: Obtain backing storage page
+ with enclave mutex held
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 0e4e729a830c1e7f31d3b3fbf8feb355a402b117
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5USAM
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=0e4e729a830c1e7f31d3b3fbf8feb355a402b117
+
+--------------------------------
+
+                                        }
+                                       mutex_unlock(&encl->lock);
+}                                    }
+
+In this scenario there is a race between the reclaimer and the page fault
+handler when the reclaimer attempts to get access to the same PCMD page
+that is being truncated. This could result in the reclaimer writing to
+the PCMD page that is then truncated, causing the PCMD data to be lost,
+or in a new PCMD page being allocated. The lost PCMD data may still occur
+after protecting the backing store access with the mutex - this is fixed
+in the next patch. By ensuring the backing store is accessed with the mutex
+held the enclave page state can be made accurate with the
+SGX_ENCL_PAGE_BEING_RECLAIMED flag accurately reflecting that a page
+is in the process of being reclaimed.
+
+Consistently protect the reclaimer's backing store access with the
+enclave's mutex to ensure that it can safely run concurrently with the
+page fault handler.
+
+Cc: stable@vger.kernel.org
+Fixes: 1728ab54b4be ("x86/sgx: Add a page reclaimer")
+Reported-by: Haitao Huang <haitao.huang@intel.com>
+Signed-off-by: Reinette Chatre <reinette.chatre@intel.com>
+Signed-off-by: Dave Hansen <dave.hansen@linux.intel.com>
+Reviewed-by: Jarkko Sakkinen <jarkko@kernel.org>
+Tested-by: Jarkko Sakkinen <jarkko@kernel.org>
+Tested-by: Haitao Huang <haitao.huang@intel.com>
+Link: https://lkml.kernel.org/r/fa2e04c561a8555bfe1f4e7adc37d60efc77387b.1652389823.git.reinette.chatre@intel.com
+Signed-off-by: Zhiquan Li <zhiquan1.li@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kernel/cpu/sgx/main.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/kernel/cpu/sgx/main.c b/arch/x86/kernel/cpu/sgx/main.c
+index 954725078e7e..20b2e558edff 100644
+--- a/arch/x86/kernel/cpu/sgx/main.c
++++ b/arch/x86/kernel/cpu/sgx/main.c
+@@ -310,6 +310,7 @@ static void sgx_reclaimer_write(struct sgx_epc_page *epc_page,
+ 	sgx_encl_ewb(epc_page, backing);
+ 	encl_page->epc_page = NULL;
+ 	encl->secs_child_cnt--;
++	sgx_encl_put_backing(backing);
+ 
+ 	if (!encl->secs_child_cnt && test_bit(SGX_ENCL_INITIALIZED, &encl->flags)) {
+ 		ret = sgx_encl_get_backing(encl, PFN_DOWN(encl->size),
+@@ -381,11 +382,14 @@ static void sgx_reclaim_pages(void)
+ 			goto skip;
+ 
+ 		page_index = PFN_DOWN(encl_page->desc - encl_page->encl->base);
++
++		mutex_lock(&encl_page->encl->lock);
+ 		ret = sgx_encl_get_backing(encl_page->encl, page_index, &backing[i]);
+-		if (ret)
++		if (ret) {
++			mutex_unlock(&encl_page->encl->lock);
+ 			goto skip;
++		}
+ 
+-		mutex_lock(&encl_page->encl->lock);
+ 		encl_page->desc |= SGX_ENCL_PAGE_BEING_RECLAIMED;
+ 		mutex_unlock(&encl_page->encl->lock);
+ 		continue;
+@@ -413,7 +417,6 @@ static void sgx_reclaim_pages(void)
+ 
+ 		encl_page = epc_page->owner;
+ 		sgx_reclaimer_write(epc_page, &backing[i]);
+-		sgx_encl_put_backing(&backing[i]);
+ 
+ 		kref_put(&encl_page->encl->refcount, sgx_encl_release);
+ 		epc_page->flags &= ~SGX_EPC_PAGE_RECLAIMER_TRACKED;
+-- 
+2.17.1
+

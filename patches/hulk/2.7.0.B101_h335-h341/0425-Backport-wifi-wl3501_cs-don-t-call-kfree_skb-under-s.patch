@@ -1,0 +1,49 @@
+From 4528161702f1bd2ba61782ca6a69666b75e98c29 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Wed, 7 Dec 2022 23:04:53 +0800
+Subject: [PATCH 425/921] [Backport] wifi: wl3501_cs: don't call kfree_skb()
+ under spin_lock_irqsave()
+
+stable inclusion
+from stable-v5.10.173
+commit f6e429cde9ead0c42aba9fee5dc640fa9ba31ad0
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f6e429cde9ead0c42aba9fee5dc640fa9ba31ad0
+
+--------------------------------
+
+[ Upstream commit 44bacbdf9066c590423259dbd6d520baac99c1a8 ]
+
+It is not allowed to call kfree_skb() from hardware interrupt
+context or with interrupts being disabled. So replace kfree_skb()
+with dev_kfree_skb_irq() under spin_lock_irqsave(). Compile
+tested only.
+
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/20221207150453.114742-1-yangyingliang@huawei.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/wl3501_cs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/wl3501_cs.c b/drivers/net/wireless/wl3501_cs.c
+index ff1701adbb17..ccf6344ed6fd 100644
+--- a/drivers/net/wireless/wl3501_cs.c
++++ b/drivers/net/wireless/wl3501_cs.c
+@@ -1330,7 +1330,7 @@ static netdev_tx_t wl3501_hard_start_xmit(struct sk_buff *skb,
+ 	} else {
+ 		++dev->stats.tx_packets;
+ 		dev->stats.tx_bytes += skb->len;
+-		kfree_skb(skb);
++		dev_kfree_skb_irq(skb);
+ 
+ 		if (this->tx_buffer_cnt < 2)
+ 			netif_stop_queue(dev);
+-- 
+2.17.1
+

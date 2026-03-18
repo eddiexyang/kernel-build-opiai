@@ -1,0 +1,38 @@
+From 20b7cd2578035e820a2352a7b6768d12d58f89b5 Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Fri, 19 Aug 2022 09:09:04 +0000
+Subject: [PATCH 0014/1076] [Huawei] mm/sharepool: bugfix for 2M U2K
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PZDX
+
+--------------------------------
+
+We could determine if a userspace map is huge-mapped after walking its
+pagetable. So the uva_align should be calculated again after walking
+the pagetable if it is huge-mapped.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ mm/share_pool.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 797548ce009c..bb32fe458ab0 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -3189,6 +3189,9 @@ static int __sp_walk_page_range(unsigned long uva, unsigned long size,
+ 		sp_walk_data->pages = NULL;
+ 	}
+ 
++	if (sp_walk_data->is_hugepage)
++		sp_walk_data->uva_aligned = ALIGN_DOWN(uva, PMD_SIZE);
++
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

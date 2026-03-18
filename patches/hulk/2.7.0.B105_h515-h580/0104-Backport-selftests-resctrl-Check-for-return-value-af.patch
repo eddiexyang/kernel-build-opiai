@@ -1,0 +1,66 @@
+From 379ab18a5b1e9d6eaba92e4d5b0ed54526f851c2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
+Date: Wed, 15 Feb 2023 15:06:00 +0200
+Subject: [PATCH 104/780] [Backport] selftests/resctrl: Check for return value
+ after write_schemata()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.180
+commit 0c29f14cf470ce7e7fe85eb25602bb138b871256
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0c29f14cf470ce7e7fe85eb25602bb138b871256
+
+--------------------------------
+
+[ Upstream commit 0d45c83b95da414e98ad333e723141a94f6e2c64 ]
+
+MBA test case writes schemata but it does not check if the write is
+successful or not.
+
+Add the error check and return error properly.
+
+Fixes: 01fee6b4d1f9 ("selftests/resctrl: Add MBA test")
+Co-developed-by: Fenghua Yu <fenghua.yu@intel.com>
+Signed-off-by: Fenghua Yu <fenghua.yu@intel.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Reviewed-by: Reinette Chatre <reinette.chatre@intel.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ tools/testing/selftests/resctrl/mba_test.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/resctrl/mba_test.c b/tools/testing/selftests/resctrl/mba_test.c
+index 6449fbd96096..6cfddd1d4355 100644
+--- a/tools/testing/selftests/resctrl/mba_test.c
++++ b/tools/testing/selftests/resctrl/mba_test.c
+@@ -28,6 +28,7 @@ static int mba_setup(int num, ...)
+ 	struct resctrl_val_param *p;
+ 	char allocation_str[64];
+ 	va_list param;
++	int ret;
+ 
+ 	va_start(param, num);
+ 	p = va_arg(param, struct resctrl_val_param *);
+@@ -45,7 +46,11 @@ static int mba_setup(int num, ...)
+ 
+ 	sprintf(allocation_str, "%d", allocation);
+ 
+-	write_schemata(p->ctrlgrp, allocation_str, p->cpu_no, p->resctrl_val);
++	ret = write_schemata(p->ctrlgrp, allocation_str, p->cpu_no,
++			     p->resctrl_val);
++	if (ret < 0)
++		return ret;
++
+ 	allocation -= ALLOCATION_STEP;
+ 
+ 	return 0;
+-- 
+2.17.1
+

@@ -1,0 +1,52 @@
+From 271afe55f1b2c30299833616042ee632cae141a5 Mon Sep 17 00:00:00 2001
+From: Weili Qian <qianweili@huawei.com>
+Date: Wed, 19 Oct 2022 12:27:27 +0800
+Subject: [PATCH 0975/1646] [Backport] crypto: hisilicon/qm - fix missing put
+ dfx access
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 5afc904f443de2afd31c4e0686ba178beede86fe
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5T7AD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=5afc904f443de2afd31c4e0686ba178beede86fe
+
+--------------------------------
+
+In function qm_cmd_write(), if function returns from
+branch 'atomic_read(&qm->status.flags) == QM_STOP',
+the got dfx access is forgotten to put.
+
+Fixes: 607c191b371d ("crypto: hisilicon - support runtime PM for accelerator device")
+Signed-off-by: Weili Qian <qianweili@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index e666999d1d4c..7792c0a4ab89 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -2213,8 +2213,10 @@ static ssize_t qm_cmd_write(struct file *filp, const char __user *buffer,
+ 		return ret;
+ 
+ 	/* Judge if the instance is being reset. */
+-	if (unlikely(atomic_read(&qm->status.flags) == QM_STOP))
+-		return 0;
++	if (unlikely(atomic_read(&qm->status.flags) == QM_STOP)) {
++		ret = 0;
++		goto put_dfx_access;
++	}
+ 
+ 	if (count > QM_DBG_WRITE_LEN) {
+ 		ret = -ENOSPC;
+-- 
+2.17.1
+

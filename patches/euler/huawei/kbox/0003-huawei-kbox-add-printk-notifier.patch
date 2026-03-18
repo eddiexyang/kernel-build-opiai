@@ -1,0 +1,191 @@
+From bced30e16d394cc3a056f7543a8272c4106f0ada Mon Sep 17 00:00:00 2001
+From: lansheng <lansheng@huawei.com>
+Date: Sat, 16 Jul 2022 08:03:21 +0000
+Subject: [PATCH 3/8] huawei kbox add printk notifier
+
+---
+ include/linux/os_kbox.h | 21 ++++++++++++++++++
+ kernel/Makefile         |  1 +
+ kernel/os_kbox.c        | 47 +++++++++++++++++++++++++++++++++++++++++
+ kernel/printk/printk.c  | 12 +++++++++++
+ mm/memory.c             | 23 ++++++++++++++++++++
+ 5 files changed, 104 insertions(+)
+ create mode 100644 include/linux/os_kbox.h
+ create mode 100644 kernel/os_kbox.c
+
+diff --git a/include/linux/os_kbox.h b/include/linux/os_kbox.h
+new file mode 100644
+index 000000000..f24397ba3
+--- /dev/null
++++ b/include/linux/os_kbox.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Copyright @ Huawei Technologies Co., Ltd. 2020-2020. ALL rights reversed.
++ */
++#ifndef __LINUX_KBOX__
++#define __LINUX_KBOX__
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++#include <linux/types.h>
++#include <asm/atomic.h>
++
++extern int kern_addr_valid(unsigned long addr);
++extern int g_kbox_record_pid;
++extern int g_kbox_record_cpu;
++extern void kbox_set_cpu_and_pid(void);
++extern void kbox_clear_cpu_and_pid(void);
++typedef void (*KBOX_STORE_LOG_FUN)(u64 time, const char *text, const size_t text_len);
++extern KBOX_STORE_LOG_FUN kbox_store_printk;
++extern int kbox_register_store_interface(KBOX_STORE_LOG_FUN kbox_store_log_fn);
++extern void kbox_unregister_store_interface(void);
++#endif
++#endif
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 9c6a76794..6a14c0685 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -17,6 +17,7 @@ obj-$(CONFIG_MODULES) += kmod.o
+ obj-$(CONFIG_MULTIUSER) += groups.o
+ 
+ obj-$(CONFIG_EULEROS_CPU_STAT_AND_IRQ) += cpustat.o
++obj-$(CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER) += os_kbox.o
+ 
+ ifdef CONFIG_FUNCTION_TRACER
+ # Do not trace internal ftrace files
+diff --git a/kernel/os_kbox.c b/kernel/os_kbox.c
+new file mode 100644
+index 000000000..fe1907518
+--- /dev/null
++++ b/kernel/os_kbox.c
+@@ -0,0 +1,47 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright @ Huawei Technologies Co., Ltd. 2020-2020. ALL rights reversed.
++ */
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++#include <linux/os_kbox.h>
++#include <linux/kernel.h>
++#include <linux/smp.h>
++#include <linux/sched.h>
++#include <uapi/asm-generic/errno-base.h>
++
++int g_kbox_record_cpu = -1;
++int g_kbox_record_pid = -1;
++
++KBOX_STORE_LOG_FUN kbox_store_printk;
++
++void kbox_set_cpu_and_pid(void)
++{
++	g_kbox_record_cpu = smp_processor_id();
++	g_kbox_record_pid = current->pid;
++}
++EXPORT_SYMBOL(kbox_set_cpu_and_pid);
++
++void kbox_clear_cpu_and_pid(void)
++{
++	g_kbox_record_cpu = -1;
++	g_kbox_record_pid = -1;
++}
++EXPORT_SYMBOL(kbox_clear_cpu_and_pid);
++
++int kbox_register_store_interface(KBOX_STORE_LOG_FUN kbox_store_log_fn)
++{
++	if ((void *)kbox_store_log_fn == NULL || !kern_addr_valid((unsigned long)kbox_store_log_fn))
++		return -EINVAL;
++
++	kbox_store_printk = kbox_store_log_fn;
++	return 0;
++}
++EXPORT_SYMBOL(kbox_register_store_interface);
++
++/* note: kbox_store_printk function must not be called when unregister. */
++void kbox_unregister_store_interface(void)
++{
++	kbox_store_printk = NULL;
++}
++EXPORT_SYMBOL(kbox_unregister_store_interface);
++#endif
+diff --git a/kernel/printk/printk.c b/kernel/printk/printk.c
+index 43f8f2573..219324448 100644
+--- a/kernel/printk/printk.c
++++ b/kernel/printk/printk.c
+@@ -59,6 +59,9 @@
+ #include "console_cmdline.h"
+ #include "braille.h"
+ #include "internal.h"
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++#include <linux/os_kbox.h>
++#endif
+ 
+ int console_printk[4] = {
+ 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
+@@ -526,6 +529,15 @@ static int log_store(u32 caller_id, int facility, int level,
+ 		r.info->ts_nsec = ts_nsec;
+ 	else
+ 		r.info->ts_nsec = local_clock();
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++	/* kbox detected exceptions, then register this interface. */
++	if (kbox_store_printk != NULL) {
++		if (r.info->flags & LOG_NEWLINE)
++			kbox_store_printk(r.info->ts_nsec, text, text_len + 1);
++		else
++			kbox_store_printk(r.info->ts_nsec, text, text_len);
++	}
++#endif
+ 	r.info->caller_id = caller_id;
+ 	if (dev_info)
+ 		memcpy(&r.info->dev_info, dev_info, sizeof(r.info->dev_info));
+diff --git a/mm/memory.c b/mm/memory.c
+index 58e3e276d..c71847461 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -82,6 +82,9 @@
+ #include <linux/uaccess.h>
+ #include <asm/tlb.h>
+ #include <asm/tlbflush.h>
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++#include <linux/os_kbox.h>
++#endif
+ 
+ #include "pgalloc-track.h"
+ #include "internal.h"
+@@ -5004,8 +5007,22 @@ int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
+ 	void *old_buf = buf;
+ 	int write = gup_flags & FOLL_WRITE;
+ 
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++	int cur_cpu;
++	int cur_pid;
++
++	preempt_disable();
++	cur_cpu = smp_processor_id();
++	preempt_enable();
++	cur_pid = current->pid;
++	if (likely(g_kbox_record_cpu != cur_cpu || g_kbox_record_pid != cur_pid)) {
++		if (mmap_read_lock_killable(mm))
++			return 0;
++	}
++#else
+ 	if (mmap_read_lock_killable(mm))
+ 		return 0;
++#endif
+ 
+ 	/* ignore errors, just check how much was successfully transferred */
+ 	while (len) {
+@@ -5055,7 +5072,13 @@ int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
+ 		buf += bytes;
+ 		addr += bytes;
+ 	}
++#ifdef CONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
++	if (likely(g_kbox_record_cpu != cur_cpu || g_kbox_record_pid != cur_pid)) {
++		mmap_read_unlock(mm);
++	}
++#else
+ 	mmap_read_unlock(mm);
++#endif
+ 
+ 	return buf - old_buf;
+ }
+-- 
+2.33.0
+

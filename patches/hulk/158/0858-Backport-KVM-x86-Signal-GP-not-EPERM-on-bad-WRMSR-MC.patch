@@ -1,0 +1,60 @@
+From 38ba19a196152e67aeb0eccd282e5155ad81d8b4 Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Thu, 12 May 2022 22:27:14 +0000
+Subject: [PATCH 0858/1076] [Backport] KVM: x86: Signal #GP, not -EPERM, on bad
+ WRMSR(MCi_CTL/STATUS)
+
+stable inclusion
+from stable-v5.10.137
+commit e7ccee2f09b06303fb39f8cb19a2c21d388dc4e6
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e7ccee2f09b06303fb39f8cb19a2c21d388dc4e6
+
+--------------------------------
+
+[ Upstream commit 2368048bf5c2ec4b604ac3431564071e89a0bc71 ]
+
+Return '1', not '-1', when handling an illegal WRMSR to a MCi_CTL or
+MCi_STATUS MSR.  The behavior of "all zeros' or "all ones" for CTL MSRs
+is architectural, as is the "only zeros" behavior for STATUS MSRs.  I.e.
+the intent is to inject a #GP, not exit to userspace due to an unhandled
+emulation case.  Returning '-1' gets interpreted as -EPERM up the stack
+and effecitvely kills the guest.
+
+Fixes: 890ca9aefa78 ("KVM: Add MCE support")
+Fixes: 9ffd986c6e4e ("KVM: X86: #GP when guest attempts to write MCi_STATUS register w/o 0")
+Cc: stable@vger.kernel.org
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+Reviewed-by: Jim Mattson <jmattson@google.com>
+Link: https://lore.kernel.org/r/20220512222716.4112548-2-seanjc@google.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/x86/kvm/x86.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index f0c9fce082b2..1339056f08cd 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -2919,13 +2919,13 @@ static int set_msr_mce(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 			 */
+ 			if ((offset & 0x3) == 0 &&
+ 			    data != 0 && (data | (1 << 10) | 1) != ~(u64)0)
+-				return -1;
++				return 1;
+ 
+ 			/* MCi_STATUS */
+ 			if (!msr_info->host_initiated &&
+ 			    (offset & 0x3) == 1 && data != 0) {
+ 				if (!can_set_mci_status(vcpu))
+-					return -1;
++					return 1;
+ 			}
+ 
+ 			vcpu->arch.mce_banks[offset] = data;
+-- 
+2.17.1
+

@@ -1,0 +1,63 @@
+From 0a7046a135f55d90671c2d5c45e40c95e00d8984 Mon Sep 17 00:00:00 2001
+From: John David Anglin <dave.anglin@bell.net>
+Date: Wed, 27 Apr 2022 11:15:29 +0800
+Subject: [PATCH 0458/2065] [Backport] parisc: Avoid calling
+ faulthandler_disabled() twice
+
+stable inclusion
+from stable-v5.10.94
+commit 3681e9f3f0f7df9a3821b02fadf17a669681ea43
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3681e9f3f0f7df9a3821b02fadf17a669681ea43
+
+--------------------------------
+
+[ Upstream commit 9e9d4b460f23bab61672eae397417d03917d116c ]
+
+In handle_interruption(), we call faulthandler_disabled() to check whether the
+fault handler is not disabled. If the fault handler is disabled, we immediately
+call do_page_fault(). It then calls faulthandler_disabled(). If disabled,
+do_page_fault() attempts to fixup the exception by jumping to no_context:
+
+no_context:
+
+        if (!user_mode(regs) && fixup_exception(regs)) {
+                return;
+        }
+
+        parisc_terminate("Bad Address (null pointer deref?)", regs, code, address);
+
+Apart from the error messages, the two blocks of code perform the same
+function.
+
+We can avoid two calls to faulthandler_disabled() by a simple revision
+to the code in handle_interruption().
+
+Note: I didn't try to fix the formatting of this code block.
+
+Signed-off-by: John David Anglin <dave.anglin@bell.net>
+Signed-off-by: Helge Deller <deller@gmx.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ arch/parisc/kernel/traps.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/parisc/kernel/traps.c b/arch/parisc/kernel/traps.c
+index 43f56335759a..269b737d2629 100644
+--- a/arch/parisc/kernel/traps.c
++++ b/arch/parisc/kernel/traps.c
+@@ -784,7 +784,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
+ 	     * unless pagefault_disable() was called before.
+ 	     */
+ 
+-	    if (fault_space == 0 && !faulthandler_disabled())
++	    if (faulthandler_disabled() || fault_space == 0)
+ 	    {
+ 		/* Clean up and return if in exception table. */
+ 		if (fixup_exception(regs))
+-- 
+2.17.1
+

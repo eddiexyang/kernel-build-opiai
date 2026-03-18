@@ -1,0 +1,63 @@
+From 9276d06da2df86b127dc5ad28f41306ed3f9c27d Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Thu, 13 Jul 2023 16:47:25 +0800
+Subject: [PATCH 21/36] [Huawei] ext4: Add debug message to notify user space
+ is out of free
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188972
+
+--------------------------------
+
+Add debug message to notify user that ext4_writepages is stuck in loop
+caused by ENOSPC.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/inode.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index ed2c466ad891..11bbc9f53fc0 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -2695,6 +2695,9 @@ static int ext4_writepages(struct address_space *mapping,
+ 	struct ext4_sb_info *sbi = EXT4_SB(mapping->host->i_sb);
+ 	struct blk_plug plug;
+ 	bool give_up_on_write = false;
++	unsigned long retry_warn_ddl = 0;
++
++#define RETRY_WARN_TIMEOUT (30 * HZ)
+ 
+ 	if (unlikely(ext4_forced_shutdown(EXT4_SB(inode->i_sb))))
+ 		return -EIO;
+@@ -2876,6 +2879,15 @@ static int ext4_writepages(struct address_space *mapping,
+ 		mpd.io_submit.io_end = NULL;
+ 
+ 		if (ret == -ENOSPC && sbi->s_journal) {
++			if (!retry_warn_ddl) {
++				retry_warn_ddl = jiffies + RETRY_WARN_TIMEOUT;
++			} else if (time_after(jiffies, retry_warn_ddl)) {
++				retry_warn_ddl = jiffies + RETRY_WARN_TIMEOUT;
++				ext4_warning(inode->i_sb, "There are no free blocks available for writing pages, total free %llu, pending free %u, please delete big files to free space",
++					ext4_count_free_clusters(inode->i_sb),
++					sbi->s_mb_free_pending);
++			}
++
+ 			/*
+ 			 * Commit the transaction which would
+ 			 * free blocks released in the transaction
+@@ -2884,6 +2896,8 @@ static int ext4_writepages(struct address_space *mapping,
+ 			jbd2_journal_force_commit_nested(sbi->s_journal);
+ 			ret = 0;
+ 			continue;
++		} else {
++			retry_warn_ddl = 0;
+ 		}
+ 		/* Fatal error - ENOMEM, EIO... */
+ 		if (ret)
+-- 
+2.17.1
+

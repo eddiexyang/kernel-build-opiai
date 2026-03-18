@@ -1,0 +1,62 @@
+From a04120fb7dfca9261052f105176d4f80c3c07181 Mon Sep 17 00:00:00 2001
+From: Anders Roxell <anders.roxell@linaro.org>
+Date: Wed, 27 Apr 2022 11:17:00 +0800
+Subject: [PATCH 0549/2065] [Backport] powerpc/cell: Fix clang
+ -Wimplicit-fallthrough warning
+
+stable inclusion
+from stable-v5.10.94
+commit 19aaef65194854e8e880084f52645fb77b54188d
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=19aaef65194854e8e880084f52645fb77b54188d
+
+--------------------------------
+
+commit e89257e28e844f5d1d39081bb901d9f1183a7705 upstream.
+
+Clang warns:
+
+arch/powerpc/platforms/cell/pervasive.c:81:2: error: unannotated fall-through between switch labels
+        case SRR1_WAKEEE:
+        ^
+arch/powerpc/platforms/cell/pervasive.c:81:2: note: insert 'break;' to avoid fall-through
+        case SRR1_WAKEEE:
+        ^
+        break;
+1 error generated.
+
+Clang is more pedantic than GCC, which does not warn when failing
+through to a case that is just break or return. Clang's version is more
+in line with the kernel's own stance in deprecated.rst. Add athe missing
+break to silence the warning.
+
+Fixes: 6e83985b0f6e ("powerpc/cbe: Do not process external or decremeter interrupts from sreset")
+Reported-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Signed-off-by: Anders Roxell <anders.roxell@linaro.org>
+Reviewed-by: Nathan Chancellor <nathan@kernel.org>
+Reviewed-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20211207110228.698956-1-anders.roxell@linaro.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ arch/powerpc/platforms/cell/pervasive.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/platforms/cell/pervasive.c b/arch/powerpc/platforms/cell/pervasive.c
+index 9068edef71f7..59999902e4a6 100644
+--- a/arch/powerpc/platforms/cell/pervasive.c
++++ b/arch/powerpc/platforms/cell/pervasive.c
+@@ -77,6 +77,7 @@ static int cbe_system_reset_exception(struct pt_regs *regs)
+ 	switch (regs->msr & SRR1_WAKEMASK) {
+ 	case SRR1_WAKEDEC:
+ 		set_dec(1);
++		break;
+ 	case SRR1_WAKEEE:
+ 		/*
+ 		 * Handle these when interrupts get re-enabled and we take
+-- 
+2.17.1
+

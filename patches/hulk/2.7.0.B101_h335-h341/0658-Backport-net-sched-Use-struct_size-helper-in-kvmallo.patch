@@ -1,0 +1,45 @@
+From fcd93349d010914ca59ce6f08b02d29ccc2d3135 Mon Sep 17 00:00:00 2001
+From: "Gustavo A. R. Silva" <gustavoars@kernel.org>
+Date: Wed, 29 Sep 2021 15:17:18 -0500
+Subject: [PATCH 658/921] [Backport] net: sched: Use struct_size() helper in
+ kvmalloc()
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 129291980f4901ae68ee3ba4344bdc38cf5f800d
+category: bugfix
+bugzilla: 188623
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=129291980f4901ae68ee3ba4344bdc38cf5f800d
+
+--------------------------------
+
+Make use of the struct_size() helper instead of an open-coded version,
+in order to avoid any potential type mistakes or integer overflows
+that, in the worst scenario, could lead to heap overflows.
+
+Link: https://github.com/KSPP/linux/issues/160
+Signed-off-by: Gustavo A. R. Silva <gustavoars@kernel.org>
+Link: https://lore.kernel.org/r/20210929201718.GA342296@embeddedor
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Zhengchao Shao <shaozhengchao@huawei.com>
+---
+ net/sched/sch_netem.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/sched/sch_netem.c b/net/sched/sch_netem.c
+index adc5407fd5d5..b72b308fe406 100644
+--- a/net/sched/sch_netem.c
++++ b/net/sched/sch_netem.c
+@@ -785,7 +785,7 @@ static int get_dist_table(struct Qdisc *sch, struct disttable **tbl,
+ 	if (!n || n > NETEM_DIST_MAX)
+ 		return -EINVAL;
+ 
+-	d = kvmalloc(sizeof(struct disttable) + n * sizeof(s16), GFP_KERNEL);
++	d = kvmalloc(struct_size(d, table, n), GFP_KERNEL);
+ 	if (!d)
+ 		return -ENOMEM;
+ 
+-- 
+2.17.1
+

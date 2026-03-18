@@ -1,0 +1,66 @@
+From bd179287aac7cb3849c6ead341fcb2eb0e2a8be4 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Fri, 7 Apr 2023 09:13:17 +0800
+Subject: [PATCH 912/921] [Huawei] wchan: Fix get_wchan() when task in schedule
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188409
+
+--------------------------------
+
+get_wchan() check task to unwind is not running or going to run by:
+state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq
+
+However this cannot detect task which is going to be scheduled out.
+For example, in this path:
+
+  __wait_for_common(x, schedule_timeout, timeout, TASK_UNINTERRUPTIBLE)
+  do_wait_for_common() // state == TASK_UNINTERRUPTIBLE
+  schedule_timeout()
+  __schedule()
+    deactivate_task() // on_rq = 0
+
+After this point get_wchan() can be run on the task but it is still
+running actually, and p->pi_lock doesn't work for this case.
+
+It can trigger some warning when running stacktrace on a running task.
+Also check p->on_cpu to promise task is really switched out to prevent
+this.
+
+Fixes: 42a20f86dc19 ("sched: Add wrapper for get_wchan() to keep task blocked")
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ kernel/sched/core.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index bc657cbbbd91..8389ecfecfe4 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -1585,6 +1585,7 @@ unsigned long get_wchan(struct task_struct *p)
+ {
+ 	unsigned long ip = 0;
+ 	long state;
++	int on_cpu = 0;
+ 
+ 	if (!p || p == current)
+ 		return 0;
+@@ -1592,8 +1593,12 @@ unsigned long get_wchan(struct task_struct *p)
+ 	/* Only get wchan if task is blocked and we can keep it that way. */
+ 	raw_spin_lock_irq(&p->pi_lock);
+ 	state = p->state;
++#ifdef CONFIG_SMP
++	on_cpu = p->on_cpu;
++#endif
+ 	smp_rmb(); /* see try_to_wake_up() */
+-	if (state != TASK_RUNNING && state != TASK_WAKING && !p->on_rq)
++	if (state != TASK_RUNNING && state != TASK_WAKING &&
++	    !p->on_rq && !on_cpu)
+ 		ip = __get_wchan(p);
+ 	raw_spin_unlock_irq(&p->pi_lock);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,5 @@
+if (${PRODUCT_SIDE} STREQUAL host)
+    add_subdirectory(adapt)
+else ()
+    add_subdirectory(agent)
+endif()

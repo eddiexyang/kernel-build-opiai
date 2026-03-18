@@ -1,0 +1,121 @@
+From a260239553b1769fab9447226038e625106d4247 Mon Sep 17 00:00:00 2001
+From: Chen Wandun <chenwandun@huawei.com>
+Date: Fri, 20 May 2022 16:19:13 +0800
+Subject: [PATCH 2193/2592] [Huawei] psi: make kabi compatibility for psi in
+ struct cgroup
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I562O9
+
+--------------------------------
+
+The cgroup structures are all allocated by the core kernel
+code at run time. It is also accessed only the cgroup core code
+and so changes made to the cgroup structure should not affect
+third-party kernel modules. However, a number of important kernel
+data structures do contain pointer to a cgroup structure and so
+the kABI signature has to be maintained.
+
+Signed-off-by: Chen Wandun <chenwandun@huawei.com>
+---
+ include/linux/cgroup-defs.h |  5 +++++
+ include/linux/psi_types.h   | 44 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+)
+
+diff --git a/include/linux/cgroup-defs.h b/include/linux/cgroup-defs.h
+index 55b9a3924cd7..4991c158e09e 100644
+--- a/include/linux/cgroup-defs.h
++++ b/include/linux/cgroup-defs.h
+@@ -488,6 +488,11 @@ struct cgroup {
+ 	struct work_struct release_agent_work;
+ 
+ 	/* used to track pressure stalls */
++
++	/*
++	 * It is accessed only the cgroup core code and so changes made to
++	 * the cgroup structure should not affect third-party kernel modules.
++	 */
+ 	struct psi_group psi;
+ 
+ 	/* used to store eBPF programs */
+diff --git a/include/linux/psi_types.h b/include/linux/psi_types.h
+index 17d74f62c181..b048bfc6bb21 100644
+--- a/include/linux/psi_types.h
++++ b/include/linux/psi_types.h
+@@ -10,6 +10,28 @@
+ #ifdef CONFIG_PSI
+ 
+ /* Tracked task states */
++#ifdef __GENKSYMS__
++/*
++ * This definition is used to keep kabi unchanged,
++ * and **should not changed**
++ */
++enum psi_task_count {
++	NR_IOWAIT,
++	NR_MEMSTALL,
++	NR_RUNNING,
++	/*
++	 * This can't have values other than 0 or 1 and could be
++	 * implemented as a bit flag. But for now we still have room
++	 * in the first cacheline of psi_group_cpu, and this way we
++	 * don't have to special case any state tracking for it.
++	 */
++	NR_ONCPU,
++	NR_PSI_TASK_COUNTS = 4,
++};
++#else
++/*
++ * All modification to psi_task_count should apply to here.
++ */
+ enum psi_task_count {
+ 	NR_IOWAIT,
+ 	NR_MEMSTALL,
+@@ -23,6 +45,7 @@ enum psi_task_count {
+ 	NR_ONCPU,
+ 	NR_PSI_TASK_COUNTS = 4,
+ };
++#endif
+ 
+ /* Task state bitmasks */
+ #define TSK_IOWAIT	(1 << NR_IOWAIT)
+@@ -44,6 +67,25 @@ enum psi_res {
+  * SOME: Stalled tasks & working tasks
+  * FULL: Stalled tasks & no working tasks
+  */
++#ifdef __GENKSYMS__
++/*
++ * This definition is used to keep kabi unchanged,
++ * and **should not changed**
++ */
++enum psi_states {
++	PSI_IO_SOME,
++	PSI_IO_FULL,
++	PSI_MEM_SOME,
++	PSI_MEM_FULL,
++	PSI_CPU_SOME,
++	/* Only per-CPU, to weigh the CPU in the global average: */
++	PSI_NONIDLE,
++	NR_PSI_STATES = 6,
++};
++#else
++/*
++ * All modification to psi_states should apply to here.
++ */
+ enum psi_states {
+ 	PSI_IO_SOME,
+ 	PSI_IO_FULL,
+@@ -54,6 +96,8 @@ enum psi_states {
+ 	PSI_NONIDLE,
+ 	NR_PSI_STATES = 6,
+ };
++#endif
++
+ 
+ enum psi_aggregators {
+ 	PSI_AVGS = 0,
+-- 
+2.17.1
+

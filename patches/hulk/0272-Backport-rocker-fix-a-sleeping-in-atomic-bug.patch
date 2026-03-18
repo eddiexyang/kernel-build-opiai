@@ -1,0 +1,47 @@
+From c8f0f6f594d00ef5fac2f93130b23d77c16d54c2 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Wed, 27 Apr 2022 11:12:20 +0800
+Subject: [PATCH 0272/2065] [Backport] rocker: fix a sleeping in atomic bug
+
+stable inclusion
+from stable-v5.10.94
+commit a1068bfee47aaef6fcf58610df6c35c032412baf
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a1068bfee47aaef6fcf58610df6c35c032412baf
+
+--------------------------------
+
+[ Upstream commit 43d012123122cc69feacab55b71369f386c19566 ]
+
+This code is holding the &ofdpa->flow_tbl_lock spinlock so it is not
+allowed to sleep.  That means we have to pass the OFDPA_OP_FLAG_NOWAIT
+flag to ofdpa_flow_tbl_del().
+
+Fixes: 936bd486564a ("rocker: use FIB notifications instead of switchdev calls")
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/net/ethernet/rocker/rocker_ofdpa.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/rocker/rocker_ofdpa.c b/drivers/net/ethernet/rocker/rocker_ofdpa.c
+index 7072b249c8bd..815766620979 100644
+--- a/drivers/net/ethernet/rocker/rocker_ofdpa.c
++++ b/drivers/net/ethernet/rocker/rocker_ofdpa.c
+@@ -2795,7 +2795,8 @@ static void ofdpa_fib4_abort(struct rocker *rocker)
+ 		if (!ofdpa_port)
+ 			continue;
+ 		nh->fib_nh_flags &= ~RTNH_F_OFFLOAD;
+-		ofdpa_flow_tbl_del(ofdpa_port, OFDPA_OP_FLAG_REMOVE,
++		ofdpa_flow_tbl_del(ofdpa_port,
++				   OFDPA_OP_FLAG_REMOVE | OFDPA_OP_FLAG_NOWAIT,
+ 				   flow_entry);
+ 	}
+ 	spin_unlock_irqrestore(&ofdpa->flow_tbl_lock, flags);
+-- 
+2.17.1
+

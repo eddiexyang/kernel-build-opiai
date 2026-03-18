@@ -1,0 +1,39 @@
+From ccc73b102c59672a0463bebf01478711e30f33ec Mon Sep 17 00:00:00 2001
+From: Lin Wang <lin.x.wang@intel.com>
+Date: Sat, 19 Nov 2022 14:49:16 +0800
+Subject: [PATCH 0859/1646] [Backport] x86/fpu: Fix KABI broken caused by
+ introducing of guest permissions in struct fpu
+
+Intel inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://gitee.com/openeuler/kernel/commit/7ea464f567fb4d8cd8f64275d7d3f290ab6332a0
+
+--------------------------------
+
+Using KABI_EXTEND macro to avoid kabi change caused by the commit:
+980fe2fddcff x86/fpu: Extend fpu_xstate_prctl() with guest permissions
+
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/fpu/types.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/include/asm/fpu/types.h b/arch/x86/include/asm/fpu/types.h
+index dde4bd43c7cc..1ab041f14482 100644
+--- a/arch/x86/include/asm/fpu/types.h
++++ b/arch/x86/include/asm/fpu/types.h
+@@ -485,7 +485,7 @@ struct fpu {
+ 	 *
+ 	 * Permission related information for guest pseudo FPUs
+ 	 */
+-	struct fpu_state_perm           guest_perm;
++	KABI_EXTEND(struct fpu_state_perm guest_perm)
+ 
+ 	/*
+ 	 * @__fpstate:
+-- 
+2.17.1
+

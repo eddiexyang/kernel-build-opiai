@@ -1,0 +1,46 @@
+From 54eff1950825f2a31538c57adabb9898c6c85b6f Mon Sep 17 00:00:00 2001
+From: Leon Romanovsky <leonro@nvidia.com>
+Date: Wed, 27 Apr 2022 11:17:43 +0800
+Subject: [PATCH 0592/2065] [Backport] devlink: Remove misleading
+ internal_flags from health reporter dump
+
+stable inclusion
+from stable-v5.10.94
+commit f6d4c0e017ec34f6f356d34d93776575dc174b82
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f6d4c0e017ec34f6f356d34d93776575dc174b82
+
+--------------------------------
+
+commit e9538f8270db24d272659e15841854c7ea11119e upstream.
+
+DEVLINK_CMD_HEALTH_REPORTER_DUMP_GET command doesn't have .doit callback
+and has no use in internal_flags at all. Remove this misleading assignment.
+
+Fixes: e44ef4e4516c ("devlink: Hang reporter's dump method on a dumpit cb")
+Signed-off-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ net/core/devlink.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/net/core/devlink.c b/net/core/devlink.c
+index 442b67c044a9..646d90f63daf 100644
+--- a/net/core/devlink.c
++++ b/net/core/devlink.c
+@@ -7852,8 +7852,6 @@ static const struct genl_small_ops devlink_nl_ops[] = {
+ 			    GENL_DONT_VALIDATE_DUMP_STRICT,
+ 		.dumpit = devlink_nl_cmd_health_reporter_dump_get_dumpit,
+ 		.flags = GENL_ADMIN_PERM,
+-		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK_OR_PORT |
+-				  DEVLINK_NL_FLAG_NO_LOCK,
+ 	},
+ 	{
+ 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_DUMP_CLEAR,
+-- 
+2.17.1
+

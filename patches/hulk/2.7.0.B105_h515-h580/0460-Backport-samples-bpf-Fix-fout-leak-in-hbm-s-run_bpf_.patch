@@ -1,0 +1,45 @@
+From 6b3379d77208ed57b5106cb0a94b149be6d2a2c1 Mon Sep 17 00:00:00 2001
+From: Hao Zeng <zenghao@kylinos.cn>
+Date: Tue, 11 Apr 2023 16:43:49 +0800
+Subject: [PATCH 460/780] [Backport] samples/bpf: Fix fout leak in hbm's
+ run_bpf_prog
+
+stable inclusion
+from stable-v5.10.181
+commit 7560ed6592ff4077528c239c71e91b19de985b97
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7560ed6592ff4077528c239c71e91b19de985b97
+
+--------------------------------
+
+[ Upstream commit 23acb14af1914010dd0aae1bbb7fab28bf518b8e ]
+
+Fix fout being fopen'ed but then not subsequently fclose'd. In the affected
+branch, fout is otherwise going out of scope.
+
+Signed-off-by: Hao Zeng <zenghao@kylinos.cn>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230411084349.1999628-1-zenghao@kylinos.cn
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ samples/bpf/hbm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/samples/bpf/hbm.c b/samples/bpf/hbm.c
+index ff4c533dfac2..8e48489b96ae 100644
+--- a/samples/bpf/hbm.c
++++ b/samples/bpf/hbm.c
+@@ -308,6 +308,7 @@ static int run_bpf_prog(char *prog, int cg_id)
+ 		fout = fopen(fname, "w");
+ 		fprintf(fout, "id:%d\n", cg_id);
+ 		fprintf(fout, "ERROR: Could not lookup queue_stats\n");
++		fclose(fout);
+ 	} else if (stats_flag && qstats.lastPacketTime >
+ 		   qstats.firstPacketTime) {
+ 		long long delta_us = (qstats.lastPacketTime -
+-- 
+2.17.1
+

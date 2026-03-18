@@ -1,0 +1,92 @@
+From 838443f8f61f428d07da20331e698a5324c18492 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Sat, 20 May 2023 19:52:42 +0800
+Subject: [PATCH 234/780] [Huawei] sysctl: Add proc interface to configure
+ capacity factor
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188931
+
+--------------------------------
+
+Add two proc interface to configure capacity fator
+/proc/sys/kernel/sched_multi_task_factor is used for configure parallel
+running capacity factor, default value 60.
+/proc/sys/kernel/sched_single_task_factor is used for configure single
+running capacity factor, default value 100.
+
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ include/linux/sched/sysctl.h |  5 +++++
+ kernel/sched/cpuacct.c       |  5 +++++
+ kernel/sysctl.c              | 20 ++++++++++++++++++++
+ 3 files changed, 30 insertions(+)
+
+diff --git a/include/linux/sched/sysctl.h b/include/linux/sched/sysctl.h
+index 380f6cb6bbfe..a829bbf5ddd1 100644
+--- a/include/linux/sched/sysctl.h
++++ b/include/linux/sched/sysctl.h
+@@ -35,6 +35,11 @@ extern unsigned int sysctl_sched_child_runs_first;
+ extern int sysctl_sched_util_low_pct;
+ #endif
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++extern unsigned int sysctl_multi_task_factor;
++extern unsigned int sysctl_single_task_factor;
++#endif
++
+ enum sched_tunable_scaling {
+ 	SCHED_TUNABLESCALING_NONE,
+ 	SCHED_TUNABLESCALING_LOG,
+diff --git a/kernel/sched/cpuacct.c b/kernel/sched/cpuacct.c
+index 21468ef13b51..f48c2dcd8340 100644
+--- a/kernel/sched/cpuacct.c
++++ b/kernel/sched/cpuacct.c
+@@ -294,6 +294,11 @@ static int cpuacct_stats_show(struct seq_file *sf, void *v)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++unsigned int __read_mostly sysctl_multi_task_factor = 60;
++unsigned int __read_mostly sysctl_single_task_factor = 100;
++#endif
++
+ static struct cftype files[] = {
+ 	{
+ 		.name = "usage",
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index e73581a860a4..bbbb9a7bc869 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -2857,6 +2857,26 @@ static struct ctl_table kern_table[] = {
+ 		.extra1         = SYSCTL_ZERO,
+ 		.extra2         = SYSCTL_ONE,
+ 	},
++#endif
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	{
++		.procname       = "sched_multi_task_factor",
++		.data           = &sysctl_multi_task_factor,
++		.maxlen         = sizeof(sysctl_multi_task_factor),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec_minmax,
++		.extra1         = SYSCTL_ONE,
++		.extra2         = &one_hundred,
++	},
++	{
++		.procname       = "sched_single_task_factor",
++		.data           = &sysctl_single_task_factor,
++		.maxlen         = sizeof(sysctl_single_task_factor),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec_minmax,
++		.extra1         = SYSCTL_ONE,
++		.extra2         = &one_hundred,
++	},
+ #endif
+ 	{ }
+ };
+-- 
+2.17.1
+

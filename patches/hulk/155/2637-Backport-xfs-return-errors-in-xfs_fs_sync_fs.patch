@@ -1,0 +1,54 @@
+From e96d6b32b392d652e4a14a75b1032df9112713b8 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Sun, 30 Jan 2022 08:53:17 -0800
+Subject: [PATCH 2637/4585] [Backport] xfs: return errors in xfs_fs_sync_fs
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 2d86293c70750e4331e9616aded33ab6b47c299d
+category: bugfix
+bugzilla: 186909
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2d86293c70750e4331e9616aded33ab6b47c299d
+
+--------------------------------
+
+Now that the VFS will do something with the return values from
+->sync_fs, make ours pass on error codes.
+
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Acked-by: Christian Brauner <brauner@kernel.org>
+Signed-off-by: Guo Xuenan <guoxuenan@huawei.com>
+---
+ fs/xfs/xfs_super.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c
+index 9148170a12cb..66dc20224530 100644
+--- a/fs/xfs/xfs_super.c
++++ b/fs/xfs/xfs_super.c
+@@ -729,6 +729,7 @@ xfs_fs_sync_fs(
+ 	int			wait)
+ {
+ 	struct xfs_mount	*mp = XFS_M(sb);
++	int			error;
+ 
+ 	trace_xfs_fs_sync_fs(mp, __return_address);
+ 
+@@ -738,7 +739,10 @@ xfs_fs_sync_fs(
+ 	if (!wait)
+ 		return 0;
+ 
+-	xfs_log_force(mp, XFS_LOG_SYNC);
++	error = xfs_log_force(mp, XFS_LOG_SYNC);
++	if (error)
++		return error;
++
+ 	if (laptop_mode) {
+ 		/*
+ 		 * The disk must be active because we're syncing.
+-- 
+2.17.1
+

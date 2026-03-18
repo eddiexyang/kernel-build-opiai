@@ -1,0 +1,47 @@
+From e25ff3bc83751017011ce43d6d7bffb66699748e Mon Sep 17 00:00:00 2001
+From: Jiasheng Jiang <jiasheng@iscas.ac.cn>
+Date: Wed, 8 Feb 2023 08:14:42 +0100
+Subject: [PATCH 133/780] [Backport] media: bdisp: Add missing check for
+ create_workqueue
+
+stable inclusion
+from stable-v5.10.180
+commit 4362444dca02ab44ac844feda3cf6238ef953673
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4362444dca02ab44ac844feda3cf6238ef953673
+
+--------------------------------
+
+[ Upstream commit 2371adeab717d8fe32144a84f3491a03c5838cfb ]
+
+Add the check for the return value of the create_workqueue
+in order to avoid NULL pointer dereference.
+
+Fixes: 28ffeebbb7bd ("[media] bdisp: 2D blitter driver using v4l2 mem2mem framework")
+Signed-off-by: Jiasheng Jiang <jiasheng@iscas.ac.cn>
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/media/platform/sti/bdisp/bdisp-v4l2.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/sti/bdisp/bdisp-v4l2.c b/drivers/media/platform/sti/bdisp/bdisp-v4l2.c
+index 85288da9d2ae..182e5a4aeb17 100644
+--- a/drivers/media/platform/sti/bdisp/bdisp-v4l2.c
++++ b/drivers/media/platform/sti/bdisp/bdisp-v4l2.c
+@@ -1310,6 +1310,8 @@ static int bdisp_probe(struct platform_device *pdev)
+ 	init_waitqueue_head(&bdisp->irq_queue);
+ 	INIT_DELAYED_WORK(&bdisp->timeout_work, bdisp_irq_timeout);
+ 	bdisp->work_queue = create_workqueue(BDISP_NAME);
++	if (!bdisp->work_queue)
++		return -ENOMEM;
+ 
+ 	spin_lock_init(&bdisp->slock);
+ 	mutex_init(&bdisp->lock);
+-- 
+2.17.1
+

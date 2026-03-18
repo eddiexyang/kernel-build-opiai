@@ -1,0 +1,56 @@
+From 8b313744b8e454af39130242d12c700f34b0cf45 Mon Sep 17 00:00:00 2001
+From: Junlin Yang <yangjunlin@yulong.com>
+Date: Fri, 9 Apr 2021 21:54:26 +0800
+Subject: [PATCH 233/905] [Backport] pata_ipx4xx_cf: Fix unsigned comparison
+ with less than zero
+
+stable inclusion
+from stable-v5.10.163
+commit 7e0ba56c7e5f150af14c15425d2eec1f9ee3e735
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7e0ba56c7e5f150af14c15425d2eec1f9ee3e735
+
+--------------------------------
+
+[ Upstream commit c38ae56ee034623c59e39c0130ca0dec086c1a39 ]
+
+The return from the call to platform_get_irq() is int, it can be
+a negative error code, however this is being assigned to an unsigned
+int variable 'irq', so making 'irq' an int, and change the position to
+keep the code format.
+
+./drivers/ata/pata_ixp4xx_cf.c:168:5-8:
+WARNING: Unsigned expression compared with zero: irq > 0
+
+Signed-off-by: Junlin Yang <yangjunlin@yulong.com>
+Link: https://lore.kernel.org/r/20210409135426.1773-1-angkery@163.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/ata/pata_ixp4xx_cf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/ata/pata_ixp4xx_cf.c b/drivers/ata/pata_ixp4xx_cf.c
+index abc0e87ca1a8..43215a4c1e54 100644
+--- a/drivers/ata/pata_ixp4xx_cf.c
++++ b/drivers/ata/pata_ixp4xx_cf.c
+@@ -135,12 +135,12 @@ static void ixp4xx_setup_port(struct ata_port *ap,
+ 
+ static int ixp4xx_pata_probe(struct platform_device *pdev)
+ {
+-	unsigned int irq;
+ 	struct resource *cs0, *cs1;
+ 	struct ata_host *host;
+ 	struct ata_port *ap;
+ 	struct ixp4xx_pata_data *data = dev_get_platdata(&pdev->dev);
+ 	int ret;
++	int irq;
+ 
+ 	cs0 = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	cs1 = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+-- 
+2.17.1
+

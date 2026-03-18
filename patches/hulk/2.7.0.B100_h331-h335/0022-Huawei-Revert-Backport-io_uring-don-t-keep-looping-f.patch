@@ -1,0 +1,70 @@
+From 2e54e068734bc14ecba3a4755814165e132aee70 Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Mon, 6 Feb 2023 22:13:45 +0800
+Subject: [PATCH 022/500] [Huawei] Revert "[Backport] io_uring: don't keep
+ looping for more events if we can't flush overflow"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188335
+
+-------------------------------
+
+This reverts commit 8433cdf657463ee95b7d5d791c5b5d9e707697f1.
+
+We need to apply patch 788d0824269bef (io_uring: import 5.15-stable
+io_uring) to move io_uring to separate directory and solve
+the problem of CVE-2023-0240.
+This patch can be reverted since patch 788d0824269bef contains it.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/io_uring.c | 14 +++-----------
+ 1 file changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index d7391a1e0584..78cd4695b21d 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -1719,22 +1719,18 @@ static bool __io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force,
+ 	return cqe != NULL;
+ }
+ 
+-static bool io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force,
++static void io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force,
+ 				     struct task_struct *tsk,
+ 				     struct files_struct *files)
+ {
+-	bool ret = true;
+-
+ 	if (test_bit(0, &ctx->cq_check_overflow)) {
+ 		/* iopoll syncs against uring_lock, not completion_lock */
+ 		if (ctx->flags & IORING_SETUP_IOPOLL)
+ 			mutex_lock(&ctx->uring_lock);
+-		ret = __io_cqring_overflow_flush(ctx, force, tsk, files);
++		__io_cqring_overflow_flush(ctx, force, tsk, files);
+ 		if (ctx->flags & IORING_SETUP_IOPOLL)
+ 			mutex_unlock(&ctx->uring_lock);
+ 	}
+-
+-	return ret;
+ }
+ 
+ static void __io_cqring_fill_event(struct io_kiocb *req, long res,
+@@ -7036,11 +7032,7 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
+ 	iowq.nr_timeouts = atomic_read(&ctx->cq_timeouts);
+ 	trace_io_uring_cqring_wait(ctx, min_events);
+ 	do {
+-		/* if we can't even flush overflow, don't wait for more */
+-		if (!io_cqring_overflow_flush(ctx, false, NULL, NULL)) {
+-			ret = -EBUSY;
+-			break;
+-		}
++		io_cqring_overflow_flush(ctx, false, NULL, NULL);
+ 		prepare_to_wait_exclusive(&ctx->wait, &iowq.wq,
+ 						TASK_INTERRUPTIBLE);
+ 		/* make sure we run task_work before checking for signals */
+-- 
+2.17.1
+

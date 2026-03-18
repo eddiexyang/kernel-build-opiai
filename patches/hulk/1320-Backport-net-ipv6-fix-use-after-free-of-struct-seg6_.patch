@@ -1,0 +1,47 @@
+From 7ad6c5a7fbfd4e612b3709a7f2033c43c27c7022 Mon Sep 17 00:00:00 2001
+From: MichelleJin <shjy180909@gmail.com>
+Date: Sat, 2 Oct 2021 22:33:32 +0000
+Subject: [PATCH 1320/2065] [Backport] net: ipv6: fix use after free of struct
+ seg6_pernet_data
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 23b08260481ca552180130bbef0f3a60df4c092e
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I55ZC1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=23b08260481ca552180130bbef0f3a60df4c092e
+
+--------------------------------
+
+sdata->tun_src should be freed before sdata is freed
+because sdata->tun_src is allocated after sdata allocation.
+So, kfree(sdata) and kfree(rcu_dereference_raw(sdata->tun_src)) are
+changed code order.
+
+Fixes: f04ed7d277e8 ("net: ipv6: check return value of rhashtable_init")
+
+Signed-off-by: MichelleJin <shjy180909@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Xu Jia <xujia39@huawei.com>
+---
+ net/ipv6/seg6.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv6/seg6.c b/net/ipv6/seg6.c
+index 0b341be7f6aa..bff6bc75cfb7 100644
+--- a/net/ipv6/seg6.c
++++ b/net/ipv6/seg6.c
+@@ -378,8 +378,8 @@ static int __net_init seg6_net_init(struct net *net)
+ 
+ #ifdef CONFIG_IPV6_SEG6_HMAC
+ 	if (seg6_hmac_net_init(net)) {
+-		kfree(sdata);
+ 		kfree(rcu_dereference_raw(sdata->tun_src));
++		kfree(sdata);
+ 		return -ENOMEM;
+ 	};
+ #endif
+-- 
+2.17.1
+

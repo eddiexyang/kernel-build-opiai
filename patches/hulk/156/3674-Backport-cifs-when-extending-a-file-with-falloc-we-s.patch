@@ -1,0 +1,47 @@
+From c26b4501d6dfb85ca087ec967eb7f7c7b6834609 Mon Sep 17 00:00:00 2001
+From: Ronnie Sahlberg <lsahlber@redhat.com>
+Date: Wed, 1 Jun 2022 08:48:38 +1000
+Subject: [PATCH 3674/4585] [Backport] cifs: when extending a file with falloc
+ we should make files not-sparse
+
+stable inclusion
+from stable-v5.10.121
+commit c9ac773715fcfd15f2f9e61682ba1e1c82290ab5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c9ac773715fcfd15f2f9e61682ba1e1c82290ab5
+
+--------------------------------
+
+commit f66f8b94e7f2f4ac9fffe710be231ca8f25c5057 upstream.
+
+as this is the only way to make sure the region is allocated.
+Fix the conditional that was wrong and only tried to make already
+non-sparse files non-sparse.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Ronnie Sahlberg <lsahlber@redhat.com>
+Signed-off-by: Steve French <stfrench@microsoft.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/cifs/smb2ops.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/cifs/smb2ops.c b/fs/cifs/smb2ops.c
+index c758ff41b638..7fea94ebda57 100644
+--- a/fs/cifs/smb2ops.c
++++ b/fs/cifs/smb2ops.c
+@@ -3632,7 +3632,7 @@ static long smb3_simple_falloc(struct file *file, struct cifs_tcon *tcon,
+ 		if (rc)
+ 			goto out;
+ 
+-		if ((cifsi->cifsAttrs & FILE_ATTRIBUTE_SPARSE_FILE) == 0)
++		if (cifsi->cifsAttrs & FILE_ATTRIBUTE_SPARSE_FILE)
+ 			smb2_set_sparse(xid, tcon, cfile, inode, false);
+ 
+ 		eof = cpu_to_le64(off + len);
+-- 
+2.17.1
+

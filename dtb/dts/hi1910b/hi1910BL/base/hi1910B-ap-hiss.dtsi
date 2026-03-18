@@ -1,0 +1,15 @@
+ap_sfc:int_ap_sfc@C6000000 {
+    compatible = "int_sfc_hiss";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    reg = <0x0 0xC6000000 0 0x10000>;
+    interrupts = <0x0 191 0x4>;
+};
+
+ap_scmi:int_ap_scmi@C41B0000 {
+    compatible = "int_scmi_hiss";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    reg = <0x0 0xC41B0000 0 0x10000>;
+    interrupts = <0x0 196 0x4>;
+};

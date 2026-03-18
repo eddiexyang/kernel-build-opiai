@@ -1,0 +1,91 @@
+From c3cbecaab880e3fdce315e84ff48db3af291e3b6 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Tue, 1 Aug 2023 11:15:17 +0800
+Subject: [PATCH] rootfs: Support binding rootfs to normal nodes
+
+The CDM was used to guarantee the rootfs stays in mirror nodes, after
+replace CDM with moveable nodes, the rootfs needs to be bind to non-movable
+nodes to meet the requirement.
+It guarantees that HBM nodes have only movable zone on milan platform, we
+can bind rootfs to nodes of N_NORMAL_MEMORY state.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ arch/arm64/Kconfig |  9 +++++++++
+ fs/namespace.c     | 33 ++++++++++++++++++++++++++++++++-
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index be601b847..fb00bcaec 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -2186,6 +2186,15 @@ config ASCEND_CLEAR_HUGEPAGE_DISABLE
+ 	  Disable clear hugepage when alloc hugepages to improve the hugepage
+ 	  application performance.
+ 
++config ASCEND_BIND_ROOTFS_ON_NORMAL
++	bool "Bind rootfs to regular nodes"
++	default n
++	depends on TMPFS
++	depends on MEMORY_HOTPLUG
++	help
++	  This feature bind rootfs to regular memory nodes(movable nodes are excluded),
++	  MEMORY_HOTPLUG is necessary as it is required by the feature movable nodes.
++
+ endif
+ 
+ endmenu
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 6e76f2a72..54f8e3c14 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -3806,14 +3806,45 @@ out0:
+ 	return error;
+ }
+ 
++#define ROOTFS_POL_MAXLEN 64
++#ifdef CONFIG_ASCEND_BIND_ROOTFS_ON_NORMAL
++static void *__init format_rootfs_bind_pol(char *rootfs_pol)
++{
++	int nid;
++	nodemask_t normal_nodes;
++	nodes_clear(normal_nodes);
++
++	for_each_node_state(nid, N_NORMAL_MEMORY)
++		node_set(nid, normal_nodes);
++#ifdef CONFIG_COHERENT_DEVICE
++	for_each_node_state(nid, N_COHERENT_DEVICE)
++		node_clear(nid, normal_nodes);
++#endif
++	if (!nodes_empty(normal_nodes)) {
++		snprintf(rootfs_pol, ROOTFS_POL_MAXLEN, "mpol=bind:%*pbl",
++			 nodemask_pr_args(&normal_nodes));
++		return rootfs_pol;
++	}
++
++	return NULL;
++}
++#else
++static void *__init format_rootfs_bind_pol(char *rootfs_pol)
++{
++	return NULL;
++}
++#endif
++
+ static void __init init_mount_tree(void)
+ {
+ 	struct vfsmount *mnt;
+ 	struct mount *m;
+ 	struct mnt_namespace *ns;
+ 	struct path root;
++	char rootfs_pol[ROOTFS_POL_MAXLEN] = {0};
+ 
+-	mnt = vfs_kern_mount(&rootfs_fs_type, 0, "rootfs", NULL);
++	mnt = vfs_kern_mount(&rootfs_fs_type, 0, "rootfs",
++			     format_rootfs_bind_pol(rootfs_pol));
+ 	if (IS_ERR(mnt))
+ 		panic("Can't create rootfs");
+ 
+-- 
+2.17.1
+

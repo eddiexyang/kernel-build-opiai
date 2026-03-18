@@ -1,0 +1,46 @@
+From a47382a3817c045e936ec1473b65e395628e712d Mon Sep 17 00:00:00 2001
+From: Chen Hui <judy.chenhui@huawei.com>
+Date: Tue, 8 Nov 2022 22:19:17 +0800
+Subject: [PATCH 362/921] [Backport] ARM: OMAP2+: Fix memory leak in
+ realtime_counter_init()
+
+stable inclusion
+from stable-v5.10.173
+commit 4862c41d5f3bee1ec64c979c82bd8cfe96b78f7d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4862c41d5f3bee1ec64c979c82bd8cfe96b78f7d
+
+--------------------------------
+
+[ Upstream commit ed8167cbf65c2b6ff6faeb0f96ded4d6d581e1ac ]
+
+The "sys_clk" resource is malloced by clk_get(),
+it is not released when the function return.
+
+Fixes: fa6d79d27614 ("ARM: OMAP: Add initialisation for the real-time counter.")
+Signed-off-by: Chen Hui <judy.chenhui@huawei.com>
+Message-Id: <20221108141917.46796-1-judy.chenhui@huawei.com>
+Signed-off-by: Tony Lindgren <tony@atomide.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/mach-omap2/timer.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/mach-omap2/timer.c b/arch/arm/mach-omap2/timer.c
+index 620ba69c8f11..5677c4a08f37 100644
+--- a/arch/arm/mach-omap2/timer.c
++++ b/arch/arm/mach-omap2/timer.c
+@@ -76,6 +76,7 @@ static void __init realtime_counter_init(void)
+ 	}
+ 
+ 	rate = clk_get_rate(sys_clk);
++	clk_put(sys_clk);
+ 
+ 	if (soc_is_dra7xx()) {
+ 		/*
+-- 
+2.17.1
+

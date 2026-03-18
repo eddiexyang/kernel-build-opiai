@@ -1,0 +1,81 @@
+From 230865a86b68b23b71212d7f05454bad1f2c4548 Mon Sep 17 00:00:00 2001
+From: Muchun Song <songmuchun@bytedance.com>
+Date: Tue, 22 Mar 2022 14:45:12 -0700
+Subject: [PATCH 3574/4585] [Backport] mm: sparsemem: move vmemmap related to
+ HugeTLB to CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit e54084173487804f5e2f23facf107fd9336e637e
+category: feature
+bugzilla: 187198
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e54084173487804f5e2f23facf107fd9336e637e
+
+--------------------------------
+
+The vmemmap_remap_free/alloc are relevant to HugeTLB, so move those
+functiongs to the scope of CONFIG_HUGETLB_PAGE_FREE_VMEMMAP.
+
+Link: https://lkml.kernel.org/r/20211101031651.75851-6-songmuchun@bytedance.com
+Signed-off-by: Muchun Song <songmuchun@bytedance.com>
+Reviewed-by: Barry Song <song.bao.hua@hisilicon.com>
+Cc: Bodeddula Balasubramaniam <bodeddub@amazon.com>
+Cc: Chen Huang <chenhuang5@huawei.com>
+Cc: David Hildenbrand <david@redhat.com>
+Cc: Fam Zheng <fam.zheng@bytedance.com>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: Matthew Wilcox <willy@infradead.org>
+Cc: Michal Hocko <mhocko@suse.com>
+Cc: Mike Kravetz <mike.kravetz@oracle.com>
+Cc: Oscar Salvador <osalvador@suse.de>
+Cc: Qi Zheng <zhengqi.arch@bytedance.com>
+Cc: Xiongchun Duan <duanxiongchun@bytedance.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/mm.h  | 2 ++
+ mm/sparse-vmemmap.c | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index 1e2c4a749a8d..c0edca0d97ee 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -3061,10 +3061,12 @@ static inline void print_vma_addr(char *prefix, unsigned long rip)
+ }
+ #endif
+ 
++#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
+ int vmemmap_remap_free(unsigned long start, unsigned long end,
+ 		       unsigned long reuse);
+ int vmemmap_remap_alloc(unsigned long start, unsigned long end,
+ 			unsigned long reuse, gfp_t gfp_mask);
++#endif
+ 
+ void *sparse_buffer_alloc(unsigned long size);
+ struct page * __populate_section_memmap(unsigned long pfn,
+diff --git a/mm/sparse-vmemmap.c b/mm/sparse-vmemmap.c
+index eef9053f948f..e5ed2680ec57 100644
+--- a/mm/sparse-vmemmap.c
++++ b/mm/sparse-vmemmap.c
+@@ -34,6 +34,7 @@
+ #include <asm/pgalloc.h>
+ #include <asm/tlbflush.h>
+ 
++#ifdef CONFIG_HUGETLB_PAGE_FREE_VMEMMAP
+ /**
+  * struct vmemmap_remap_walk - walk vmemmap page table
+  *
+@@ -419,6 +420,7 @@ int vmemmap_remap_alloc(unsigned long start, unsigned long end,
+ 
+ 	return 0;
+ }
++#endif /* CONFIG_HUGETLB_PAGE_FREE_VMEMMAP */
+ 
+ /*
+  * Allocate a block of memory to be used to back the virtual memory map
+-- 
+2.17.1
+

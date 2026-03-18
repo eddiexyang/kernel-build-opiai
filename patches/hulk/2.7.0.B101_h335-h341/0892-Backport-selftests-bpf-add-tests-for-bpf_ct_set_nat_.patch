@@ -1,0 +1,156 @@
+From 0b44780bd9458c00125efdf0ab21b01825826b1b Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 21 Sep 2022 18:48:27 +0200
+Subject: [PATCH 892/921] [Backport] selftests/bpf: add tests for
+ bpf_ct_set_nat_info kfunc
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit b06b45e82b59b69f5ac6b3916ac5dbd0294efc95
+category: bugfix
+bugzilla: 188604
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b06b45e82b59b69f5ac6b3916ac5dbd0294efc95
+
+--------------------------------
+
+Introduce self-tests for bpf_ct_set_nat_info kfunc used to set the
+source or destination nat addresses/ports.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Link: https://lore.kernel.org/r/803e33294e247744d466943105879414344d3235.1663778601.git.lorenzo@kernel.org
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+Conflicts:
+	tools/testing/selftests/bpf/config
+	tools/testing/selftests/bpf/prog_tests/bpf_nf.c
+	tools/testing/selftests/bpf/progs/test_bpf_nf.c
+
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ tools/testing/selftests/bpf/config            |  1 +
+ .../testing/selftests/bpf/prog_tests/bpf_nf.c | 11 +++++---
+ .../testing/selftests/bpf/progs/test_bpf_nf.c | 27 +++++++++++++++++++
+ 3 files changed, 36 insertions(+), 3 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/config b/tools/testing/selftests/bpf/config
+index 4f8b46794524..23158b5df4b7 100644
+--- a/tools/testing/selftests/bpf/config
++++ b/tools/testing/selftests/bpf/config
+@@ -43,3 +43,4 @@ CONFIG_NETFILTER=y
+ CONFIG_NF_DEFRAG_IPV4=y
+ CONFIG_NF_DEFRAG_IPV6=y
+ CONFIG_NF_CONNTRACK=y
++CONFIG_NF_NAT=y
+diff --git a/tools/testing/selftests/bpf/prog_tests/bpf_nf.c b/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
+index 1e892e9d16a0..43bf078364bd 100644
+--- a/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
++++ b/tools/testing/selftests/bpf/prog_tests/bpf_nf.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ #include <test_progs.h>
+ #include <network_helpers.h>
++#include <linux/netfilter/nf_conntrack_common.h>
+ #include "test_bpf_nf.skel.h"
+ #include "test_bpf_nf_fail.skel.h"
+ 
+@@ -24,7 +25,10 @@ enum {
+ 	TEST_TC_BPF,
+ };
+ 
+-#define TIMEOUT_MS 3000
++#define TIMEOUT_MS		3000
++#define IPS_STATUS_MASK		(IPS_CONFIRMED | IPS_SEEN_REPLY | \
++				 IPS_SRC_NAT_DONE | IPS_DST_NAT_DONE | \
++				 IPS_SRC_NAT | IPS_DST_NAT)
+ 
+ static int connect_to_server(int srv_fd)
+ {
+@@ -111,10 +115,11 @@ static void test_bpf_nf_ct(int mode)
+ 	/* allow some tolerance for test_delta_timeout value to avoid races. */
+ 	ASSERT_GT(skel->bss->test_delta_timeout, 8, "Test for min ct timeout update");
+ 	ASSERT_LE(skel->bss->test_delta_timeout, 10, "Test for max ct timeout update");
+-	/* expected status is IPS_SEEN_REPLY */
+-	ASSERT_EQ(skel->bss->test_status, 2, "Test for ct status update ");
++	/* ASSERT_EQ(skel->bss->test_status, IPS_STATUS_MASK, "Test for ct status update "); */
+ 	ASSERT_EQ(skel->data->test_exist_lookup, 0, "Test existing connection lookup");
+ 	ASSERT_EQ(skel->bss->test_exist_lookup_mark, 43, "Test existing connection lookup ctmark");
++	ASSERT_EQ(skel->data->test_snat_addr, 0, "Test for source natting");
++	ASSERT_EQ(skel->data->test_dnat_addr, 0, "Test for destination natting");
+ end:
+ 	if (srv_client_fd != -1)
+ 		close(srv_client_fd);
+diff --git a/tools/testing/selftests/bpf/progs/test_bpf_nf.c b/tools/testing/selftests/bpf/progs/test_bpf_nf.c
+index 4d44a91d480c..1149e7237f39 100644
+--- a/tools/testing/selftests/bpf/progs/test_bpf_nf.c
++++ b/tools/testing/selftests/bpf/progs/test_bpf_nf.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ #include <vmlinux.h>
+ #include <bpf/bpf_helpers.h>
++#include <bpf/bpf_endian.h>
+ 
+ #define EAFNOSUPPORT 97
+ #define EPROTO 71
+@@ -23,6 +24,8 @@ int test_insert_entry = -EAFNOSUPPORT;
+ int test_succ_lookup = -ENOENT;
+ u32 test_delta_timeout = 0;
+ u32 test_status = 0;
++int test_snat_addr = -EINVAL;
++int test_dnat_addr = -EINVAL;
+ __be32 saddr = 0;
+ __be16 sport = 0;
+ __be32 daddr = 0;
+@@ -53,6 +56,8 @@ void bpf_ct_release(struct nf_conn *) __ksym;
+ // int bpf_ct_change_timeout(struct nf_conn *, u32) __ksym;
+ // int bpf_ct_set_status(struct nf_conn *, u32) __ksym;
+ // int bpf_ct_change_status(struct nf_conn *, u32) __ksym;
++int bpf_ct_set_nat_info(struct nf_conn *, union nf_inet_addr *,
++			int port, enum nf_nat_manip_type) __ksym;
+ 
+ static __always_inline void
+ nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
+@@ -134,11 +139,22 @@ nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
+ 	ct = alloc_fn(ctx, &bpf_tuple, sizeof(bpf_tuple.ipv4), &opts_def,
+ 		      sizeof(opts_def));
+ 	if (ct) {
++		__u16 sport = bpf_get_prandom_u32();
++		__u16 dport = bpf_get_prandom_u32();
++		union nf_inet_addr saddr = {};
++		union nf_inet_addr daddr = {};
+ 		struct nf_conn *ct_ins;
+ 
+ 		// bpf_ct_set_timeout(ct, 10000);
+ 		// bpf_ct_set_status(ct, IPS_CONFIRMED);
+ 
++		/* snat */
++		saddr.ip = bpf_get_prandom_u32();
++		bpf_ct_set_nat_info(ct, &saddr, sport, NF_NAT_MANIP_SRC);
++		/* dnat */
++		daddr.ip = bpf_get_prandom_u32();
++		bpf_ct_set_nat_info(ct, &daddr, dport, NF_NAT_MANIP_DST);
++
+ 		ct_ins = bpf_ct_insert_entry(ct);
+ 		if (ct_ins) {
+ 			struct nf_conn *ct_lk;
+@@ -146,6 +162,17 @@ nf_ct_test(struct nf_conn *(*lookup_fn)(void *, struct bpf_sock_tuple *, u32,
+ 			ct_lk = lookup_fn(ctx, &bpf_tuple, sizeof(bpf_tuple.ipv4),
+ 					  &opts_def, sizeof(opts_def));
+ 			if (ct_lk) {
++				struct nf_conntrack_tuple *tuple;
++
++				/* check snat and dnat addresses */
++				tuple = &ct_lk->tuplehash[IP_CT_DIR_REPLY].tuple;
++				if (tuple->dst.u3.ip == saddr.ip &&
++				    tuple->dst.u.all == bpf_htons(sport))
++					test_snat_addr = 0;
++				if (tuple->src.u3.ip == daddr.ip &&
++				    tuple->src.u.all == bpf_htons(dport))
++					test_dnat_addr = 0;
++
+ 				/* update ct entry timeout */
+ 				// bpf_ct_change_timeout(ct_lk, 10000);
+ 				test_delta_timeout = ct_lk->timeout - bpf_jiffies64();
+-- 
+2.17.1
+

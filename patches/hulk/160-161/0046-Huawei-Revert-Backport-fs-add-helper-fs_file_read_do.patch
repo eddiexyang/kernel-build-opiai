@@ -1,0 +1,96 @@
+From ae691d5226664fda164560022b15e60fc447a9af Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Wed, 16 Nov 2022 10:55:47 +0800
+Subject: [PATCH 0046/1398] [Huawei] Revert "[Backport] fs: add helper
+ fs_file_read_do_trace()"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187975
+
+--------------------------------
+
+This reverts commit 263a0755dd060c7a23d1e7d3d97f5ce5d65c95a9.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/read_write.c    | 33 ---------------------------------
+ include/linux/fs.h | 13 -------------
+ 2 files changed, 46 deletions(-)
+
+diff --git a/fs/read_write.c b/fs/read_write.c
+index d175b5e8d3d3..433ca8ab7c91 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -1682,38 +1682,5 @@ int generic_file_rw_checks(struct file *file_in, struct file *file_out)
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_TRACEPOINTS
+-static void fs_file_read_ctx_init(struct fs_file_read_ctx *ctx,
+-				  struct file *filp, loff_t pos)
+-{
+-	memset(ctx, 0, sizeof(*ctx));
+-	ctx->name = file_dentry(filp)->d_name.name;
+-	ctx->f_ctl_mode = filp->f_ctl_mode;
+-	ctx->key = (unsigned long)filp;
+-	ctx->i_size = file_inode(filp)->i_size;
+-	ctx->prev_index = filp->f_ra.prev_pos >> PAGE_SHIFT;
+-	ctx->index = pos >> PAGE_SHIFT;
+-}
+-
+-#define FS_FILE_READ_VERSION 1
+-#define FS_FILE_READ_MODE_MASK (FMODE_CTL_RANDOM | FMODE_CTL_WILLNEED)
+-
+-void fs_file_read_update_args_by_trace(struct kiocb *iocb)
+-{
+-	struct file *filp = iocb->ki_filp;
+-	struct fs_file_read_ctx ctx;
+-
+-	fs_file_read_ctx_init(&ctx, filp, iocb->ki_pos);
+-	trace_fs_file_read(&ctx, FS_FILE_READ_VERSION);
+-
+-	if (!ctx.set_f_ctl_mode && !ctx.clr_f_ctl_mode)
+-		return;
+-
+-	filp->f_ctl_mode |= ctx.set_f_ctl_mode & FS_FILE_READ_MODE_MASK;
+-	filp->f_ctl_mode &= ~(ctx.clr_f_ctl_mode & FS_FILE_READ_MODE_MASK);
+-}
+-EXPORT_SYMBOL_GPL(fs_file_read_update_args_by_trace);
+-#endif
+-
+ EXPORT_TRACEPOINT_SYMBOL_GPL(fs_file_read);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(fs_file_release);
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 63d451380042..faf911fcc313 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -41,7 +41,6 @@
+ #include <linux/build_bug.h>
+ #include <linux/stddef.h>
+ #include <linux/mount.h>
+-#include <linux/tracepoint-defs.h>
+ 
+ #include <asm/byteorder.h>
+ #include <uapi/linux/fs.h>
+@@ -3571,16 +3570,4 @@ struct fs_file_read_ctx {
+ 	long long index;
+ };
+ 
+-#ifdef CONFIG_TRACEPOINTS
+-DECLARE_TRACEPOINT(fs_file_read);
+-extern void fs_file_read_update_args_by_trace(struct kiocb *iocb);
+-#else
+-static inline void fs_file_read_update_args_by_trace(struct kiocb *iocb) {}
+-#endif
+-
+-static inline void fs_file_read_do_trace(struct kiocb *iocb)
+-{
+-	if (tracepoint_enabled(fs_file_read))
+-		fs_file_read_update_args_by_trace(iocb);
+-}
+ #endif /* _LINUX_FS_H */
+-- 
+2.17.1
+

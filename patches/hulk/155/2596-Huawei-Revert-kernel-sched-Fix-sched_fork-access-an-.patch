@@ -1,0 +1,121 @@
+From a5a4385bf1df0c25fa47544efe5dd22e92e51a93 Mon Sep 17 00:00:00 2001
+From: Zhang Qiao <zhangqiao22@huawei.com>
+Date: Fri, 17 Jun 2022 01:54:53 +0000
+Subject: [PATCH 2596/4585] [Huawei] Revert "kernel/sched: Fix sched_fork()
+ access an invalid sched_task_group"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186973
+
+--------------------------------
+
+This reverts commit 9318da0f04dc2b26e6b772cbc4ae89b1e0015136.
+
+Signed-off-by: Zhang Qiao <zhangqiao22@huawei.com>
+---
+ include/linux/sched/task.h |  3 +--
+ kernel/fork.c              |  2 +-
+ kernel/sched/core.c        | 43 +++++++++++++++++++-------------------
+ 3 files changed, 23 insertions(+), 25 deletions(-)
+
+diff --git a/include/linux/sched/task.h b/include/linux/sched/task.h
+index fa75f325dad5..1a48686673f4 100644
+--- a/include/linux/sched/task.h
++++ b/include/linux/sched/task.h
+@@ -55,8 +55,7 @@ extern asmlinkage void schedule_tail(struct task_struct *prev);
+ extern void init_idle(struct task_struct *idle, int cpu);
+ 
+ extern int sched_fork(unsigned long clone_flags, struct task_struct *p);
+-extern void sched_post_fork(struct task_struct *p,
+-			    struct kernel_clone_args *kargs);
++extern void sched_post_fork(struct task_struct *p);
+ extern void sched_dead(struct task_struct *p);
+ 
+ void __noreturn do_task_dead(void);
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 3b67fb1fd3c4..045b7973a98e 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -2355,7 +2355,7 @@ static __latent_entropy struct task_struct *copy_process(
+ 		fd_install(pidfd, pidfile);
+ 
+ 	proc_fork_connector(p);
+-	sched_post_fork(p, args);
++	sched_post_fork(p);
+ 	cgroup_post_fork(p, args);
+ 	perf_event_fork(p);
+ 
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 5e6d7ce8959c..afc71c858020 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -3277,6 +3277,8 @@ static inline void init_schedstats(void) {}
+  */
+ int sched_fork(unsigned long clone_flags, struct task_struct *p)
+ {
++	unsigned long flags;
++
+ 	__sched_fork(clone_flags, p);
+ 	/*
+ 	 * We mark the process as NEW here. This guarantees that
+@@ -3322,6 +3324,24 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
+ 
+ 	init_entity_runnable_average(&p->se);
+ 
++	/*
++	 * The child is not yet in the pid-hash so no cgroup attach races,
++	 * and the cgroup is pinned to this child due to cgroup_fork()
++	 * is ran before sched_fork().
++	 *
++	 * Silence PROVE_RCU.
++	 */
++	raw_spin_lock_irqsave(&p->pi_lock, flags);
++	rseq_migrate(p);
++	/*
++	 * We're setting the CPU for the first time, we don't migrate,
++	 * so use __set_task_cpu().
++	 */
++	__set_task_cpu(p, smp_processor_id());
++	if (p->sched_class->task_fork)
++		p->sched_class->task_fork(p);
++	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
++
+ #ifdef CONFIG_SCHED_INFO
+ 	if (likely(sched_info_on()))
+ 		memset(&p->sched_info, 0, sizeof(p->sched_info));
+@@ -3337,29 +3357,8 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
+ 	return 0;
+ }
+ 
+-void sched_post_fork(struct task_struct *p, struct kernel_clone_args *kargs)
++void sched_post_fork(struct task_struct *p)
+ {
+-	unsigned long flags;
+-#ifdef CONFIG_CGROUP_SCHED
+-	struct task_group *tg;
+-#endif
+-
+-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+-#ifdef CONFIG_CGROUP_SCHED
+-	tg = container_of(kargs->cset->subsys[cpu_cgrp_id],
+-			  struct task_group, css);
+-	p->sched_task_group = autogroup_task_group(p, tg);
+-#endif
+-	rseq_migrate(p);
+-	/*
+-	 * We're setting the CPU for the first time, we don't migrate,
+-	 * so use __set_task_cpu().
+-	 */
+-	__set_task_cpu(p, smp_processor_id());
+-	if (p->sched_class->task_fork)
+-		p->sched_class->task_fork(p);
+-	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
+-
+ 	uclamp_post_fork(p);
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,44 @@
+From 042a0fd3be1741a0a7d0f640f7ba9188d8cce748 Mon Sep 17 00:00:00 2001
+From: Xia Fukun <xiafukun@huawei.com>
+Date: Mon, 24 Apr 2023 20:11:44 +0800
+Subject: [PATCH 0417/1646] [Huawei] sched/topology: Fix exceptional memory
+ access in sd_llc_free_all()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188345
+
+--------------------------------
+
+The function sd_llc_free_all() will be called to release allocated
+resources when space allocation for the scheduling domain
+structure fails. However, this function did not check if sd
+is a null pointer when releasing sdd resources, resulting in
+an error: "Unable to handle kernel paging request at virtual
+address".
+
+Fix this issue by adding null pointer discrimination.
+
+Fixes: 79bec4c643fb ("sched/topology: Provide hooks to allocate data shared per LLC")
+Signed-off-by: Xia Fukun <xiafukun@huawei.com>
+---
+ kernel/sched/topology.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/topology.c b/kernel/sched/topology.c
+index 9b4e3b25ddff..d8827c0535a8 100644
+--- a/kernel/sched/topology.c
++++ b/kernel/sched/topology.c
+@@ -2035,7 +2035,7 @@ static void sd_llc_free_all(const struct cpumask *cpu_map)
+ 
+ 	for_each_sd_topology(tl) {
+ 		sdd = &tl->data;
+-		if (!sdd)
++		if (!sdd || !sdd->sd)
+ 			continue;
+ 		for_each_cpu(j, cpu_map) {
+ 			sd = *per_cpu_ptr(sdd->sd, j);
+-- 
+2.17.1
+

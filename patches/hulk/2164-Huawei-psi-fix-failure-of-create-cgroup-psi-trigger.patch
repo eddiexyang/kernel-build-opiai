@@ -1,0 +1,39 @@
+From 2cfb57ca0e048c8c506d2b28d31c5a2e479c2db0 Mon Sep 17 00:00:00 2001
+From: Chen Wandun <chenwandun@huawei.com>
+Date: Thu, 5 May 2022 10:12:44 +0800
+Subject: [PATCH 2164/2592] [Huawei] psi: fix failure of create cgroup psi
+ trigger
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186674
+
+--------------------------------
+
+Create cgroup psi would fail after commit:
+41441943bdd1 ("[Backport] psi: Fix uaf issue when psi trigger
+is destroyed while being polled"), this is due to wrong use
+of priv member in kernfs_open_file.
+
+Signed-off-by: Chen Wandun <chenwandun@huawei.com>
+---
+ kernel/cgroup/cgroup.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 7d47c3b6956f..57f4e19df8c6 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -3655,7 +3655,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 	cgroup_kn_unlock(of->kn);
+ 
+ 	/* Allow only one trigger per file descriptor */
+-	if (of->priv) {
++	if (ctx->psi.trigger) {
+ 		cgroup_put(cgrp);
+ 		return -EBUSY;
+ 	}
+-- 
+2.17.1
+

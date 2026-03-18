@@ -1,0 +1,56 @@
+From 3e01862dbf0214297b7aa832a4ea572827c092ef Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:38:24 +0800
+Subject: [PATCH 1122/1646] [Backport] coresight: trbe: Make sure we have
+ enough space
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit adf35d058617c94810c03628efd7ae7821f3c5e7
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=adf35d058617c94810c03628efd7ae7821f3c5e7
+
+--------------------------------
+
+The TRBE driver makes sure that there is enough space for a meaningful
+run, otherwise pads the given space and restarts the offset calculation
+once. But there is no guarantee that we may find space or hit "no space".
+Make sure that we repeat the step until, either :
+  - We have the minimum space
+   OR
+  - There is NO space at all.
+
+Cc: Anshuman Khandual <anshuman.khandual@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Leo Yan <leo.yan@linaro.org>
+Reviewed-by: Anshuman Khandual <anshuman.khandual@arm.com>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20211019163153.3692640-13-suzuki.poulose@arm.com
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/hwtracing/coresight/coresight-trbe.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-trbe.c b/drivers/hwtracing/coresight/coresight-trbe.c
+index 07bdb801d725..277dfae76931 100644
+--- a/drivers/hwtracing/coresight/coresight-trbe.c
++++ b/drivers/hwtracing/coresight/coresight-trbe.c
+@@ -409,9 +409,10 @@ static unsigned long trbe_normal_offset(struct perf_output_handle *handle)
+ 	 * have space for a meaningful run, we rather pad it
+ 	 * and start fresh.
+ 	 */
+-	if (limit && (limit - head < TRBE_TRACE_MIN_BUF_SIZE)) {
++	while (limit && (limit - head < TRBE_TRACE_MIN_BUF_SIZE)) {
+ 		trbe_pad_buf(handle, limit - head);
+ 		limit = __trbe_normal_offset(handle);
++		head = PERF_IDX2OFF(handle->head, buf);
+ 	}
+ 	return limit;
+ }
+-- 
+2.17.1
+

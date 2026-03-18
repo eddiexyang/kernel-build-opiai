@@ -1,0 +1,56 @@
+From 6aaff2c1e9b23bf5d87cb6f40e192e75614bf774 Mon Sep 17 00:00:00 2001
+From: Xiang Chen <chenxiang66@hisilicon.com>
+Date: Tue, 19 Apr 2022 17:06:56 +0800
+Subject: [PATCH 2904/4585] [Backport] scsi: libsas: Add spin_lock/unlock() to
+ protect asd_sas_port->phy_list
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 42159d3c8d879e8d5fc225733f0cedc8baf19002
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I4ZHSV
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=42159d3c8d879e8d5fc225733f0cedc8baf19002
+
+--------------------------------
+
+Most places that use asd_sas_port->phy_list in libsas are protected by
+spinlock asd_sas_port->phy_list_lock. However, there are still a few places
+which miss the lock. Add it in those places.
+
+Link: https://lore.kernel.org/r/1639999298-244569-5-git-send-email-chenxiang66@hisilicon.com
+Reviewed-by: John Garry <john.garry@huawei.com>
+Signed-off-by: Xiang Chen <chenxiang66@hisilicon.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+Signed-off-by: Fujai Ni<nifuijia1@hisilicon.com>
+Reviewed-by: Jason Yan <yanaijie@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/scsi/libsas/sas_event.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/libsas/sas_event.c b/drivers/scsi/libsas/sas_event.c
+index f703115e7a25..af605620ea13 100644
+--- a/drivers/scsi/libsas/sas_event.c
++++ b/drivers/scsi/libsas/sas_event.c
+@@ -104,11 +104,15 @@ void sas_enable_revalidation(struct sas_ha_struct *ha)
+ 		if (!test_and_clear_bit(ev, &d->pending))
+ 			continue;
+ 
+-		if (list_empty(&port->phy_list))
++		spin_lock(&port->phy_list_lock);
++		if (list_empty(&port->phy_list)) {
++			spin_unlock(&port->phy_list_lock);
+ 			continue;
++		}
+ 
+ 		sas_phy = container_of(port->phy_list.next, struct asd_sas_phy,
+ 				port_phy_el);
++		spin_unlock(&port->phy_list_lock);
+ 		sas_notify_port_event(sas_phy,
+ 				PORTE_BROADCAST_RCVD, GFP_KERNEL);
+ 	}
+-- 
+2.17.1
+

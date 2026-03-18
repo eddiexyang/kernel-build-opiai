@@ -1,0 +1,79 @@
+From a32b747ac5b46608b4e8f16888dbff6ae2fcb820 Mon Sep 17 00:00:00 2001
+From: Yicong Yang <yangyicong@hisilicon.com>
+Date: Tue, 27 Sep 2022 21:16:51 +0800
+Subject: [PATCH 543/595] [Backport] spi: hisi-sfc-v3xx: drop unnecessary
+ ACPI_PTR and related ifendif protection
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit 4a46f88681ca514f9cb33b39312d0ec4e2ec84da
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5QUS6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4a46f88681ca
+
+--------------------------------------------------------------------------
+
+We use ACPI_PTR() and related ifendif protection for the id table.
+This is unnecessary as the struct acpi_device_id is defined in
+mod_devicetable.h and doesn't rely on ACPI. The driver doesn't
+use any ACPI apis, so it can be compiled in the ACPI=n case
+with no warnings.
+
+So remove the ACPI_PTR and related ifendif protection, also
+replace the header acpi.h with mod_devicetable.h.
+
+Acked-by: John Garry <john.garry@huawei.com>
+Signed-off-by: Yicong Yang <yangyicong@hisilicon.com>
+Link: https://lore.kernel.org/r/1618228708-37949-3-git-send-email-yangyicong@hisilicon.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Wangming Shao <shaowangming@h-partners.com>
+Reviewed-by: Yicong Yang <yangyicong@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ drivers/spi/spi-hisi-sfc-v3xx.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/spi/spi-hisi-sfc-v3xx.c b/drivers/spi/spi-hisi-sfc-v3xx.c
+index 832b80e7ef67..943b2a77be00 100644
+--- a/drivers/spi/spi-hisi-sfc-v3xx.c
++++ b/drivers/spi/spi-hisi-sfc-v3xx.c
+@@ -5,13 +5,13 @@
+ // Copyright (c) 2019 HiSilicon Technologies Co., Ltd.
+ // Author: John Garry <john.garry@huawei.com>
+ 
+-#include <linux/acpi.h>
+ #include <linux/bitops.h>
+ #include <linux/completion.h>
+ #include <linux/dmi.h>
+ #include <linux/interrupt.h>
+ #include <linux/iopoll.h>
+ #include <linux/module.h>
++#include <linux/mod_devicetable.h>
+ #include <linux/platform_device.h>
+ #include <linux/slab.h>
+ #include <linux/spi/spi.h>
+@@ -484,18 +484,16 @@ static int hisi_sfc_v3xx_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-#if IS_ENABLED(CONFIG_ACPI)
+ static const struct acpi_device_id hisi_sfc_v3xx_acpi_ids[] = {
+ 	{"HISI0341", 0},
+ 	{}
+ };
+ MODULE_DEVICE_TABLE(acpi, hisi_sfc_v3xx_acpi_ids);
+-#endif
+ 
+ static struct platform_driver hisi_sfc_v3xx_spi_driver = {
+ 	.driver = {
+ 		.name	= "hisi-sfc-v3xx",
+-		.acpi_match_table = ACPI_PTR(hisi_sfc_v3xx_acpi_ids),
++		.acpi_match_table = hisi_sfc_v3xx_acpi_ids,
+ 	},
+ 	.probe	= hisi_sfc_v3xx_probe,
+ };
+-- 
+2.17.1
+

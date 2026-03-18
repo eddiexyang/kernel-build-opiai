@@ -1,0 +1,43 @@
+From 516c3e2c6890d142dd443895e6d85154cf13425f Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Wed, 16 Nov 2022 19:20:20 -0800
+Subject: [PATCH 0886/1398] [Backport] xfs: fix incorrect error-out in
+ xfs_remove
+
+mainline inclusion
+from mainline-v6.1-rc4
+commit 2653d53345bda90604f673bb211dd060a5a5c232
+category: bugfix
+bugzilla: 187780
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2653d53345bda90604f673bb211dd060a5a5c232
+
+--------------------------------
+
+Clean up resources if resetting the dotdot entry doesn't succeed.
+Observed through code inspection.
+
+Fixes: 5838d0356bb3 ("xfs: reset child dir '..' entry when unlinking child")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Andrey Albershteyn <aalbersh@redhat.com>
+Signed-off-by: Guo Xuenan <guoxuenan@huawei.com>
+---
+ fs/xfs/xfs_inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/xfs/xfs_inode.c b/fs/xfs/xfs_inode.c
+index c9cf34a4fee8..cb12217b0265 100644
+--- a/fs/xfs/xfs_inode.c
++++ b/fs/xfs/xfs_inode.c
+@@ -2952,7 +2952,7 @@ xfs_remove(
+ 			error = xfs_dir_replace(tp, ip, &xfs_name_dotdot,
+ 					tp->t_mountp->m_sb.sb_rootino, 0);
+ 			if (error)
+-				return error;
++				goto out_trans_cancel;
+ 		}
+ 	} else {
+ 		/*
+-- 
+2.17.1
+

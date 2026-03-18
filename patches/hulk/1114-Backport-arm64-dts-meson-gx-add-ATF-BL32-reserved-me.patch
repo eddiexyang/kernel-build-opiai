@@ -1,0 +1,52 @@
+From 993d8f0a75cafc9a94396d0c864a7df6f773bcfa Mon Sep 17 00:00:00 2001
+From: Christian Hewitt <christianshewitt@gmail.com>
+Date: Wed, 26 Jan 2022 04:49:52 +0000
+Subject: [PATCH 1114/2065] [Backport] arm64: dts: meson-gx: add ATF BL32
+ reserved-memory region
+
+stable inclusion
+from stable-v5.10.102
+commit 605080f19eb7edde039cec7bee1646b2eefeaea2
+bugzilla: https://gitee.com/openeuler/kernel/issues/I567K6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=605080f19eb7edde039cec7bee1646b2eefeaea2
+
+--------------------------------
+
+[ Upstream commit 76577c9137456febb05b0e17d244113196a98968 ]
+
+Add an additional reserved memory region for the BL32 trusted firmware
+present in many devices that boot from Amlogic vendor u-boot.
+
+Suggested-by: Mateusz Krzak <kszaquitto@gmail.com>
+Signed-off-by: Christian Hewitt <christianshewitt@gmail.com>
+Reviewed-by: Neil Armstrong <narmstrong@baylibre.com>
+Reviewed-by: Kevin Hilman <khilman@baylibre.com>
+Signed-off-by: Neil Armstrong <narmstrong@baylibre.com>
+Link: https://lore.kernel.org/r/20220126044954.19069-2-christianshewitt@gmail.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm64/boot/dts/amlogic/meson-gx.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+index 0edd137151f8..47cbb0a1eb18 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
++++ b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+@@ -43,6 +43,12 @@
+ 			no-map;
+ 		};
+ 
++		/* 32 MiB reserved for ARM Trusted Firmware (BL32) */
++		secmon_reserved_bl32: secmon@5300000 {
++			reg = <0x0 0x05300000 0x0 0x2000000>;
++			no-map;
++		};
++
+ 		linux,cma {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
+-- 
+2.17.1
+

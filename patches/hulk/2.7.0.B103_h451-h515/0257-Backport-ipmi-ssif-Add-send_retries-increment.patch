@@ -1,0 +1,48 @@
+From 25ab0b001ec7810e55172eccdb4c140639e4fd9e Mon Sep 17 00:00:00 2001
+From: Corey Minyard <minyard@acm.org>
+Date: Tue, 4 Apr 2023 12:09:14 +0000
+Subject: [PATCH 257/263] [Backport] ipmi:ssif: Add send_retries increment
+
+stable inclusion
+from stable-v5.10.180
+commit 6d5993d5696339b2f4fbfbe0f9f940388f3cf636
+category: bugfix
+bugzilla: 188217
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6d5993d5696339b2f4fbfbe0f9f940388f3cf636
+
+--------------------------------
+
+commit 6ce7995a43febe693d4894033c6e29314970646a upstream.
+
+A recent change removed an increment of send_retries, re-add it.
+
+Fixes: 95767ed78a18 ipmi:ssif: resend_msg() cannot fail
+Reported-by: Pavel Machek <pavel@denx.de>
+Cc: stable@vger.kernel.org
+Signed-off-by: Corey Minyard <minyard@acm.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Weiyang <wangweiyang2@huawei.com>
+---
+ drivers/char/ipmi/ipmi_ssif.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/char/ipmi/ipmi_ssif.c b/drivers/char/ipmi/ipmi_ssif.c
+index 20dc2452815c..3005e95df3be 100644
+--- a/drivers/char/ipmi/ipmi_ssif.c
++++ b/drivers/char/ipmi/ipmi_ssif.c
+@@ -564,8 +564,10 @@ static void retry_timeout(struct timer_list *t)
+ 
+ 	if (waiting)
+ 		start_get(ssif_info);
+-	if (resend)
++	if (resend) {
+ 		start_resend(ssif_info);
++		ssif_inc_stat(ssif_info, send_retries);
++	}
+ }
+ 
+ static void watch_timeout(struct timer_list *t)
+-- 
+2.17.1
+

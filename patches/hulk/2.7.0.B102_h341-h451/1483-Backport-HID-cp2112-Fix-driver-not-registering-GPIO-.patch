@@ -1,0 +1,47 @@
+From c7bdbe893aaa51eea2e0e245ed7a8a1bb688ede1 Mon Sep 17 00:00:00 2001
+From: Danny Kaehn <kaehndan@gmail.com>
+Date: Fri, 10 Feb 2023 11:00:44 -0600
+Subject: [PATCH 1483/1646] [Backport] HID: cp2112: Fix driver not registering
+ GPIO IRQ chip as threaded
+
+stable inclusion
+from stable-v5.10.177
+commit 3d8fafc5308f7657f93b9514556960936c79917c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3d8fafc5308f7657f93b9514556960936c79917c
+
+--------------------------------
+
+[ Upstream commit 37f5b858a66543b2b67c0288280af623985abc29 ]
+
+The CP2112 generates interrupts from a polling routine on a thread,
+and can only support threaded interrupts. This patch configures the
+gpiochip irq chip with this flag, disallowing consumers to request
+a hard IRQ from this driver, which resulted in a segfault previously.
+
+Signed-off-by: Danny Kaehn <kaehndan@gmail.com>
+Link: https://lore.kernel.org/r/20230210170044.11835-1-kaehndan@gmail.com
+Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/hid/hid-cp2112.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/hid/hid-cp2112.c b/drivers/hid/hid-cp2112.c
+index 172f20e88c6c..d902fe43cb81 100644
+--- a/drivers/hid/hid-cp2112.c
++++ b/drivers/hid/hid-cp2112.c
+@@ -1352,6 +1352,7 @@ static int cp2112_probe(struct hid_device *hdev, const struct hid_device_id *id)
+ 	girq->parents = NULL;
+ 	girq->default_type = IRQ_TYPE_NONE;
+ 	girq->handler = handle_simple_irq;
++	girq->threaded = true;
+ 
+ 	ret = gpiochip_add_data(&dev->gc, dev);
+ 	if (ret < 0) {
+-- 
+2.17.1
+

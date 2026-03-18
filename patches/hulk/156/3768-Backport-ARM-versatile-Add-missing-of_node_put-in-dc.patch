@@ -1,0 +1,47 @@
+From 6ba2ff190e732ccc909bfc9b5fdf6106d74e5c9d Mon Sep 17 00:00:00 2001
+From: Peng Wu <wupeng58@huawei.com>
+Date: Fri, 29 Apr 2022 01:03:56 +0200
+Subject: [PATCH 3768/4585] [Backport] ARM: versatile: Add missing of_node_put
+ in dcscb_init
+
+stable inclusion
+from stable-v5.10.121
+commit d146e2a9864ade19914494de3fb520390b415d58
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d146e2a9864ade19914494de3fb520390b415d58
+
+--------------------------------
+
+[ Upstream commit 23b44f9c649bbef10b45fa33080cd8b4166800ae ]
+
+The device_node pointer is returned by of_find_compatible_node
+with refcount incremented. We should use of_node_put() to avoid
+the refcount leak.
+
+Signed-off-by: Peng Wu <wupeng58@huawei.com>
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+Link: https://lore.kernel.org/r/20220428230356.69418-1-linus.walleij@linaro.org'
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/mach-vexpress/dcscb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/mach-vexpress/dcscb.c b/arch/arm/mach-vexpress/dcscb.c
+index a0554d7d04f7..e1adc098f89a 100644
+--- a/arch/arm/mach-vexpress/dcscb.c
++++ b/arch/arm/mach-vexpress/dcscb.c
+@@ -144,6 +144,7 @@ static int __init dcscb_init(void)
+ 	if (!node)
+ 		return -ENODEV;
+ 	dcscb_base = of_iomap(node, 0);
++	of_node_put(node);
+ 	if (!dcscb_base)
+ 		return -EADDRNOTAVAIL;
+ 	cfg = readl_relaxed(dcscb_base + DCS_CFG_R);
+-- 
+2.17.1
+

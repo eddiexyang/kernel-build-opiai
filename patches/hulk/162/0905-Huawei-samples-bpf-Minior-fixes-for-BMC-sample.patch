@@ -1,0 +1,282 @@
+From 31c8e747bea41155a5c1ceae5f190b6c91ad2215 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Tue, 14 Feb 2023 01:47:32 -0500
+Subject: [PATCH 905/905] [Huawei] samples: bpf: Minior fixes for BMC sample
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+This is a minior fix commit for:
+'commit 7b1fe3b7833e ("[Huawei] samples: bpf: Add sample BMC for Redis")'
+
+1. Reply -1 packet directly when GET doesn't find the value in cache
+   map.
+
+2. Make BPF_XDP_UPDATE_TCP_SEQ_HELPER default enabled.
+
+3. Fix memcpy() and memset() to builtin version to make them compatible
+   with old llvm version.
+
+4. Remove unused code of map bmc_cmds and fix a comment.
+
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ net/Kconfig            |   2 +-
+ samples/bpf/bmc/bpf.c  |  35 +++-----------
+ samples/bpf/bmc/tool.c | 101 +----------------------------------------
+ 3 files changed, 8 insertions(+), 130 deletions(-)
+
+diff --git a/net/Kconfig b/net/Kconfig
+index db3cb5e52cd8..1ddfc8693a0f 100644
+--- a/net/Kconfig
++++ b/net/Kconfig
+@@ -332,7 +332,7 @@ config EULER_SOCKETMAP
+ 
+ config BPF_XDP_UPDATE_TCP_SEQ_HELPER
+ 	bool "enable XDP helper bpf_update_tcp_seq"
+-	default n
++	default y
+ 	help
+ 	  Enable ebpf helper to allows XDP synchronize the TCP socket status.
+ 	  This helper will update socket status directly only with minimal
+diff --git a/samples/bpf/bmc/bpf.c b/samples/bpf/bmc/bpf.c
+index 88cc4859dd66..60a8cc526c96 100644
+--- a/samples/bpf/bmc/bpf.c
++++ b/samples/bpf/bmc/bpf.c
+@@ -102,13 +102,6 @@ struct {
+ 	__uint(max_entries, 1);
+ } bmc_stats SEC(".maps");
+ 
+-struct {
+-	__uint(type, BPF_MAP_TYPE_HASH);
+-	__uint(key_size, 16);
+-	__uint(value_size, sizeof(u64));
+-	__uint(max_entries, 1024);
+-} bmc_cmds SEC(".maps");
+-
+ static inline struct redis_ctx *get_ctx(void)
+ {
+ 	u32 key = 0;
+@@ -225,24 +218,12 @@ static inline bool is_redis_setex(char *s)
+ 		   s[9] == '\r' && s[10] == '\n';
+ }
+ 
+-static inline void record_redis_cmd(char *payload)
+-{
+-	u64 val = 0;
+-	u64 *pval = NULL;
+-
+-	pval = bpf_map_lookup_elem(&bmc_cmds, payload);
+-	if (pval != NULL)
+-		val = *pval;
+-	val++;
+-	bpf_map_update_elem(&bmc_cmds, payload, &val, BPF_ANY);
+-}
+-
+ static inline int xdp_store_str(char *dst, char *src, u32 len, char *data_end)
+ {
+ 	if (dst + len > data_end)
+ 		return -1;
+ 
+-	memcpy(dst, src, len);
++	__builtin_memcpy(dst, src, len);
+ 	return 0;
+ }
+ 
+@@ -456,20 +437,16 @@ int bmc_get(struct xdp_md *xdp)
+ 	/* skip "*2\r\n$3\r\nget\r\n" */
+ 	payload += 13;
+ 
+-	memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
++	__builtin_memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
+ 	xdp_load_bytes(ctx->key.data, payload, ctx->key.len, BMC_REDIS_KEY_SIZE, data_end);
+ 
+ 	val = bpf_map_lookup_elem(&bmc_storage, &ctx->key);
+ 
+-	/* pass to userspace */
+-	if (!val || !val->len || val->len > BMC_REDIS_VALUE_SIZE)
+-		return XDP_PASS;
+-
+ 	/*
+ 	 * expired, just reply -1
+ 	 * don't remove element in map, it can be used for next hit
+ 	 */
+-	if (val->expiry && ktime_get_ms() > val->expiry) {
++	if (!val || (val->expiry && ktime_get_ms() > val->expiry)) {
+ 		if (prepare_tcp(xdp, data, data_end, sizeof(reply)))
+ 			return XDP_PASS;
+ 
+@@ -545,7 +522,7 @@ int bmc_set(struct xdp_md *xdp)
+ 	/* skip "*2\r\n$3\r\nset\r\n" */
+ 	payload += 13;
+ 
+-	memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
++	__builtin_memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
+ 	xdp_load_bytes(ctx->key.data, payload, ctx->key.len, BMC_REDIS_KEY_SIZE, data_end);
+ 
+ 	if (ctx->key.len > BMC_REDIS_KEY_SIZE)
+@@ -612,7 +589,7 @@ int bmc_setex(struct xdp_md *xdp)
+ 	/* skip "*4\r\n$5\r\nsetex\r\n" */
+ 	payload += 15;
+ 
+-	memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
++	__builtin_memset(&ctx->key.data, 0, sizeof(u8) * BMC_REDIS_KEY_SIZE);
+ 	xdp_load_bytes(ctx->key.data, payload, ctx->key.len, BMC_REDIS_KEY_SIZE, data_end);
+ 
+ 	ctx->value.expiry = ktime_get_ms() + (u64)ctx->expiry_value * MS_PER_SEC;
+@@ -652,7 +629,7 @@ int bmc_setex(struct xdp_md *xdp)
+ 
+ /*
+  * GET message format:
+- * "*2\r\n"	// this is an array with 3 elements
++ * "*2\r\n"	// this is an array with 2 elements
+  * "$3\r\n"	// the first element is a string with 3 characters
+  * "get\r\n"	// the string is "get"
+  * "$5\r\n"	// the second element is a string with 5 characters
+diff --git a/samples/bpf/bmc/tool.c b/samples/bpf/bmc/tool.c
+index c9496eaf4b17..c88bba396f50 100644
+--- a/samples/bpf/bmc/tool.c
++++ b/samples/bpf/bmc/tool.c
+@@ -40,7 +40,6 @@ struct {
+ 	int map_storage_fd;
+ 	int map_interface_fd;
+ 	int map_stats_fd;
+-	int map_cmds_fd;
+ 	int redis_main_prog_fd;
+ 	int redis_get_prog_fd;
+ 	int redis_set_prog_fd;
+@@ -134,11 +133,6 @@ static struct bmc_map_info map_infos[] = {
+ 		.pin_path = "/sys/fs/bpf/bmc/stats",
+ 		.is_stat_map = true,
+ 	},
+-	{
+-		.map_name = "bmc_cmds",
+-		.p_map_fd = &bmc.map_cmds_fd,
+-		.pin_path = "/sys/fs/bpf/bmc/cmds",
+-	},
+ };
+ 
+ static int find_type_by_sec_name(const char *sec_name,
+@@ -497,7 +491,7 @@ static int setup_bpf(void)
+ 		goto error_add_port;
+ 
+ 	if (add_tail_call())
+-		goto error_attach_progs;
++		goto error_add_port;
+ 
+ 	return 0;
+ 
+@@ -754,97 +748,6 @@ static int do_prog(int argc, char *argv[])
+ 			    argc, argv, do_prog_help);
+ }
+ 
+-static int do_list_cmds(int argc, char *argv[])
+-{
+-	int i;
+-	int fd;
+-	int err;
+-	bool found = false;
+-	struct bmc_map_info *info;
+-	struct bpf_map_info map = {};
+-	__u32 len = sizeof(map);
+-	char *key;
+-	char next_key[32] = { 0 };
+-
+-	for (i = 0; i < ARRAY_SIZE(map_infos); i++) {
+-		info = &map_infos[i];
+-		if (!strcmp(info->map_name, "bmc_cmds")) {
+-			found = true;
+-			break;
+-		}
+-	}
+-
+-	if (!found)
+-		return -1;
+-
+-	fd = bpf_obj_get(info->pin_path);
+-	if (fd < 0) {
+-		fprintf(stderr, "failed to open %s\n",
+-			info->pin_path);
+-		return -1;
+-	}
+-
+-	err = bpf_obj_get_info_by_fd(fd, &map, &len);
+-	if (err) {
+-		fprintf(stderr, "failed to get map info\n");
+-		err = -1;
+-		goto out;
+-	}
+-
+-
+-	key = NULL;
+-	while (bpf_map_get_next_key(fd, key, next_key) > -1) {
+-		char data[32];
+-		char *p = data;
+-		char *cmd = NULL;
+-		__u64 count;
+-
+-		key = next_key;
+-
+-		found = false;
+-		memcpy(data, next_key, 32);
+-		for (i = 0; i < 31; i++) {
+-			if (p[i] == '\r' && p[i + 1] == '\n') {
+-				found = true;
+-				i += 2;
+-				break;
+-			}
+-		}
+-
+-		if (!found)
+-			continue;
+-
+-		found = false;
+-		while (i < 31) {
+-			if (p[i] == '\r' && p[i + 1] == '\n') {
+-				found = true;
+-				i += 2;
+-				cmd = p + i;
+-				break;
+-			}
+-			i++;
+-		}
+-
+-		if (!found)
+-			continue;
+-
+-		while (i < 31) {
+-			if (p[i] == '\r' && p[i + 1] == '\n')
+-				break;
+-			i++;
+-		}
+-
+-		p[i] = 0;
+-
+-		bpf_map_lookup_elem(fd, next_key, &count);
+-
+-		printf("cmd: %s, count=%lld\n", cmd, count);
+-	}
+-out:
+-	close(fd);
+-	return err;
+-}
+-
+ static int do_stat(int argc, char *argv[])
+ {
+ 	int i;
+@@ -859,8 +762,6 @@ static int do_stat(int argc, char *argv[])
+ 	__u32 len = sizeof(map);
+ 	__u32 key;
+ 
+-	do_list_cmds(argc, argv);
+-
+ 	ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+ 	if (ncpu < 0) {
+ 		fprintf(stderr, "sysconf failed: %s\n", strerror(errno));
+-- 
+2.17.1
+

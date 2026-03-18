@@ -1,0 +1,41 @@
+pcie@0xe0000000 {
+    compatible = "pci-host-ecam-generic";
+    reg = <0x0 0xe0000000 0x0 0x100000>;
+    reg-names = "ecam-cfg";
+    device_type = "pci";
+    bus-range = <0x0 0x0>;
+    #interrupt-cells = <0x1>;
+    msi-parent = <&its 0x0018>;
+    msi-map = <0x0018 &its 0x0018 0x2000>;
+    msi-map-mask = <0xffff>;
+    dma-coherent;
+    #address-cells = <0x3>;
+    #size-cells = <0x2>;
+    ranges = <0x3000000 0x0 0xf0000000 0x0 0xf0000000 0x0 0x10000>;
+    iommu-map = <0 &io_smmu 0 0x10000>;
+    status = "ok";
+};
+
+socdoorbell@0xa0200000 {
+    compatible = "hisi,hi1910-platform-device";
+    type = <1>;
+    interrupts-extended = <&mbigen_pcie_doorbell 955 4>,
+                          <&mbigen_pcie_doorbell 956 4>,
+                          <&mbigen_pcie_doorbell 957 4>,
+                          <&mbigen_pcie_doorbell 958 4>,
+                          <&mbigen_pcie0_local 708 4>,
+                          <&mbigen_pcie0_local 709 4>;
+    interrupt-names = "PCIE_DOORBELL0", "PCIE_DOORBELL1", "PCIE_DOORBELL2", "PCIE_DOORBELL3",
+                      "PCIE_LOCAL0", "PCIE_LOCAL1";
+};
+
+platform@0xa0200000 {
+    compatible = "hisi,hi1910-platform-device";
+    #address-cells = <0x2>;
+    #size-cells = <0x2>;
+    reg = <0x0 0xa0200000 0x0 0x200000>;
+    reg-names = "apb_base";
+    type = <0>;
+    pm_enable = <1>;
+    status = "ok";
+};

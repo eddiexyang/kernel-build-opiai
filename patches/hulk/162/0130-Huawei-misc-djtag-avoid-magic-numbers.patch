@@ -1,0 +1,127 @@
+From bcdb746f4739bd2ea0d6afc2f20552358e5168ab Mon Sep 17 00:00:00 2001
+From: Yuyao Lin <linyuyao1@huawei.com>
+Date: Mon, 6 Feb 2023 20:18:21 +0800
+Subject: [PATCH 130/905] [Huawei] misc: djtag: avoid magic numbers
+
+Offering: HULK
+hulk inclusion
+category: cleanup
+bugzilla: 187927
+
+--------------------------------
+
+Use macro definition instead of magic numbers.
+
+Signed-off-by: Yuyao Lin <linyuyao1@huawei.com>
+---
+ drivers/misc/hisi-djtag/hisi-djtag.c | 24 ++++++++++++++----------
+ 1 file changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/misc/hisi-djtag/hisi-djtag.c b/drivers/misc/hisi-djtag/hisi-djtag.c
+index f516e4a307e2..e5f4b2aaf4a8 100644
+--- a/drivers/misc/hisi-djtag/hisi-djtag.c
++++ b/drivers/misc/hisi-djtag/hisi-djtag.c
+@@ -33,6 +33,10 @@
+ /* step: udelay(100) 8s */
+ #define SC_DJTAG_RESET			80000
+ 
++#define DELAY_TIMEOUT			1
++#define DELAY_SELECT			10
++#define DELAY_RESET			100
++
+ /* for 660 and 1382 totem */
+ #define SC_DJTAG_MSTR_EN		0x6800
+ 
+@@ -184,7 +188,7 @@ static int hip05_djtag_request(struct regmap *map)
+ 					0x3B);
+ 			if (ret)
+ 				return ret;
+-			udelay(10);
++			udelay(DELAY_SELECT);
+ 			flag = 1;
+ 			continue;
+ 		}
+@@ -194,7 +198,7 @@ static int hip05_djtag_request(struct regmap *map)
+ 				return 0;
+ 			flag = 0;
+ 		}
+-		udelay(100);
++		udelay(DELAY_RESET);
+ 	}
+ 
+ 	/* If djtag is busy for 8s, it means deadlocked, so reset it. */
+@@ -233,7 +237,7 @@ static int hi1382_djtag_request(struct regmap *map)
+ 					0xAB << DEBUG_MODULE_SEL_SHIFT_EX);
+ 			if (ret)
+ 				return ret;
+-			udelay(10);
++			udelay(DELAY_SELECT);
+ 			flag = 1;
+ 			continue;
+ 		}
+@@ -243,7 +247,7 @@ static int hi1382_djtag_request(struct regmap *map)
+ 				return 0;
+ 			flag = 0;
+ 		}
+-		udelay(100);
++		udelay(DELAY_RESET);
+ 	}
+ 
+ 	/* If djtag is busy for 8s, it means deadlocked, so reset it. */
+@@ -346,7 +350,7 @@ static int hip05_mod_cfg_by_djtag(struct regmap *map,
+ 		if (!(rd & DJTAG_MSTR_EN))
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+@@ -362,7 +366,7 @@ static int hip05_mod_cfg_by_djtag(struct regmap *map,
+ 		if (rd & DJTAG_OP_DONE_EX)
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+@@ -454,7 +458,7 @@ static int hi1382_mod_cfg_by_djtag(struct regmap *map,
+ 		if (!(rd & DJTAG_MSTR_START_EN_EX))
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+@@ -470,7 +474,7 @@ static int hi1382_mod_cfg_by_djtag(struct regmap *map,
+ 		if (rd & DJTAG_OP_DONE_EX)
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+@@ -555,7 +559,7 @@ static int sd6801_mod_cfg_by_djtag(struct regmap *map,
+ 		if (!(rd & DJTAG_MSTR_START_EN_EX))
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+@@ -571,7 +575,7 @@ static int sd6801_mod_cfg_by_djtag(struct regmap *map,
+ 		if (rd & DJTAG_OP_DONE_EX)
+ 			break;
+ 
+-		udelay(1);
++		udelay(DELAY_TIMEOUT);
+ 	} while (timeout--);
+ 
+ 	if (timeout < 0)
+-- 
+2.17.1
+

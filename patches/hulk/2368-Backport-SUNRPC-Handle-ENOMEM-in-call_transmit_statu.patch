@@ -1,0 +1,51 @@
+From 939aa8b7ee9b7e48c2f044d5f48d2271fcd5f216 Mon Sep 17 00:00:00 2001
+From: Trond Myklebust <trond.myklebust@hammerspace.com>
+Date: Wed, 6 Apr 2022 23:18:57 -0400
+Subject: [PATCH 2368/2592] [Backport] SUNRPC: Handle ENOMEM in
+ call_transmit_status()
+
+stable inclusion
+from stable-v5.10.111
+commit 132cbe2f182ab535e0a7fa309d2c73ed6257a246
+bugzilla: https://gitee.com/openeuler/kernel/
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=132cbe2f182ab535e0a7fa309d2c73ed6257a246
+
+--------------------------------
+
+[ Upstream commit d3c15033b240767d0287f1c4a529cbbe2d5ded8a ]
+
+Both call_transmit() and call_bc_transmit() can now return ENOMEM, so
+let's make sure that we handle the errors gracefully.
+
+Fixes: 0472e4766049 ("SUNRPC: Convert socket page send code to use iov_iter()")
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/sunrpc/clnt.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index 762f094c8c14..5d7465638d69 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -2182,6 +2182,7 @@ call_transmit_status(struct rpc_task *task)
+ 		 * socket just returned a connection error,
+ 		 * then hold onto the transport lock.
+ 		 */
++	case -ENOMEM:
+ 	case -ENOBUFS:
+ 		rpc_delay(task, HZ>>2);
+ 		fallthrough;
+@@ -2265,6 +2266,7 @@ call_bc_transmit_status(struct rpc_task *task)
+ 	case -ENOTCONN:
+ 	case -EPIPE:
+ 		break;
++	case -ENOMEM:
+ 	case -ENOBUFS:
+ 		rpc_delay(task, HZ>>2);
+ 		fallthrough;
+-- 
+2.17.1
+

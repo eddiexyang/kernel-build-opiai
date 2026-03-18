@@ -1,0 +1,44 @@
+From ded4be895465253f750f34c417ba4e0148d0b236 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Fri, 15 Oct 2021 03:16:36 +0200
+Subject: [PATCH 0570/1646] [Backport] x86/sev: Include fpu/xcr.h
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit ff0c37e191f2629bf2776dbd95db5d06f704ab93
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=ff0c37e191f2629bf2776dbd95db5d06f704ab93
+
+--------------------------------
+
+Include the header which only provides the XCR accessors. That's all what
+is needed here.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20211015011539.896573039@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kernel/sev-es.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/sev-es.c b/arch/x86/kernel/sev-es.c
+index f441002c2327..59bebdf12aed 100644
+--- a/arch/x86/kernel/sev-es.c
++++ b/arch/x86/kernel/sev-es.c
+@@ -23,7 +23,7 @@
+ #include <asm/stacktrace.h>
+ #include <asm/sev-es.h>
+ #include <asm/insn-eval.h>
+-#include <asm/fpu/internal.h>
++#include <asm/fpu/xcr.h>
+ #include <asm/processor.h>
+ #include <asm/realmode.h>
+ #include <asm/traps.h>
+-- 
+2.17.1
+

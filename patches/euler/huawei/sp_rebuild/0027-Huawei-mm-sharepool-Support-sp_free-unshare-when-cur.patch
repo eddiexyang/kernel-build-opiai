@@ -1,0 +1,91 @@
+From 1acb0af495a62daee4dd653f685250438e26cb19 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 31 May 2023 11:23:04 +0800
+Subject: [PATCH 27/53] [Huawei] mm/sharepool: Support sp_free/unshare when
+ current exiting
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+Assume that processes A and B are in the same shared group. Process A
+applies for shared memory and is killed before being used by process B.
+In this case, the memory needs to be released in the exit process of
+process A. Otherwise, memory leakage occurs. The current process A invokes
+the memory release interface only when the device file is released. When
+the callback is executed, the mm field of the current process is empty.
+Special processing is required. Otherwise, the memory release interface
+fails.
+In the process exit scenario, the system searches for the SPG in the
+global idr and checks whether the spa applier is the current process.
+The memory can be released only after the check is passed.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 33 +++++++++++++++++++++++++--------
+ 1 file changed, 25 insertions(+), 8 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 3cac9cea07a5..cb5d07d6d681 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1911,6 +1911,19 @@ static void sp_fallocate(struct sp_area *spa)
+ 		WARN(1, "sp fallocate failed %d\n", ret);
+ }
+ 
++static struct sp_group *sp_group_get_from_idr(int spg_id)
++{
++	struct sp_group *spg;
++
++	down_read(&sp_group_sem);
++	spg = idr_find(&sp_group_idr, spg_id);
++	if (!spg || !atomic_inc_not_zero(&spg->use_count))
++		spg = NULL;
++	up_read(&sp_group_sem);
++
++	return spg;
++}
++
+ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ {
+ 	int ret = 0;
+@@ -1918,14 +1931,10 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 	struct sp_group *spg;
+ 	const char *str = is_sp_free ? "sp_free" : "unshare_uva";
+ 
+-	if (!current->mm) {
+-		/*
+-		 * XXXX: should process this branch carefully instead of return an error.
+-		 */
+-		return -EINVAL;
+-	}
+-
+-	spg = sp_group_get_from_mm(current->mm, spg_id);
++	if (!current->mm)
++		spg = sp_group_get_from_idr(spg_id);
++	else
++		spg = sp_group_get_from_mm(current->mm, spg_id);
+ 	if (!spg) {
+ 		pr_err("%s, get group failed %d\n", str, spg_id);
+ 		return -EINVAL;
+@@ -1946,6 +1955,14 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 	}
+ 
+ 	down_write(&spa->spg->rw_lock);
++	if (!current->mm && spa->applier != current->tgid) {
++		up_write(&spg->rw_lock);
++		ret = -EPERM;
++		pr_err("%s, free a spa allocated by other process(%d), current(%d)\n",
++			str, spa->applier, current->tgid);
++		goto drop_spa;
++	}
++
+ 	if (!spg_valid(spa->spg)) {
+ 		up_write(&spa->spg->rw_lock);
+ 		if (spa->type != SPA_TYPE_ALLOC)
+-- 
+2.17.1
+

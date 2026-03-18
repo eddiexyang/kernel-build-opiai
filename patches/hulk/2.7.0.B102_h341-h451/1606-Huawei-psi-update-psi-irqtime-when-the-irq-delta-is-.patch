@@ -1,0 +1,57 @@
+From e867e6faf2b983238dd0648e4a31cada348167a3 Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Mon, 8 May 2023 10:42:00 +0800
+Subject: [PATCH 1606/1646] [Huawei] psi: update psi irqtime when the irq delta
+ is nozero
+
+Offering: HULK
+HULK inclusion
+category: feature
+bugzilla: 188663
+
+-------------------------------
+
+If update psi irqtime whether the irq delta is zero or not, the performance
+will be degradation when update_rq_clock_task works frequently.
+Therefore, just update psi irqtime whether the irq delta is nozero.
+performace test of times:
+1) without psi_account_irqtime in update_rq_clock_task
+[root@arm64_perf bin]# ./times  -E -C 200 -L -S -W -N "times" -I 200
+Running:               times# ./../bin-arm64/times -E -C 200 -L -S -W -N times -I 200
+             prc thr   usecs/call      samples   errors cnt/samp
+times          1   1      0.45210          188        0      500
+
+2) psi_account_irqtime in update_rq_clock_task
+[root@arm64_perf bin]# ./times  -E -C 200 -L -S -W -N "times" -I 200
+Running:               times# ./../bin-arm64/times -E -C 200 -L -S -W -N times -I 200
+             prc thr   usecs/call      samples   errors cnt/samp
+times          1   1      0.49408          196        0      500
+
+3) psi_account_irqtime in update_rq_clock_task when irq delta is nozero
+[root@arm64_perf bin]# ./times  -E -C 200 -L -S -W -N "times" -I 200
+Running:               times# ./../bin-arm64/times -E -C 200 -L -S -W -N times -I 200
+             prc thr   usecs/call      samples   errors cnt/samp
+times          1   1      0.45158          195        0      500
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ kernel/sched/core.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1863e9ae0ca9..1d1eac933415 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -288,7 +288,8 @@ static void update_rq_clock_task(struct rq *rq, s64 delta)
+ 
+ 	rq->prev_irq_time += irq_delta;
+ 	delta -= irq_delta;
+-	psi_account_irqtime(rq->curr, irq_delta);
++	if (irq_delta)
++		psi_account_irqtime(rq->curr, irq_delta);
+ 
+ out:
+ #endif
+-- 
+2.17.1
+

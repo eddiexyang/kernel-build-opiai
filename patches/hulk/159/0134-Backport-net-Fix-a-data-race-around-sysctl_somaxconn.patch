@@ -1,0 +1,46 @@
+From 8fbf624a13fe88a71fdabcd2e3994ed12c1be8d5 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Tue, 23 Aug 2022 10:47:00 -0700
+Subject: [PATCH 134/595] [Backport] net: Fix a data-race around
+ sysctl_somaxconn.
+
+stable inclusion
+from stable-v5.10.140
+commit 23cf93bb32e571cf1fc678c83888df9950749d64
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5W3GQ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=23cf93bb32e571cf1fc678c83888df9950749d64
+
+--------------------------------
+
+[ Upstream commit 3c9ba81d72047f2e81bb535d42856517b613aba7 ]
+
+While reading sysctl_somaxconn, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/socket.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/socket.c b/net/socket.c
+index 7d84c289e5ae..78fdcbe5eaa5 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -1672,7 +1672,7 @@ int __sys_listen(int fd, int backlog)
+ 
+ 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
+ 	if (sock) {
+-		somaxconn = sock_net(sock->sk)->core.sysctl_somaxconn;
++		somaxconn = READ_ONCE(sock_net(sock->sk)->core.sysctl_somaxconn);
+ 		if ((unsigned int)backlog > somaxconn)
+ 			backlog = somaxconn;
+ 
+-- 
+2.17.1
+

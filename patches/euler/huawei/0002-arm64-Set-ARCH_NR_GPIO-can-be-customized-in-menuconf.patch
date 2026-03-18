@@ -1,0 +1,29 @@
+From ef44ddaf070129321cfbe3c9f2753407c04b8066 Mon Sep 17 00:00:00 2001
+From: dinglongwei <dinglongwei1@huawei.com>
+Date: Mon, 4 Sep 2023 20:15:05 +0800
+Subject: [PATCH 2/2] arm64: Set ARCH_NR_GPIO can be customized in menuconfig
+
+This parameter cannot be configured in the .config file in the pre-community patch.
+A variable is added to configure the number of GPIOs in menuconfig.
+
+Signed-off-by: Ding LongWei <dinglongwei1@huawei.com>
+---
+ arch/arm64/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 35e7d34e2..7981303dd 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1954,7 +1954,7 @@ config ARM64_TWED
+ # a multiplatform kernel, we just want the highest value required by the
+ # selected platforms.
+ config ARCH_NR_GPIO
+-        int
++        int "GPIO number"
+         default 2048 if ARCH_APPLE
+         default 0
+         help
+-- 
+2.17.1
+

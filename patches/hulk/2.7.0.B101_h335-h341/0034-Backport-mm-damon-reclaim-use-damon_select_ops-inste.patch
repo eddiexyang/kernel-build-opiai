@@ -1,0 +1,52 @@
+From ba5dde4e7d7eb96ae4b6e11fad95b07cc16f519e Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 22 Mar 2022 14:48:55 -0700
+Subject: [PATCH 034/921] [Backport] mm/damon/reclaim: use damon_select_ops()
+ instead of damon_{v,p}a_set_operations()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 4d69c3457821100a39fa8c6e0c23ed910bb6c29d
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4d69c3457821100a39fa8c6e0c23ed910bb6c29d
+
+--------------------------------
+
+This commit makes DAMON_RECLAIM to select the registered monitoring
+operations for the physical address space instead of setting it on its
+own.  This allows DAMON_RECLAIM be independent of DAMON_PADDR, but leave
+the dependency as is, because it's the only one monitoring operations it
+use, and therefore it makes no sense to build DAMON_RECLAIM without
+DAMON_PADDR.
+
+Link: https://lkml.kernel.org/r/20220215184603.1479-5-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: David Rientjes <rientjes@google.com>
+Cc: Xin Hao <xhao@linux.alibaba.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/reclaim.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/mm/damon/reclaim.c b/mm/damon/reclaim.c
+index 3c93095c793c..b53d9c22fad1 100644
+--- a/mm/damon/reclaim.c
++++ b/mm/damon/reclaim.c
+@@ -384,7 +384,9 @@ static int __init damon_reclaim_init(void)
+ 	if (!ctx)
+ 		return -ENOMEM;
+ 
+-	damon_pa_set_operations(ctx);
++	if (damon_select_ops(ctx, DAMON_OPS_PADDR))
++		return -EINVAL;
++
+ 	ctx->callback.after_aggregation = damon_reclaim_after_aggregation;
+ 
+ 	target = damon_new_target();
+-- 
+2.17.1
+

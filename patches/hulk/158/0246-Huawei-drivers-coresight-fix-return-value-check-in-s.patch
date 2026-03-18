@@ -1,0 +1,38 @@
+From 63e05e06bab8cf0554821fbb522ad56034b53a7f Mon Sep 17 00:00:00 2001
+From: Baisong Zhong <zhongbaisong@huawei.com>
+Date: Fri, 30 Sep 2022 11:05:15 +0800
+Subject: [PATCH 0246/1076] [Huawei] drivers/coresight: fix return value check
+ in smb_init_data_buffer()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187729
+
+--------------------------------
+
+In case of error, the function platform_get_resource() returns NULL pointer
+not ERR_PTR(). The IS_ERR() test in the return value check should
+be replaced with NULL test.
+
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ drivers/hwtracing/coresight/ultrasoc-smb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hwtracing/coresight/ultrasoc-smb.c b/drivers/hwtracing/coresight/ultrasoc-smb.c
+index 47adcf8a8d7b..8a6d1ba0fc98 100644
+--- a/drivers/hwtracing/coresight/ultrasoc-smb.c
++++ b/drivers/hwtracing/coresight/ultrasoc-smb.c
+@@ -416,7 +416,7 @@ static int smb_init_data_buffer(struct platform_device *pdev, struct smb_data_bu
+ 	void __iomem *base;
+ 
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+-	if (IS_ERR(res)) {
++	if (!res) {
+ 		dev_err(&pdev->dev, "SMB device failed to get resource.\n");
+ 		return -EINVAL;
+ 	}
+-- 
+2.17.1
+

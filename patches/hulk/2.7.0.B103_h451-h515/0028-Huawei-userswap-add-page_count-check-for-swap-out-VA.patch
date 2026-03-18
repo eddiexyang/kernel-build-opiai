@@ -1,0 +1,48 @@
+From 3263e407922970e7491692abbe38a64264d8a95f Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Mon, 22 May 2023 15:23:44 +0800
+Subject: [PATCH 028/263] [Huawei] userswap: add page_count() check for
+ swap-out VA
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Add page_count() check for swap-out VA to make sure that no other kernel
+mechanism is using this physical page.
+Add lru_add_drain_all() before swap-out VA to correct page_count() of
+swap-out pages.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/userswap.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 910bb9dea383..8fb230e7e5c8 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -139,7 +139,8 @@ static unsigned long pages_can_be_swapped(struct mm_struct *mm,
+ 		 * Check that no O_DIRECT or similar I/O is in progress on the
+ 		 * page
+ 		 */
+-		if (page_mapcount(page) > 1) {
++		if (page_mapcount(page) > 1 ||
++		    page_mapcount(page) + 1 != page_count(page)) {
+ 			ret = -EBUSY;
+ 			goto out_err;
+ 		}
+@@ -378,6 +379,7 @@ unsigned long uswap_mremap(unsigned long old_addr, unsigned long old_len,
+ 	if (old_addr + old_len > new_addr && new_addr + new_len > old_addr)
+ 		return ret;
+ 
++	lru_add_drain_all();
+ 	down_read(&mm->mmap_lock);
+ 	ret = pages_can_be_swapped(mm, old_addr, len, &pages);
+ 	if (ret) {
+-- 
+2.17.1
+

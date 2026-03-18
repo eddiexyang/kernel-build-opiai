@@ -1,0 +1,56 @@
+From 884e3d3bca30376e0640920998382048c8a53ac8 Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Thu, 31 Mar 2022 12:02:17 +0800
+Subject: [PATCH 3532/4585] [Huawei] mm: Clear GFP_RELIABLE if the conditions
+ are not met
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187270
+
+--------------------------------
+
+Memory reliable only handle memory allocation from movable zone.
+GFP_RELIABLE will be removed if the conditions are not met.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/page_alloc.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index cf9c69d631f3..130ab84301e0 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -5144,11 +5144,26 @@ EXPORT_SYMBOL_GPL(__alloc_pages_bulk);
+ 
+ static inline void prepare_before_alloc(gfp_t *gfp_mask)
+ {
++	bool zone_movable;
++
+ 	if (!mem_reliable_is_enabled())
+-		return;
++		goto clear_flag;
++
++	/*
++	 * memory reliable only handle memory allocation from movable zone
++	 * (force alloc from non-movable zone or force alloc from movable
++	 * zone) to get total isolation.
++	 */
++	zone_movable = gfp_zone(*gfp_mask & ~GFP_RELIABLE) == ZONE_MOVABLE;
++	if (!zone_movable)
++		goto clear_flag;
+ 
+ 	if ((current->flags & PF_RELIABLE) || is_global_init(current))
+ 		*gfp_mask |= GFP_RELIABLE;
++
++	return;
++clear_flag:
++	*gfp_mask &= ~GFP_RELIABLE;
+ }
+ 
+ /*
+-- 
+2.17.1
+

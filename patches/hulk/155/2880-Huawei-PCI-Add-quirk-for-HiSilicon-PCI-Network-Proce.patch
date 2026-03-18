@@ -1,0 +1,156 @@
+From 46bbc56a4f6a4e78c42ece7fedd610b23436bff8 Mon Sep 17 00:00:00 2001
+From: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+Date: Fri, 29 Jan 2021 09:31:18 +0800
+Subject: [PATCH 2880/4585] [Huawei] PCI: Add quirk for HiSilicon PCI Network
+ Processor devices
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 47455
+
+-------------------------------------------------------------------------
+
+Add pci quirk for hisilicon PCI Network Processor devices.
+
+Reviewed-by: Hanjun Guo <guohanjun@huawei.com>
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+Patchwork Links: http://patchwork.huawei.com/project/hulk5.10/list/?series=13492
+
+ Conflicts:
+	drivers/pci/quirks.c
+Signed-off-by: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+---
+ drivers/pci/quirks.c    | 89 ++++++++++++++++++++++++++++++-----------
+ include/linux/pci_ids.h | 11 +++++
+ 2 files changed, 76 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index 3b5d896af233..996f454fd819 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -5644,30 +5644,6 @@ static void quirk_switchtec_ntb_dma_alias(struct pci_dev *pdev)
+ 	pci_disable_device(pdev);
+ }
+ 
+-static void pci_quirk_hisi_fixup_class(struct pci_dev *dev)
+-{
+-	dev->class = PCI_CLASS_NETWORK_ETHERNET << 8;
+-	pci_info(dev, "force hisi class type to network\n");
+-}
+-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5896,
+-			pci_quirk_hisi_fixup_class);
+-
+-static void pci_quirk_hisi_fixup_bar(struct pci_dev *dev)
+-{
+-	int i, start = 3;
+-
+-	for (i = start; i < PCI_NUM_RESOURCES; i++) {
+-		dev->resource[i].start = 0;
+-		dev->resource[i].end = 0;
+-		dev->resource[i].flags = 0;
+-	}
+-
+-	pci_info(dev, "force disable hisilicon np bar\n");
+-}
+-DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5896,
+-			pci_quirk_hisi_fixup_bar);
+-
+-
+ #define SWITCHTEC_QUIRK(vid) \
+ 	DECLARE_PCI_FIXUP_CLASS_FINAL(PCI_VENDOR_ID_MICROSEMI, vid, \
+ 		PCI_CLASS_BRIDGE_OTHER, 8, quirk_switchtec_ntb_dma_alias)
+@@ -5839,3 +5815,68 @@ static void nvidia_ion_ahci_fixup(struct pci_dev *pdev)
+ 	pdev->dev_flags |= PCI_DEV_FLAGS_HAS_MSI_MASKING;
+ }
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_NVIDIA, 0x0ab8, nvidia_ion_ahci_fixup);
++
++static void pci_quirk_hisi_fixup_class(struct pci_dev *dev)
++{
++	dev->class = PCI_BASE_CLASS_NETWORK << 8;
++	pci_info(dev, "force hisi class type to network\n");
++}
++
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5816,
++			pci_quirk_hisi_fixup_class);
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5886,
++			pci_quirk_hisi_fixup_class);
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5891,
++			pci_quirk_hisi_fixup_class);
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5896,
++			pci_quirk_hisi_fixup_class);
++
++static void pci_quirk_hisi_fixup_bar(struct pci_dev *dev)
++{
++	int i, start = 0;
++
++	if (dev->device == PCIE_DEVICE_ID_HISI_504F ||
++		dev->device == PCIE_DEVICE_ID_HISI_5806 ||
++		dev->device == PCIE_DEVICE_ID_HISI_5816 ||
++		dev->device == PCIE_DEVICE_ID_HISI_5891 ||
++		dev->device == PCIE_DEVICE_ID_HISI_5892 ||
++		dev->device == PCIE_DEVICE_ID_HISI_5981 ||
++		dev->device == PCIE_DEVICE_ID_HISI_8855 ||
++		dev->device == PCIE_DEVICE_ID_HISI_5991)
++		start = 1;
++
++	if (dev->device == PCIE_DEVICE_ID_HISI_5896 ||
++			dev->device == PCIE_DEVICE_ID_HISI_5886)
++		start = 3;
++
++	/* Avoid disable other hisi np's bar */
++	if (!start)
++		return;
++
++	for (i = start; i < PCI_NUM_RESOURCES; i++) {
++		dev->resource[i].start = 0;
++		dev->resource[i].end = 0;
++		dev->resource[i].flags = 0;
++	}
++
++	pci_info(dev, "force disable hisilicon np bar\n");
++}
++
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_504F,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5806,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5816,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5886,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5891,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5892,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5896,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_8855,
++			 pci_quirk_hisi_fixup_bar);
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_HUAWEI, PCIE_DEVICE_ID_HISI_5991,
++			 pci_quirk_hisi_fixup_bar);
+diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
+index f8da3669b6b0..611a13e14665 100644
+--- a/include/linux/pci_ids.h
++++ b/include/linux/pci_ids.h
+@@ -2569,6 +2569,17 @@
+ #define PCI_DEVICE_ID_KORENIX_JETCARDF3	0x17ff
+ 
+ #define PCI_VENDOR_ID_HUAWEI		0x19e5
++/* Hisilicon PCIe NP devices */
++#define PCIE_DEVICE_ID_HISI_504F	0x504f
++#define PCIE_DEVICE_ID_HISI_5806	0x5806
++#define PCIE_DEVICE_ID_HISI_5816	0x5816
++#define PCIE_DEVICE_ID_HISI_5886	0x5886
++#define PCIE_DEVICE_ID_HISI_5891	0x5891
++#define PCIE_DEVICE_ID_HISI_5892	0x5892
++#define PCIE_DEVICE_ID_HISI_5896	0x5896
++#define PCIE_DEVICE_ID_HISI_5981	0x5981
++#define PCIE_DEVICE_ID_HISI_8855	0x8855
++#define PCIE_DEVICE_ID_HISI_5991	0x5991
+ 
+ /* Hisilicon PCIe NP devices */
+ #define PCIE_DEVICE_ID_HISI_5896        0x5896
+-- 
+2.17.1
+

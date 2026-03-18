@@ -1,0 +1,76 @@
+From 126218a95d0f1b1aebf96e06588ebb2e1e820976 Mon Sep 17 00:00:00 2001
+From: Zhang Yi <yi.zhang@huawei.com>
+Date: Sat, 15 Oct 2022 19:05:17 +0800
+Subject: [PATCH 1075/1076] [Huawei] Revert "[Huawei] mm: migrate:
+ buffer_migrate_folio_norefs() fallback migrate not uptodate pages"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187414
+
+--------------------------------
+
+This reverts commit 354ba79cd637c2d7733ab171426570498f05c76f. Prepare to
+backport the stream commit 0b73284c564d ("ext4: ext4_read_bh_lock()
+should submit IO if the buffer isn't uptodate").
+
+Signed-off-by: Zhang Yi <yi.zhang@huawei.com>
+---
+ mm/migrate.c | 35 +----------------------------------
+ 1 file changed, 1 insertion(+), 34 deletions(-)
+
+diff --git a/mm/migrate.c b/mm/migrate.c
+index cbb55c387b33..8d649dbaae6d 100644
+--- a/mm/migrate.c
++++ b/mm/migrate.c
+@@ -755,45 +755,12 @@ static int __buffer_migrate_page(struct address_space *mapping,
+ 	if (!page_has_buffers(page))
+ 		return migrate_page(mapping, newpage, page, mode);
+ 
+-	head = page_buffers(page);
+-	/*
+-	 * If the mapped buffers on the page are not uptodate and has refcount,
+-	 * some others may propably try to lock the buffer and submit read IO
+-	 * through ll_rw_block(), but it will not submit IO once it failed to
+-	 * lock the buffer, so try to fallback to migrate_page() to prevent
+-	 * false positive EIO.
+-	 */
+-	if (check_refs) {
+-		bool uptodate = true;
+-		bool invalidate = false;
+-
+-		bh = head;
+-		do {
+-			if (buffer_mapped(bh) && !buffer_uptodate(bh)) {
+-				uptodate = false;
+-				if (atomic_read(&bh->b_count)) {
+-					invalidate = true;
+-					break;
+-				}
+-			}
+-			bh = bh->b_this_page;
+-		} while (bh != head);
+-
+-		if (!uptodate) {
+-			if (invalidate)
+-				invalidate_bh_lrus();
+-			if (try_to_release_page(page, GFP_KERNEL))
+-				return migrate_page(mapping, newpage, page,
+-						    mode);
+-			return -EAGAIN;
+-		}
+-	}
+-
+ 	/* Check whether page does not have extra refs before we do more work */
+ 	expected_count = expected_page_refs(mapping, page);
+ 	if (page_count(page) != expected_count)
+ 		return -EAGAIN;
+ 
++	head = page_buffers(page);
+ 	if (!buffer_migrate_lock_buffers(head, mode))
+ 		return -EAGAIN;
+ 
+-- 
+2.17.1
+

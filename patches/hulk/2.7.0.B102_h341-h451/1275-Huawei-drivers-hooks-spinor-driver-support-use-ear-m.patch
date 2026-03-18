@@ -1,0 +1,159 @@
+From fd5d36c5fa86ce37f0f8b0de582430fb8ab14fac Mon Sep 17 00:00:00 2001
+From: fanjinwen <fanjinwen@huawei.com>
+Date: Fri, 28 Apr 2023 11:43:21 +0800
+Subject: [PATCH 1275/1646] [Huawei] drivers: hooks: spinor driver support use
+ ear mode
+
+Offering: HULK
+ont inclusion
+category: featura
+bugzilla: NA
+
+----------------------------------
+
+Allow vendor modules to attach spinor driver ear hooks. This
+patch introduce
+vendor_spinor_use_ear_mode
+
+Usage:
+
+  static void vendor_spi_nor_set_addr_width(void *data,
+	struct spi_nor *nor)
+  {
+	nor->addr_width = 3;
+  }
+
+  static void vendor_spi_nor_parse_4bait(void *data,
+	struct spi_nor *nor)
+  {
+	// do something
+  }
+
+  static int __init vendor_init(void)
+  {
+	register_trace_vendor_spi_nor_set_addr_width(
+		&vendor_spi_nor_set_addr_width, NULL);
+	register_trace_vendor_spi_nor_parse_4bait(
+		&vendor_spi_nor_parse_4bait, NULL);
+
+	return 0;
+  }
+
+  static void __exit vendor_exit(void)
+  {
+	unregister_trace_vendor_spi_nor_set_addr(
+		&vendor_spi_nor_set_addr, NULL);
+	unregister_trace_vendor_spi_nor_parse_4bait(
+		&vendor_spi_nor_parse_4bait, NULL);
+  }
+
+  module_init(vendor_init);
+  module_exit(vendor_exit);
+
+Signed-off-by: fanjinwen <fanjinwen@huawei.com>
+---
+ drivers/hooks/vendor_hooks.c |  2 ++
+ drivers/mtd/spi-nor/core.c   |  6 ++++++
+ drivers/mtd/spi-nor/sfdp.c   |  8 ++++++++
+ include/trace/hooks/spinor.h | 17 +++++++++++++++++
+ 4 files changed, 33 insertions(+)
+
+diff --git a/drivers/hooks/vendor_hooks.c b/drivers/hooks/vendor_hooks.c
+index 8eec47987aaa..026e78aedfda 100644
+--- a/drivers/hooks/vendor_hooks.c
++++ b/drivers/hooks/vendor_hooks.c
+@@ -34,6 +34,8 @@ EXPORT_HOOK_SYMBOL_GPL(vendor_sata_reset);
+ EXPORT_HOOK_SYMBOL_GPL(vendor_spinor_erase_size);
+ /* return default info table to do sfdp */
+ EXPORT_HOOK_SYMBOL_GPL(vendor_spi_nor_read_id);
++EXPORT_HOOK_SYMBOL_GPL(vendor_spi_nor_set_addr_width);
++EXPORT_HOOK_SYMBOL_GPL(vendor_spi_nor_parse_4bait);
+ #endif
+ 
+ #ifdef CONFIG_VENDOR_IGB_HOOKS
+diff --git a/drivers/mtd/spi-nor/core.c b/drivers/mtd/spi-nor/core.c
+index 2c61ffe7b97b..a77da63e5284 100644
+--- a/drivers/mtd/spi-nor/core.c
++++ b/drivers/mtd/spi-nor/core.c
+@@ -3065,6 +3065,12 @@ static const struct flash_info *spi_nor_match_id(struct spi_nor *nor,
+ 
+ static int spi_nor_set_addr_width(struct spi_nor *nor)
+ {
++#ifdef CONFIG_VENDOR_SPINOR_HOOKS
++	if (trace_vendor_spi_nor_set_addr_width_enabled()) {
++		trace_vendor_spi_nor_set_addr_width(nor);
++		return 0;
++	}
++#endif
+ 	if (nor->addr_width) {
+ 		/* already configured from SFDP */
+ 	} else if (nor->info->addr_width) {
+diff --git a/drivers/mtd/spi-nor/sfdp.c b/drivers/mtd/spi-nor/sfdp.c
+index 9dc0528ea884..ab72e21c028f 100644
+--- a/drivers/mtd/spi-nor/sfdp.c
++++ b/drivers/mtd/spi-nor/sfdp.c
+@@ -7,6 +7,7 @@
+ #include <linux/slab.h>
+ #include <linux/sort.h>
+ #include <linux/mtd/spi-nor.h>
++#include <trace/hooks/spinor.h>
+ 
+ #include "core.h"
+ 
+@@ -954,6 +955,13 @@ static int spi_nor_parse_4bait(struct spi_nor *nor,
+ 	u32 addr, discard_hwcaps, read_hwcaps, pp_hwcaps, erase_mask;
+ 	int i, ret;
+ 
++#ifdef CONFIG_VENDOR_SPINOR_HOOKS
++	if (trace_vendor_spi_nor_parse_4bait_enabled()) {
++		trace_vendor_spi_nor_parse_4bait(nor);
++		return 0;
++	}
++#endif
++
+ 	if (param_header->major != SFDP_JESD216_MAJOR ||
+ 	    param_header->length < SFDP_4BAIT_DWORD_MAX)
+ 		return -EINVAL;
+diff --git a/include/trace/hooks/spinor.h b/include/trace/hooks/spinor.h
+index 68149e4adcbe..3735b86c2342 100644
+--- a/include/trace/hooks/spinor.h
++++ b/include/trace/hooks/spinor.h
+@@ -25,6 +25,14 @@ DECLARE_HOOK(vendor_spi_nor_read_id,
+ 	TP_PROTO(const struct flash_info **info),
+ 	TP_ARGS(info));
+ 
++DECLARE_HOOK(vendor_spi_nor_set_addr_width,
++	TP_PROTO(struct spi_nor *nor),
++	TP_ARGS(nor));
++
++DECLARE_HOOK(vendor_spi_nor_parse_4bait,
++	TP_PROTO(struct spi_nor *nor),
++	TP_ARGS(nor));
++
+ #endif
+ /* This part must be outside protection */
+ 
+@@ -35,6 +43,7 @@ DECLARE_HOOK(vendor_spi_nor_read_id,
+ #include <linux/tracepoint.h>
+ struct spi_nor;
+ struct flash_info;
++
+ DECLARE_EVENT_NOP(vendor_spinor_erase_size,
+ 	TP_PROTO(struct spi_nor *nor, unsigned int *size),
+ 	TP_ARGS(nor, size));
+@@ -43,4 +52,12 @@ DECLARE_EVENT_NOP(vendor_spi_nor_read_id,
+ 	TP_PROTO(const struct flash_info **info),
+ 	TP_ARGS(info));
+ 
++DECLARE_EVENT_NOP(vendor_spi_nor_set_addr_width,
++	TP_PROTO(struct spi_nor *nor),
++	TP_ARGS(nor));
++
++DECLARE_EVENT_NOP(vendor_spi_nor_parse_4bait,
++	TP_PROTO(struct spi_nor *nor),
++	TP_ARGS(nor));
++
+ #endif
+-- 
+2.17.1
+

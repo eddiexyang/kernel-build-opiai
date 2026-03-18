@@ -1,0 +1,58 @@
+From 0112878fff82b928b972958eee17e29ea0b47138 Mon Sep 17 00:00:00 2001
+From: Yipeng Zou <zouyipeng@huawei.com>
+Date: Mon, 30 Jan 2023 16:22:58 +0800
+Subject: [PATCH 046/905] [Huawei] genirq: Introduce warn log when irq be
+ reentrant
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6BO2R
+
+-------------------------------
+
+Now we has nothing to show the log when the irq be reentrant in
+multiple cpus.
+
+The IRQD_IRQ_INPROGRESS means that the irq was in processing.
+
+We can add an checkpoint here to indentifly this scenario.
+
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ kernel/irq/Kconfig | 4 ++++
+ kernel/irq/chip.c  | 6 ++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/kernel/irq/Kconfig b/kernel/irq/Kconfig
+index 0f2a44fc0971..ab5505d8caf1 100644
+--- a/kernel/irq/Kconfig
++++ b/kernel/irq/Kconfig
+@@ -145,3 +145,7 @@ config GENERIC_IRQ_MULTI_HANDLER
+ 	bool
+ 	help
+ 	  Allow to specify the low level IRQ handler at run time.
++
++config IRQ_REENTRY_WARN
++	bool "Print IRQ Reentry Warn Log"
++	default n
+diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
+index 621d8dd157bc..4becd299a929 100644
+--- a/kernel/irq/chip.c
++++ b/kernel/irq/chip.c
+@@ -513,6 +513,12 @@ static bool irq_may_run(struct irq_desc *desc)
+ 	if (!irqd_has_set(&desc->irq_data, mask))
+ 		return true;
+ 
++#ifdef CONFIG_IRQ_REENTRY_WARN
++	if (irqd_get(&desc->irq_data) & IRQD_IRQ_INPROGRESS)
++		pr_warn_ratelimited("irq %u(%lu) may be reentrant in multiple cpus.\n",
++				    desc->irq_data.irq, desc->irq_data.hwirq);
++#endif
++
+ 	/*
+ 	 * If the interrupt is an armed wakeup source, mark it pending
+ 	 * and suspended, disable it and notify the pm core about the
+-- 
+2.17.1
+

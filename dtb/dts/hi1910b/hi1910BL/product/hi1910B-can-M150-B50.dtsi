@@ -1,0 +1,18 @@
+    mttcan@2 {
+        compatible = "hisi,mttcan";
+        mttcan-id = <2>;
+        cclk-freq-hz = <80000000>;
+        hclk-freq-hz = <150000000>;
+        interrupts = <0 180 0x04>,
+                     <0 181 0x04>;
+        interrupt-names = "int0", "int1";
+        reg = <0x00 0x822C0000 0x00 0x200>,
+              <0x00 0x822C1000 0x00 0x1000>,
+              <0x00 0x80130A38 0x00 0x8>,
+              <0x00 0x82320000 0x00 0x60>,
+              <0x00 0xC014FFF8 0x00 0x8>;
+        reg-names = "reg-base", "mram-base", "reset-base", "gpio-base", "plat-base";
+        pinctrl-names = "default", "idle";
+        pinctrl-0 = <&can2_rx_pmx_func &can2_tx_pmx_func>;
+        pinctrl-1 = <&can2_rx_pmx_idle &can2_tx_pmx_idle>;
+    };

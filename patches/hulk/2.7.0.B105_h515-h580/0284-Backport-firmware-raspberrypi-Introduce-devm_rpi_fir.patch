@@ -1,0 +1,108 @@
+From ba5a1dbdb42aa433baf089234f7d727fe6221975 Mon Sep 17 00:00:00 2001
+From: Nicolas Saenz Julienne <nsaenzjulienne@suse.de>
+Date: Mon, 18 Jan 2021 13:32:35 +0100
+Subject: [PATCH 284/780] [Backport] firmware: raspberrypi: Introduce
+ devm_rpi_firmware_get()
+
+stable inclusion
+from stable-v5.10.180
+commit 3aa2503717ba8b7cf529527d9bad09947f2f65a0
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3aa2503717ba8b7cf529527d9bad09947f2f65a0
+
+--------------------------------
+
+[ Upstream commit f663204c9a1f8d6fcc590667d9d7a9f44e064644 ]
+
+It'll simplify the firmware handling for most consumers.
+
+Suggested-by: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Signed-off-by: Nicolas Saenz Julienne <nsaenzjulienne@suse.de>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Stable-dep-of: 5bca3688bdbc ("Input: raspberrypi-ts - fix refcount leak in rpi_ts_probe")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/firmware/raspberrypi.c             | 29 ++++++++++++++++++++++
+ include/soc/bcm2835/raspberrypi-firmware.h |  8 ++++++
+ 2 files changed, 37 insertions(+)
+
+diff --git a/drivers/firmware/raspberrypi.c b/drivers/firmware/raspberrypi.c
+index 9eef49da47e0..45ff03da234a 100644
+--- a/drivers/firmware/raspberrypi.c
++++ b/drivers/firmware/raspberrypi.c
+@@ -243,6 +243,13 @@ void rpi_firmware_put(struct rpi_firmware *fw)
+ }
+ EXPORT_SYMBOL_GPL(rpi_firmware_put);
+ 
++static void devm_rpi_firmware_put(void *data)
++{
++	struct rpi_firmware *fw = data;
++
++	rpi_firmware_put(fw);
++}
++
+ static int rpi_firmware_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -338,6 +345,28 @@ struct rpi_firmware *rpi_firmware_get(struct device_node *firmware_node)
+ }
+ EXPORT_SYMBOL_GPL(rpi_firmware_get);
+ 
++/**
++ * devm_rpi_firmware_get - Get pointer to rpi_firmware structure.
++ * @firmware_node:    Pointer to the firmware Device Tree node.
++ *
++ * Returns NULL is the firmware device is not ready.
++ */
++struct rpi_firmware *devm_rpi_firmware_get(struct device *dev,
++					   struct device_node *firmware_node)
++{
++	struct rpi_firmware *fw;
++
++	fw = rpi_firmware_get(firmware_node);
++	if (!fw)
++		return NULL;
++
++	if (devm_add_action_or_reset(dev, devm_rpi_firmware_put, fw))
++		return NULL;
++
++	return fw;
++}
++EXPORT_SYMBOL_GPL(devm_rpi_firmware_get);
++
+ static const struct of_device_id rpi_firmware_of_match[] = {
+ 	{ .compatible = "raspberrypi,bcm2835-firmware", },
+ 	{},
+diff --git a/include/soc/bcm2835/raspberrypi-firmware.h b/include/soc/bcm2835/raspberrypi-firmware.h
+index fdfef7fe40df..73ad784fca96 100644
+--- a/include/soc/bcm2835/raspberrypi-firmware.h
++++ b/include/soc/bcm2835/raspberrypi-firmware.h
+@@ -142,6 +142,8 @@ int rpi_firmware_property_list(struct rpi_firmware *fw,
+ 			       void *data, size_t tag_size);
+ void rpi_firmware_put(struct rpi_firmware *fw);
+ struct rpi_firmware *rpi_firmware_get(struct device_node *firmware_node);
++struct rpi_firmware *devm_rpi_firmware_get(struct device *dev,
++					   struct device_node *firmware_node);
+ #else
+ static inline int rpi_firmware_property(struct rpi_firmware *fw, u32 tag,
+ 					void *data, size_t len)
+@@ -160,6 +162,12 @@ static inline struct rpi_firmware *rpi_firmware_get(struct device_node *firmware
+ {
+ 	return NULL;
+ }
++
++static inline struct rpi_firmware *devm_rpi_firmware_get(struct device *dev,
++					struct device_node *firmware_node)
++{
++	return NULL;
++}
+ #endif
+ 
+ #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
+-- 
+2.17.1
+

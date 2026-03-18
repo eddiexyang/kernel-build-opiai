@@ -1,0 +1,138 @@
+From 457bf4b45100aad605486141e257ead74e8570c8 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Sat, 10 Jun 2023 18:49:33 +0800
+Subject: [PATCH 030/780] [Huawei] quota: fix race condition between dqput()
+ and dquot_mark_dquot_dirty()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188812
+
+--------------------------------
+
+We ran into a problem that dqput() and dquot_mark_dquot_dirty() may race
+like the function graph below, causing a released dquot to be added to the
+dqi_dirty_list, and this leads to that dquot being released again in
+dquot_writeback_dquots(), making two identical quotas in free_dquots.
+
+       cpu1              cpu2
+_________________|_________________
+wb_do_writeback         CHOWN(1)
+ ...
+  ext4_da_update_reserve_space
+   dquot_claim_block
+    ...
+     dquot_mark_dquot_dirty // try to dirty old quota
+      test_bit(DQ_ACTIVE_B, &dquot->dq_flags) // still ACTIVE
+      if (test_bit(DQ_MOD_B, &dquot->dq_flags))
+      // test no dirty, wait dq_list_lock
+                    ...
+                     dquot_transfer
+                      __dquot_transfer
+                      dqput_all(transfer_from) // rls old dquot
+                       dqput // last dqput
+                        dquot_release
+                         clear_bit(DQ_ACTIVE_B, &dquot->dq_flags)
+                        atomic_dec(&dquot->dq_count)
+                        put_dquot_last(dquot)
+                         list_add_tail(&dquot->dq_free, &free_dquots)
+                         // first add the dquot to free_dquots
+      if (!test_and_set_bit(DQ_MOD_B, &dquot->dq_flags))
+        add dqi_dirty_list // add freed dquot to dirty_list
+P3:
+ksys_sync
+ ...
+  dquot_writeback_dquots
+   WARN_ON(!test_bit(DQ_ACTIVE_B, &dquot->dq_flags))
+   dqgrab(dquot)
+    WARN_ON_ONCE(!atomic_read(&dquot->dq_count))
+    WARN_ON_ONCE(!test_bit(DQ_ACTIVE_B, &dquot->dq_flags))
+   dqput(dquot)
+    put_dquot_last(dquot)
+     list_add_tail(&dquot->dq_free, &free_dquots)
+     // Double add the dquot to free_dquots
+
+This causes a list_del corruption when removing the entry from free_dquots,
+and even trying to free the dquot twice in dqcache_shrink_scan triggers a
+use-after-free.
+
+A warning may also be triggered by a race like the function diagram below:
+
+       cpu1            cpu2           cpu3
+________________|_______________|________________
+wb_do_writeback   CHOWN(1)        QUOTASYNC(1)
+ ...                              ...
+  ext4_da_update_reserve_space
+    ...           __dquot_transfer
+                   dqput // last dqput
+                    dquot_release
+                     dquot_is_busy
+                      if (test_bit(DQ_MOD_B, &dquot->dq_flags))
+                       // not dirty and still active
+     dquot_mark_dquot_dirty
+      if (!test_and_set_bit(DQ_MOD_B, &dquot->dq_flags))
+        add dqi_dirty_list
+                       clear_bit(DQ_ACTIVE_B, &dquot->dq_flags)
+                                   dquot_writeback_dquots
+                                    WARN_ON(!test_bit(DQ_ACTIVE_B))
+
+To solve this problem, it is similar to the way dqget() avoids racing with
+dquot_release(). First set the DQ_MOD_B flag, then execute wait_on_dquot(),
+after this we know that either dquot_release() is already finished or it
+will be canceled due to DQ_MOD_B flag test, at this point if the quota is
+DQ_ACTIVE_B, then we can safely add the dquot to the dqi_dirty_list,
+otherwise clear the DQ_MOD_B flag and exit directly.
+
+Fixes: 4580b30ea887 ("quota: Do not dirty bad dquots")
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/quota/dquot.c | 23 +++++++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/fs/quota/dquot.c b/fs/quota/dquot.c
+index ad255f8ab5c5..cde0f4e3ae54 100644
+--- a/fs/quota/dquot.c
++++ b/fs/quota/dquot.c
+@@ -364,11 +364,26 @@ int dquot_mark_dquot_dirty(struct dquot *dquot)
+ 		return 1;
+ 
+ 	spin_lock(&dq_list_lock);
+-	if (!test_and_set_bit(DQ_MOD_B, &dquot->dq_flags)) {
++	ret = test_and_set_bit(DQ_MOD_B, &dquot->dq_flags);
++	if (ret)
++		goto out_lock;
++	spin_unlock(&dq_list_lock);
++
++	/*
++	 * Wait for dq_lock - after this we know that either dquot_release() is
++	 * already finished or it will be canceled due to DQ_MOD_B flag test.
++	 */
++	wait_on_dquot(dquot);
++	spin_lock(&dq_list_lock);
++	if (!test_bit(DQ_ACTIVE_B, &dquot->dq_flags)) {
++		clear_bit(DQ_MOD_B, &dquot->dq_flags);
++		goto out_lock;
++	}
++	/* DQ_MOD_B is cleared means that the dquot has been written back */
++	if (test_bit(DQ_MOD_B, &dquot->dq_flags))
+ 		list_add(&dquot->dq_dirty, &sb_dqopt(dquot->dq_sb)->
+ 				info[dquot->dq_id.type].dqi_dirty_list);
+-		ret = 0;
+-	}
++out_lock:
+ 	spin_unlock(&dq_list_lock);
+ 	return ret;
+ }
+@@ -793,7 +808,7 @@ void dqput(struct dquot *dquot)
+ 		return;
+ 	}
+ 	/* Need to release dquot? */
+-	if (dquot_dirty(dquot)) {
++	if (test_bit(DQ_ACTIVE_B, &dquot->dq_flags) && dquot_dirty(dquot)) {
+ 		spin_unlock(&dq_list_lock);
+ 		/* Commit dquot before releasing */
+ 		ret = dquot->dq_sb->dq_op->write_dquot(dquot);
+-- 
+2.17.1
+

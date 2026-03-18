@@ -1,0 +1,118 @@
+From 47cad46aed39bc13f914c826e5186ec7e29a3aa0 Mon Sep 17 00:00:00 2001
+From: Chandan Babu R <chandanrlinux@gmail.com>
+Date: Fri, 22 Jan 2021 16:48:11 -0800
+Subject: [PATCH 249/261] [Backport] xfs: Check for extent overflow when
+ punching a hole
+
+mainline inclusion
+from mainline-v5.12-rc1
+commit 85ef08b5a667615bc7be5058259753dc42a7adcd
+category: bugfix
+bugzilla: 187510
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=85ef08b5a667615bc7be5058259753dc42a7adcd
+
+--------------------------------
+
+The extent mapping the file offset at which a hole has to be
+inserted will be split into two extents causing extent count to
+increase by 1.
+
+Reviewed-by: Darrick J. Wong <darrick.wong@oracle.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Allison Henderson <allison.henderson@oracle.com>
+Signed-off-by: Chandan Babu R <chandanrlinux@gmail.com>
+Signed-off-by: Darrick J. Wong <darrick.wong@oracle.com>
+
+Conflict: commit 3a1af6c317d0 ("xfs: refactor common
+transaction/inode/quota allocation idiom") is backported, which
+introduce some conflicts on code context.
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ fs/xfs/libxfs/xfs_inode_fork.h |  7 +++++++
+ fs/xfs/xfs_bmap_item.c         | 15 +++++++++------
+ fs/xfs/xfs_bmap_util.c         | 10 ++++++++++
+ 3 files changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_inode_fork.h b/fs/xfs/libxfs/xfs_inode_fork.h
+index 7fc2b129a2e7..bcac769a7df6 100644
+--- a/fs/xfs/libxfs/xfs_inode_fork.h
++++ b/fs/xfs/libxfs/xfs_inode_fork.h
+@@ -40,6 +40,13 @@ struct xfs_ifork {
+  */
+ #define XFS_IEXT_ADD_NOSPLIT_CNT	(1)
+ 
++/*
++ * Punching out an extent from the middle of an existing extent can cause the
++ * extent count to increase by 1.
++ * i.e. | Old extent | Hole | Old extent |
++ */
++#define XFS_IEXT_PUNCH_HOLE_CNT		(1)
++
+ /*
+  * Fork handling.
+  */
+diff --git a/fs/xfs/xfs_bmap_item.c b/fs/xfs/xfs_bmap_item.c
+index adc7507947bf..44ec0f2d5253 100644
+--- a/fs/xfs/xfs_bmap_item.c
++++ b/fs/xfs/xfs_bmap_item.c
+@@ -439,6 +439,7 @@ xfs_bui_item_recover(
+ 	xfs_exntst_t			state;
+ 	unsigned int			bui_type;
+ 	int				whichfork;
++	int				iext_delta;
+ 	int				error = 0;
+ 
+ 	/* Only one mapping operation per BUI... */
+@@ -497,12 +498,14 @@ xfs_bui_item_recover(
+ 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+ 	xfs_trans_ijoin(tp, ip, 0);
+ 
+-	if (bui_type == XFS_BMAP_MAP) {
+-		error = xfs_iext_count_may_overflow(ip, whichfork,
+-				XFS_IEXT_ADD_NOSPLIT_CNT);
+-		if (error)
+-			goto err_cancel;
+-	}
++	if (bui_type == XFS_BMAP_MAP)
++		iext_delta = XFS_IEXT_ADD_NOSPLIT_CNT;
++	else
++		iext_delta = XFS_IEXT_PUNCH_HOLE_CNT;
++
++	error = xfs_iext_count_may_overflow(ip, whichfork, iext_delta);
++	if (error)
++		goto err_cancel;
+ 
+ 	count = bmap->me_len;
+ 	error = xfs_trans_log_finish_bmap_update(tp, budp, bui_type, ip,
+diff --git a/fs/xfs/xfs_bmap_util.c b/fs/xfs/xfs_bmap_util.c
+index c727ac76d03b..202d6af3e503 100644
+--- a/fs/xfs/xfs_bmap_util.c
++++ b/fs/xfs/xfs_bmap_util.c
+@@ -859,6 +859,11 @@ xfs_unmap_extent(
+ 	if (error)
+ 		return error;
+ 
++	error = xfs_iext_count_may_overflow(ip, XFS_DATA_FORK,
++			XFS_IEXT_PUNCH_HOLE_CNT);
++	if (error)
++		goto out_trans_cancel;
++
+ 	error = xfs_bunmapi(tp, ip, startoffset_fsb, len_fsb, 0, 2, done);
+ 	if (error)
+ 		goto out_trans_cancel;
+@@ -1136,6 +1141,11 @@ xfs_insert_file_space(
+ 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+ 	xfs_trans_ijoin(tp, ip, 0);
+ 
++	error = xfs_iext_count_may_overflow(ip, XFS_DATA_FORK,
++			XFS_IEXT_PUNCH_HOLE_CNT);
++	if (error)
++		goto out_trans_cancel;
++
+ 	/*
+ 	 * The extent shifting code works on extent granularity. So, if stop_fsb
+ 	 * is not the starting block of extent, we need to split the extent at
+-- 
+2.17.1
+

@@ -1,0 +1,62 @@
+From 666c3522b60e56cf468e69154978db027fc8dba7 Mon Sep 17 00:00:00 2001
+From: Helge Deller <deller@gmx.de>
+Date: Mon, 19 Dec 2022 20:56:36 +0100
+Subject: [PATCH 435/500] [Backport] parisc: Fix return code of
+ pdc_iodc_print()
+
+stable inclusion
+from stable-v5.10.168
+commit 2982b473d764b4d02a40c84246a2d576d411427d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6IXN2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2982b473d764b4d02a40c84246a2d576d411427d
+
+--------------------------------
+
+commit 5d1335dabb3c493a3d6d5b233953b6ac7b6c1ff2 upstream.
+
+There is an off-by-one if the printed string includes a new-line
+char.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Helge Deller <deller@gmx.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/parisc/kernel/firmware.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/arch/parisc/kernel/firmware.c b/arch/parisc/kernel/firmware.c
+index 665b70086685..7ed28ddcaba7 100644
+--- a/arch/parisc/kernel/firmware.c
++++ b/arch/parisc/kernel/firmware.c
+@@ -1230,7 +1230,7 @@ static char __attribute__((aligned(64))) iodc_dbuf[4096];
+  */
+ int pdc_iodc_print(const unsigned char *str, unsigned count)
+ {
+-	unsigned int i;
++	unsigned int i, found = 0;
+ 	unsigned long flags;
+ 
+ 	for (i = 0; i < count;) {
+@@ -1239,6 +1239,7 @@ int pdc_iodc_print(const unsigned char *str, unsigned count)
+ 			iodc_dbuf[i+0] = '\r';
+ 			iodc_dbuf[i+1] = '\n';
+ 			i += 2;
++			found = 1;
+ 			goto print;
+ 		default:
+ 			iodc_dbuf[i] = str[i];
+@@ -1255,7 +1256,7 @@ int pdc_iodc_print(const unsigned char *str, unsigned count)
+                     __pa(iodc_retbuf), 0, __pa(iodc_dbuf), i, 0);
+         spin_unlock_irqrestore(&pdc_lock, flags);
+ 
+-	return i;
++	return i - found;
+ }
+ 
+ #if !defined(BOOTLOADER)
+-- 
+2.17.1
+

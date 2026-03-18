@@ -1,0 +1,36 @@
+From 71e3d0c102d11cfcb09e79314cb7e1697d61d3ad Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Sat, 20 May 2023 11:31:14 +0800
+Subject: [PATCH 033/263] [Huawei] mm/dpool: Return EINVAL if range_cnt is
+ under one
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+-------------------------------
+
+Return -EINVAL if range_cnt is under one.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/dynamic_hugetlb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 7bdc486682f3..beb501df6610 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -1382,7 +1382,7 @@ int dpool_init(struct dpool_info *arg)
+ 	int i, ret, range_cnt;
+ 
+ 	if (!dpool_enabled || !arg || !arg->memcg || arg->memcg->hpool ||
+-	    dpool_global_hpool)
++	    arg->range_cnt <= 0 || dpool_global_hpool)
+ 		return -EINVAL;
+ 
+ 	ret = hugetlb_pool_create(arg->memcg, 0, &list_pool_ops);
+-- 
+2.17.1
+

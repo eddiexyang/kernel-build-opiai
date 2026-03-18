@@ -1,0 +1,46 @@
+From f27104209cd2e74c741c417ded1eee9b414d80b9 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Wed, 13 Jul 2022 13:51:56 -0700
+Subject: [PATCH 0269/1076] [Backport] ip: Fix a data-race around
+ sysctl_ip_autobind_reuse.
+
+stable inclusion
+from stable-v5.10.134
+commit 611ba70e5aca252ef43374dda97ed4cf1c47a07c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=611ba70e5aca252ef43374dda97ed4cf1c47a07c
+
+--------------------------------
+
+[ Upstream commit 0db232765887d9807df8bcb7b6f29b2871539eab ]
+
+While reading sysctl_ip_autobind_reuse, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: 4b01a9674231 ("tcp: bind(0) remove the SO_REUSEADDR restriction when ephemeral ports are exhausted.")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv4/inet_connection_sock.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv4/inet_connection_sock.c b/net/ipv4/inet_connection_sock.c
+index addd595bb3fe..3aa62a3f33d0 100644
+--- a/net/ipv4/inet_connection_sock.c
++++ b/net/ipv4/inet_connection_sock.c
+@@ -251,7 +251,7 @@ inet_csk_find_open_port(struct sock *sk, struct inet_bind_bucket **tb_ret, int *
+ 		goto other_half_scan;
+ 	}
+ 
+-	if (net->ipv4.sysctl_ip_autobind_reuse && !relax) {
++	if (READ_ONCE(net->ipv4.sysctl_ip_autobind_reuse) && !relax) {
+ 		/* We still have a chance to connect to different destinations */
+ 		relax = true;
+ 		goto ports_exhausted;
+-- 
+2.17.1
+

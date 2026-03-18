@@ -1,0 +1,83 @@
+From 09e1baafd48e42de5b50bced6458ecefce85a4f2 Mon Sep 17 00:00:00 2001
+Date: Thu, 9 Nov 2023 11:34:01 +0800
+Subject: [PATCH] [Huawei] ascend: hns3: fix bug for init roh client instance
+
+add support for the roh capability in hnae3_dev flag.
+
+backport opensource patch: 
+https://gitee.com/openeuler/kernel/commit/7e6b874a1e08fda43396b00b4971915720fa8a85
+
+---
+ drivers/net/ethernet/hisilicon/hns3/hnae3.h             | 8 ++++++++
+ drivers/net/ethernet/hisilicon/hns3/hns3_enet.c         | 6 +++---
+ drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c | 6 ++++--
+ 3 files changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hnae3.h b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+index be7787a..cd55c76 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hnae3.h
++++ b/drivers/net/ethernet/hisilicon/hns3/hnae3.h
+@@ -111,10 +111,18 @@ enum {
+ #define HNAE3_ROCE_CLIENT_INITED_B		0x5
+ #define HNAE3_ROH_CLIENT_INITED_B		0x6
+ #define HNAE3_CUSTOM_CLIENT_INITED_B	0x7
++#define HNAE3_DEV_SUPPORT_ROH_B			0xA
+ 
+ #define HNAE3_DEV_SUPPORT_ROCE_DCB_BITS (BIT(HNAE3_DEV_SUPPORT_DCB_B) | \
+ 		BIT(HNAE3_DEV_SUPPORT_ROCE_B))
+ 
++#define HNAE3_DEV_SUPPORT_ROCE_ROH_DCB_BITS \
++		(BIT(HNAE3_DEV_SUPPORT_DCB_B) | BIT(HNAE3_DEV_SUPPORT_ROCE_B) | \
++		 BIT(HNAE3_DEV_SUPPORT_ROH_B))
++
++#define hnae3_dev_roh_supported(hdev) \
++	hnae3_get_bit((hdev)->ae_dev->flag, HNAE3_DEV_SUPPORT_ROH_B)
++
+ #define hnae3_dev_roce_supported(hdev) \
+ 	hnae3_get_bit((hdev)->ae_dev->flag, HNAE3_DEV_SUPPORT_ROCE_B)
+ 
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c b/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
+index 77d4be8..4910f41 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
+@@ -100,7 +100,7 @@ static const struct pci_device_id hns3_pci_tbl[] = {
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_100G_RDMA_MACSEC),
+ 	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
+ 	 {PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_100G_ROH),
+-	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
++	 HNAE3_DEV_SUPPORT_ROCE_ROH_DCB_BITS},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_200G_RDMA),
+ 	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_400G_RDMA),
+@@ -108,9 +108,9 @@ static const struct pci_device_id hns3_pci_tbl[] = {
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_RDMA_SDI),
+ 	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_200G_ROH),
+-	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
++	 HNAE3_DEV_SUPPORT_ROCE_ROH_DCB_BITS},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_400G_ROH),
+-	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
++	 HNAE3_DEV_SUPPORT_ROCE_ROH_DCB_BITS},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_VF), 0},
+ 	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_RDMA_DCB_PFC_VF),
+ 	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+index 583c151..401ebc1 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c
+@@ -11714,8 +11714,10 @@ static int hclge_init_client_instance(struct hnae3_client *client,
+ 
+ 		break;
+ 	case HNAE3_CLIENT_ROH:
+-		hdev->roh_client = client;
+-		vport->roh.client = client;
++		if (hnae3_dev_roh_supported(hdev)) {
++			hdev->roh_client = client;
++			vport->roh.client = client;
++		}
+ 
+ 		ret = hclge_init_roh_client_instance(ae_dev, vport);
+ 		if (ret)
+-- 
+2.23.0
+

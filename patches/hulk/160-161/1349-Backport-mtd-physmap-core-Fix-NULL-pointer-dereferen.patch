@@ -1,0 +1,51 @@
+From f80a708af56e109197cccacb1ac4542e284cba1b Mon Sep 17 00:00:00 2001
+From: Zeng Jingxiang <linuszeng@tencent.com>
+Date: Wed, 27 Jul 2022 14:03:02 +0800
+Subject: [PATCH 1349/1398] [Backport] mtd: physmap-core: Fix NULL pointer
+ dereferencing in of_select_probe_type()
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 8b740c08eb8202817562c358e8d867db0f7d6565
+category: bugfix
+bugzilla: 188145
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8b740c08eb8202817562c358e8d867db0f7d6565
+
+----------------------------------------------------------------------
+
+Coverity complains of a possible NULL dereference:
+
+in of_select_probe_type():
+1. returned_null: of_match_device() returns NULL.
+2. var_assigned: match = NULL return value from of_match_device()
+309	match = of_match_device(of_flash_match, &dev->dev);
+
+3.dereference: Dereferencing the NULL pointer match.
+310	probe_type = match->data;
+
+Signed-off-by: Zeng Jingxiang <linuszeng@tencent.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20220727060302.1560325-1-zengjx95@gmail.com
+Signed-off-by: Xiang Yang <xiangyang3@huawei.com>
+---
+ drivers/mtd/maps/physmap-core.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/mtd/maps/physmap-core.c b/drivers/mtd/maps/physmap-core.c
+index 4f63b8430c71..69d0ab1f6f94 100644
+--- a/drivers/mtd/maps/physmap-core.c
++++ b/drivers/mtd/maps/physmap-core.c
+@@ -307,6 +307,9 @@ static const char *of_select_probe_type(struct platform_device *dev)
+ 	const char *probe_type;
+ 
+ 	match = of_match_device(of_flash_match, &dev->dev);
++	if (!match)
++		return NULL;
++
+ 	probe_type = match->data;
+ 	if (probe_type)
+ 		return probe_type;
+-- 
+2.17.1
+

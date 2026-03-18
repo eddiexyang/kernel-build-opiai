@@ -1,0 +1,94 @@
+From 7d9110d0b476479c62b8f1d8dee7a4d64e59b776 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 22 Mar 2022 14:48:52 -0700
+Subject: [PATCH 033/921] [Backport] mm/damon/paddr,vaddr: register themselves
+ to DAMON in subsys_initcall
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 7752925fbc081f31bef6a410fb8a06830daaf460
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7752925fbc081f31bef6a410fb8a06830daaf460
+
+--------------------------------
+
+This commit makes the monitoring operations for the physical address space
+and virtual address spaces register themselves to DAMON in the
+subsys_initcall step.  Later, in-kernel DAMON user code can use them via
+damon_select_ops() without have to unnecessarily depend on all possible
+monitoring operations implementations.
+
+Link: https://lkml.kernel.org/r/20220215184603.1479-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: David Rientjes <rientjes@google.com>
+Cc: Xin Hao <xhao@linux.alibaba.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/paddr.c | 20 ++++++++++++++++++++
+ mm/damon/vaddr.c | 20 ++++++++++++++++++++
+ 2 files changed, 40 insertions(+)
+
+diff --git a/mm/damon/paddr.c b/mm/damon/paddr.c
+index fbeb9a3236c5..416038bc5363 100644
+--- a/mm/damon/paddr.c
++++ b/mm/damon/paddr.c
+@@ -273,3 +273,23 @@ void damon_pa_set_operations(struct damon_ctx *ctx)
+ 	ctx->ops.apply_scheme = damon_pa_apply_scheme;
+ 	ctx->ops.get_scheme_score = damon_pa_scheme_score;
+ }
++
++static int __init damon_pa_initcall(void)
++{
++	struct damon_operations ops = {
++		.id = DAMON_OPS_PADDR,
++		.init = NULL,
++		.update = NULL,
++		.prepare_access_checks = damon_pa_prepare_access_checks,
++		.check_accesses = damon_pa_check_accesses,
++		.reset_aggregated = NULL,
++		.target_valid = damon_pa_target_valid,
++		.cleanup = NULL,
++		.apply_scheme = damon_pa_apply_scheme,
++		.get_scheme_score = damon_pa_scheme_score,
++	};
++
++	return damon_register_ops(&ops);
++};
++
++subsys_initcall(damon_pa_initcall);
+diff --git a/mm/damon/vaddr.c b/mm/damon/vaddr.c
+index c0eb32025f9b..87475ba37bec 100644
+--- a/mm/damon/vaddr.c
++++ b/mm/damon/vaddr.c
+@@ -752,4 +752,24 @@ void damon_va_set_operations(struct damon_ctx *ctx)
+ 	ctx->ops.get_scheme_score = damon_va_scheme_score;
+ }
+ 
++static int __init damon_va_initcall(void)
++{
++	struct damon_operations ops = {
++		.id = DAMON_OPS_VADDR,
++		.init = damon_va_init,
++		.update = damon_va_update,
++		.prepare_access_checks = damon_va_prepare_access_checks,
++		.check_accesses = damon_va_check_accesses,
++		.reset_aggregated = NULL,
++		.target_valid = damon_va_target_valid,
++		.cleanup = NULL,
++		.apply_scheme = damon_va_apply_scheme,
++		.get_scheme_score = damon_va_scheme_score,
++	};
++
++	return damon_register_ops(&ops);
++};
++
++subsys_initcall(damon_va_initcall);
++
+ #include "vaddr-test.h"
+-- 
+2.17.1
+

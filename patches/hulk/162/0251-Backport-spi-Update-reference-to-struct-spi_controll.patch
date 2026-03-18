@@ -1,0 +1,52 @@
+From 094b5c9d09d3b187aa397008604f09e0a0a71b82 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonathan=20Neusch=C3=A4fer?= <j.neuschaefer@gmx.net>
+Date: Tue, 1 Nov 2022 18:32:51 +0100
+Subject: [PATCH 251/905] [Backport] spi: Update reference to struct
+ spi_controller
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.163
+commit f1aa976857a310f38a420f4a65e9b007ae9272fd
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f1aa976857a310f38a420f4a65e9b007ae9272fd
+
+--------------------------------
+
+[ Upstream commit bf585ccee22faf469d82727cf375868105b362f7 ]
+
+struct spi_master has been renamed to struct spi_controller. Update the
+reference in spi.rst to make it clickable again.
+
+Fixes: 8caab75fd2c2 ("spi: Generalize SPI "master" to "controller"")
+Signed-off-by: Jonathan Neuschäfer <j.neuschaefer@gmx.net>
+Link: https://lore.kernel.org/r/20221101173252.1069294-1-j.neuschaefer@gmx.net
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ Documentation/driver-api/spi.rst | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/driver-api/spi.rst b/Documentation/driver-api/spi.rst
+index f64cb666498a..f28887045049 100644
+--- a/Documentation/driver-api/spi.rst
++++ b/Documentation/driver-api/spi.rst
+@@ -25,8 +25,8 @@ hardware, which may be as simple as a set of GPIO pins or as complex as
+ a pair of FIFOs connected to dual DMA engines on the other side of the
+ SPI shift register (maximizing throughput). Such drivers bridge between
+ whatever bus they sit on (often the platform bus) and SPI, and expose
+-the SPI side of their device as a :c:type:`struct spi_master
+-<spi_master>`. SPI devices are children of that master,
++the SPI side of their device as a :c:type:`struct spi_controller
++<spi_controller>`. SPI devices are children of that master,
+ represented as a :c:type:`struct spi_device <spi_device>` and
+ manufactured from :c:type:`struct spi_board_info
+ <spi_board_info>` descriptors which are usually provided by
+-- 
+2.17.1
+

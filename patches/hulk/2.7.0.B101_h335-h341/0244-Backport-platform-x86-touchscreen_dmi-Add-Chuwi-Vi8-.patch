@@ -1,0 +1,53 @@
+From 35273db78a14ffd5532936c79d15629ed2057fc1 Mon Sep 17 00:00:00 2001
+From: Hans de Goede <hdegoede@redhat.com>
+Date: Thu, 2 Feb 2023 11:34:13 +0100
+Subject: [PATCH 244/921] [Backport] platform/x86: touchscreen_dmi: Add Chuwi
+ Vi8 (CWI501) DMI match
+
+stable inclusion
+from stable-v5.10.169
+commit 25f65c83f5f7c5de3d7c7f0b10e15a7413dfe5bf
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=25f65c83f5f7c5de3d7c7f0b10e15a7413dfe5bf
+
+--------------------------------
+
+[ Upstream commit eecf2acd4a580e9364e5087daf0effca60a240b7 ]
+
+Add a DMI match for the CWI501 version of the Chuwi Vi8 tablet,
+pointing to the same chuwi_vi8_data as the existing CWI506 version
+DMI match.
+
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+Link: https://lore.kernel.org/r/20230202103413.331459-1-hdegoede@redhat.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/platform/x86/touchscreen_dmi.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/platform/x86/touchscreen_dmi.c b/drivers/platform/x86/touchscreen_dmi.c
+index bc26acace2c3..b96fbc8dba09 100644
+--- a/drivers/platform/x86/touchscreen_dmi.c
++++ b/drivers/platform/x86/touchscreen_dmi.c
+@@ -1030,6 +1030,15 @@ const struct dmi_system_id touchscreen_dmi_table[] = {
+ 			DMI_MATCH(DMI_BIOS_DATE, "05/07/2016"),
+ 		},
+ 	},
++	{
++		/* Chuwi Vi8 (CWI501) */
++		.driver_data = (void *)&chuwi_vi8_data,
++		.matches = {
++			DMI_MATCH(DMI_SYS_VENDOR, "Insyde"),
++			DMI_MATCH(DMI_PRODUCT_NAME, "i86"),
++			DMI_MATCH(DMI_BIOS_VERSION, "CHUWI.W86JLBNR01"),
++		},
++	},
+ 	{
+ 		/* Chuwi Vi8 (CWI506) */
+ 		.driver_data = (void *)&chuwi_vi8_data,
+-- 
+2.17.1
+

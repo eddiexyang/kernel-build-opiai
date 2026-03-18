@@ -1,0 +1,65 @@
+From 518d1851c3e3b4fa95e704a169e7dbcf0ee6bd7c Mon Sep 17 00:00:00 2001
+From: Maurizio Lombardi <mlombard@redhat.com>
+Date: Tue, 14 Feb 2023 15:15:56 +0100
+Subject: [PATCH 1487/1646] [Backport] scsi: target: iscsi: Fix an error
+ message in iscsi_check_key()
+
+stable inclusion
+from stable-v5.10.177
+commit 799d29a447dc2461a537fc8edeb44f9cfd630936
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=799d29a447dc2461a537fc8edeb44f9cfd630936
+
+--------------------------------
+
+[ Upstream commit 6cc55c969b7ce8d85e09a636693d4126c3676c11 ]
+
+The first half of the error message is printed by pr_err(), the second half
+is printed by pr_debug(). The user will therefore see only the first part
+of the message and will miss some useful information.
+
+Link: https://lore.kernel.org/r/20230214141556.762047-1-mlombard@redhat.com
+Signed-off-by: Maurizio Lombardi <mlombard@redhat.com>
+Reviewed-by: Mike Christie <michael.christie@oracle.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/target/iscsi/iscsi_target_parameters.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/target/iscsi/iscsi_target_parameters.c b/drivers/target/iscsi/iscsi_target_parameters.c
+index 7a461fbb1566..31cd3c02e517 100644
+--- a/drivers/target/iscsi/iscsi_target_parameters.c
++++ b/drivers/target/iscsi/iscsi_target_parameters.c
+@@ -1262,18 +1262,20 @@ static struct iscsi_param *iscsi_check_key(
+ 		return param;
+ 
+ 	if (!(param->phase & phase)) {
+-		pr_err("Key \"%s\" may not be negotiated during ",
+-				param->name);
++		char *phase_name;
++
+ 		switch (phase) {
+ 		case PHASE_SECURITY:
+-			pr_debug("Security phase.\n");
++			phase_name = "Security";
+ 			break;
+ 		case PHASE_OPERATIONAL:
+-			pr_debug("Operational phase.\n");
++			phase_name = "Operational";
+ 			break;
+ 		default:
+-			pr_debug("Unknown phase.\n");
++			phase_name = "Unknown";
+ 		}
++		pr_err("Key \"%s\" may not be negotiated during %s phase.\n",
++				param->name, phase_name);
+ 		return NULL;
+ 	}
+ 
+-- 
+2.17.1
+

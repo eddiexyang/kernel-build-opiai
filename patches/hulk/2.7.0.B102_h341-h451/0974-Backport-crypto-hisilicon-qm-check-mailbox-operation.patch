@@ -1,0 +1,83 @@
+From 229839014c1764bb849e5be00e55ccc97f3f2e35 Mon Sep 17 00:00:00 2001
+From: Weili Qian <qianweili@huawei.com>
+Date: Wed, 19 Oct 2022 12:27:26 +0800
+Subject: [PATCH 0974/1646] [Backport] crypto: hisilicon/qm - check mailbox
+ operation result
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 95b66bc4e789c5698b973e92235c2e901c7546e0
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5T7AD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=95b66bc4e789c5698b973e92235c2e901c7546e0
+
+--------------------------------
+
+After the mailbox operation is complete, the result may be unsuccessful.
+It needs to check the status bits of the mailbox register,
+if it fails, -EIO is returned.
+
+Signed-off-by: Weili Qian <qianweili@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index c773f3cfd6b7..e666999d1d4c 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -36,6 +36,7 @@
+ #define QM_MB_PING_ALL_VFS		0xffff
+ #define QM_MB_CMD_DATA_SHIFT		32
+ #define QM_MB_CMD_DATA_MASK		GENMASK(31, 0)
++#define QM_MB_STATUS_MASK		GENMASK(12, 9)
+ 
+ /* sqc shift */
+ #define QM_SQ_HOP_NUM_SHIFT		0
+@@ -728,8 +729,12 @@ static void qm_mb_write(struct hisi_qm *qm, const void *src)
+ 
+ static int qm_mb_nolock(struct hisi_qm *qm, struct qm_mailbox *mailbox)
+ {
++	int ret;
++	u32 val;
++
+ 	if (unlikely(hisi_qm_wait_mb_ready(qm))) {
+ 		dev_err(&qm->pdev->dev, "QM mailbox is busy to start!\n");
++		ret = -EBUSY;
+ 		goto mb_busy;
+ 	}
+ 
+@@ -737,6 +742,14 @@ static int qm_mb_nolock(struct hisi_qm *qm, struct qm_mailbox *mailbox)
+ 
+ 	if (unlikely(hisi_qm_wait_mb_ready(qm))) {
+ 		dev_err(&qm->pdev->dev, "QM mailbox operation timeout!\n");
++		ret = -ETIMEDOUT;
++		goto mb_busy;
++	}
++
++	val = readl(qm->io_base + QM_MB_CMD_SEND_BASE);
++	if (val & QM_MB_STATUS_MASK) {
++		dev_err(&qm->pdev->dev, "QM mailbox operation failed!\n");
++		ret = -EIO;
+ 		goto mb_busy;
+ 	}
+ 
+@@ -744,7 +757,7 @@ static int qm_mb_nolock(struct hisi_qm *qm, struct qm_mailbox *mailbox)
+ 
+ mb_busy:
+ 	atomic64_inc(&qm->debug.dfx.mb_err_cnt);
+-	return -EBUSY;
++	return ret;
+ }
+ 
+ int hisi_qm_mb(struct hisi_qm *qm, u8 cmd, dma_addr_t dma_addr, u16 queue,
+-- 
+2.17.1
+

@@ -1,0 +1,126 @@
+From a512265ec3c85ad39111ab46fc5cd1855267ba78 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Tue, 7 Mar 2023 20:09:40 +0800
+Subject: [PATCH 006/921] [Huawei] mm/dynamic_hugetlb: use mutex lock in
+ update_reserve_pages()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 46904
+
+--------------------------------
+
+When memory is fragmented, update_reserve_pages() may call migrate_pages()
+to collect continuous memory. This function can sleep, so we should use
+mutex lock instead of spin lock.
+
+Fixes: 0c06a1c068ab ("mm/dynamic_hugetlb: add interface to configure the count of hugepages")
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/dynamic_hugetlb.h |  7 ++++++-
+ mm/dynamic_hugetlb.c            | 22 +++++++++++++++-------
+ 2 files changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/include/linux/dynamic_hugetlb.h b/include/linux/dynamic_hugetlb.h
+index 5dcba8e8b933..0978b4927f6a 100644
+--- a/include/linux/dynamic_hugetlb.h
++++ b/include/linux/dynamic_hugetlb.h
+@@ -66,7 +66,7 @@ enum huge_pages_pool_type {
+ struct dhugetlb_pool {
+ 	int nid;
+ 	spinlock_t lock;
+-	spinlock_t reserved_lock;
++	spinlock_t reserved_lock;	/* deprecated */
+ 	atomic_t refcnt;
+ 	unsigned long normal_pages_disabled;
+ 
+@@ -77,6 +77,11 @@ struct dhugetlb_pool {
+ 	struct percpu_pages_pool percpu_pool[0];
+ };
+ 
++struct dhugetlb_pool_ext {
++	struct mutex reserved_lock;
++	struct dhugetlb_pool hpool;
++};
++
+ bool dhugetlb_hide_files(struct cftype *cft);
+ ssize_t write_2M_reserved_pages(struct kernfs_open_file *of,
+ 				char *buf, size_t nbytes, loff_t off);
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 6b615009c3a4..380c523d9c27 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -380,11 +380,14 @@ static bool get_hpool_unless_zero(struct dhugetlb_pool *hpool)
+ 
+ static void put_hpool(struct dhugetlb_pool *hpool)
+ {
++	struct dhugetlb_pool_ext *hpool_ext;
++
+ 	if (!dhugetlb_enabled || !hpool)
+ 		return;
+ 	if (atomic_dec_and_test(&hpool->refcnt)) {
+ 		css_put(&hpool->attach_memcg->css);
+-		kfree(hpool);
++		hpool_ext = container_of(hpool, struct dhugetlb_pool_ext, hpool);
++		kfree(hpool_ext);
+ 	}
+ }
+ 
+@@ -848,18 +851,21 @@ void hugetlb_pool_inherit(struct mem_cgroup *memcg, struct mem_cgroup *parent)
+ static int hugetlb_pool_create(struct mem_cgroup *memcg, unsigned long nid)
+ {
+ 	struct dhugetlb_pool *hpool;
++	struct dhugetlb_pool_ext *hpool_ext;
+ 	int i;
+ 
+ 	if (memcg_has_children(memcg))
+ 		return -EINVAL;
+ 
+-	hpool = kzalloc(sizeof(struct dhugetlb_pool) +
+-			NR_PERCPU_POOL * sizeof(struct percpu_pages_pool), GFP_KERNEL);
+-	if (!hpool)
++	hpool_ext = kzalloc(sizeof(struct dhugetlb_pool_ext) +
++			    NR_PERCPU_POOL * sizeof(struct percpu_pages_pool),
++			    GFP_KERNEL);
++	if (!hpool_ext)
+ 		return -ENOMEM;
+ 
++	hpool = &hpool_ext->hpool;
+ 	spin_lock_init(&hpool->lock);
+-	spin_lock_init(&hpool->reserved_lock);
++	mutex_init(&hpool_ext->reserved_lock);
+ 	hpool->nid = nid;
+ 	atomic_set(&hpool->refcnt, 1);
+ 
+@@ -956,6 +962,7 @@ bool dhugetlb_hide_files(struct cftype *cft)
+ static ssize_t update_reserved_pages(struct mem_cgroup *memcg, char *buf, int hpages_pool_idx)
+ {
+ 	struct dhugetlb_pool *hpool = memcg->hpool;
++	struct dhugetlb_pool_ext *hpool_ext;
+ 	struct huge_pages_pool *hpages_pool;
+ 	unsigned long nr_pages;
+ 	unsigned long delta;
+@@ -971,8 +978,9 @@ static ssize_t update_reserved_pages(struct mem_cgroup *memcg, char *buf, int hp
+ 
+ 	if (!get_hpool_unless_zero(hpool))
+ 		return -EINVAL;
++	hpool_ext = container_of(hpool, struct dhugetlb_pool_ext, hpool);
+ 
+-	spin_lock(&hpool->reserved_lock);
++	mutex_lock(&hpool_ext->reserved_lock);
+ 	spin_lock(&hpool->lock);
+ 	hpages_pool = &hpool->hpages_pool[hpages_pool_idx];
+ 	if (nr_pages > hpages_pool->nr_huge_pages) {
+@@ -1008,7 +1016,7 @@ static ssize_t update_reserved_pages(struct mem_cgroup *memcg, char *buf, int hp
+ 		hpages_pool->free_normal_pages += delta;
+ 	}
+ 	spin_unlock(&hpool->lock);
+-	spin_unlock(&hpool->reserved_lock);
++	mutex_unlock(&hpool_ext->reserved_lock);
+ 	put_hpool(hpool);
+ 	return 0;
+ }
+-- 
+2.17.1
+

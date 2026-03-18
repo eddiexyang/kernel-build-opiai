@@ -1,0 +1,40 @@
+From e59b88a4f0ca448111c67ac4dde95a39238d6033 Mon Sep 17 00:00:00 2001
+From: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+Date: Tue, 30 May 2023 11:05:09 +0800
+Subject: [PATCH 218/263] [Huawei] PCI: remove redundant definition
+ PCIE_DEVICE_ID_HISI_5896
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 47455
+
+--------------------------------
+
+Commit 46bbc56a4f6a ("PCI: Add quirk for HiSilicon PCI Network Processor
+devices") add a redundant PCIE_DEVICE_ID definition
+PCIE_DEVICE_ID_HISI_5896. Let's remove it.
+
+Fixes: 46bbc56a4f6a ("PCI: Add quirk for HiSilicon PCI Network Processor devices")
+Signed-off-by: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+---
+ include/linux/pci_ids.h | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
+index 617d0c26a1c3..9bc83da01e12 100644
+--- a/include/linux/pci_ids.h
++++ b/include/linux/pci_ids.h
+@@ -2594,9 +2594,6 @@
+ #define PCI_DEVICE_ID_HUAWEI_SEC_VF	0xa256
+ #define PCI_DEVICE_ID_HUAWEI_HPRE_VF	0xa259
+ 
+-/* Hisilicon PCIe NP devices */
+-#define PCIE_DEVICE_ID_HISI_5896        0x5896
+-
+ #define PCI_VENDOR_ID_NETRONOME		0x19ee
+ #define PCI_DEVICE_ID_NETRONOME_NFP4000	0x4000
+ #define PCI_DEVICE_ID_NETRONOME_NFP5000	0x5000
+-- 
+2.17.1
+

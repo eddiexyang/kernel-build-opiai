@@ -1,0 +1,48 @@
+From f838bcf1e78baa4a3d91f75a30e96f216183cc11 Mon Sep 17 00:00:00 2001
+From: Chengguang Xu <cgxu519@mykernel.net>
+Date: Wed, 27 Apr 2022 11:16:57 +0800
+Subject: [PATCH 0546/2065] [Backport] RDMA/rxe: Fix a typo in opcode name
+
+stable inclusion
+from stable-v5.10.94
+commit 16ad0aa917c905982a6bdddd5f67a824f153501e
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=16ad0aa917c905982a6bdddd5f67a824f153501e
+
+--------------------------------
+
+commit 8d1cfb884e881efd69a3be4ef10772c71cb22216 upstream.
+
+There is a redundant ']' in the name of opcode IB_OPCODE_RC_SEND_MIDDLE,
+so just fix it.
+
+Fixes: 8700e3e7c485 ("Soft RoCE driver")
+Link: https://lore.kernel.org/r/20211218112320.3558770-1-cgxu519@mykernel.net
+Signed-off-by: Chengguang Xu <cgxu519@mykernel.net>
+Acked-by: Zhu Yanjun <zyjzyj2000@gmail.com>
+Reviewed-by: Bob Pearson <rpearsonhpe@gmail.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/infiniband/sw/rxe/rxe_opcode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_opcode.c b/drivers/infiniband/sw/rxe/rxe_opcode.c
+index 0cb4b01fd910..66ffb516bdaf 100644
+--- a/drivers/infiniband/sw/rxe/rxe_opcode.c
++++ b/drivers/infiniband/sw/rxe/rxe_opcode.c
+@@ -110,7 +110,7 @@ struct rxe_opcode_info rxe_opcode[RXE_NUM_OPCODE] = {
+ 		}
+ 	},
+ 	[IB_OPCODE_RC_SEND_MIDDLE]		= {
+-		.name	= "IB_OPCODE_RC_SEND_MIDDLE]",
++		.name	= "IB_OPCODE_RC_SEND_MIDDLE",
+ 		.mask	= RXE_PAYLOAD_MASK | RXE_REQ_MASK | RXE_SEND_MASK
+ 				| RXE_MIDDLE_MASK,
+ 		.length = RXE_BTH_BYTES,
+-- 
+2.17.1
+

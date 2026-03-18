@@ -1,0 +1,653 @@
+From 523f05e3449b3fea42afe0bfcc1aeb8af2f536f2 Mon Sep 17 00:00:00 2001
+From: Li Wei <liwei825@huawei.com>
+Date: Wed, 15 Feb 2023 16:39:50 +0800
+Subject: [PATCH 321/921] [Huawei] ocfs2: add adaptation of ADL and DLM
+
+Offering: HULK
+ocfs2 inclusion
+category: feature
+bugzilla: NA
+
+----------------------------------------
+
+With the additional of ADL, modified the DLM module.
+
+Signed-off-by: Li Wei <liwei825@huawei.com>
+---
+ fs/ocfs2/adl/Makefile    |   6 ++
+ fs/ocfs2/adl/adllock.c   |  18 ++---
+ fs/ocfs2/adl/cdb.c       |  20 ++++--
+ fs/ocfs2/lockfs/Makefile |   5 ++
+ fs/ocfs2/lockfs/lockfs.c |   6 +-
+ fs/ocfs2/lockglue.c      |  21 ++++--
+ fs/ocfs2/lockglue.h      |   5 +-
+ fs/ocfs2/locks.c         |   8 ++-
+ fs/ocfs2/ocfs2_lockid.h  |   7 +-
+ fs/ocfs2/stackglue.c     | 150 ++++-----------------------------------
+ fs/ocfs2/stackglue.h     |  14 ++--
+ 11 files changed, 90 insertions(+), 170 deletions(-)
+ create mode 100644 fs/ocfs2/adl/Makefile
+ create mode 100644 fs/ocfs2/lockfs/Makefile
+
+diff --git a/fs/ocfs2/adl/Makefile b/fs/ocfs2/adl/Makefile
+new file mode 100644
+index 000000000000..53b6fffdf274
+--- /dev/null
++++ b/fs/ocfs2/adl/Makefile
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-2.0-only
++ccflags-y := -Ifs/ocfs2 -DCONFIG_OCFS2_DEBUG_MASKLOG
++obj-$(CONFIG_OCFS2_FS_O2CB) += ocfs2_adl.o
++
++ocfs2_adl-objs := adldomain.o adllock.o cdb.o
++
+diff --git a/fs/ocfs2/adl/adllock.c b/fs/ocfs2/adl/adllock.c
+index 8d282b609094..fab26684a687 100644
+--- a/fs/ocfs2/adl/adllock.c
++++ b/fs/ocfs2/adl/adllock.c
+@@ -281,7 +281,6 @@ static int adl_update_lock_and_new_level(struct adl_ctxt *adl,
+ 	/* EX --> NL */
+ 	if (unlock_level == LKM_NLMODE && ex_locked(exist)) {
+ 		int index = adl_find_ex_index(exist);
+-
+ 		if (index == ADL_INVALID_INDEX) {
+ 			mlog(ML_ERROR,
+ 				"%s: blkno %llu, offset %d, unlock level %d, can not find my lock\n",
+@@ -694,13 +693,15 @@ static int adl_compare_and_write(struct block_device *bdev, sector_t sector,
+ 			goto out;
+ 		}
+ 
+-		real_bdev = bdget(scsi_dev_seg->dvd);
++		real_bdev = blkdev_get_by_dev(scsi_dev_seg->dvd, FMODE_WRITE | FMODE_READ, NULL);
+ 		sector += to_sector(dev_seg->start);
+ 		if (scsi_dev_seg != dev_seg)
+ 			o2hb_free_device_list(&scsi_dev_list);
+ 		break;
+ 	}
+-	if (!real_bdev) {
++	if (IS_ERR(real_bdev)) {
++		mlog(ML_ERROR,
++			"Fail to get block_device. bdev:%p, real_bdev:%p\n", bdev, real_bdev);
+ 		ret = -EINVAL;
+ 		mlog_errno(ret);
+ 		goto out;
+@@ -712,8 +713,8 @@ static int adl_compare_and_write(struct block_device *bdev, sector_t sector,
+ 
+ out:
+ 	o2hb_free_device_list(&dev_list);
+-	if (real_bdev)
+-		bdput(real_bdev);
++	if (!IS_ERR(real_bdev))
++		blkdev_put(real_bdev, FMODE_READ|FMODE_WRITE);
+ 	return ret;
+ }
+ 
+@@ -734,7 +735,7 @@ static int adl_update_lock(struct adl_ctxt *adl, u64 blkno, int offset,
+ 		if (level == LKM_EXMODE &&
+ 				other_holder_exists_nocheck(adl, lockp, lock_mode)) {
+ 			mlog(ML_ERROR, "%s: blkno %llu, offset %d, other holders exist\n",
+-				adl->name, (unsigned long long)blkno, offset);
++					adl->name, (unsigned long long)blkno, offset);
+ 			ret = -EINVAL;
+ 			goto out;
+ 		}
+@@ -743,7 +744,7 @@ static int adl_update_lock(struct adl_ctxt *adl, u64 blkno, int offset,
+ 		if (index >= ADL_INVALID_INDEX) {
+ 			ret = -EINVAL;
+ 			mlog(ML_ERROR, "%s: blkno %llu, offset %d, exceed max holders\n",
+-				adl->name, (unsigned long long)blkno, offset);
++					adl->name, (unsigned long long)blkno, offset);
+ 			goto out;
+ 		}
+ 		set_lock_level(lockp, level);
+@@ -751,7 +752,6 @@ static int adl_update_lock(struct adl_ctxt *adl, u64 blkno, int offset,
+ 		clear_pending_lock(lockp);
+ 	} else if (mode == MODE_UNLOCK) {
+ 		int new_level;
+-
+ 		new_level = adl_update_lock_and_new_level(adl, blkno, offset,
+ 				lockp, level, lock_mode);
+ 		if (new_level < 0) {
+@@ -1210,7 +1210,7 @@ int adl_unlock(struct adl_ctxt *adl, u64 blkno, int offset,
+ 	if (ret) {
+ 		if (++ro_retrys < MAX_RO_RETRY_TIMES) {
+ 			mlog(ML_ERROR, "%s: blkno %llu, sector %d may be corrupted\n",
+-					'adl->name, (unsigned long long)blkno, offset);
++					adl->name, (unsigned long long)blkno, offset);
+ 			msleep(RO_RETRY_TIME_MS);
+ 			goto again;
+ 		}
+diff --git a/fs/ocfs2/adl/cdb.c b/fs/ocfs2/adl/cdb.c
+index 3dff272ed383..567a362678f2 100644
+--- a/fs/ocfs2/adl/cdb.c
++++ b/fs/ocfs2/adl/cdb.c
+@@ -75,12 +75,7 @@ static void cdb_end_rq(struct request *rq, blk_status_t error)
+ 
+ 	complete(&cdb_rq->waiting);
+ 	rq->end_io_data = NULL;
+-#ifdef ARCH_TYPE_IS_X86
+ 	blk_put_request(rq);
+-#endif  /* ARCH_TYPE_IS_X86 */
+-#ifdef ARCH_TYPE_IS_ARM
+-	__blk_put_request(rq->q, rq);
+-#endif  /* ARCH_TYPE_IS_ARM */
+ }
+ 
+ int cdb_exec(struct block_device *bdev, int rw,
+@@ -90,7 +85,20 @@ int cdb_exec(struct block_device *bdev, int rw,
+ 	int ret;
+ 	struct cdb_request cdb_rq;
+ 	struct request *rq;
+-	struct request_queue *q = bdev->bd_disk->queue;
++	struct request_queue *q;
++
++	if (!bdev->bd_disk) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
++
++	q = bdev->bd_disk->queue;
++	if (!q) {
++		ret = -EINVAL;
++		mlog_errno(ret);
++		return ret;
++	}
+ 
+ 	if (buf_len > (queue_max_hw_sectors(q) << 9) || !buf_len)
+ 		return -EINVAL;
+diff --git a/fs/ocfs2/lockfs/Makefile b/fs/ocfs2/lockfs/Makefile
+new file mode 100644
+index 000000000000..3257ca0f9106
+--- /dev/null
++++ b/fs/ocfs2/lockfs/Makefile
+@@ -0,0 +1,5 @@
++# SPDX-License-Identifier: GPL-2.0
++ccflags-y := -Ifs/ocfs2 -DCONFIG_OCFS2_DEBUG_MASKLOG
++obj-$(CONFIG_OCFS2_FS) += ocfs2_lockfs.o
++
++ocfs2_lockfs-objs := userdlm.o lockfs.o useradl.o
+diff --git a/fs/ocfs2/lockfs/lockfs.c b/fs/ocfs2/lockfs/lockfs.c
+index 6284b24316ca..491a97de9c6f 100644
+--- a/fs/ocfs2/lockfs/lockfs.c
++++ b/fs/ocfs2/lockfs/lockfs.c
+@@ -85,7 +85,7 @@ struct workqueue_struct *user_dlm_worker;
+ static int param_set_lockfs_capabilities(const char *val,
+ 					const struct kernel_param *kp)
+ {
+-	mlog(ML_ERROR "%s: readonly parameter\n", kp->name);
++	mlog(ML_ERROR, "%s: readonly parameter\n", kp->name);
+ 	return -EINVAL;
+ }
+ static int param_get_lockfs_capabilities(char *buffer,
+@@ -537,7 +537,7 @@ static int lockfs_handle_dname(char *d_name,
+ 		goto bail;
+ 	} else if (strlen(uuid) > OCFS2_VOL_UUID_LEN * 2) {
+ 		status = -EINVAL;
+-		mlog(ML_ERROR, "domain name %s len %ld too long.\n",
++		mlog(ML_ERROR, "domain name %s len %zd too long.\n",
+ 				uuid, strlen(uuid));
+ 	} else
+ 		strncpy(domain_name, uuid, strlen(uuid) + 1);
+@@ -794,7 +794,7 @@ static int __init init_lockfs_fs(void)
+ 		if (cleanup_worker)
+ 			destroy_workqueue(user_dlm_worker);
+ 	} else
+-		mlog(ML_NOTICE "OCFS2 User LOCK kernel interface loaded\n");
++		mlog(ML_NOTICE, "OCFS2 User LOCK kernel interface loaded\n");
+ 	return status;
+ }
+ 
+diff --git a/fs/ocfs2/lockglue.c b/fs/ocfs2/lockglue.c
+index c6d66c3275b0..de59f30f2531 100644
+--- a/fs/ocfs2/lockglue.c
++++ b/fs/ocfs2/lockglue.c
+@@ -34,7 +34,6 @@
+ #include "uptodate.h"
+ #include "refcounttree.h"
+ 
+-#include "dlmglue.h"
+ #include "adlglue.h"
+ #include "adl/adlcommon.h"
+ 
+@@ -870,13 +869,18 @@ int ocfs2_inode_lock_with_page(struct inode *inode,
+ 
+ int ocfs2_inode_lock_atime(struct inode *inode,
+ 			  struct vfsmount *vfsmnt,
+-			  int *level)
++			  int *level, int wait)
+ {
+ 	int ret;
+ 
+-	ret = ocfs2_inode_lock(inode, NULL, 0);
++	if (wait)
++		ret = ocfs2_inode_lock(inode, NULL, 0);
++	else
++		ret = ocfs2_try_inode_lock(inode, NULL, 0);
++
+ 	if (ret < 0) {
+-		mlog_errno(ret);
++		if (ret != -EAGAIN)
++			mlog_errno(ret);
+ 		return ret;
+ 	}
+ 
+@@ -888,9 +892,14 @@ int ocfs2_inode_lock_atime(struct inode *inode,
+ 		struct buffer_head *bh = NULL;
+ 
+ 		ocfs2_inode_unlock(inode, 0);
+-		ret = ocfs2_inode_lock(inode, &bh, 1);
++		if (wait)
++			ret = ocfs2_inode_lock(inode, &bh, 1);
++		else
++			ret = ocfs2_try_inode_lock(inode, &bh, 1);
++
+ 		if (ret < 0) {
+-			mlog_errno(ret);
++			if (ret != -EAGAIN)
++				mlog_errno(ret);
+ 			return ret;
+ 		}
+ 		*level = 1;
+diff --git a/fs/ocfs2/lockglue.h b/fs/ocfs2/lockglue.h
+index 3e4763a17826..2d1804cd3d0b 100644
+--- a/fs/ocfs2/lockglue.h
++++ b/fs/ocfs2/lockglue.h
+@@ -108,7 +108,7 @@ int ocfs2_try_open_lock(struct inode *inode, int write);
+ void ocfs2_open_unlock(struct inode *inode);
+ int ocfs2_inode_lock_atime(struct inode *inode,
+ 				struct vfsmount *vfsmnt,
+-				int *level);
++				int *level, int wait);
+ int ocfs2_inode_lock_full_nested(struct inode *inode,
+ 				struct buffer_head **ret_bh,
+ 				int ex,
+@@ -139,6 +139,9 @@ int ocfs2_inode_lock_with_page(struct inode *inode,
+  * those are for very specific cases only. */
+ #define ocfs2_inode_lock(i, b, e)\
+ 		ocfs2_inode_lock_full_nested(i, b, e, 0, OI_LS_NORMAL)
++#define ocfs2_try_inode_lock(i, b, e)\
++		ocfs2_inode_lock_full_nested(i, b, e, OCFS2_META_LOCK_NOQUEUE,\
++		OI_LS_NORMAL)
+ 
+ #define ocfs2_inode_unlock(i, e)\
+ 		ocfs2_inode_unlock_full(i, e, 0)
+diff --git a/fs/ocfs2/locks.c b/fs/ocfs2/locks.c
+index 7edc4e5c7c2c..e322ce0c89a0 100644
+--- a/fs/ocfs2/locks.c
++++ b/fs/ocfs2/locks.c
+@@ -11,12 +11,13 @@
+ 
+ #include <linux/fs.h>
+ #include <linux/fcntl.h>
++#include <linux/version.h>
+ 
+ #include <cluster/masklog.h>
+ 
+ #include "ocfs2.h"
+ 
+-#include "dlmglue.h"
++#include "lockglue.h"
+ #include "file.h"
+ #include "inode.h"
+ #include "locks.h"
+@@ -106,8 +107,11 @@ int ocfs2_flock(struct file *file, int cmd, struct file_lock *fl)
+ 	if (__mandatory_lock(inode))
+ 		return -ENOLCK;
+ 
++	if (ocfs2_test_invalid_fs(osb))
++		return -EIO;
++
+ 	if ((osb->s_mount_opt & OCFS2_MOUNT_LOCALFLOCKS) ||
+-	    ocfs2_mount_local(osb))
++			ocfs2_mount_local(osb) || ocfs2_recover_ro(osb))
+ 		return locks_lock_file_wait(file, fl);
+ 
+ 	if (fl->fl_type == F_UNLCK)
+diff --git a/fs/ocfs2/ocfs2_lockid.h b/fs/ocfs2/ocfs2_lockid.h
+index b4be84956bc1..db8af2bb45b9 100644
+--- a/fs/ocfs2/ocfs2_lockid.h
++++ b/fs/ocfs2/ocfs2_lockid.h
+@@ -26,7 +26,7 @@
+ enum ocfs2_lock_type {
+ 	OCFS2_LOCK_TYPE_META = 0,
+ 	OCFS2_LOCK_TYPE_DATA,
+-	OCFS2_LOCK_TYPE_SUPER,
++	OCFS2_LOCK_TYPE_SUPER,  /* update slot info */
+ 	OCFS2_LOCK_TYPE_RENAME,
+ 	OCFS2_LOCK_TYPE_RW,
+ 	OCFS2_LOCK_TYPE_DENTRY,
+@@ -37,6 +37,7 @@ enum ocfs2_lock_type {
+ 	OCFS2_LOCK_TYPE_ORPHAN_SCAN,
+ 	OCFS2_LOCK_TYPE_REFCOUNT,
+ 	OCFS2_LOCK_TYPE_TRIM_FS,
++	OCFS2_LOCK_TYPE_SUPER_BLOCK,  /* lock of super block */
+ 	OCFS2_NUM_LOCK_TYPES
+ };
+ 
+@@ -83,6 +84,9 @@ static inline char ocfs2_lock_type_char(enum ocfs2_lock_type type)
+ 		case OCFS2_LOCK_TYPE_TRIM_FS:
+ 			c = 'I';
+ 			break;
++		case OCFS2_LOCK_TYPE_SUPER_BLOCK: /* lock of super block */
++			c = 'B';
++			break;
+ 		default:
+ 			c = '\0';
+ 	}
+@@ -106,6 +110,7 @@ static char *ocfs2_lock_type_strings[] = {
+ 	[OCFS2_LOCK_TYPE_ORPHAN_SCAN] = "OrphanScan",
+ 	[OCFS2_LOCK_TYPE_REFCOUNT] = "Refcount",
+ 	[OCFS2_LOCK_TYPE_TRIM_FS] = "TrimFs",
++	[OCFS2_LOCK_TYPE_SUPER_BLOCK] = "SuperBlock",  /* lock of super block */
+ };
+ 
+ static inline const char *ocfs2_lock_type_string(enum ocfs2_lock_type type)
+diff --git a/fs/ocfs2/stackglue.c b/fs/ocfs2/stackglue.c
+index 5e272e257b0b..1ab29940482c 100644
+--- a/fs/ocfs2/stackglue.c
++++ b/fs/ocfs2/stackglue.c
+@@ -19,6 +19,7 @@
+ #include <linux/kobject.h>
+ #include <linux/sysfs.h>
+ #include <linux/sysctl.h>
++#include <linux/delay.h>
+ 
+ #include "ocfs2_fs.h"
+ 
+@@ -32,7 +33,6 @@ static struct ocfs2_protocol_version locking_max_version;
+ static DEFINE_SPINLOCK(ocfs2_stack_lock);
+ static LIST_HEAD(ocfs2_stack_list);
+ static char cluster_stack_name[OCFS2_STACK_LABEL_LEN + 1];
+-static char ocfs2_hb_ctl_path[OCFS2_MAX_HB_CTL_PATH] = "/sbin/ocfs2_hb_ctl";
+ 
+ /*
+  * The stack currently in use.  If not null, active_stack->sp_count > 0,
+@@ -120,7 +120,7 @@ static int ocfs2_stack_driver_get(const char *stack_name)
+ 
+ 	if (strlen(stack_name) != OCFS2_STACK_LABEL_LEN) {
+ 		printk(KERN_ERR
+-		       "ocfs2 passed an invalid cluster stack label: \"%s\"\n",
++		       "ERROR: ocfs2: passed an invalid cluster stack label: \"%s\"\n",
+ 		       stack_name);
+ 		return -EINVAL;
+ 	}
+@@ -137,11 +137,11 @@ static int ocfs2_stack_driver_get(const char *stack_name)
+ 
+ 	if (rc == -ENOENT) {
+ 		printk(KERN_ERR
+-		       "ocfs2: Cluster stack driver \"%s\" cannot be found\n",
++		       "ERROR: ocfs2: Cluster stack driver \"%s\" cannot be found\n",
+ 		       plugin_name);
+ 	} else if (rc == -EBUSY) {
+ 		printk(KERN_ERR
+-		       "ocfs2: A different cluster stack is in use\n");
++		       "ERROR: ocfs2: A different cluster stack is in use\n");
+ 	}
+ 
+ 	return rc;
+@@ -170,11 +170,11 @@ int ocfs2_stack_glue_register(struct ocfs2_stack_plugin *plugin)
+ 		plugin->sp_count = 0;
+ 		plugin->sp_max_proto = locking_max_version;
+ 		list_add(&plugin->sp_list, &ocfs2_stack_list);
+-		printk(KERN_INFO "ocfs2: Registered cluster interface %s\n",
++		printk(KERN_INFO "INFO: ocfs2: Registered cluster interface %s\n",
+ 		       plugin->sp_name);
+ 		rc = 0;
+ 	} else {
+-		printk(KERN_ERR "ocfs2: Stack \"%s\" already registered\n",
++		printk(KERN_ERR "ERROR: ocfs2: Stack \"%s\" already registered\n",
+ 		       plugin->sp_name);
+ 		rc = -EEXIST;
+ 	}
+@@ -195,10 +195,10 @@ void ocfs2_stack_glue_unregister(struct ocfs2_stack_plugin *plugin)
+ 		BUG_ON(plugin == active_stack);
+ 		BUG_ON(plugin->sp_count != 0);
+ 		list_del_init(&plugin->sp_list);
+-		printk(KERN_INFO "ocfs2: Unregistered cluster interface %s\n",
++		printk(KERN_INFO "INFO: ocfs2: Unregistered cluster interface %s\n",
+ 		       plugin->sp_name);
+ 	} else {
+-		printk(KERN_ERR "Stack \"%s\" is not registered\n",
++		printk(KERN_ERR "ERROR: ocfs2: Stack \"%s\" is not registered\n",
+ 		       plugin->sp_name);
+ 	}
+ 	spin_unlock(&ocfs2_stack_lock);
+@@ -391,74 +391,20 @@ int ocfs2_cluster_connect_agnostic(const char *group,
+ EXPORT_SYMBOL_GPL(ocfs2_cluster_connect_agnostic);
+ 
+ /* If hangup_pending is 0, the stack driver will be dropped */
+-int ocfs2_cluster_disconnect(struct ocfs2_cluster_connection *conn,
+-			     int hangup_pending)
++int ocfs2_cluster_disconnect(struct ocfs2_cluster_connection *conn)
+ {
+ 	int ret;
+ 
+ 	BUG_ON(conn == NULL);
+ 
+ 	ret = active_stack->sp_ops->disconnect(conn);
+-
+-	/* XXX Should we free it anyway? */
+-	if (!ret) {
+-		kfree(conn);
+-		if (!hangup_pending)
+-			ocfs2_stack_driver_put();
+-	}
++	kfree(conn);
++	ocfs2_stack_driver_put();
+ 
+ 	return ret;
+ }
+ EXPORT_SYMBOL_GPL(ocfs2_cluster_disconnect);
+ 
+-/*
+- * Leave the group for this filesystem.  This is executed by a userspace
+- * program (stored in ocfs2_hb_ctl_path).
+- */
+-static void ocfs2_leave_group(const char *group)
+-{
+-	int ret;
+-	char *argv[5], *envp[3];
+-
+-	argv[0] = ocfs2_hb_ctl_path;
+-	argv[1] = "-K";
+-	argv[2] = "-u";
+-	argv[3] = (char *)group;
+-	argv[4] = NULL;
+-
+-	/* minimal command environment taken from cpu_run_sbin_hotplug */
+-	envp[0] = "HOME=/";
+-	envp[1] = "PATH=/sbin:/bin:/usr/sbin:/usr/bin";
+-	envp[2] = NULL;
+-
+-	ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+-	if (ret < 0) {
+-		printk(KERN_ERR
+-		       "ocfs2: Error %d running user helper "
+-		       "\"%s %s %s %s\"\n",
+-		       ret, argv[0], argv[1], argv[2], argv[3]);
+-	}
+-}
+-
+-/*
+- * Hangup is a required post-umount.  ocfs2-tools software expects the
+- * filesystem to call "ocfs2_hb_ctl" during unmount.  This happens
+- * regardless of whether the DLM got started, so we can't do it
+- * in ocfs2_cluster_disconnect().  The ocfs2_leave_group() function does
+- * the actual work.
+- */
+-void ocfs2_cluster_hangup(const char *group, int grouplen)
+-{
+-	BUG_ON(group == NULL);
+-	BUG_ON(group[grouplen] != '\0');
+-
+-	ocfs2_leave_group(group);
+-
+-	/* cluster_disconnect() was called with hangup_pending==1 */
+-	ocfs2_stack_driver_put();
+-}
+-EXPORT_SYMBOL_GPL(ocfs2_cluster_hangup);
+-
+ int ocfs2_cluster_this_node(struct ocfs2_cluster_connection *conn,
+ 			    unsigned int *node)
+ {
+@@ -591,8 +537,6 @@ static struct kobj_attribute ocfs2_attr_cluster_stack =
+ 	       ocfs2_cluster_stack_show,
+ 	       ocfs2_cluster_stack_store);
+ 
+-
+-
+ static ssize_t ocfs2_dlm_recover_show(struct kobject *kobj,
+ 					struct kobj_attribute *attr,
+ 					char *buf)
+@@ -603,7 +547,6 @@ static ssize_t ocfs2_dlm_recover_show(struct kobject *kobj,
+ static struct kobj_attribute ocfs2_attr_dlm_recover_support =
+ 	__ATTR(dlm_recover_callback_support, S_IRUGO,
+ 	       ocfs2_dlm_recover_show, NULL);
+-
+ static struct attribute *ocfs2_attrs[] = {
+ 	&ocfs2_attr_max_locking_protocol.attr,
+ 	&ocfs2_attr_loaded_cluster_plugins.attr,
+@@ -644,60 +587,6 @@ static int ocfs2_sysfs_init(void)
+ 	return ret;
+ }
+ 
+-/*
+- * Sysctl bits
+- *
+- * The sysctl lives at /proc/sys/fs/ocfs2/nm/hb_ctl_path.  The 'nm' doesn't
+- * make as much sense in a multiple cluster stack world, but it's safer
+- * and easier to preserve the name.
+- */
+-
+-static struct ctl_table ocfs2_nm_table[] = {
+-	{
+-		.procname	= "hb_ctl_path",
+-		.data		= ocfs2_hb_ctl_path,
+-		.maxlen		= OCFS2_MAX_HB_CTL_PATH,
+-		.mode		= 0644,
+-		.proc_handler	= proc_dostring,
+-	},
+-	{ }
+-};
+-
+-static struct ctl_table ocfs2_mod_table[] = {
+-	{
+-		.procname	= "nm",
+-		.data		= NULL,
+-		.maxlen		= 0,
+-		.mode		= 0555,
+-		.child		= ocfs2_nm_table
+-	},
+-	{ }
+-};
+-
+-static struct ctl_table ocfs2_kern_table[] = {
+-	{
+-		.procname	= "ocfs2",
+-		.data		= NULL,
+-		.maxlen		= 0,
+-		.mode		= 0555,
+-		.child		= ocfs2_mod_table
+-	},
+-	{ }
+-};
+-
+-static struct ctl_table ocfs2_root_table[] = {
+-	{
+-		.procname	= "fs",
+-		.data		= NULL,
+-		.maxlen		= 0,
+-		.mode		= 0555,
+-		.child		= ocfs2_kern_table
+-	},
+-	{ }
+-};
+-
+-static struct ctl_table_header *ocfs2_table_header;
+-
+ 
+ /*
+  * Initialization
+@@ -705,22 +594,9 @@ static struct ctl_table_header *ocfs2_table_header;
+ 
+ static int __init ocfs2_stack_glue_init(void)
+ {
+-	int ret;
+-
+ 	strcpy(cluster_stack_name, OCFS2_STACK_PLUGIN_O2CB);
+ 
+-	ocfs2_table_header = register_sysctl_table(ocfs2_root_table);
+-	if (!ocfs2_table_header) {
+-		printk(KERN_ERR
+-		       "ocfs2 stack glue: unable to register sysctl\n");
+-		return -ENOMEM; /* or something. */
+-	}
+-
+-	ret = ocfs2_sysfs_init();
+-	if (ret)
+-		unregister_sysctl_table(ocfs2_table_header);
+-
+-	return ret;
++	return ocfs2_sysfs_init();
+ }
+ 
+ static void __exit ocfs2_stack_glue_exit(void)
+@@ -728,8 +604,6 @@ static void __exit ocfs2_stack_glue_exit(void)
+ 	memset(&locking_max_version, 0,
+ 	       sizeof(struct ocfs2_protocol_version));
+ 	ocfs2_sysfs_exit();
+-	if (ocfs2_table_header)
+-		unregister_sysctl_table(ocfs2_table_header);
+ }
+ 
+ MODULE_AUTHOR("Oracle");
+diff --git a/fs/ocfs2/stackglue.h b/fs/ocfs2/stackglue.h
+index e9d26cbeb3b8..1df93bfdaeae 100644
+--- a/fs/ocfs2/stackglue.h
++++ b/fs/ocfs2/stackglue.h
+@@ -15,7 +15,6 @@
+ 
+ #include <linux/types.h>
+ #include <linux/list.h>
+-#include <linux/dlmconstants.h>
+ 
+ #include "dlm/dlmapi.h"
+ #include <linux/dlm.h>
+@@ -24,6 +23,15 @@
+ struct file;
+ struct file_lock;
+ 
++/* must the same with LOCK_XXX in ocfs2_lockglue.h */
++#define DLM_LOCK_IV		(-1)	/* invalid */
++#define DLM_LOCK_NL		0	/* null */
++#define DLM_LOCK_CR		1	/* concurrent read */
++#define DLM_LOCK_CW		2	/* concurrent write */
++#define DLM_LOCK_PR		3	/* protected read */
++#define DLM_LOCK_PW		4	/* protected write */
++#define DLM_LOCK_EX		5	/* exclusive */
++
+ /*
+  * dlmconstants.h does not have a LOCAL flag.  We hope to remove it
+  * some day, but right now we need it.  Let's fake it.  This value is larger
+@@ -40,7 +48,6 @@ struct file_lock;
+ /* This shadows  OCFS2_CLUSTER_NAME_LEN */
+ #define CLUSTER_NAME_MAX	16
+ 
+-
+ /*
+  * ocfs2_protocol_version changes when ocfs2 does something different in
+  * its inter-node behavior.  See dlmglue.c for more information.
+@@ -257,8 +264,7 @@ int ocfs2_cluster_connect_agnostic(const char *group,
+ 							    void *recovery_data),
+ 				   void *recovery_data,
+ 				   struct ocfs2_cluster_connection **conn);
+-int ocfs2_cluster_disconnect(struct ocfs2_cluster_connection *conn,
+-			     int hangup_pending);
++int ocfs2_cluster_disconnect(struct ocfs2_cluster_connection *conn);
+ void ocfs2_cluster_hangup(const char *group, int grouplen);
+ int ocfs2_cluster_this_node(struct ocfs2_cluster_connection *conn,
+ 			    unsigned int *node);
+-- 
+2.17.1
+

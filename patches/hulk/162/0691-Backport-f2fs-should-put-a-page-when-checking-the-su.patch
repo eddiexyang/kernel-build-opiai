@@ -1,0 +1,46 @@
+From a8b0817e2aea906b228929fe4eec8c7997e5fb5f Mon Sep 17 00:00:00 2001
+From: Pavel Machek <pavel@denx.de>
+Date: Mon, 24 Oct 2022 19:30:12 +0200
+Subject: [PATCH 691/905] [Backport] f2fs: should put a page when checking the
+ summary info
+
+stable inclusion
+from stable-v5.10.163
+commit 252a720882807fb29c085ff286867c5c63167569
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=252a720882807fb29c085ff286867c5c63167569
+
+--------------------------------
+
+commit c3db3c2fd9992c08f49aa93752d3c103c3a4f6aa upstream.
+
+The commit introduces another bug.
+
+Cc: stable@vger.kernel.org
+Fixes: c6ad7fd16657e ("f2fs: fix to do sanity check on summary info")
+Signed-off-by: Pavel Machek <pavel@denx.de>
+Reviewed-by: Chao Yu <chao@kernel.org>
+Signed-off-by: Jaegeuk Kim <jaegeuk@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/f2fs/gc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/f2fs/gc.c b/fs/f2fs/gc.c
+index 3aa7ba2bb1e9..8a80f359ea60 100644
+--- a/fs/f2fs/gc.c
++++ b/fs/f2fs/gc.c
+@@ -1008,6 +1008,7 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
+ 	if (ofs_in_node >= max_addrs) {
+ 		f2fs_err(sbi, "Inconsistent ofs_in_node:%u in summary, ino:%u, nid:%u, max:%u",
+ 			ofs_in_node, dni->ino, dni->nid, max_addrs);
++		f2fs_put_page(node_page, 1);
+ 		return false;
+ 	}
+ 
+-- 
+2.17.1
+

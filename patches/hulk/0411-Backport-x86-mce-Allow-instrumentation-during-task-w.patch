@@ -1,0 +1,62 @@
+From a251430344e25ee271fdc13344f53a345346b4f5 Mon Sep 17 00:00:00 2001
+From: Borislav Petkov <bp@suse.de>
+Date: Wed, 27 Apr 2022 11:14:41 +0800
+Subject: [PATCH 0411/2065] [Backport] x86/mce: Allow instrumentation during
+ task work queueing
+
+stable inclusion
+from stable-v5.10.94
+commit de360d94438688fd29e548a79abb9ee6ecd4de0f
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=de360d94438688fd29e548a79abb9ee6ecd4de0f
+
+--------------------------------
+
+[ Upstream commit 4fbce464db81a42f9a57ee242d6150ec7f996415 ]
+
+Fixes
+
+  vmlinux.o: warning: objtool: do_machine_check()+0xdb1: call to queue_task_work() leaves .noinstr.text section
+
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Link: https://lore.kernel.org/r/20211208111343.8130-6-bp@alien8.de
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ arch/x86/kernel/cpu/mce/core.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/arch/x86/kernel/cpu/mce/core.c b/arch/x86/kernel/cpu/mce/core.c
+index a0400f02df1f..9e6cd52df92e 100644
+--- a/arch/x86/kernel/cpu/mce/core.c
++++ b/arch/x86/kernel/cpu/mce/core.c
+@@ -1447,6 +1447,14 @@ noinstr void do_machine_check(struct pt_regs *regs)
+ 	if (worst != MCE_AR_SEVERITY && !kill_it)
+ 		goto out;
+ 
++	/*
++	 * Enable instrumentation around the external facilities like
++	 * task_work_add() (via queue_task_work()), fixup_exception() etc.
++	 * For now, that is. Fixing this properly would need a lot more involved
++	 * reorganization.
++	 */
++	instrumentation_begin();
++
+ 	/* Fault was in user mode and we need to take some action */
+ 	if ((m.cs & 3) == 3) {
+ 		/* If this triggers there is no way to recover. Die hard. */
+@@ -1472,6 +1480,9 @@ noinstr void do_machine_check(struct pt_regs *regs)
+ 		if (m.kflags & MCE_IN_KERNEL_COPYIN)
+ 			queue_task_work(&m, msg, kill_it);
+ 	}
++
++	instrumentation_end();
++
+ out:
+ 	mce_wrmsrl(MSR_IA32_MCG_STATUS, 0);
+ }
+-- 
+2.17.1
+

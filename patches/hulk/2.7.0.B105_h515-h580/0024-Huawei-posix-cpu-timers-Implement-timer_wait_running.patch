@@ -1,0 +1,85 @@
+From ebc7150046e5a73d36f35a37290989e310f1509c Mon Sep 17 00:00:00 2001
+From: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+Date: Tue, 13 Jun 2023 21:48:40 +0800
+Subject: [PATCH 024/780] [Huawei] posix-cpu-timers: Implement
+ timer_wait_running callback
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188889
+
+--------------------------------
+
+For posix CPU timers, the .timer_wait_running() callback is missing,
+which cause WARN_ON() in timer_wait_running().
+
+Commit f7abf14f0001 ("posix-cpu-timers: Implement the missing
+timer_wait_running callback") solved the problem. But it introduce a
+kabi broken which is hard to fix. The commit also describe a livelock
+in preemptible kernel. To fix the livelock, we add cond_resched() in the
+retry loop.
+
+*** below is from origin commit merge tag
+The reason is that for CONFIG_POSIX_CPU_TIMERS_TASK_WORK enabled
+systems there is a livelock issue independent of RT.
+
+CONFIG_POSIX_CPU_TIMERS_TASK_WORK=y moves the expiry of POSIX CPU
+timers out from hard interrupt context to task work, which is handled
+before returning to user space or to a VM. The expiry mechanism moves
+the expired timers to a stack local list head with sighand lock held.
+Once sighand is dropped the task can be preempted and a task which
+wants to delete a timer will spin-wait until the expiry task is
+scheduled back in. In the worst case this will end up in a livelock
+when the preempting task and the expiry task are pinned on the same
+CPU.
+
+Signed-off-by: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+---
+ kernel/time/posix-cpu-timers.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/kernel/time/posix-cpu-timers.c b/kernel/time/posix-cpu-timers.c
+index c97bc3e3b210..578d0ebedb67 100644
+--- a/kernel/time/posix-cpu-timers.c
++++ b/kernel/time/posix-cpu-timers.c
+@@ -1446,6 +1446,9 @@ static int do_cpu_nanosleep(const clockid_t which_clock, int flags,
+ 			spin_lock_irq(&timer.it_lock);
+ 			error = posix_cpu_timer_del(&timer);
+ 			spin_unlock_irq(&timer.it_lock);
++#ifdef CONFIG_POSIX_CPU_TIMERS_TASK_WORK
++			cond_resched();
++#endif
+ 		}
+ 
+ 		if ((it.it_value.tv_sec | it.it_value.tv_nsec) == 0) {
+@@ -1546,6 +1549,18 @@ static int thread_cpu_timer_create(struct k_itimer *timer)
+ 	return posix_cpu_timer_create(timer);
+ }
+ 
++static void posix_cpu_timer_wait_running(struct k_itimer *timr)
++{
++#ifdef CONFIG_POSIX_CPU_TIMERS_TASK_WORK
++	rcu_read_unlock();
++	cond_resched();
++	rcu_read_lock();
++#else
++	cpu_relax();
++#endif
++}
++
++
+ const struct k_clock clock_posix_cpu = {
+ 	.clock_getres		= posix_cpu_clock_getres,
+ 	.clock_set		= posix_cpu_clock_set,
+@@ -1556,6 +1571,7 @@ const struct k_clock clock_posix_cpu = {
+ 	.timer_del		= posix_cpu_timer_del,
+ 	.timer_get		= posix_cpu_timer_get,
+ 	.timer_rearm		= posix_cpu_timer_rearm,
++	.timer_wait_running	= posix_cpu_timer_wait_running,
+ };
+ 
+ const struct k_clock clock_process = {
+-- 
+2.17.1
+

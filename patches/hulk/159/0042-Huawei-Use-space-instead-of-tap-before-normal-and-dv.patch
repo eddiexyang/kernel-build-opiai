@@ -1,0 +1,47 @@
+From e04c9fbd25323daf365e60c08c80a15f2635dde4 Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Mon, 24 Oct 2022 07:56:48 +0000
+Subject: [PATCH 042/595] [Huawei] Use space instead of tap before '*normal'
+ and '*dvpp'
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187808
+
+---------------------------------------------
+
+Fix the following CodeCheck2.0 static check warning:
+1.The pointer(*) can't have no spaces neither before nor after it.
+[struct sp_mapping *normal;] should be [struct sp_mapping* normal;]
+or [struct sp_mapping *normal;].
+2.The pointer(*) can't have no spaces neither before nor after it.
+[struct sp_mapping *dvpp;] should be [struct sp_mapping* dvpp;] or
+[struct sp_mapping *dvpp;].
+
+Fix this by removing the tap before "*normal" and "*dvpp", using space
+instead.
+
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ include/linux/share_pool.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index 1432aaa08087..dbc9b94e8fa7 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -162,8 +162,8 @@ struct sp_group {
+ 	struct rw_semaphore	rw_lock;
+ 	/* list node for dvpp mapping */
+ 	struct list_head	mnode;
+-	struct sp_mapping	*dvpp;
+-	struct sp_mapping	*normal;
++	struct sp_mapping       *dvpp;
++	struct sp_mapping       *normal;
+ };
+ 
+ /* a per-process(per mm) struct which manages a sp_group_node list */
+-- 
+2.17.1
+

@@ -1,0 +1,52 @@
+From dd94e1301282a363b53bc5cbcd109bc1bf0f365f Mon Sep 17 00:00:00 2001
+From: Sasha Neftin <sasha.neftin@intel.com>
+Date: Thu, 3 Feb 2022 14:21:49 +0200
+Subject: [PATCH 1255/2065] [Backport] e1000e: Correct NVM checksum
+ verification flow
+
+stable inclusion
+from stable-v5.10.104
+commit eb5e444fe37d467e54d2945c1293f311ce782f67
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XAC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=eb5e444fe37d467e54d2945c1293f311ce782f67
+
+--------------------------------
+
+commit ffd24fa2fcc76ecb2e61e7a4ef8588177bcb42a6 upstream.
+
+Update MAC type check e1000_pch_tgp because for e1000_pch_cnp,
+NVM checksum update is still possible.
+Emit a more detailed warning message.
+
+Bugzilla: https://bugzilla.opensuse.org/show_bug.cgi?id=1191663
+Fixes: 4051f68318ca ("e1000e: Do not take care about recovery NVM checksum")
+Reported-by: Thomas Bogendoerfer <tbogendoerfer@suse.de>
+Signed-off-by: Sasha Neftin <sasha.neftin@intel.com>
+Tested-by: Naama Meir <naamax.meir@linux.intel.com>
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/net/ethernet/intel/e1000e/ich8lan.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/e1000e/ich8lan.c b/drivers/net/ethernet/intel/e1000e/ich8lan.c
+index b38b914f9ac6..15b1503d5b6c 100644
+--- a/drivers/net/ethernet/intel/e1000e/ich8lan.c
++++ b/drivers/net/ethernet/intel/e1000e/ich8lan.c
+@@ -4134,9 +4134,9 @@ static s32 e1000_validate_nvm_checksum_ich8lan(struct e1000_hw *hw)
+ 		return ret_val;
+ 
+ 	if (!(data & valid_csum_mask)) {
+-		e_dbg("NVM Checksum Invalid\n");
++		e_dbg("NVM Checksum valid bit not set\n");
+ 
+-		if (hw->mac.type < e1000_pch_cnp) {
++		if (hw->mac.type < e1000_pch_tgp) {
+ 			data |= valid_csum_mask;
+ 			ret_val = e1000_write_nvm(hw, word, 1, &data);
+ 			if (ret_val)
+-- 
+2.17.1
+

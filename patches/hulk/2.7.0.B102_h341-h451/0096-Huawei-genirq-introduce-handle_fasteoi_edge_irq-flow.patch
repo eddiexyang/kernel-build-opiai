@@ -1,0 +1,165 @@
+From 5715a76fcc5b6ed86fa211e1cc6deb3b27c8b589 Mon Sep 17 00:00:00 2001
+From: Yipeng Zou <zouyipeng@huawei.com>
+Date: Thu, 2 Mar 2023 15:33:37 +0800
+Subject: [PATCH 0096/1646] [Huawei] genirq: introduce handle_fasteoi_edge_irq
+ flow handler
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6WPFT
+
+--------------------------------
+
+Recently, We have a LPI migration issue on the ARM SMP platform.
+
+For example, NIC device generates MSI and sends LPI to CPU0 via ITS,
+meanwhile irqbalance running on CPU1 set irq affinity of NIC to CPU1,
+the next interrupt will be sent to CPU2, due to the state of irq is
+still in progress, kernel does not end up performing irq handler on
+CPU2, which results in some userland service timeouts, the sequence
+of events is shown as follows:
+
+NIC                     CPU0                    CPU1
+
+Generate IRQ#1          READ_IAR
+                        Lock irq_desc
+                        Set IRQD_IN_PROGRESS
+                        Unlock irq_desc
+                                                Lock irq_desc
+                                                Change LPI Affinity
+                                                Unlock irq_desc
+                        Call irq_handler
+Generate IRQ#2
+                                                READ_IAR
+                                                Lock irq_desc
+                                                Check IRQD_IN_PROGRESS
+                                                Unlock irq_desc
+                                                Return from interrupt#2
+                        Lock irq_desc
+                        Clear IRQD_IN_PROGRESS
+                        Unlock irq_desc
+                        return from interrupt#1
+
+For this scenario, The IRQ#2 will be lost. This does cause some exceptions.
+
+For further information, see [1].
+
+This patch introduced a new flow handler which combines fasteoi and edge
+type as a workaround.
+An additional loop will be executed if the IRQS_PENDING has been setup.
+
+Fixes: cc2d3216f53c ("irqchip: GICv3: ITS command queue")
+Signed-off-by: Yipeng Zou <zouyipeng@huawei.com>
+---
+ drivers/irqchip/irq-gic-v3.c |  2 +-
+ include/linux/irq.h          |  1 +
+ kernel/irq/chip.c            | 67 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 69 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/irqchip/irq-gic-v3.c b/drivers/irqchip/irq-gic-v3.c
+index 502deda35f47..aff7576fe10c 100644
+--- a/drivers/irqchip/irq-gic-v3.c
++++ b/drivers/irqchip/irq-gic-v3.c
+@@ -1491,7 +1491,7 @@ static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
+ 		if (!gic_dist_supports_lpis())
+ 			return -EPERM;
+ 		irq_domain_set_info(d, irq, hw, chip, d->host_data,
+-				    handle_fasteoi_irq, NULL, NULL);
++				    handle_fasteoi_edge_irq, NULL, NULL);
+ 		break;
+ 
+ 	default:
+diff --git a/include/linux/irq.h b/include/linux/irq.h
+index 34a65cb1cd9e..bab1609f5a06 100644
+--- a/include/linux/irq.h
++++ b/include/linux/irq.h
+@@ -654,6 +654,7 @@ static inline int irq_set_parent(int irq, int parent_irq)
+  */
+ extern void handle_level_irq(struct irq_desc *desc);
+ extern void handle_fasteoi_irq(struct irq_desc *desc);
++extern void handle_fasteoi_edge_irq(struct irq_desc *desc);
+ extern void handle_percpu_devid_fasteoi_ipi(struct irq_desc *desc);
+ extern void handle_edge_irq(struct irq_desc *desc);
+ extern void handle_edge_eoi_irq(struct irq_desc *desc);
+diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
+index 3fafebfd28a5..10eb9ae6578c 100644
+--- a/kernel/irq/chip.c
++++ b/kernel/irq/chip.c
+@@ -696,6 +696,73 @@ static void cond_unmask_eoi_irq(struct irq_desc *desc, struct irq_chip *chip)
+ 	}
+ }
+ 
++/**
++ *	handle_fasteoi_edge_irq - irq handler for transparent controllers
++ *	edge type IRQ.
++ *	@desc:	the interrupt description structure for this irq
++ */
++void handle_fasteoi_edge_irq(struct irq_desc *desc)
++{
++	struct irq_chip *chip = desc->irq_data.chip;
++
++	raw_spin_lock(&desc->lock);
++
++	if (!irq_may_run(desc)) {
++		desc->istate |= IRQS_PENDING;
++		mask_irq(desc);
++		goto out;
++	}
++
++	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
++
++	/*
++	 * If its disabled or no action available
++	 * then mask it and get out of here:
++	 */
++	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
++		desc->istate |= IRQS_PENDING;
++		mask_irq(desc);
++		goto out;
++	}
++
++	kstat_incr_irqs_this_cpu(desc);
++
++	if (desc->istate & IRQS_ONESHOT)
++		mask_irq(desc);
++
++	do {
++		if (unlikely(!desc->action)) {
++			mask_irq(desc);
++			goto out;
++		}
++
++		/*
++		 * When another irq arrived while we were handling
++		 * one, we could have masked the irq.
++		 * Reenable it, if it was not disabled in meantime.
++		 */
++		if (unlikely(desc->istate & IRQS_PENDING)) {
++			if (!irqd_irq_disabled(&desc->irq_data) &&
++			    irqd_irq_masked(&desc->irq_data))
++				unmask_irq(desc);
++		}
++
++		handle_irq_event(desc);
++
++	} while ((desc->istate & IRQS_PENDING) &&
++		 !irqd_irq_disabled(&desc->irq_data));
++
++	cond_unmask_eoi_irq(desc, chip);
++
++	raw_spin_unlock(&desc->lock);
++	return;
++out:
++	if (!(chip->flags & IRQCHIP_EOI_IF_HANDLED))
++		chip->irq_eoi(&desc->irq_data);
++	raw_spin_unlock(&desc->lock);
++}
++EXPORT_SYMBOL_GPL(handle_fasteoi_edge_irq);
++
+ /**
+  *	handle_fasteoi_irq - irq handler for transparent controllers
+  *	@desc:	the interrupt description structure for this irq
+-- 
+2.17.1
+

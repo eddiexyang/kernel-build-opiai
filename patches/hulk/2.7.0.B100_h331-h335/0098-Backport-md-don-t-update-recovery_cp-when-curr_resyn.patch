@@ -1,0 +1,63 @@
+From 19f9bc8d5109e8042f170ae41db21fdf05052d70 Mon Sep 17 00:00:00 2001
+From: Hou Tao <houtao1@huawei.com>
+Date: Tue, 31 Jan 2023 15:07:19 +0800
+Subject: [PATCH 098/500] [Backport] md: don't update recovery_cp when
+ curr_resync is ACTIVE
+
+mainline inclusion
+from mainline-v6.3-rc1
+commit 1d1f25bfda432a6b61bd0205d426226bbbd73504
+category: bugfix
+bugzilla: 188441
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1d1f25bfda432a6b61bd0205d426226bbbd73504
+
+--------------------------------
+
+Don't update recovery_cp when curr_resync is MD_RESYNC_ACTIVE, otherwise
+md may skip the resync of the first 3 sectors if the resync procedure is
+interrupted before the first calling of ->sync_request() as shown below:
+
+md_do_sync thread          control thread
+  // setup resync
+  mddev->recovery_cp = 0
+  j = 0
+  mddev->curr_resync = MD_RESYNC_ACTIVE
+
+                             // e.g., set array as idle
+                             set_bit(MD_RECOVERY_INTR, &&mddev_recovery)
+  // resync loop
+  // check INTR before calling sync_request
+  !test_bit(MD_RECOVERY_INTR, &mddev->recovery
+
+  // resync interrupted
+  // update recovery_cp from 0 to 3
+  // the resync of three 3 sectors will be skipped
+  mddev->recovery_cp = 3
+
+Fixes: eac58d08d493 ("md: Use enum for overloaded magic numbers used by mddev->curr_resync")
+Cc: stable@vger.kernel.org # 6.0+
+Signed-off-by: Hou Tao <houtao1@huawei.com>
+Reviewed-by: Logan Gunthorpe <logang@deltatee.com>
+Signed-off-by: Song Liu <song@kernel.org>
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ drivers/md/md.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 747389fcc98a..1669071053c2 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -9040,7 +9040,7 @@ void md_do_sync(struct md_thread *thread)
+ 	mddev->pers->sync_request(mddev, max_sectors, &skipped);
+ 
+ 	if (!test_bit(MD_RECOVERY_CHECK, &mddev->recovery) &&
+-	    mddev->curr_resync >= MD_RESYNC_ACTIVE) {
++	    mddev->curr_resync > MD_RESYNC_ACTIVE) {
+ 		if (test_bit(MD_RECOVERY_SYNC, &mddev->recovery)) {
+ 			if (test_bit(MD_RECOVERY_INTR, &mddev->recovery)) {
+ 				if (mddev->curr_resync >= mddev->recovery_cp) {
+-- 
+2.17.1
+

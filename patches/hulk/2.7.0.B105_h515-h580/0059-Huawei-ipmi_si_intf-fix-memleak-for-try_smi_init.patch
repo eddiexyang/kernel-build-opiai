@@ -1,0 +1,61 @@
+From e219718cb6f7089d13566ae4ffc067efbf9a55b8 Mon Sep 17 00:00:00 2001
+From: Yi Yang <yiyang13@huawei.com>
+Date: Tue, 27 Jun 2023 20:00:49 +0800
+Subject: [PATCH 059/780] [Huawei] ipmi_si_intf: fix memleak for try_smi_init
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188941
+
+--------------------------------
+
+Found this issue by kmemleak, the memory was leaked in try_smi_init
+when failed for try_get_dev_id().
+
+unreferenced object 0xffff00018ecf9400 (size 1024):
+  comm "modprobe", pid 2707763, jiffies 4300851415 (age 773.308s)
+  backtrace:
+    [<000000004ca5b312>] __kmalloc+0x4b8/0x7b0
+    [<00000000953b1072>] try_smi_init+0x148/0x5dc [ipmi_si]
+    [<000000006460d325>] 0xffff800081b10148
+    [<0000000039206ea5>] do_one_initcall+0x64/0x2a4
+    [<00000000601399ce>] do_init_module+0x50/0x300
+    [<000000003c12ba3c>] load_module+0x7a8/0x9e0
+    [<00000000c246fffe>] __se_sys_init_module+0x104/0x180
+    [<00000000eea99093>] __arm64_sys_init_module+0x24/0x30
+    [<0000000021b1ef87>] el0_svc_common.constprop.0+0x94/0x250
+    [<0000000070f4f8b7>] do_el0_svc+0x48/0xe0
+    [<000000005a05337f>] el0_svc+0x24/0x3c
+    [<000000005eb248d6>] el0_sync_handler+0x160/0x164
+    [<0000000030a59039>] el0_sync+0x160/0x180
+
+The memory should have been released in shutdown_smi(), but the hook
+function has not been initialized in try_smi_init. fix it by add kfree()
+on the err path.
+
+Fixes: 7960f18a5647 ("ipmi_si: Convert over to a shutdown handler")
+Signed-off-by: Yi Yang <yiyang13@huawei.com>
+---
+ drivers/char/ipmi/ipmi_si_intf.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/char/ipmi/ipmi_si_intf.c b/drivers/char/ipmi/ipmi_si_intf.c
+index 7fe68c680d3e..a5418692a818 100644
+--- a/drivers/char/ipmi/ipmi_si_intf.c
++++ b/drivers/char/ipmi/ipmi_si_intf.c
+@@ -2089,6 +2089,11 @@ static int try_smi_init(struct smi_info *new_smi)
+ 		new_smi->io.io_cleanup = NULL;
+ 	}
+ 
++	if (rv && new_smi->si_sm) {
++		kfree(new_smi->si_sm);
++		new_smi->si_sm = NULL;
++	}
++
+ 	return rv;
+ }
+ 
+-- 
+2.17.1
+

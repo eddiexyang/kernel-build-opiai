@@ -1,0 +1,35 @@
+From c70cd8187bb96b9ee887eae9f8170ca4f8947027 Mon Sep 17 00:00:00 2001
+From: Chen Sai <chensai6@huawei.com>
+Date: Mon, 17 Oct 2022 17:22:58 +0800
+Subject: [PATCH 007/595] [Huawei] codecheck2.0: change config for clouddragon
+ compile
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+change config for clouddragon compile
+
+Signed-off-by: Chen Sai <chensai6@huawei.com>
+---
+ .cloudbuild/build.yml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.cloudbuild/build.yml b/.cloudbuild/build.yml
+index f2a94cd23b0b..ba822e5275c5 100644
+--- a/.cloudbuild/build.yml
++++ b/.cloudbuild/build.yml
+@@ -7,6 +7,7 @@ env:
+       kweecr04.his.huawei.com:80/ecr-build-arm-gzkunpeng/csinewtool_1655364810051:hulk-5.10
+     class: 4U4G
+     type: docker
++    mode: toolbox
+ #....
+ steps:
+   PRE_BUILD:
+-- 
+2.17.1
+

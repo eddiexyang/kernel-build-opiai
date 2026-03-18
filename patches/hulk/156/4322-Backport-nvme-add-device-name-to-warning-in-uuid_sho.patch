@@ -1,0 +1,58 @@
+From 8d82d57bb29bcfcadc7f25c8a5b53b4ad74ca4b0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Thomas=20Wei=C3=9Fschuh?= <linux@weissschuh.net>
+Date: Tue, 7 Jun 2022 17:55:55 +0200
+Subject: [PATCH 4322/4585] [Backport] nvme: add device name to warning in
+ uuid_show()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.124
+commit b90ae84a8a9cd57a6e773dd640748904588977fe
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5KATP
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b90ae84a8a9cd57a6e773dd640748904588977fe
+
+--------------------------------
+
+[ Upstream commit 1fc766b5c08417248e0008bca14c3572ac0f1c26 ]
+
+This provides more context to users.
+
+Old message:
+
+[   00.000000] No UUID available providing old NGUID
+
+New message:
+
+[   00.000000] block nvme0n1: No UUID available providing old NGUID
+
+Fixes: d934f9848a77 ("nvme: provide UUID value to userspace")
+Signed-off-by: Thomas Weißschuh <linux@weissschuh.net>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/nvme/host/core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nvme/host/core.c b/drivers/nvme/host/core.c
+index 29708bf97461..216a5dfc3a07 100644
+--- a/drivers/nvme/host/core.c
++++ b/drivers/nvme/host/core.c
+@@ -3352,8 +3352,8 @@ static ssize_t uuid_show(struct device *dev, struct device_attribute *attr,
+ 	 * we have no UUID set
+ 	 */
+ 	if (uuid_is_null(&ids->uuid)) {
+-		printk_ratelimited(KERN_WARNING
+-				   "No UUID available providing old NGUID\n");
++		dev_warn_ratelimited(dev,
++			"No UUID available providing old NGUID\n");
+ 		return sysfs_emit(buf, "%pU\n", ids->nguid);
+ 	}
+ 	return sysfs_emit(buf, "%pU\n", &ids->uuid);
+-- 
+2.17.1
+

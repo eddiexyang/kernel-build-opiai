@@ -1,0 +1,49 @@
+From 4839f175471a273075037d29751000946449cc28 Mon Sep 17 00:00:00 2001
+From: Kim Phillips <kim.phillips@amd.com>
+Date: Tue, 17 Aug 2021 17:10:44 -0500
+Subject: [PATCH 0406/1646] [Backport] perf/amd/uncore: Simplify code, use
+ free_percpu()'s built-in check for NULL
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 6cf295b21608f9253037335f47cd0dfcce812d81
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I65D55
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6cf295b21608f9253037335f47cd0dfcce812d81
+
+--------------------------------
+
+free_percpu() has its own check for NULL, no need to open-code it.
+
+Signed-off-by: Kim Phillips <kim.phillips@amd.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Link: https://lore.kernel.org/r/20210817221048.88063-5-kim.phillips@amd.com
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/events/amd/uncore.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/events/amd/uncore.c b/arch/x86/events/amd/uncore.c
+index bd9a49fb4c66..510f174dece6 100644
+--- a/arch/x86/events/amd/uncore.c
++++ b/arch/x86/events/amd/uncore.c
+@@ -755,11 +755,9 @@ static int __init amd_uncore_init(void)
+ fail_llc:
+ 	if (boot_cpu_has(X86_FEATURE_PERFCTR_NB))
+ 		perf_pmu_unregister(&amd_nb_pmu);
+-	if (amd_uncore_llc)
+-		free_percpu(amd_uncore_llc);
++	free_percpu(amd_uncore_llc);
+ fail_nb:
+-	if (amd_uncore_nb)
+-		free_percpu(amd_uncore_nb);
++	free_percpu(amd_uncore_nb);
+ 
+ 	return ret;
+ }
+-- 
+2.17.1
+

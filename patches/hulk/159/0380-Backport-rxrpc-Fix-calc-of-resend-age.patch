@@ -1,0 +1,43 @@
+From 31deb0d30462bbabd6cd89ddbe1b30b99baf84fa Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Tue, 5 Apr 2022 13:34:09 +0100
+Subject: [PATCH 380/595] [Backport] rxrpc: Fix calc of resend age
+
+stable inclusion
+from stable-v5.10.145
+commit c505fee07b3dbe24054fc54f9d3f0a73003d27b5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZLQK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c505fee07b3dbe24054fc54f9d3f0a73003d27b5
+
+--------------------------------
+
+[ Upstream commit 214a9dc7d852216e83acac7b75bc18f01ce184c2 ]
+
+Fix the calculation of the resend age to add a microsecond value as
+microseconds, not nanoseconds.
+
+Signed-off-by: David Howells <dhowells@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/rxrpc/call_event.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/rxrpc/call_event.c b/net/rxrpc/call_event.c
+index f8ecad2b730e..2a93e7b5fbd0 100644
+--- a/net/rxrpc/call_event.c
++++ b/net/rxrpc/call_event.c
+@@ -166,7 +166,7 @@ static void rxrpc_resend(struct rxrpc_call *call, unsigned long now_j)
+ 	_enter("{%d,%d}", call->tx_hard_ack, call->tx_top);
+ 
+ 	now = ktime_get_real();
+-	max_age = ktime_sub(now, jiffies_to_usecs(call->peer->rto_j));
++	max_age = ktime_sub_us(now, jiffies_to_usecs(call->peer->rto_j));
+ 
+ 	spin_lock_bh(&call->lock);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From 323a79abfa093b705045e3424241c619f0ffa4b6 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Mon, 2 Jan 2023 12:28:10 +0400
+Subject: [PATCH 475/921] [Backport] irqchip/alpine-msi: Fix refcount leak in
+ alpine_msix_init_domains
+
+stable inclusion
+from stable-v5.10.173
+commit c9aaf4efe1f02b2fef21a69fb3652f5ad12a5710
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c9aaf4efe1f02b2fef21a69fb3652f5ad12a5710
+
+--------------------------------
+
+[ Upstream commit 071d068b89e95d1b078aa6bbcb9d0961b77d6aa1 ]
+
+of_irq_find_parent() returns a node pointer with refcount incremented,
+We should use of_node_put() on it when not needed anymore.
+Add missing of_node_put() to avoid refcount leak.
+
+Fixes: e6b78f2c3e14 ("irqchip: Add the Alpine MSIX interrupt controller")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20230102082811.3947760-1-linmq006@gmail.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/irqchip/irq-alpine-msi.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/irqchip/irq-alpine-msi.c b/drivers/irqchip/irq-alpine-msi.c
+index ede02dc2bcd0..1819bb1d2723 100644
+--- a/drivers/irqchip/irq-alpine-msi.c
++++ b/drivers/irqchip/irq-alpine-msi.c
+@@ -199,6 +199,7 @@ static int alpine_msix_init_domains(struct alpine_msix_data *priv,
+ 	}
+ 
+ 	gic_domain = irq_find_host(gic_node);
++	of_node_put(gic_node);
+ 	if (!gic_domain) {
+ 		pr_err("Failed to find the GIC domain\n");
+ 		return -ENXIO;
+-- 
+2.17.1
+

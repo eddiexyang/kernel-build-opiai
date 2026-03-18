@@ -1,0 +1,61 @@
+From f22b1c0447f19dbc9b3fb4dd289885a876161306 Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Thu, 20 Oct 2022 11:44:29 +0000
+Subject: [PATCH 032/595] [Huawei] Fix the broken logic in
+ mg_sp_group_add_task()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187851
+
+-----------------------------------------
+
+Commit "7430b5f9603eaf5987361519b11ec7633622f11c" cancel the definition
+of a local variable '__prot' in mg_sp_group_add_task(), however, this will
+break the original iteration logic: the change in 'prot &= ~PROT_WRITE'
+will accumulate and influence the subsequent meaning of variable 'prot'.
+
+Fixes: 7430b5f9603e ("[Huawei] mm: share_pool: Fix CodeCheck2.0 static warning")
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ mm/share_pool.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index f8c1acdfef55..228f0adbce25 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1504,9 +1504,10 @@ int mg_sp_group_add_task(int pid, unsigned long prot, int spg_id)
+ 		unsigned long populate = 0;
+ 		struct file *file = spa_file(spa);
+ 		unsigned long addr;
++		unsigned long prot_spa = prot;
+ 
+ 		if ((spa->flags & (SP_PROT_RO | SP_PROT_FOCUS)) == (SP_PROT_RO | SP_PROT_FOCUS))
+-			prot &= ~PROT_WRITE;
++			prot_spa &= ~PROT_WRITE;
+ 
+ 		__sp_area_drop_locked(prev);
+ 		prev = spa;
+@@ -1519,7 +1520,7 @@ int mg_sp_group_add_task(int pid, unsigned long prot, int spg_id)
+ 		spin_unlock(&sp_area_lock);
+ 
+ 		if (spa->type == SPA_TYPE_K2SPG && spa->kva) {
+-			addr = sp_remap_kva_to_vma(spa->kva, spa, mm, prot, NULL);
++			addr = sp_remap_kva_to_vma(spa->kva, spa, mm, prot_spa, NULL);
+ 			if (IS_ERR_VALUE(addr))
+ 				pr_warn("add group remap k2u failed %ld\n", addr);
+ 
+@@ -1537,7 +1538,7 @@ int mg_sp_group_add_task(int pid, unsigned long prot, int spg_id)
+ 			break;
+ 		}
+ 
+-		addr = sp_mmap(mm, file, spa, &populate, prot, NULL);
++		addr = sp_mmap(mm, file, spa, &populate, prot_spa, NULL);
+ 		if (IS_ERR_VALUE(addr)) {
+ 			sp_munmap_task_areas(mm, spg, &spa->link);
+ 			up_write(&mm->mmap_lock);
+-- 
+2.17.1
+

@@ -1,0 +1,140 @@
+From b48594bf6206e1d8d8e5919e1cfa3655cb20cd56 Mon Sep 17 00:00:00 2001
+From: Hui Tang <tanghui20@huawei.com>
+Date: Wed, 29 Jun 2022 10:16:06 +0800
+Subject: [PATCH 2671/4585] [Huawei] sched: Fix hardlockup on
+ 'set_prefer_cpus_ptr'
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187111
+
+-------------------------------
+
+When __set_prefer_cpus_ptr()->task_rq_lock() called, the rq lock hold
+on the first time. Then do_set_prefer_cpus()->kzalloc() called. If kzalloc
+triggers 'wakeup_kswapd' and kswapd is woken up on the same CPU, the
+task_rq_lock is called on the second time. As a result, the handlockup
+is triggered.
+
+So alloc memory for p->prefer_cpus in 'copy_process' avoid trigger
+hardlockup.
+
+Some call trace reports, as follows:
+</NMI>
+ pv_wait_head_or_lock+0x85/0xb0
+ __pv_queued_spin_lock_slowpath+0xb5/0x1b0
+ _raw_spin_lock+0x1a/0x20
+ ttwu_queue+0x6b/0xc0
+ try_to_wake_up+0x177/0x390
+ autoremove_wake_function+0x11/0x50
+ __wake_up_common+0x80/0x180
+ __wake_up_common_lock+0x7c/0xc0
+ get_page_from_freelist+0x38f/0xc30
+ __alloc_pages+0x280/0xf50
+ allocate_slab+0x2cb/0x3c0
+ ___slab_alloc+0x35c/0x4c0
+ ? kernfs_vfs_xattr_get+0x42/0x70
+ ? do_set_prefer_cpus+0x116/0x1b0
+ ? do_set_prefer_cpus+0x116/0x1b0
+ kmem_cache_alloc_trace+0x34a/0x3d0
+ do_set_prefer_cpus+0x116/0x1b0
+ __set_prefer_cpus_ptr.constprop.0+0x80/0xe0
+ cpuset_attach+0xd8/0x410
+ cgroup_migrate_execute+0x389/0x450
+ cgroup_attach_task+0x134/0x1d0
+ __cgroup1_procs_write.constprop.0+0xff/0x140
+ kernfs_fop_write_iter+0x124/0x1b0
+ new_sync_write+0x113/0x1b0
+ vfs_write+0x1b3/0x250
+ ksys_write+0x5f/0xe0
+ do_syscall_64+0x33/0x40
+ entry_SYSCALL_64_after_hwframe+0x44/0xa9
+
+Signed-off-by: Hui Tang <tanghui20@huawei.com>
+---
+ kernel/fork.c       |  8 +++-----
+ kernel/sched/core.c | 24 +++++++++---------------
+ 2 files changed, 12 insertions(+), 20 deletions(-)
+
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 045b7973a98e..5858885dbba8 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -2000,11 +2000,9 @@ static __latent_entropy struct task_struct *copy_process(
+ 	rt_mutex_init_task(p);
+ 
+ #ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
+-	if (current->prefer_cpus) {
+-		retval = sched_prefer_cpus_fork(p, current->prefer_cpus);
+-		if (retval)
+-			goto bad_fork_free;
+-	}
++	retval = sched_prefer_cpus_fork(p, current->prefer_cpus);
++	if (retval)
++		goto bad_fork_free;
+ #endif
+ 
+ 	lockdep_assert_irqs_enabled();
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index afc71c858020..6db3a9b5c8b9 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -8770,7 +8770,10 @@ int sched_prefer_cpus_fork(struct task_struct *p, struct cpumask *mask)
+ 	if (!p->prefer_cpus)
+ 		return -ENOMEM;
+ 
+-	cpumask_copy(p->prefer_cpus, mask);
++	if (mask)
++		cpumask_copy(p->prefer_cpus, mask);
++	else
++		cpumask_clear(p->prefer_cpus);
+ 
+ 	return 0;
+ }
+@@ -8780,18 +8783,6 @@ void sched_prefer_cpus_free(struct task_struct *p)
+ 	kfree(p->prefer_cpus);
+ }
+ 
+-static void set_prefer_cpus(struct task_struct *p,
+-			    const struct cpumask *new_mask)
+-{
+-	if (!p->prefer_cpus) {
+-		p->prefer_cpus = kzalloc(sizeof(cpumask_t), GFP_ATOMIC);
+-		if (!p->prefer_cpus)
+-			return;
+-	}
+-
+-	cpumask_copy(p->prefer_cpus, new_mask);
+-}
+-
+ static void do_set_prefer_cpus(struct task_struct *p,
+ 				const struct cpumask *new_mask)
+ {
+@@ -8814,7 +8805,7 @@ static void do_set_prefer_cpus(struct task_struct *p,
+ 	if (running)
+ 		put_prev_task(rq, p);
+ 
+-	set_prefer_cpus(p, new_mask);
++	cpumask_copy(p->prefer_cpus, new_mask);
+ 
+ 	if (queued)
+ 		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
+@@ -8837,10 +8828,13 @@ static int __set_prefer_cpus_ptr(struct task_struct *p,
+ 	struct rq *rq;
+ 	int ret = 0;
+ 
++	if (unlikely(!p->prefer_cpus))
++		return -EINVAL;
++
+ 	rq = task_rq_lock(p, &rf);
+ 	update_rq_clock(rq);
+ 
+-	if (p->prefer_cpus && cpumask_equal(p->prefer_cpus, new_mask))
++	if (cpumask_equal(p->prefer_cpus, new_mask))
+ 		goto out;
+ 
+ 	if (!cpumask_subset(new_mask, p->cpus_ptr)) {
+-- 
+2.17.1
+

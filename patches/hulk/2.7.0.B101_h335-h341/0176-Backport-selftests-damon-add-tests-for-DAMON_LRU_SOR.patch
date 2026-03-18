@@ -1,0 +1,93 @@
+From aa393e05df72c9034ccdec601042669e03194d03 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 25 Oct 2022 17:36:50 +0000
+Subject: [PATCH 176/921] [Backport] selftests/damon: add tests for
+ DAMON_LRU_SORT's enabled parameter
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 9cd6ffa60256e931503d347006049b8bef508203
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9cd6ffa60256e931503d347006049b8bef508203
+
+--------------------------------
+
+Add simple test cases for DAMON_LRU_SORT's 'enabled' parameter.  Those
+tests are focusing on the synchronous behavior of DAMON_RECLAIM enabling
+and disabling.
+
+Link: https://lkml.kernel.org/r/20221025173650.90624-5-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ tools/testing/selftests/damon/Makefile    |  2 +-
+ tools/testing/selftests/damon/lru_sort.sh | 41 +++++++++++++++++++++++
+ 2 files changed, 42 insertions(+), 1 deletion(-)
+ create mode 100644 tools/testing/selftests/damon/lru_sort.sh
+
+diff --git a/tools/testing/selftests/damon/Makefile b/tools/testing/selftests/damon/Makefile
+index a18927eb8673..cc5b6ceb4f62 100644
+--- a/tools/testing/selftests/damon/Makefile
++++ b/tools/testing/selftests/damon/Makefile
+@@ -7,6 +7,6 @@ TEST_FILES = _chk_dependency.sh _debugfs_common.sh
+ TEST_PROGS = debugfs_attrs.sh debugfs_schemes.sh debugfs_target_ids.sh
+ TEST_PROGS += debugfs_empty_targets.sh debugfs_huge_count_read_write.sh
+ TEST_PROGS += sysfs.sh
+-TEST_PROGS += reclaim.sh
++TEST_PROGS += reclaim.sh lru_sort.sh
+ 
+ include ../lib.mk
+diff --git a/tools/testing/selftests/damon/lru_sort.sh b/tools/testing/selftests/damon/lru_sort.sh
+new file mode 100644
+index 000000000000..61b80197c896
+--- /dev/null
++++ b/tools/testing/selftests/damon/lru_sort.sh
+@@ -0,0 +1,41 @@
++#!/bin/bash
++# SPDX-License-Identifier: GPL-2.0
++
++# Kselftest framework requirement - SKIP code is 4.
++ksft_skip=4
++
++if [ $EUID -ne 0 ]
++then
++	echo "Run as root"
++	exit $ksft_skip
++fi
++
++damon_lru_sort_enabled="/sys/module/damon_lru_sort/parameters/enabled"
++if [ ! -f "$damon_lru_sort_enabled" ]
++then
++	echo "No 'enabled' file.  Maybe DAMON_LRU_SORT not built"
++	exit $ksft_skip
++fi
++
++nr_kdamonds=$(pgrep kdamond | wc -l)
++if [ "$nr_kdamonds" -ne 0 ]
++then
++	echo "Another kdamond is running"
++	exit $ksft_skip
++fi
++
++echo Y > "$damon_lru_sort_enabled"
++nr_kdamonds=$(pgrep kdamond | wc -l)
++if [ "$nr_kdamonds" -ne 1 ]
++then
++	echo "kdamond is not turned on"
++	exit 1
++fi
++
++echo N > "$damon_lru_sort_enabled"
++nr_kdamonds=$(pgrep kdamond | wc -l)
++if [ "$nr_kdamonds" -ne 0 ]
++then
++	echo "kdamond is not turned off"
++	exit 1
++fi
+-- 
+2.17.1
+

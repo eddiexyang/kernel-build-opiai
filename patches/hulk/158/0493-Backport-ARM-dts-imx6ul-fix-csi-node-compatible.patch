@@ -1,0 +1,50 @@
+From aead1f4da0793be5abdc0f704b4a1fb0c8b0bbf1 Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Mon, 13 Jun 2022 14:33:55 +0200
+Subject: [PATCH 0493/1076] [Backport] ARM: dts: imx6ul: fix csi node
+ compatible
+
+stable inclusion
+from stable-v5.10.137
+commit 6045ac40e323237974ad3536360af237df51ac18
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6045ac40e323237974ad3536360af237df51ac18
+
+--------------------------------
+
+[ Upstream commit e0aca931a2c7c29c88ebf37f9c3cd045e083483d ]
+
+"fsl,imx6ul-csi" was never listed as compatible to "fsl,imx7-csi", neither
+in yaml bindings, nor previous txt binding. Remove the imx7 part. Fixes
+the dt schema check warning:
+csi@21c4000: compatible: 'oneOf' conditional failed, one must be fixed:
+['fsl,imx6ul-csi', 'fsl,imx7-csi'] is too long
+Additional items are not allowed ('fsl,imx7-csi' was unexpected)
+'fsl,imx8mm-csi' was expected
+
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/imx6ul.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/imx6ul.dtsi b/arch/arm/boot/dts/imx6ul.dtsi
+index 1474985b9908..8e6079a68022 100644
+--- a/arch/arm/boot/dts/imx6ul.dtsi
++++ b/arch/arm/boot/dts/imx6ul.dtsi
+@@ -995,7 +995,7 @@
+ 			};
+ 
+ 			csi: csi@21c4000 {
+-				compatible = "fsl,imx6ul-csi", "fsl,imx7-csi";
++				compatible = "fsl,imx6ul-csi";
+ 				reg = <0x021c4000 0x4000>;
+ 				interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+ 				clocks = <&clks IMX6UL_CLK_CSI>;
+-- 
+2.17.1
+

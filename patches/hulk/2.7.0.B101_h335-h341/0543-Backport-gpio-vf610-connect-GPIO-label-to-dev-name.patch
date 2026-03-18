@@ -1,0 +1,48 @@
+From bdf94862a4ecee24244c862102993f7851ed8840 Mon Sep 17 00:00:00 2001
+From: Haibo Chen <haibo.chen@nxp.com>
+Date: Tue, 20 Dec 2022 17:02:47 +0800
+Subject: [PATCH 543/921] [Backport] gpio: vf610: connect GPIO label to dev
+ name
+
+stable inclusion
+from stable-v5.10.173
+commit 33033f392d8122a94074472191f961243079a14c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=33033f392d8122a94074472191f961243079a14c
+
+--------------------------------
+
+[ Upstream commit 6f8ecb7f85f441eb7d78ba2a4df45ee8a821934e ]
+
+Current GPIO label is fixed, so can't distinguish different GPIO
+controllers through labels. Use dev name instead.
+
+Fixes: 7f2691a19627 ("gpio: vf610: add gpiolib/IRQ chip driver for Vybrid")
+Signed-off-by: Clark Wang <xiaoning.wang@nxp.com>
+Signed-off-by: Haibo Chen <haibo.chen@nxp.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpio/gpio-vf610.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpio/gpio-vf610.c b/drivers/gpio/gpio-vf610.c
+index 1ae612c796ee..396a687e020f 100644
+--- a/drivers/gpio/gpio-vf610.c
++++ b/drivers/gpio/gpio-vf610.c
+@@ -304,7 +304,7 @@ static int vf610_gpio_probe(struct platform_device *pdev)
+ 	gc = &port->gc;
+ 	gc->of_node = np;
+ 	gc->parent = dev;
+-	gc->label = "vf610-gpio";
++	gc->label = dev_name(dev);
+ 	gc->ngpio = VF610_GPIO_PER_PORT;
+ 	gc->base = of_alias_get_id(np, "gpio") * VF610_GPIO_PER_PORT;
+ 
+-- 
+2.17.1
+

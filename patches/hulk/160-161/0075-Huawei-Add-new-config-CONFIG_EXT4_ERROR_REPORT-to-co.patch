@@ -1,0 +1,191 @@
+From 5696605fd9ace394f1016e20f2fd24a4868d7034 Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Thu, 17 Nov 2022 14:46:53 +0800
+Subject: [PATCH 0075/1398] [Huawei] Add new config 'CONFIG_EXT4_ERROR_REPORT'
+ to control ext3/4 error reporting
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187975
+
+--------------------------------
+
+Add new config 'CONFIG_EXT4_ERROR_REPORT' to control ext3/4 error
+reporting.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig |  1 +
+ arch/x86/configs/openeuler_defconfig   |  1 +
+ fs/ext4/Kconfig                        |  8 ++++++++
+ fs/ext4/ext4.h                         |  2 ++
+ fs/ext4/super.c                        | 19 +++++++++++++++++++
+ 5 files changed, 31 insertions(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index e5558806da32..954b83458a8f 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -6173,6 +6173,7 @@ CONFIG_EXT4_FS=m
+ CONFIG_EXT4_USE_FOR_EXT2=y
+ CONFIG_EXT4_FS_POSIX_ACL=y
+ CONFIG_EXT4_FS_SECURITY=y
++CONFIG_EXT4_ERROR_REPORT=y
+ # CONFIG_EXT4_DEBUG is not set
+ CONFIG_JBD2=m
+ # CONFIG_JBD2_DEBUG is not set
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index da7549b05181..9054ce9f58cc 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -7258,6 +7258,7 @@ CONFIG_EXT4_FS=m
+ CONFIG_EXT4_USE_FOR_EXT2=y
+ CONFIG_EXT4_FS_POSIX_ACL=y
+ CONFIG_EXT4_FS_SECURITY=y
++CONFIG_EXT4_ERROR_REPORT=y
+ # CONFIG_EXT4_DEBUG is not set
+ CONFIG_JBD2=m
+ # CONFIG_JBD2_DEBUG is not set
+diff --git a/fs/ext4/Kconfig b/fs/ext4/Kconfig
+index 86699c8cab28..ae108d47ff00 100644
+--- a/fs/ext4/Kconfig
++++ b/fs/ext4/Kconfig
+@@ -117,3 +117,11 @@ config EXT4_KUNIT_TESTS
+ 	  to the KUnit documentation in Documentation/dev-tools/kunit/.
+ 
+ 	  If unsure, say N.
++
++config EXT4_ERROR_REPORT
++	bool "Ext4 error reporting by netlink"
++	depends on EXT4_FS && NET
++	default n
++	help
++	  Implement the ext3/ext4 file system error report. Report error to
++	  userspace by netlink
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index 13cdc97651de..0c08285db89a 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -46,6 +46,7 @@
+ 
+ #include <linux/compiler.h>
+ 
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ #define NL_EXT4_ERROR_GROUP    1
+ #define EXT4_ERROR_MAGIC       0xAE32014U
+ struct ext4_err_msg {
+@@ -54,6 +55,7 @@ struct ext4_err_msg {
+ 	unsigned long s_flags;
+ 	int ext4_errno;
+ };
++#endif
+ 
+ /*
+  * The fourth extended filesystem constants/structures
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index 4805851e5c06..2fe4b964cfc8 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -55,9 +55,11 @@
+ #include "mballoc.h"
+ #include "fsmap.h"
+ 
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ #include <uapi/linux/netlink.h>
+ #include <net/sock.h>
+ #include <net/net_namespace.h>
++#endif
+ 
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/ext4.h>
+@@ -90,8 +92,10 @@ static void ext4_unregister_li_request(struct super_block *sb);
+ static void ext4_clear_request_list(void);
+ static struct inode *ext4_get_journal_inode(struct super_block *sb,
+ 					    unsigned int journal_inum);
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ static void ext4_netlink_send_info(struct super_block *sb, int ext4_errno);
+ static struct sock *ext4nl;
++#endif
+ 
+ /*
+  * Lock ordering
+@@ -616,6 +620,7 @@ static void save_error_info(struct super_block *sb, int error,
+ 	spin_unlock(&sbi->s_error_lock);
+ }
+ 
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ static void ext4_netlink_send_info(struct super_block *sb, int ext4_errno)
+ {
+ 	int size;
+@@ -651,6 +656,7 @@ static void ext4_netlink_send_info(struct super_block *sb, int ext4_errno)
+ 			kfree_skb(skb);
+ 	}
+ }
++#endif
+ 
+ /* Deal with the reporting of failure conditions on a filesystem such as
+  * inconsistencies detected or read IO failures.
+@@ -713,11 +719,16 @@ static void ext4_handle_error(struct super_block *sb, bool force_ro, int error,
+ 			sb->s_id);
+ 	}
+ 
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ 	if (sb_rdonly(sb))
+ 		return;
+ 
+ 	if (continue_fs)
+ 		goto out;
++#else
++	if (sb_rdonly(sb) || continue_fs)
++		return;
++#endif
+ 
+ 
+ 	ext4_msg(sb, KERN_CRIT, "Remounting filesystem read-only");
+@@ -727,8 +738,10 @@ static void ext4_handle_error(struct super_block *sb, bool force_ro, int error,
+ 	 */
+ 	smp_wmb();
+ 	sb->s_flags |= SB_RDONLY;
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ out:
+ 	ext4_netlink_send_info(sb, force_ro ? 2 : 1);
++#endif
+ }
+ 
+ static void flush_stashed_error_work(struct work_struct *work)
+@@ -6811,7 +6824,9 @@ wait_queue_head_t ext4__ioend_wq[EXT4_WQ_HASH_SZ];
+ static int __init ext4_init_fs(void)
+ {
+ 	int i, err;
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ 	struct netlink_kernel_cfg cfg = {.groups = NL_EXT4_ERROR_GROUP,};
++#endif
+ 
+ 	ratelimit_state_init(&ext4_mount_msg_ratelimit, 30 * HZ, 64);
+ 	ext4_li_info = NULL;
+@@ -6864,9 +6879,11 @@ static int __init ext4_init_fs(void)
+ 	if (err)
+ 		goto out;
+ 
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ 	ext4nl = netlink_kernel_create(&init_net, NETLINK_FILESYSTEM, &cfg);
+ 	if (!ext4nl)
+ 		printk(KERN_ERR "EXT4-fs: Cannot create netlink socket.\n");
++#endif
+ 	return 0;
+ out:
+ 	unregister_as_ext2();
+@@ -6907,7 +6924,9 @@ static void __exit ext4_exit_fs(void)
+ 	ext4_exit_post_read_processing();
+ 	ext4_exit_es();
+ 	ext4_exit_pending();
++#ifdef CONFIG_EXT4_ERROR_REPORT
+ 	netlink_kernel_release(ext4nl);
++#endif
+ }
+ 
+ MODULE_AUTHOR("Remy Card, Stephen Tweedie, Andrew Morton, Andreas Dilger, Theodore Ts'o and others");
+-- 
+2.17.1
+

@@ -1,0 +1,90 @@
+From b608bc5d370e9ec1c40903bf8c69a8957a85717f Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Sat, 11 Feb 2023 16:36:16 +0800
+Subject: [PATCH 883/905] [Huawei] mm/memcg_memfs_info: pass length of array
+ into function
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186182
+
+--------------------------------
+
+'pathbuf' of function 'mem_cgroup_print_memfs_info' is a static or dynamic
+array, when an array is used as a function argument, its length should be
+passed into the function.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/memcg_memfs_info.h | 4 ++--
+ mm/memcg_memfs_info.c            | 6 +++---
+ mm/memcontrol.c                  | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/memcg_memfs_info.h b/include/linux/memcg_memfs_info.h
+index b5e3709baa9e..f0fecb9c7c79 100644
+--- a/include/linux/memcg_memfs_info.h
++++ b/include/linux/memcg_memfs_info.h
+@@ -7,12 +7,12 @@
+ 
+ #ifdef CONFIG_MEMCG_MEMFS_INFO
+ void mem_cgroup_print_memfs_info(struct mem_cgroup *memcg, char *pathbuf,
+-				 struct seq_file *m);
++				 int bufsize, struct seq_file *m);
+ int mem_cgroup_memfs_files_show(struct seq_file *m, void *v);
+ void mem_cgroup_memfs_info_init(void);
+ #else
+ static inline void mem_cgroup_print_memfs_info(struct mem_cgroup *memcg,
+-					       char *pathbuf,
++					       char *pathbuf, int bufsize,
+ 					       struct seq_file *m)
+ {
+ }
+diff --git a/mm/memcg_memfs_info.c b/mm/memcg_memfs_info.c
+index db7b0aee8053..23289ab9f3dc 100644
+--- a/mm/memcg_memfs_info.c
++++ b/mm/memcg_memfs_info.c
+@@ -158,7 +158,7 @@ static void memfs_show_files_in_mem_cgroup(struct super_block *sb, void *data)
+ }
+ 
+ void mem_cgroup_print_memfs_info(struct mem_cgroup *memcg, char *pathbuf,
+-				 struct seq_file *m)
++				 int bufsize, struct seq_file *m)
+ {
+ 	struct print_files_control pfc = {
+ 		.memcg = memcg,
+@@ -172,7 +172,7 @@ void mem_cgroup_print_memfs_info(struct mem_cgroup *memcg, char *pathbuf,
+ 		return;
+ 
+ 	pfc.pathbuf = pathbuf;
+-	pfc.pathbuf_size = PATH_MAX;
++	pfc.pathbuf_size = bufsize;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(fs_type_names); i++) {
+ 		pfc.fs_type_name = fs_type_names[i];
+@@ -199,7 +199,7 @@ int mem_cgroup_memfs_files_show(struct seq_file *m, void *v)
+ 		SEQ_printf(m, "Show memfs abort: failed to allocate memory\n");
+ 		return 0;
+ 	}
+-	mem_cgroup_print_memfs_info(memcg, pathbuf, m);
++	mem_cgroup_print_memfs_info(memcg, pathbuf, PATH_MAX, m);
+ 	kfree(pathbuf);
+ 	return 0;
+ }
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 22f27bb49f34..51f7e74ff653 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -1633,7 +1633,7 @@ void mem_cgroup_print_oom_meminfo(struct mem_cgroup *memcg)
+ 	memory_stat_format(memcg, buf, sizeof(buf));
+ 	pr_info("%s", buf);
+ 
+-	mem_cgroup_print_memfs_info(memcg, pathbuf, NULL);
++	mem_cgroup_print_memfs_info(memcg, pathbuf, sizeof(pathbuf), NULL);
+ }
+ 
+ /*
+-- 
+2.17.1
+

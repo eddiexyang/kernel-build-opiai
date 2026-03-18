@@ -1,0 +1,159 @@
+From 4f452903eceec10556455a2b130159bfca4af4ae Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Mon, 18 Jul 2022 11:27:40 +0000
+Subject: [PATCH 3/5] driver/iommu: Introduce IOMMU_SVA_FEAT_SVSP feature
+
+ascend inclusion
+category: feature
+bugzilla: NA
+DTS: AR0001TKKL
+CVE: NA
+
+-----------------------------------------------------------------
+
+The svsp requires the pasid of svsp_mm has the value of pasid of
+the normal mm with the higest bit set.
+In this commit we introduce IOMMU_SVA_FEAT_SVSP feature to allow
+user pass the pasid of normal mm and set pasid of svsp_mm by the
+given rules.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ .../iommu/arm/arm-smmu-v3/arm-smmu-v3-sva.c   | 35 +++++++++++++++++++
+ drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c   | 16 +++++++++
+ drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h   |  8 +++++
+ include/linux/iommu.h                         |  1 +
+ 4 files changed, 60 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3-sva.c b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3-sva.c
+index d4e123834..a43db3b07 100644
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3-sva.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3-sva.c
+@@ -594,3 +594,38 @@ void arm_smmu_sva_notifier_synchronize(void)
+ 	 */
+ 	mmu_notifier_synchronize();
+ }
++
++#ifdef CONFIG_ASCEND_SVSP
++bool arm_smmu_master_svsp_supported(struct arm_smmu_master *master)
++{
++	/* svsp depends on sva */
++	if (!arm_smmu_master_sva_supported(master))
++		return false;
++
++	return true;
++}
++
++int arm_smmu_master_enable_svsp(struct arm_smmu_master *master)
++{
++	int ret;
++
++	if (arm_smmu_master_sva_enabled(master)) {
++		master->svsp_enabled = true;
++		return 0;
++	}
++
++	return -EINVAL;
++}
++
++int arm_smmu_master_disable_svsp(struct arm_smmu_master *master)
++{
++	master->svsp_enabled = false;
++	return 0;
++}
++
++unsigned int svm_svsp_extract_ssid_bits(struct arm_smmu_master *master)
++{
++	return master->ssid_bits;
++}
++EXPORT_SYMBOL(svm_svsp_extract_ssid_bits);
++#endif
+diff --git a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+index b22d0187e..f6cf5346d 100644
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+@@ -3866,6 +3866,10 @@ static bool arm_smmu_dev_has_feature(struct device *dev,
+ 		return arm_smmu_master_sva_supported(master);
+ 	case IOMMU_DEV_FEAT_AUX:
+ 		return master->ssid_bits != 0;
++#ifdef CONFIG_ASCEND_SVSP
++	case IOMMU_DEV_FEAT_SVSP:
++		return arm_smmu_master_svsp_supported(master);
++#endif
+ 	default:
+ 		return false;
+ 	}
+@@ -3886,6 +3890,10 @@ static bool arm_smmu_dev_feature_enabled(struct device *dev,
+ 		return arm_smmu_master_sva_enabled(master);
+ 	case IOMMU_DEV_FEAT_AUX:
+ 		return master->auxd_enabled;
++#ifdef CONFIG_ASCEND_SVSP
++	case IOMMU_DEV_FEAT_SVSP:
++		return master->svsp_enabled;
++#endif
+ 	default:
+ 		return false;
+ 	}
+@@ -3910,6 +3918,10 @@ static int arm_smmu_dev_enable_feature(struct device *dev,
+ 	case IOMMU_DEV_FEAT_AUX:
+ 		master->auxd_enabled = true;
+ 		return 0;
++#ifdef CONFIG_ASCEND_SVSP
++	case IOMMU_DEV_FEAT_SVSP:
++		return arm_smmu_master_enable_svsp(master);
++#endif
+ 	default:
+ 		return -EINVAL;
+ 	}
+@@ -3932,6 +3944,10 @@ static int arm_smmu_dev_disable_feature(struct device *dev,
+ 		/* TODO: check if aux domains are still attached? */
+ 		master->auxd_enabled = false;
+ 		return 0;
++#ifdef CONFIG_ASCEND_SVSP
++	case IOMMU_DEV_FEAT_SVSP:
++		return arm_smmu_master_disable_svsp(master);
++#endif
+ 	default:
+ 		return -EINVAL;
+ 	}
+diff --git a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h
+index 1dd49bed5..ed931d969 100644
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.h
+@@ -786,6 +786,9 @@ struct arm_smmu_master {
+ 	bool				sva_enabled;
+ 	bool				iopf_enabled;
+ 	bool				auxd_enabled;
++#ifdef CONFIG_ASCEND_SVSP
++	bool				svsp_enabled;
++#endif
+ 	struct list_head		bonds;
+ 	unsigned int			ssid_bits;
+ };
+@@ -862,6 +865,11 @@ struct iommu_sva *arm_smmu_sva_bind(struct device *dev, struct mm_struct *mm,
+ void arm_smmu_sva_unbind(struct iommu_sva *handle);
+ u32 arm_smmu_sva_get_pasid(struct iommu_sva *handle);
+ void arm_smmu_sva_notifier_synchronize(void);
++#ifdef CONFIG_ASCEND_SVSP
++bool arm_smmu_master_svsp_supported(struct arm_smmu_master *master);
++int arm_smmu_master_enable_svsp(struct arm_smmu_master *master);
++int arm_smmu_master_disable_svsp(struct arm_smmu_master *master);
++#endif
+ #else /* CONFIG_ARM_SMMU_V3_SVA */
+ static inline bool arm_smmu_sva_supported(struct arm_smmu_device *smmu)
+ {
+diff --git a/include/linux/iommu.h b/include/linux/iommu.h
+index 8baf5ed66..9e554edb0 100644
+--- a/include/linux/iommu.h
++++ b/include/linux/iommu.h
+@@ -178,6 +178,7 @@ enum iommu_dev_features {
+ 	IOMMU_DEV_FEAT_AUX,
+ 	IOMMU_DEV_FEAT_SVA,
+ 	IOMMU_DEV_FEAT_IOPF,
++	IOMMU_DEV_FEAT_SVSP,
+ };
+ 
+ #define IOMMU_PASID_INVALID	(-1U)
+-- 
+2.17.1
+

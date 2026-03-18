@@ -1,0 +1,1 @@
+../../drv_devmng_host/ascend310/devdrv_black_box.h

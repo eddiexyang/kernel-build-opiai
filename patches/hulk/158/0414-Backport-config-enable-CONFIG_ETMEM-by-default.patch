@@ -1,0 +1,52 @@
+From 260e790eeccf95bc25d5006b9f0e2d2ebdfbf9db Mon Sep 17 00:00:00 2001
+From: liubo <liubo254@huawei.com>
+Date: Tue, 20 Sep 2022 21:10:48 +0800
+Subject: [PATCH 0414/1076] [Backport] config: enable CONFIG_ETMEM by default
+
+euleros inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5DC4A
+
+Reference: https://gitee.com/openeuler/kernel/commit/cc3cdb3684841148
+
+---------------------------------------
+
+enable CONFIG_ETMEM by default.
+
+Signed-off-by: liubo <liubo254@huawei.com>
+Reviewed-by: Miaohe Lin <linmiaohe@huawei.com>
+Reviewed-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Reviewed-by: Chao Liu <liuchao173@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ arch/x86/configs/openeuler_defconfig   | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 45246d705fe0..737ad58ebf87 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -1073,6 +1073,7 @@ CONFIG_SHRINK_PAGECACHE=y
+ CONFIG_MEMCG_QOS=y
+ CONFIG_ETMEM_SCAN=m
+ CONFIG_ETMEM_SWAP=m
++CONFIG_ETMEM=y
+ CONFIG_USERSWAP=y
+ CONFIG_CMA=y
+ # CONFIG_CMA_DEBUG is not set
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 2c5219cbadad..c005578a2e02 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -1022,6 +1022,7 @@ CONFIG_SHRINK_PAGECACHE=y
+ CONFIG_MEMCG_QOS=y
+ CONFIG_ETMEM_SCAN=m
+ CONFIG_ETMEM_SWAP=m
++CONFIG_ETMEM=y
+ CONFIG_USERSWAP=y
+ # CONFIG_CMA is not set
+ CONFIG_MEM_SOFT_DIRTY=y
+-- 
+2.17.1
+

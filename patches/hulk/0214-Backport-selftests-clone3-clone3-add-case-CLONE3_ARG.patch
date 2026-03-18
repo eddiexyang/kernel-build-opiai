@@ -1,0 +1,57 @@
+From 52b5b4ce0eeb1736e98a94d7c1c2edf19bd91fa6 Mon Sep 17 00:00:00 2001
+From: Anders Roxell <anders.roxell@linaro.org>
+Date: Wed, 27 Apr 2022 11:11:22 +0800
+Subject: [PATCH 0214/2065] [Backport] selftests: clone3: clone3: add case
+ CLONE3_ARGS_NO_TEST
+
+stable inclusion
+from stable-v5.10.94
+commit f568fd97d7515f1f3c3efeb604927a3526bff7ba
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f568fd97d7515f1f3c3efeb604927a3526bff7ba
+
+--------------------------------
+
+[ Upstream commit a531b0c23c0fc68ad758cc31a74cf612a4dafeb0 ]
+
+Building selftests/clone3 with clang warns about enumeration not handled
+in switch case:
+
+clone3.c:54:10: warning: enumeration value 'CLONE3_ARGS_NO_TEST' not handled in switch [-Wswitch]
+        switch (test_mode) {
+                ^
+
+Add the missing switch case with a comment.
+
+Fixes: 17a810699c18 ("selftests: add tests for clone3()")
+Signed-off-by: Anders Roxell <anders.roxell@linaro.org>
+Acked-by: Christian Brauner <christian.brauner@ubuntu.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ tools/testing/selftests/clone3/clone3.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/tools/testing/selftests/clone3/clone3.c b/tools/testing/selftests/clone3/clone3.c
+index 42be3b925830..076cf4325f78 100644
+--- a/tools/testing/selftests/clone3/clone3.c
++++ b/tools/testing/selftests/clone3/clone3.c
+@@ -52,6 +52,12 @@ static int call_clone3(uint64_t flags, size_t size, enum test_mode test_mode)
+ 		size = sizeof(struct __clone_args);
+ 
+ 	switch (test_mode) {
++	case CLONE3_ARGS_NO_TEST:
++		/*
++		 * Uses default 'flags' and 'SIGCHLD'
++		 * assignment.
++		 */
++		break;
+ 	case CLONE3_ARGS_ALL_0:
+ 		args.flags = 0;
+ 		args.exit_signal = 0;
+-- 
+2.17.1
+

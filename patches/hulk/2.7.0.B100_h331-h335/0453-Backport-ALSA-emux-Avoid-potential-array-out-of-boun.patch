@@ -1,0 +1,52 @@
+From ed32240eb4daecc95506b16ae276bca5795b1bd4 Mon Sep 17 00:00:00 2001
+From: Artemii Karasev <karasev@ispras.ru>
+Date: Tue, 7 Feb 2023 18:20:26 +0500
+Subject: [PATCH 453/500] [Backport] ALSA: emux: Avoid potential array
+ out-of-bound in snd_emux_xg_control()
+
+stable inclusion
+from stable-v5.10.168
+commit e1646e2be9561469ff26c11295ad14b6c32e670f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6IXN2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e1646e2be9561469ff26c11295ad14b6c32e670f
+
+--------------------------------
+
+commit 6a32425f953b955b4ff82f339d01df0b713caa5d upstream.
+
+snd_emux_xg_control() can be called with an argument 'param' greater
+than size of 'control' array. It may lead to accessing 'control'
+array at a wrong index.
+
+Found by Linux Verification Center (linuxtesting.org) with SVACE.
+
+Signed-off-by: Artemii Karasev <karasev@ispras.ru>
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Cc: <stable@vger.kernel.org>
+Link: https://lore.kernel.org/r/20230207132026.2870-1-karasev@ispras.ru
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/synth/emux/emux_nrpn.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sound/synth/emux/emux_nrpn.c b/sound/synth/emux/emux_nrpn.c
+index 7eed5791972c..a7d83182f7d2 100644
+--- a/sound/synth/emux/emux_nrpn.c
++++ b/sound/synth/emux/emux_nrpn.c
+@@ -349,6 +349,9 @@ int
+ snd_emux_xg_control(struct snd_emux_port *port, struct snd_midi_channel *chan,
+ 		    int param)
+ {
++	if (param >= ARRAY_SIZE(chan->control))
++		return -EINVAL;
++
+ 	return send_converted_effect(xg_effects, ARRAY_SIZE(xg_effects),
+ 				     port, chan, param,
+ 				     chan->control[param],
+-- 
+2.17.1
+

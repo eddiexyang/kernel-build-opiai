@@ -1,0 +1,45 @@
+From 394ab305d8b3032ac289b74cf9ff0fc9d5a1a136 Mon Sep 17 00:00:00 2001
+From: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Date: Wed, 27 Apr 2022 11:15:05 +0800
+Subject: [PATCH 0435/2065] [Backport] Bluetooth: vhci: Set
+ HCI_QUIRK_VALID_LE_STATES
+
+stable inclusion
+from stable-v5.10.94
+commit 0b7beb2fea8f16f59f818336f162014e7be6e835
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0b7beb2fea8f16f59f818336f162014e7be6e835
+
+--------------------------------
+
+[ Upstream commit cfb4c313be670fd4bd09650216620fa4514cdb93 ]
+
+This set HCI_QUIRK_VALID_LE_STATES quirk which is required for the likes
+of experimental LE simultaneous roles.
+
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Signed-off-by: Marcel Holtmann <marcel@holtmann.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/bluetooth/hci_vhci.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/bluetooth/hci_vhci.c b/drivers/bluetooth/hci_vhci.c
+index 8ab26dec5f6e..8469f9876dd2 100644
+--- a/drivers/bluetooth/hci_vhci.c
++++ b/drivers/bluetooth/hci_vhci.c
+@@ -121,6 +121,8 @@ static int __vhci_create_device(struct vhci_data *data, __u8 opcode)
+ 	if (opcode & 0x80)
+ 		set_bit(HCI_QUIRK_RAW_DEVICE, &hdev->quirks);
+ 
++	set_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks);
++
+ 	if (hci_register_dev(hdev) < 0) {
+ 		BT_ERR("Can't register HCI device");
+ 		hci_free_dev(hdev);
+-- 
+2.17.1
+

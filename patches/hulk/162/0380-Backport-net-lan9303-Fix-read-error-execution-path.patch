@@ -1,0 +1,54 @@
+From 8cbaabc2e992e95623e0048e9b1c9f761a287bc8 Mon Sep 17 00:00:00 2001
+From: Jerry Ray <jerry.ray@microchip.com>
+Date: Fri, 9 Dec 2022 09:35:02 -0600
+Subject: [PATCH 380/905] [Backport] net: lan9303: Fix read error execution
+ path
+
+stable inclusion
+from stable-v5.10.163
+commit 4df544f592adbf6f65be0303af5d28da29ed78ee
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4df544f592adbf6f65be0303af5d28da29ed78ee
+
+--------------------------------
+
+[ Upstream commit 8964916d206071b058c6351f88b1966bd58cbde0 ]
+
+This patch fixes an issue where a read failure of a port statistic counter
+will return unknown results.  While it is highly unlikely the read will
+ever fail, it is much cleaner to return a zero for the stat count.
+
+Fixes: a1292595e006 ("net: dsa: add new DSA switch driver for the SMSC-LAN9303")
+Signed-off-by: Jerry Ray <jerry.ray@microchip.com>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Link: https://lore.kernel.org/r/20221209153502.7429-1-jerry.ray@microchip.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/dsa/lan9303-core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/lan9303-core.c b/drivers/net/dsa/lan9303-core.c
+index c79bb8cf962c..deeed50a42c0 100644
+--- a/drivers/net/dsa/lan9303-core.c
++++ b/drivers/net/dsa/lan9303-core.c
+@@ -1002,9 +1002,11 @@ static void lan9303_get_ethtool_stats(struct dsa_switch *ds, int port,
+ 		ret = lan9303_read_switch_port(
+ 			chip, port, lan9303_mib[u].offset, &reg);
+ 
+-		if (ret)
++		if (ret) {
+ 			dev_warn(chip->dev, "Reading status port %d reg %u failed\n",
+ 				 port, lan9303_mib[u].offset);
++			reg = 0;
++		}
+ 		data[u] = reg;
+ 	}
+ }
+-- 
+2.17.1
+

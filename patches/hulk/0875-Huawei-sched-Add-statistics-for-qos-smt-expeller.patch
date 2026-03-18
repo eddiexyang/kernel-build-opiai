@@ -1,0 +1,85 @@
+From a244303fcb910dcc111eb983a5fcdadb27c16d57 Mon Sep 17 00:00:00 2001
+From: Guan Jing <guanjing6@huawei.com>
+Date: Sat, 7 May 2022 17:22:43 +0800
+Subject: [PATCH 0875/2065] [Huawei] sched: Add statistics for qos smt expeller
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186300
+
+--------------------------------
+
+We have added two statistics for qos smt expeller:
+a) nr_qos_smt_send_ipi:the times of ipi which online task expel offline tasks;
+b) nr_qos_smt_expelled:the statistics that offline task will not be picked times.
+
+Signed-off-by: Guan Jing <guanjing6@huawei.com>
+---
+ include/linux/sched.h | 6 +++++-
+ kernel/sched/debug.c  | 4 ++++
+ kernel/sched/fair.c   | 2 ++
+ 3 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 92a2a79662a8..667bf747a32d 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -469,8 +469,13 @@ struct sched_statistics {
+ 	KABI_RESERVE(1)
+ 	KABI_RESERVE(2)
+ #endif
++#if defined(CONFIG_QOS_SCHED_SMT_EXPELLER)
++	u64				nr_qos_smt_send_ipi;
++	u64				nr_qos_smt_expelled;
++#else
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
++#endif
+ #else
+ 	KABI_RESERVE(1)
+ 	KABI_RESERVE(2)
+@@ -2201,5 +2206,4 @@ int set_prefer_cpus_ptr(struct task_struct *p,
+ int sched_prefer_cpus_fork(struct task_struct *p, struct cpumask *mask);
+ void sched_prefer_cpus_free(struct task_struct *p);
+ #endif
+-
+ #endif
+diff --git a/kernel/sched/debug.c b/kernel/sched/debug.c
+index ad47089e5a4a..42b05a5dc0ef 100644
+--- a/kernel/sched/debug.c
++++ b/kernel/sched/debug.c
+@@ -986,6 +986,10 @@ void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
+ 		P_SCHEDSTAT(se.statistics.nr_wakeups_preferred_cpus);
+ 		P_SCHEDSTAT(se.statistics.nr_wakeups_force_preferred_cpus);
+ #endif
++#ifdef CONFIG_QOS_SCHED_SMT_EXPELLER
++		P_SCHEDSTAT(se.statistics.nr_qos_smt_send_ipi);
++		P_SCHEDSTAT(se.statistics.nr_qos_smt_expelled);
++#endif
+ 
+ 		avg_atom = p->se.sum_exec_runtime;
+ 		if (nr_switches)
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 52bd88a3d4d3..9317bab131e0 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7583,6 +7583,7 @@ static void qos_smt_send_ipi(int this_cpu)
+ 		    rq->cfs.h_nr_running == 0)
+ 			continue;
+ 
++		schedstat_inc(current->se.statistics.nr_qos_smt_send_ipi);
+ 		smp_send_reschedule(cpu);
+ 	}
+ }
+@@ -7654,6 +7655,7 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
+ #ifdef CONFIG_QOS_SCHED_SMT_EXPELLER
+ 	if (qos_smt_expelled(this_cpu)) {
+ 		__this_cpu_write(qos_smt_status, QOS_LEVEL_OFFLINE);
++		schedstat_inc(rq->curr->se.statistics.nr_qos_smt_expelled);
+ 		return NULL;
+ 	}
+ #endif
+-- 
+2.17.1
+

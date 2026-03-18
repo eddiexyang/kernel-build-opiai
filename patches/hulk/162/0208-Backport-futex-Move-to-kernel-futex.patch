@@ -1,0 +1,94 @@
+From 4c6bb86060c7dc9adbde2e2e51b7163776db8725 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Thu, 23 Sep 2021 14:10:50 -0300
+Subject: [PATCH 208/905] [Backport] futex: Move to kernel/futex/
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.163
+commit 4750cac4df681ae7bcfa294312f340238b3eadab
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4750cac4df681ae7bcfa294312f340238b3eadab
+
+--------------------------------
+
+[ Upstream commit 77e52ae35463521041906c510fe580d15663bb93 ]
+
+In preparation for splitup..
+
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Suggested-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: André Almeida <andrealmeid@collabora.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Reviewed-by: André Almeida <andrealmeid@collabora.com>
+Link: https://lore.kernel.org/r/20210923171111.300673-2-andrealmeid@collabora.com
+Stable-dep-of: 90d758896787 ("futex: Resend potentially swallowed owner death notification")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ MAINTAINERS                      | 2 +-
+ kernel/Makefile                  | 2 +-
+ kernel/futex/Makefile            | 3 +++
+ kernel/{futex.c => futex/core.c} | 2 +-
+ 4 files changed, 6 insertions(+), 3 deletions(-)
+ create mode 100644 kernel/futex/Makefile
+ rename kernel/{futex.c => futex/core.c} (99%)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 6be4ecb3d531..0768c87a8dd6 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -7291,7 +7291,7 @@ F:	Documentation/locking/*futex*
+ F:	include/asm-generic/futex.h
+ F:	include/linux/futex.h
+ F:	include/uapi/linux/futex.h
+-F:	kernel/futex.c
++F:	kernel/futex/*
+ F:	tools/perf/bench/futex*
+ F:	tools/testing/selftests/futex/
+ 
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 455d0b5fbbb0..3ae3b70c46e8 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -53,7 +53,7 @@ obj-$(CONFIG_FREEZER) += freezer.o
+ obj-$(CONFIG_PROFILING) += profile.o
+ obj-$(CONFIG_STACKTRACE) += stacktrace.o
+ obj-y += time/
+-obj-$(CONFIG_FUTEX) += futex.o
++obj-$(CONFIG_FUTEX) += futex/
+ obj-$(CONFIG_GENERIC_ISA_DMA) += dma.o
+ obj-$(CONFIG_SMP) += smp.o
+ ifneq ($(CONFIG_SMP),y)
+diff --git a/kernel/futex/Makefile b/kernel/futex/Makefile
+new file mode 100644
+index 000000000000..b89ba3fba343
+--- /dev/null
++++ b/kernel/futex/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0
++
++obj-y += core.o
+diff --git a/kernel/futex.c b/kernel/futex/core.c
+similarity index 99%
+rename from kernel/futex.c
+rename to kernel/futex/core.c
+index 98a6e1b80bfe..26ca79c47480 100644
+--- a/kernel/futex.c
++++ b/kernel/futex/core.c
+@@ -42,7 +42,7 @@
+ 
+ #include <asm/futex.h>
+ 
+-#include "locking/rtmutex_common.h"
++#include "../locking/rtmutex_common.h"
+ 
+ /*
+  * READ this before attempting to hack on futexes!
+-- 
+2.17.1
+

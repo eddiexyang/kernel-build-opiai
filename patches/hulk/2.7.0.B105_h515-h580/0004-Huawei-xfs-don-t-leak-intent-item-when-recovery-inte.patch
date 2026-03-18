@@ -1,0 +1,92 @@
+From bfe2f98faf11733c1f8a8d3bc6ee6d7f422da263 Mon Sep 17 00:00:00 2001
+From: Long Li <leo.lilong@huawei.com>
+Date: Wed, 7 Jun 2023 10:22:45 +0800
+Subject: [PATCH 004/780] [Huawei] xfs: don't leak intent item when recovery
+ intents fail
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188865
+
+--------------------------------
+
+When recovery intents, it may capture some deferred ops and commit the new
+intent items, if recovery intents fails, there will be no done item drop
+the reference to the new intent item. This leads to a memory leak as
+fllows:
+
+unreferenced object 0xffff888016719108 (size 432):
+  comm "mount", pid 529, jiffies 4294706839 (age 144.463s)
+  hex dump (first 32 bytes):
+    08 91 71 16 80 88 ff ff 08 91 71 16 80 88 ff ff  ..q.......q.....
+    18 91 71 16 80 88 ff ff 18 91 71 16 80 88 ff ff  ..q.......q.....
+  backtrace:
+    [<ffffffff8230c68f>] xfs_efi_init+0x18f/0x1d0
+    [<ffffffff8230c720>] xfs_extent_free_create_intent+0x50/0x150
+    [<ffffffff821b671a>] xfs_defer_create_intents+0x16a/0x340
+    [<ffffffff821bac3e>] xfs_defer_ops_capture_and_commit+0x8e/0xad0
+    [<ffffffff82322bb9>] xfs_cui_item_recover+0x819/0x980
+    [<ffffffff823289b6>] xlog_recover_process_intents+0x246/0xb70
+    [<ffffffff8233249a>] xlog_recover_finish+0x8a/0x9a0
+    [<ffffffff822eeafb>] xfs_log_mount_finish+0x2bb/0x4a0
+    [<ffffffff822c0f4f>] xfs_mountfs+0x14bf/0x1e70
+    [<ffffffff822d1f80>] xfs_fs_fill_super+0x10d0/0x1b20
+    [<ffffffff81a21fa2>] get_tree_bdev+0x3d2/0x6d0
+    [<ffffffff81a1ee09>] vfs_get_tree+0x89/0x2c0
+    [<ffffffff81a9f35f>] path_mount+0xecf/0x1800
+    [<ffffffff81a9fd83>] do_mount+0xf3/0x110
+    [<ffffffff81aa00e4>] __x64_sys_mount+0x154/0x1f0
+    [<ffffffff83968739>] do_syscall_64+0x39/0x80
+
+Fix it by abort intent items in capture list that don't have a done item
+when recovery intents fail. If transaction that have deferred ops is
+commmit fails in xfs_defer_ops_capture_and_commit(), defer capture would
+not added to capture list, it also need abort too.
+
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/libxfs/xfs_defer.c | 1 +
+ fs/xfs/libxfs/xfs_defer.h | 1 +
+ fs/xfs/xfs_log_recover.c  | 1 +
+ 3 files changed, 3 insertions(+)
+
+diff --git a/fs/xfs/libxfs/xfs_defer.c b/fs/xfs/libxfs/xfs_defer.c
+index ab474d99b084..168b8798625f 100644
+--- a/fs/xfs/libxfs/xfs_defer.c
++++ b/fs/xfs/libxfs/xfs_defer.c
+@@ -713,6 +713,7 @@ xfs_defer_ops_capture_and_commit(
+ 	/* Commit the transaction and add the capture structure to the list. */
+ 	error = xfs_trans_commit(tp);
+ 	if (error) {
++		xfs_defer_pending_abort(mp, &dfc->dfc_dfops);
+ 		xfs_defer_ops_release(mp, dfc);
+ 		return error;
+ 	}
+diff --git a/fs/xfs/libxfs/xfs_defer.h b/fs/xfs/libxfs/xfs_defer.h
+index 05472f71fffe..df0312679ca7 100644
+--- a/fs/xfs/libxfs/xfs_defer.h
++++ b/fs/xfs/libxfs/xfs_defer.h
+@@ -36,6 +36,7 @@ struct xfs_defer_pending {
+ 	enum xfs_defer_ops_type		dfp_type;
+ };
+ 
++void xfs_defer_pending_abort(struct xfs_mount *mp, struct list_head *dop_list);
+ void xfs_defer_add(struct xfs_trans *tp, enum xfs_defer_ops_type type,
+ 		struct list_head *h);
+ int xfs_defer_finish_noroll(struct xfs_trans **tp);
+diff --git a/fs/xfs/xfs_log_recover.c b/fs/xfs/xfs_log_recover.c
+index 8235a1e05ee8..1ce9700ea68c 100644
+--- a/fs/xfs/xfs_log_recover.c
++++ b/fs/xfs/xfs_log_recover.c
+@@ -2514,6 +2514,7 @@ xlog_abort_defer_ops(
+ 
+ 	list_for_each_entry_safe(dfc, next, capture_list, dfc_list) {
+ 		list_del_init(&dfc->dfc_list);
++		xfs_defer_pending_abort(mp, &dfc->dfc_dfops);
+ 		xfs_defer_ops_release(mp, dfc);
+ 	}
+ }
+-- 
+2.17.1
+

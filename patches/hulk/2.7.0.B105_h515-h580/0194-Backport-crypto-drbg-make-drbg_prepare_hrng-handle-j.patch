@@ -1,0 +1,77 @@
+From f0226363bad2be7c9e6f441e7a89d93f896b4d96 Mon Sep 17 00:00:00 2001
+From: Nicolai Stange <nstange@suse.de>
+Date: Mon, 15 Nov 2021 15:18:08 +0100
+Subject: [PATCH 194/780] [Backport] crypto: drbg - make drbg_prepare_hrng()
+ handle jent instantiation errors
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.180
+commit 9dbdedd44ff42fbbcd6235f3aa89aeb291f2355c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9dbdedd44ff42fbbcd6235f3aa89aeb291f2355c
+
+--------------------------------
+
+[ Upstream commit 559edd47cce4cc407d606b4d7f376822816fd4b8 ]
+
+Now that drbg_prepare_hrng() doesn't do anything but to instantiate a
+jitterentropy crypto_rng instance, it looks a little odd to have the
+related error handling at its only caller, drbg_instantiate().
+
+Move the handling of jitterentropy allocation failures from
+drbg_instantiate() close to the allocation itself in drbg_prepare_hrng().
+
+There is no change in behaviour.
+
+Signed-off-by: Nicolai Stange <nstange@suse.de>
+Reviewed-by: Stephan Müller <smueller@chronox.de>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Stable-dep-of: 686cd976b6dd ("crypto: drbg - Only fail when jent is unavailable in FIPS mode")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ crypto/drbg.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/crypto/drbg.c b/crypto/drbg.c
+index a4b5d6dbe99d..ecc6b167b89e 100644
+--- a/crypto/drbg.c
++++ b/crypto/drbg.c
+@@ -1515,6 +1515,14 @@ static int drbg_prepare_hrng(struct drbg_state *drbg)
+ 		return 0;
+ 
+ 	drbg->jent = crypto_alloc_rng("jitterentropy_rng", 0, 0);
++	if (IS_ERR(drbg->jent)) {
++		const int err = PTR_ERR(drbg->jent);
++
++		drbg->jent = NULL;
++		if (fips_enabled || err != -ENOENT)
++			return err;
++		pr_info("DRBG: Continuing without Jitter RNG\n");
++	}
+ 
+ 	return 0;
+ }
+@@ -1570,14 +1578,6 @@ static int drbg_instantiate(struct drbg_state *drbg, struct drbg_string *pers,
+ 		if (ret)
+ 			goto free_everything;
+ 
+-		if (IS_ERR(drbg->jent)) {
+-			ret = PTR_ERR(drbg->jent);
+-			drbg->jent = NULL;
+-			if (fips_enabled || ret != -ENOENT)
+-				goto free_everything;
+-			pr_info("DRBG: Continuing without Jitter RNG\n");
+-		}
+-
+ 		reseed = false;
+ 	}
+ 
+-- 
+2.17.1
+

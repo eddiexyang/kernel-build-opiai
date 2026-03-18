@@ -1,0 +1,67 @@
+From 356fdb1ea7b1ed7b92127c5bfa74eb59942ce3fd Mon Sep 17 00:00:00 2001
+From: Zhang Qiao <zhangqiao22@huawei.com>
+Date: Sat, 24 Dec 2022 15:36:35 +0800
+Subject: [PATCH 1267/1398] [Huawei] sched: Reinit task's vruntime if a task
+ sleep over 200 days
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188204
+
+-------------------------------
+
+A workaround to solve a bizarre situation, in which
+task's vruntime overflows in a dramatical way, as a
+result, starvation happens.
+
+To fix this, during wakeup, resetting the vruntime of
+a task as cfs_rq->min_vruntime if it sleeps over than
+200 days.
+
+Signed-off-by: Zhang Qiao <zhangqiao22@huawei.com>
+---
+ kernel/sched/fair.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index e1f68a9b5872..af6d55ba9ce6 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -4337,10 +4337,17 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
+ #endif
+ }
+ 
++/*
++ * The threshold when the wakee's vruntime should be set
++ * cfs_rq->min_vruntime, default: 200 days
++ */
++#define WAKEUP_REINIT_THRESHOLD_NS     (200LL * 24 * 3600 * NSEC_PER_SEC)
++
+ static void
+ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
+ {
+ 	u64 vruntime = cfs_rq->min_vruntime;
++	struct rq *rq = rq_of(cfs_rq);
+ 
+ 	/*
+ 	 * The 'current' period is already promised to the current tasks,
+@@ -4365,8 +4372,13 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
+ 		vruntime -= thresh;
+ 	}
+ 
+-	/* ensure we never gain time by being placed backwards. */
+-	se->vruntime = max_vruntime(se->vruntime, vruntime);
++	if (unlikely(!initial &&
++	    (s64)(rq_clock_task(rq) - se->exec_start) > WAKEUP_REINIT_THRESHOLD_NS))
++		se->vruntime = vruntime;
++	else {
++		/* ensure we never gain time by being placed backwards. */
++		se->vruntime = max_vruntime(se->vruntime, vruntime);
++	}
+ }
+ 
+ static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
+-- 
+2.17.1
+

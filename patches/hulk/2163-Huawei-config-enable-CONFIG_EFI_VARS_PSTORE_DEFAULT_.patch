@@ -1,0 +1,48 @@
+From 45da6e34b68f458747e5e487711b6cb922bc4061 Mon Sep 17 00:00:00 2001
+From: Yu Liao <liaoyu15@huawei.com>
+Date: Tue, 24 May 2022 20:38:32 +0800
+Subject: [PATCH 2163/2592] [Huawei] config: enable
+ CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE by default
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186841
+
+--------------------------------
+
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 2 +-
+ arch/x86/configs/openeuler_defconfig   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 9dc1be9dcb9d..eb80a85f4c3c 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -646,7 +646,7 @@ CONFIG_FW_CFG_SYSFS=y
+ #
+ CONFIG_EFI_ESRT=y
+ CONFIG_EFI_VARS_PSTORE=y
+-# CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE is not set
++CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE=y
+ CONFIG_EFI_FAKE_MEMMAP=y
+ CONFIG_EFI_MAX_FAKE_MEM=8
+ CONFIG_EFI_PARAMS_FROM_FDT=y
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 9c107d4c11f7..e90a0dbea93a 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -683,7 +683,7 @@ CONFIG_FW_CFG_SYSFS=y
+ # CONFIG_EFI_VARS is not set
+ CONFIG_EFI_ESRT=y
+ CONFIG_EFI_VARS_PSTORE=y
+-# CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE is not set
++CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE=y
+ CONFIG_EFI_RUNTIME_MAP=y
+ # CONFIG_EFI_FAKE_MEMMAP is not set
+ CONFIG_EFI_SOFT_RESERVE=y
+-- 
+2.17.1
+

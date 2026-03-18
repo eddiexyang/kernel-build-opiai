@@ -1,0 +1,60 @@
+From 59a9727d67c8e5aa5e59c9c295bfdd09ed27f70b Mon Sep 17 00:00:00 2001
+From: Kaixu Xia <kaixuxia@tencent.com>
+Date: Thu, 15 Sep 2022 19:33:41 +0800
+Subject: [PATCH 149/921] [Backport] mm/damon: use 'struct damon_target *'
+ instead of 'void *' in target_valid()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 16bc1b0f0269b6110f6d25880b52947d354e2980
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=16bc1b0f0269b6110f6d25880b52947d354e2980
+
+--------------------------------
+
+We could use 'struct damon_target *' directly instead of 'void *' in
+target_valid() operation to make code simple.
+
+Link: https://lkml.kernel.org/r/1663241621-13293-1-git-send-email-kaixuxia@tencent.com
+Signed-off-by: Kaixu Xia <kaixuxia@tencent.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ include/linux/damon.h | 2 +-
+ mm/damon/vaddr.c      | 3 +--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/damon.h b/include/linux/damon.h
+index 706cf0474656..6cdb3af77659 100644
+--- a/include/linux/damon.h
++++ b/include/linux/damon.h
+@@ -345,7 +345,7 @@ struct damon_operations {
+ 	unsigned long (*apply_scheme)(struct damon_ctx *context,
+ 			struct damon_target *t, struct damon_region *r,
+ 			struct damos *scheme);
+-	bool (*target_valid)(void *target);
++	bool (*target_valid)(struct damon_target *t);
+ 	void (*cleanup)(struct damon_ctx *context);
+ };
+ 
+diff --git a/mm/damon/vaddr.c b/mm/damon/vaddr.c
+index 8794ce445db0..29c897a92ec2 100644
+--- a/mm/damon/vaddr.c
++++ b/mm/damon/vaddr.c
+@@ -592,9 +592,8 @@ static unsigned int damon_va_check_accesses(struct damon_ctx *ctx)
+  * Functions for the target validity check and cleanup
+  */
+ 
+-static bool damon_va_target_valid(void *target)
++static bool damon_va_target_valid(struct damon_target *t)
+ {
+-	struct damon_target *t = target;
+ 	struct task_struct *task;
+ 
+ 	task = damon_get_task_struct(t);
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From b8f997599f6d21828706afe8ceeb6cc3600a0698 Mon Sep 17 00:00:00 2001
+From: Hangbin Liu <liuhangbin@gmail.com>
+Date: Thu, 22 Sep 2022 10:44:53 +0800
+Subject: [PATCH 469/595] [Backport] selftests: forwarding: add shebang for
+ sch_red.sh
+
+stable inclusion
+from stable-v5.10.146
+commit 4bc4b6419e652905f71b12c70783954513d9d7f4
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ZMX7
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4bc4b6419e652905f71b12c70783954513d9d7f4
+
+--------------------------------
+
+[ Upstream commit 83e4b196838d90799a8879e5054a3beecf9ed256 ]
+
+RHEL/Fedora RPM build checks are stricter, and complain when executable
+files don't have a shebang line, e.g.
+
+*** WARNING: ./kselftests/net/forwarding/sch_red.sh is executable but has no shebang, removing executable bit
+
+Fix it by adding shebang line.
+
+Fixes: 6cf0291f9517 ("selftests: forwarding: Add a RED test for SW datapath")
+Signed-off-by: Hangbin Liu <liuhangbin@gmail.com>
+Reviewed-by: Petr Machata <petrm@nvidia.com>
+Link: https://lore.kernel.org/r/20220922024453.437757-1-liuhangbin@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ tools/testing/selftests/net/forwarding/sch_red.sh | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/testing/selftests/net/forwarding/sch_red.sh b/tools/testing/selftests/net/forwarding/sch_red.sh
+index e714bae473fb..81f31179ac88 100755
+--- a/tools/testing/selftests/net/forwarding/sch_red.sh
++++ b/tools/testing/selftests/net/forwarding/sch_red.sh
+@@ -1,3 +1,4 @@
++#!/bin/bash
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ # This test sends one stream of traffic from H1 through a TBF shaper, to a RED
+-- 
+2.17.1
+

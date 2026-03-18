@@ -1,0 +1,68 @@
+From 18e7cd7c55ef3d68f5dc0c6567e264f59de7574a Mon Sep 17 00:00:00 2001
+From: Lin Ma <linma@zju.edu.cn>
+Date: Mon, 8 Nov 2021 18:37:59 +0800
+Subject: [PATCH 0758/2065] [Backport] hamradio: defer 6pack kfree after
+ unregister_netdev
+
+stable inclusion
+from stable-v5.10.112
+commit 80a4df14643f78b14f1e8e2c7f9ca3da41b01654
+category: bugfix
+bugzilla: 186546
+CVE: CVE-2022-1198
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=80a4df14643f78b14f1e8e2c7f9ca3da41b01654
+
+--------------------------------
+
+commit 0b9111922b1f399aba6ed1e1b8f2079c3da1aed8 upstream.
+
+There is a possible race condition (use-after-free) like below
+
+ (USE)                       |  (FREE)
+  dev_queue_xmit             |
+   __dev_queue_xmit          |
+    __dev_xmit_skb           |
+     sch_direct_xmit         | ...
+      xmit_one               |
+       netdev_start_xmit     | tty_ldisc_kill
+        __netdev_start_xmit  |  6pack_close
+         sp_xmit             |   kfree
+          sp_encaps          |
+                             |
+
+According to the patch "defer ax25 kfree after unregister_netdev", this
+patch reorder the kfree after the unregister_netdev to avoid the possible
+UAF as the unregister_netdev() is well synchronized and won't return if
+there is a running routine.
+
+Signed-off-by: Lin Ma <linma@zju.edu.cn>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Xu Jia <xujia39@huawei.com>
+---
+ drivers/net/hamradio/6pack.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/hamradio/6pack.c b/drivers/net/hamradio/6pack.c
+index bd0beb16d68a..8221f7c2709e 100644
+--- a/drivers/net/hamradio/6pack.c
++++ b/drivers/net/hamradio/6pack.c
+@@ -677,11 +677,13 @@ static void sixpack_close(struct tty_struct *tty)
+ 	del_timer_sync(&sp->tx_t);
+ 	del_timer_sync(&sp->resync_t);
+ 
+-	/* Free all 6pack frame buffers. */
++	unregister_netdev(sp->dev);
++
++	/* Free all 6pack frame buffers after unreg. */
+ 	kfree(sp->rbuff);
+ 	kfree(sp->xbuff);
+ 
+-	unregister_netdev(sp->dev);
++	free_netdev(sp->dev);
+ }
+ 
+ /* Perform I/O control on an active 6pack channel. */
+-- 
+2.17.1
+

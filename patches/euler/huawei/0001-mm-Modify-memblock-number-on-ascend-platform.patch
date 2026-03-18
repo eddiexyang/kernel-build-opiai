@@ -1,0 +1,42 @@
+From 670b89441c60eadd19b86b418f19374487d73afe Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Fri, 5 Mar 2021 09:45:12 +0000
+Subject: [PATCH 1/2] mm: Modify memblock number on ascend platform
+
+Offering: HULK
+ascend inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7VD6D
+
+--------------------------------
+
+The ECC feature increases a maximum of 64 reserved
+physical memory segments, which increases the number
+of memblocks on ascend platform.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ mm/memblock.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/mm/memblock.c b/mm/memblock.c
+index 3fb02af..a7aaa15 100644
+--- a/mm/memblock.c
++++ b/mm/memblock.c
+@@ -22,7 +22,12 @@
+ 
+ #include "internal.h"
+ 
++#ifdef CONFIG_ASCEND_NR_MEMBLOCK
++#define INIT_MEMBLOCK_REGIONS			256
++#else
+ #define INIT_MEMBLOCK_REGIONS			128
++#endif
++
+ #define INIT_PHYSMEM_REGIONS			4
+ 
+ #ifndef INIT_MEMBLOCK_RESERVED_REGIONS
+-- 
+2.17.1
+

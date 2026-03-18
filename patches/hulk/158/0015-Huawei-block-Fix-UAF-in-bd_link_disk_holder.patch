@@ -1,0 +1,91 @@
+From b4d9c5268b6b2e4a0ee2d1629b714e18328034ff Mon Sep 17 00:00:00 2001
+From: Luo Meng <luomeng12@huawei.com>
+Date: Fri, 9 Sep 2022 18:17:13 +0800
+Subject: [PATCH 0015/1076] [Huawei] block: Fix UAF in bd_link_disk_holder()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187593
+
+--------------------------------
+
+A crash as follows:
+
+ BUG: unable to handle page fault for address: 000000011241cec7
+ sd 5:0:0:1: [sdl] Synchronizing SCSI cache
+ #PF: supervisor read access in kernel mode
+ #PF: error_code(0x0000) - not-present page
+ PGD 0 P4D 0
+ Oops: 0000 [#1] SMP PTI
+ CPU: 3 PID: 2465367 Comm: multipath Kdump: loaded Tainted: G        W  O      5.10.0-60.18.0.50.h478.eulerosv2r11.x86_64 #1
+ Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS rel-1.12.1-0-ga5cab58-20220525_182517-szxrtosci10000 04/01/2014
+ RIP: 0010:kernfs_new_node+0x22/0x60
+ Code: cc cc 66 0f 1f 44 00 00 0f 1f 44 00 00 41 54 41 89 cb 0f b7 ca 48 89 f2 53 48 8b 47 08 48 89 fb 48 89 de 48 85 c0 48 0f 44 c7 <48> 8b 78 50 41 51 45 89 c1 45 89 d8 e8 4d ee ff ff 5a 49 89 c4 48
+ RSP: 0018:ffffa178419539e8 EFLAGS: 00010206
+ RAX: 000000011241ce77 RBX: ffff9596828395a0 RCX: 000000000000a1ff
+ RDX: ffff9595ada828b0 RSI: ffff9596828395a0 RDI: ffff9596828395a0
+ RBP: ffff95959a9a2a80 R08: 0000000000000000 R09: 0000000000000004
+ R10: ffff9595ca0bf930 R11: 0000000000000000 R12: ffff9595ada828b0
+ R13: ffff9596828395a0 R14: 0000000000000001 R15: ffff9595948c5c80
+ FS:  00007f64baa10200(0000) GS:ffff9596bad80000(0000) knlGS:0000000000000000
+ CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+ CR2: 000000011241cec7 CR3: 000000011923e003 CR4: 0000000000170ee0
+ Call Trace:
+  kernfs_create_link+0x31/0xa0
+  sysfs_do_create_link_sd+0x61/0xc0
+  bd_link_disk_holder+0x10a/0x180
+  dm_get_table_device+0x10b/0x1f0 [dm_mod]
+  __dm_get_device+0x1e2/0x280 [dm_mod]
+  ? kmem_cache_alloc_trace+0x2fb/0x410
+  parse_path+0xca/0x200 [dm_multipath]
+  parse_priority_group+0x19d/0x1f0 [dm_multipath]
+  multipath_ctr+0x27a/0x491 [dm_multipath]
+  dm_table_add_target+0x177/0x360 [dm_mod]
+  table_load+0x12b/0x380 [dm_mod]
+  ctl_ioctl+0x199/0x290 [dm_mod]
+  ? dev_suspend+0xd0/0xd0 [dm_mod]
+  dm_ctl_ioctl+0xa/0x20 [dm_mod]
+  __se_sys_ioctl+0x85/0xc0
+  do_syscall_64+0x33/0x40
+  entry_SYSCALL_64_after_hwframe+0x61/0xc6
+
+This can be easy reproduce:
+ Add delay before ret = add_symlink(bdev->bd_part->holder_dir...)
+ in bd_link_disk_holder()
+ dmsetup create xxx --tabel "0 1000 linear /dev/sda 0"
+ echo 1 > /sys/block/sda/device/delete
+
+Delete /dev/sda will release holder_dir, but add_symlink() will
+use holder_dir. Therefore UAF will occur in this case.
+
+Fix this problem by adding reference count to holder_dir.
+
+Signed-off-by: Luo Meng <luomeng12@huawei.com>
+---
+ fs/block_dev.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index e324b7ace8f1..8a98801b798c 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -1630,6 +1630,7 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, void *holder,
+ 		}
+ 	}
+ 	bdev->bd_openers++;
++	kobject_get(bdev->bd_part->holder_dir);
+ 	if (for_part)
+ 		bdev->bd_part_count++;
+ 
+@@ -1892,6 +1893,7 @@ static void __blkdev_put(struct block_device *bdev, fmode_t mode, int for_part)
+ 		spin_unlock(&bdev_lock);
+ 	}
+ 
++	kobject_put(bdev->bd_part->holder_dir);
+ 	if (!--bdev->bd_openers) {
+ 		WARN_ON_ONCE(bdev->bd_holders);
+ 		sync_blockdev(bdev);
+-- 
+2.17.1
+

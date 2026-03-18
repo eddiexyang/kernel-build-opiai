@@ -1,0 +1,77 @@
+From ca415bdeed0c8381a0ec0436647acbdc2e30e45a Mon Sep 17 00:00:00 2001
+From: Masami Hiramatsu <mhiramat@kernel.org>
+Date: Wed, 27 Oct 2021 08:22:11 +0900
+Subject: [PATCH 141/780] [Backport] selftests/ftrace: Stop tracing while
+ reading the trace file by default
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 25b95138728028dd0f576d9f252bc8f0b6c609fa
+category: bugfix
+bugzilla: 188758
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=25b95138728028dd0f576d9f252bc8f0b6c609fa
+
+--------------------------------
+
+Stop tracing while reading the trace file by default, to prevent
+the test results while checking it and to avoid taking a long time
+to check the result.
+If there is any testcase which wants to test the tracing while reading
+the trace file, please override this setting inside the test case.
+
+This also recovers the pause-on-trace when clean it up.
+
+Link: https://lkml.kernel.org/r/163529053143.690749.15365238954175942026.stgit@devnote2
+
+Signed-off-by: Masami Hiramatsu <mhiramat@kernel.org>
+Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ tools/testing/selftests/ftrace/ftracetest       |  2 +-
+ tools/testing/selftests/ftrace/test.d/functions | 12 ++++++++++++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/ftrace/ftracetest b/tools/testing/selftests/ftrace/ftracetest
+index 8ec1922e974e..c3311c8c4089 100755
+--- a/tools/testing/selftests/ftrace/ftracetest
++++ b/tools/testing/selftests/ftrace/ftracetest
+@@ -428,7 +428,7 @@ for t in $TEST_CASES; do
+     exit 1
+   fi
+ done
+-(cd $TRACING_DIR; initialize_ftrace) # for cleanup
++(cd $TRACING_DIR; finish_ftrace) # for cleanup
+ 
+ prlog ""
+ prlog "# of passed: " `echo $PASSED_CASES | wc -w`
+diff --git a/tools/testing/selftests/ftrace/test.d/functions b/tools/testing/selftests/ftrace/test.d/functions
+index 0cee6b067a37..b6315d8f8f89 100644
+--- a/tools/testing/selftests/ftrace/test.d/functions
++++ b/tools/testing/selftests/ftrace/test.d/functions
+@@ -102,10 +102,22 @@ initialize_ftrace() { # Reset ftrace to initial-state
+     [ -f uprobe_events ] && echo > uprobe_events
+     [ -f synthetic_events ] && echo > synthetic_events
+     [ -f snapshot ] && echo 0 > snapshot
++
++# Stop tracing while reading the trace file by default, to prevent
++# the test results while checking it and to avoid taking a long time
++# to check the result.
++    [ -f options/pause-on-trace ] && echo 1 > options/pause-on-trace
++
+     clear_trace
+     enable_tracing
+ }
+ 
++finish_ftrace() {
++    initialize_ftrace
++# And recover it to default.
++    [ -f options/pause-on-trace ] && echo 0 > options/pause-on-trace
++}
++
+ check_requires() { # Check required files and tracers
+     for i in "$@" ; do
+         r=${i%:README}
+-- 
+2.17.1
+

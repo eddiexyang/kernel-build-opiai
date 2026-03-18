@@ -1,0 +1,229 @@
+From cf070c65f04c12e606b9858e0c0cef198d09a109 Mon Sep 17 00:00:00 2001
+From: Jarkko Sakkinen <jarkko@kernel.org>
+Date: Tue, 16 Nov 2021 18:21:16 +0200
+Subject: [PATCH 0249/1646] [Backport] x86/sgx: Add an attribute for the amount
+ of SGX memory in a NUMA node
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 50468e4313355b161cac8a5155a45832995b7f25
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5USAM
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=50468e4313355b161cac8a5155a45832995b7f25
+
+--------------------------------
+
+== Problem ==
+
+The amount of SGX memory on a system is determined by the BIOS and it
+varies wildly between systems.  It can be as small as dozens of MB's
+and as large as many GB's on servers.  Just like how applications need
+to know how much regular RAM is available, enclave builders need to
+know how much SGX memory an enclave can consume.
+
+== Solution ==
+
+Introduce a new sysfs file:
+
+	/sys/devices/system/node/nodeX/x86/sgx_total_bytes
+
+to enumerate the amount of SGX memory available in each NUMA node.
+This serves the same function for SGX as /proc/meminfo or
+/sys/devices/system/node/nodeX/meminfo does for normal RAM.
+
+'sgx_total_bytes' is needed today to help drive the SGX selftests.
+SGX-specific swap code is exercised by creating overcommitted enclaves
+which are larger than the physical SGX memory on the system.  They
+currently use a CPUID-based approach which can diverge from the actual
+amount of SGX memory available.  'sgx_total_bytes' ensures that the
+selftests can work efficiently and do not attempt stupid things like
+creating a 100,000 MB enclave on a system with 128 MB of SGX memory.
+
+== Implementation Details ==
+
+Introduce CONFIG_HAVE_ARCH_NODE_DEV_GROUP opt-in flag to expose an
+arch specific attribute group, and add an attribute for the amount of
+SGX memory in bytes to each NUMA node:
+
+== ABI Design Discussion ==
+
+As opposed to the per-node ABI, a single, global ABI was considered.
+However, this would prevent enclaves from being able to size
+themselves so that they fit on a single NUMA node.  Essentially, a
+single value would rule out NUMA optimizations for enclaves.
+
+Create a new "x86/" directory inside each "nodeX/" sysfs directory.
+'sgx_total_bytes' is expected to be the first of at least a few
+sgx-specific files to be placed in the new directory.  Just scanning
+/proc/meminfo, these are the no-brainers that we have for RAM, but we
+need for SGX:
+
+	MemTotal:       xxxx kB // sgx_total_bytes (implemented here)
+	MemFree:        yyyy kB // sgx_free_bytes
+	SwapTotal:      zzzz kB // sgx_swapped_bytes
+
+So, at *least* three.  I think we will eventually end up needing
+something more along the lines of a dozen.  A new directory (as
+opposed to being in the nodeX/ "root") directory avoids cluttering the
+root with several "sgx_*" files.
+
+Place the new file in a new "nodeX/x86/" directory because SGX is
+highly x86-specific.  It is very unlikely that any other architecture
+(or even non-Intel x86 vendor) will ever implement SGX.  Using "sgx/"
+as opposed to "x86/" was also considered.  But, there is a real chance
+this can get used for other arch-specific purposes.
+
+[ dhansen: rewrite changelog ]
+
+Signed-off-by: Jarkko Sakkinen <jarkko@kernel.org>
+Signed-off-by: Dave Hansen <dave.hansen@linux.intel.com>
+Acked-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Acked-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20211116162116.93081-2-jarkko@kernel.org
+Signed-off-by: Zhiquan Li <zhiquan1.li@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ Documentation/ABI/stable/sysfs-devices-node |  6 ++++++
+ arch/Kconfig                                |  4 ++++
+ arch/x86/Kconfig                            |  1 +
+ arch/x86/kernel/cpu/sgx/main.c              | 20 ++++++++++++++++++++
+ arch/x86/kernel/cpu/sgx/sgx.h               |  1 +
+ drivers/base/node.c                         | 13 ++++++++++++-
+ include/linux/numa.h                        |  4 ++++
+ 7 files changed, 48 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/ABI/stable/sysfs-devices-node b/Documentation/ABI/stable/sysfs-devices-node
+index 484fc04bcc25..8db67aa472f1 100644
+--- a/Documentation/ABI/stable/sysfs-devices-node
++++ b/Documentation/ABI/stable/sysfs-devices-node
+@@ -176,3 +176,9 @@ Contact:	Keith Busch <keith.busch@intel.com>
+ Description:
+ 		The cache write policy: 0 for write-back, 1 for write-through,
+ 		other or unknown.
++
++What:		/sys/devices/system/node/nodeX/x86/sgx_total_bytes
++Date:		November 2021
++Contact:	Jarkko Sakkinen <jarkko@kernel.org>
++Description:
++		The total amount of SGX physical memory in bytes.
+diff --git a/arch/Kconfig b/arch/Kconfig
+index 7a8e3d45b2a1..7800502d9b6e 100644
+--- a/arch/Kconfig
++++ b/arch/Kconfig
+@@ -1119,6 +1119,10 @@ config ARCH_SPLIT_ARG64
+ 	   If a 32-bit architecture requires 64-bit arguments to be split into
+ 	   pairs of 32-bit arguments, select this option.
+ 
++# Select, if arch has a named attribute group bound to NUMA device nodes.
++config HAVE_ARCH_NODE_DEV_GROUP
++	bool
++
+ source "kernel/gcov/Kconfig"
+ 
+ source "scripts/gcc-plugins/Kconfig"
+diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
+index 2ab94975be4d..7e18495cb59b 100644
+--- a/arch/x86/Kconfig
++++ b/arch/x86/Kconfig
+@@ -250,6 +250,7 @@ config X86
+ 	select HAVE_ARCH_KCSAN			if X86_64
+ 	select X86_FEATURE_NAMES		if PROC_FS
+ 	select PROC_PID_ARCH_STATUS		if PROC_FS
++	select HAVE_ARCH_NODE_DEV_GROUP		if X86_SGX
+ 	imply IMA_SECURE_AND_OR_TRUSTED_BOOT    if EFI
+ 
+ config INSTRUCTION_DECODER
+diff --git a/arch/x86/kernel/cpu/sgx/main.c b/arch/x86/kernel/cpu/sgx/main.c
+index 4036f50fc42c..06683d664ced 100644
+--- a/arch/x86/kernel/cpu/sgx/main.c
++++ b/arch/x86/kernel/cpu/sgx/main.c
+@@ -825,9 +825,11 @@ static bool __init sgx_page_cache_init(void)
+ 			INIT_LIST_HEAD(&sgx_numa_nodes[nid].free_page_list);
+ 			INIT_LIST_HEAD(&sgx_numa_nodes[nid].sgx_poison_page_list);
+ 			node_set(nid, sgx_numa_mask);
++			sgx_numa_nodes[nid].size = 0;
+ 		}
+ 
+ 		sgx_epc_sections[i].node =  &sgx_numa_nodes[nid];
++		sgx_numa_nodes[nid].size += size;
+ 
+ 		sgx_nr_epc_sections++;
+ 	}
+@@ -901,6 +903,24 @@ int sgx_set_attribute(unsigned long *allowed_attributes,
+ }
+ EXPORT_SYMBOL_GPL(sgx_set_attribute);
+ 
++#ifdef CONFIG_NUMA
++static ssize_t sgx_total_bytes_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%lu\n", sgx_numa_nodes[dev->id].size);
++}
++static DEVICE_ATTR_RO(sgx_total_bytes);
++
++static struct attribute *arch_node_dev_attrs[] = {
++	&dev_attr_sgx_total_bytes.attr,
++	NULL,
++};
++
++const struct attribute_group arch_node_dev_group = {
++	.name = "x86",
++	.attrs = arch_node_dev_attrs,
++};
++#endif /* CONFIG_NUMA */
++
+ static int __init sgx_init(void)
+ {
+ 	int ret;
+diff --git a/arch/x86/kernel/cpu/sgx/sgx.h b/arch/x86/kernel/cpu/sgx/sgx.h
+index 9ec3136c7800..0f17def9fe6f 100644
+--- a/arch/x86/kernel/cpu/sgx/sgx.h
++++ b/arch/x86/kernel/cpu/sgx/sgx.h
+@@ -44,6 +44,7 @@ struct sgx_epc_page {
+ struct sgx_numa_node {
+ 	struct list_head free_page_list;
+ 	struct list_head sgx_poison_page_list;
++	unsigned long size;
+ 	spinlock_t lock;
+ };
+ 
+diff --git a/drivers/base/node.c b/drivers/base/node.c
+index 71dfe2020421..72b4bf119866 100644
+--- a/drivers/base/node.c
++++ b/drivers/base/node.c
+@@ -583,7 +583,18 @@ static struct attribute *node_dev_attrs[] = {
+ 	&dev_attr_type.attr,
+ 	NULL
+ };
+-ATTRIBUTE_GROUPS(node_dev);
++
++static const struct attribute_group node_dev_group = {
++	.attrs = node_dev_attrs,
++};
++
++static const struct attribute_group *node_dev_groups[] = {
++	&node_dev_group,
++#ifdef CONFIG_HAVE_ARCH_NODE_DEV_GROUP
++	&arch_node_dev_group,
++#endif
++	NULL
++};
+ 
+ #ifdef CONFIG_HUGETLBFS
+ /*
+diff --git a/include/linux/numa.h b/include/linux/numa.h
+index 22a2ce0c33f7..fdcd888f70cd 100644
+--- a/include/linux/numa.h
++++ b/include/linux/numa.h
+@@ -70,4 +70,8 @@ static inline enum node_type get_node_type(int nid)
+ static inline void set_node_type(int nid, enum node_type type) {}
+ #endif
+ 
++#ifdef CONFIG_HAVE_ARCH_NODE_DEV_GROUP
++extern const struct attribute_group arch_node_dev_group;
++#endif
++
+ #endif /* _LINUX_NUMA_H */
+-- 
+2.17.1
+

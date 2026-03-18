@@ -1,0 +1,39 @@
+From 1778f0d62f3dc099099e87366849d2f598dd9ef5 Mon Sep 17 00:00:00 2001
+From: Lu Wei <luwei32@huawei.com>
+Date: Wed, 19 Oct 2022 12:49:39 +0800
+Subject: [PATCH 046/595] [Huawei] bpf: fix magic numbers in
+ bpf_get_sockops_uid_gid()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187830
+
+--------------------------------
+
+32 is a magic number, use "BITS_PER_BYTE * sizeof(u32)" to
+replace it.
+
+Fixes: 0a0306da1658 ("bpf: Add bpf_get_sockops_uid_gid helper function")
+Signed-off-by: Lu Wei <luwei32@huawei.com>
+---
+ net/core/filter.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 0644dde98433..5d88bbe5c31b 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -5021,7 +5021,8 @@ BPF_CALL_1(bpf_get_sockops_uid_gid, struct bpf_sock_ops_kern *, bpf_sock)
+ 	uid = sock_net_uid(sock_net(sk), sk);
+ 	gid = sock_net_gid(sock_net(sk), sk);
+ 
+-	return ((u64)from_kgid_munged(sock_net(sk)->user_ns, gid)) << 32 |
++	return ((u64)from_kgid_munged(sock_net(sk)->user_ns, gid)) <<
++		(BITS_PER_BYTE * sizeof(u32)) |
+ 		from_kuid_munged(sock_net(sk)->user_ns, uid);
+ }
+ 
+-- 
+2.17.1
+

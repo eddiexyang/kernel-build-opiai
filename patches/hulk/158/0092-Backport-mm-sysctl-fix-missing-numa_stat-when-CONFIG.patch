@@ -1,0 +1,76 @@
+From b94abd827f2499344d3a30af9124a34d65f1364b Mon Sep 17 00:00:00 2001
+From: Muchun Song <songmuchun@bytedance.com>
+Date: Thu, 9 Jun 2022 18:40:32 +0800
+Subject: [PATCH 0092/1076] [Backport] mm: sysctl: fix missing numa_stat when
+ !CONFIG_HUGETLB_PAGE
+
+stable inclusion
+from stable-v5.10.132
+commit 31e16a5e113fd843785194b28cbb16c1541e65ba
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5QEX0
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=31e16a5e113fd843785194b28cbb16c1541e65ba
+
+--------------------------------
+
+[ Upstream commit 43b5240ca6b33108998810593248186b1e3ae34a ]
+
+"numa_stat" should not be included in the scope of CONFIG_HUGETLB_PAGE, if
+CONFIG_HUGETLB_PAGE is not configured even if CONFIG_NUMA is configured,
+"numa_stat" is missed form /proc. Move it out of CONFIG_HUGETLB_PAGE to
+fix it.
+
+Fixes: 4518085e127d ("mm, sysctl: make NUMA stats configurable")
+Signed-off-by: Muchun Song <songmuchun@bytedance.com>
+Cc: <stable@vger.kernel.org>
+Acked-by: Michal Hocko <mhocko@suse.com>
+Acked-by: Mel Gorman <mgorman@techsingularity.net>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ kernel/sysctl.c | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index ba3390016e89..16bdc16a1e9f 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -2928,6 +2928,17 @@ static struct ctl_table vm_table[] = {
+ 		.extra1		= SYSCTL_ZERO,
+ 		.extra2		= &two_hundred,
+ 	},
++#ifdef CONFIG_NUMA
++	{
++		.procname	= "numa_stat",
++		.data		= &sysctl_vm_numa_stat,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= sysctl_vm_numa_stat_handler,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++#endif
+ #ifdef CONFIG_HUGETLB_PAGE
+ 	{
+ 		.procname	= "nr_hugepages",
+@@ -2944,15 +2955,6 @@ static struct ctl_table vm_table[] = {
+ 		.mode           = 0644,
+ 		.proc_handler   = &hugetlb_mempolicy_sysctl_handler,
+ 	},
+-	{
+-		.procname		= "numa_stat",
+-		.data			= &sysctl_vm_numa_stat,
+-		.maxlen			= sizeof(int),
+-		.mode			= 0644,
+-		.proc_handler	= sysctl_vm_numa_stat_handler,
+-		.extra1			= SYSCTL_ZERO,
+-		.extra2			= SYSCTL_ONE,
+-	},
+ #endif
+ 	 {
+ 		.procname	= "hugetlb_shm_group",
+-- 
+2.17.1
+

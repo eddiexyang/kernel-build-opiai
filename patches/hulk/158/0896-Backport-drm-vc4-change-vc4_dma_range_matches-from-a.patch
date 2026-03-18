@@ -1,0 +1,50 @@
+From d51fd702fe118fd5fa4ff68d84d5ae29b9216664 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Wed, 29 Jun 2022 16:01:01 -0400
+Subject: [PATCH 0896/1076] [Backport] drm/vc4: change vc4_dma_range_matches
+ from a global to static
+
+stable inclusion
+from stable-v5.10.137
+commit a60996dc027a026baca91a5bbf948bd3fb30ecd1
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a60996dc027a026baca91a5bbf948bd3fb30ecd1
+
+--------------------------------
+
+commit 63569d90863ff26c8b10c8971d1271c17a45224b upstream.
+
+sparse reports
+drivers/gpu/drm/vc4/vc4_drv.c:270:27: warning: symbol 'vc4_dma_range_matches' was not declared. Should it be static?
+
+vc4_dma_range_matches is only used in vc4_drv.c, so it's storage class specifier
+should be static.
+
+Fixes: da8e393e23ef ("drm/vc4: drv: Adopt the dma configuration from the HVS or V3D component")
+Signed-off-by: Tom Rix <trix@redhat.com>
+Signed-off-by: Maxime Ripard <maxime@cerno.tech>
+Link: https://patchwork.freedesktop.org/patch/msgid/20220629200101.498138-1-trix@redhat.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/vc4/vc4_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_drv.c b/drivers/gpu/drm/vc4/vc4_drv.c
+index 4bed62916b64..52426bc8edb8 100644
+--- a/drivers/gpu/drm/vc4/vc4_drv.c
++++ b/drivers/gpu/drm/vc4/vc4_drv.c
+@@ -246,7 +246,7 @@ static void vc4_match_add_drivers(struct device *dev,
+ 	}
+ }
+ 
+-const struct of_device_id vc4_dma_range_matches[] = {
++static const struct of_device_id vc4_dma_range_matches[] = {
+ 	{ .compatible = "brcm,bcm2711-hvs" },
+ 	{ .compatible = "brcm,bcm2835-hvs" },
+ 	{ .compatible = "brcm,bcm2835-v3d" },
+-- 
+2.17.1
+

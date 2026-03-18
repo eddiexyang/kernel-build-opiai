@@ -1,0 +1,46 @@
+From 6fbf54535429ca65d47f6203cee40d424cda1eaa Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.i.king@gmail.com>
+Date: Tue, 14 Jun 2022 16:22:56 +0800
+Subject: [PATCH 3067/4585] [Backport] net: hns3: Fix spelling mistake "actvie"
+ -> "active"
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 31693d02b06ed2f0ac668cede16cf3258e86204e
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XHY
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=31693d02b06ed2f0ac668cede16cf3258e86204e
+
+--------------------------------
+
+There is a spelling mistake in a netdev_info message. Fix it.
+
+Signed-off-by: Colin Ian King <colin.i.king@gmail.com>
+Link: https://lore.kernel.org/r/20220421085546.321792-1-colin.i.king@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Jiantao Xiao <xiaojiantao1@h-partners.com>
+Reviewed-by: Yue Haibing <yuehaibing@huawei.com>
+Reviewed-by: Jian Shen <shenjian15@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/hisilicon/hns3/hns3_ethtool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3_ethtool.c b/drivers/net/ethernet/hisilicon/hns3/hns3_ethtool.c
+index ff0342988b11..578cc30a0444 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3_ethtool.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3_ethtool.c
+@@ -1902,7 +1902,7 @@ static int hns3_set_tunable(struct net_device *netdev,
+ 			return ret;
+ 		}
+ 
+-		netdev_info(netdev, "the actvie tx spare buf size is %u, due to page order\n",
++		netdev_info(netdev, "the active tx spare buf size is %u, due to page order\n",
+ 			    priv->ring->tx_spare->len);
+ 
+ 		break;
+-- 
+2.17.1
+

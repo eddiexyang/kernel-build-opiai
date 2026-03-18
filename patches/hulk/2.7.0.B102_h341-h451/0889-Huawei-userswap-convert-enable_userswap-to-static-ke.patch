@@ -1,0 +1,111 @@
+From fe353d8845f742d555853f4816479af7c7c72603 Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Thu, 27 Apr 2023 22:37:05 +0800
+Subject: [PATCH 0889/1646] [Huawei] userswap: convert enable_userswap to
+ static key
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Replace enable_userswap with struct static_key_false userswap_enabled.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ include/linux/userswap.h | 6 +++---
+ mm/userfaultfd.c         | 3 ++-
+ mm/userswap.c            | 9 ++++++---
+ 3 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/userswap.h b/include/linux/userswap.h
+index 14826e3d9c2c..94d773364618 100644
+--- a/include/linux/userswap.h
++++ b/include/linux/userswap.h
+@@ -11,7 +11,7 @@
+ 
+ #ifdef CONFIG_USERSWAP
+ 
+-extern int enable_userswap;
++extern struct static_key_false userswap_enabled;
+ 
+ /*
+  * In uswap situation, we use the bit 0 of the returned address to indicate
+@@ -43,7 +43,7 @@ static inline bool uswap_check_copy_mode(struct vm_area_struct *vma, __u64 mode)
+ 
+ static inline bool uswap_validate_mremap_flags(unsigned long flags)
+ {
+-	if (!enable_userswap && flags & MREMAP_USWAP_SET_PTE)
++	if (!static_branch_unlikely(&userswap_enabled) && flags & MREMAP_USWAP_SET_PTE)
+ 		return false;
+ 	if (flags & MREMAP_USWAP_SET_PTE && flags & ~MREMAP_USWAP_SET_PTE)
+ 		return false;
+@@ -80,7 +80,7 @@ static inline void uswap_get_cpu_id(unsigned long reason, struct uffd_msg *msg)
+ 
+ static inline void uswap_release(unsigned long *userfault_flags)
+ {
+-	if (enable_userswap)
++	if (static_branch_unlikely(&userswap_enabled))
+ 		*userfault_flags |= VM_USWAP;
+ }
+ 
+diff --git a/mm/userfaultfd.c b/mm/userfaultfd.c
+index b66abbba13ef..a5de7990f7ff 100644
+--- a/mm/userfaultfd.c
++++ b/mm/userfaultfd.c
+@@ -586,7 +586,8 @@ static __always_inline ssize_t __mcopy_atomic(struct mm_struct *dst_mm,
+ 		BUG_ON(pmd_trans_huge(*dst_pmd));
+ 
+ #ifdef CONFIG_USERSWAP
+-		if (dst_vma->vm_flags & VM_USWAP &&
++		if (static_branch_unlikely(&userswap_enabled) &&
++		    dst_vma->vm_flags & VM_USWAP &&
+ 		    mode & UFFDIO_COPY_MODE_DIRECT_MAP)
+ 			err = mfill_atomic_pte_nocopy(dst_mm, dst_pmd, dst_vma,
+ 						      dst_addr, src_addr);
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 384548db9ba2..85137803dfb1 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -14,7 +14,7 @@
+ 
+ #include "internal.h"
+ 
+-int enable_userswap;
++DEFINE_STATIC_KEY_FALSE(userswap_enabled);
+ 
+ static bool vma_uswap_compatible(struct vm_area_struct *vma)
+ {
+@@ -470,7 +470,7 @@ bool uswap_register(struct uffdio_register *uffdio_register,
+ 	struct vm_area_struct *vma;
+ 	unsigned long end;
+ 
+-	if (!enable_userswap)
++	if (!static_branch_unlikely(&userswap_enabled))
+ 		return true;
+ 	if (!(uffdio_register->mode & UFFDIO_REGISTER_MODE_USWAP))
+ 		return true;
+@@ -496,6 +496,9 @@ bool uswap_register(struct uffdio_register *uffdio_register,
+ bool do_uswap_page(swp_entry_t entry, struct vm_fault *vmf,
+ 		   struct vm_area_struct *vma, vm_fault_t *ret)
+ {
++	if (!static_branch_unlikely(&userswap_enabled))
++		return true;
++
+ 	if (swp_type(entry) != SWP_USERSWAP_ENTRY)
+ 		return true;
+ 
+@@ -519,7 +522,7 @@ bool do_uswap_page(swp_entry_t entry, struct vm_fault *vmf,
+ 
+ static int __init enable_userswap_setup(char *str)
+ {
+-	enable_userswap = true;
++	static_branch_enable(&userswap_enabled);
+ 	return 1;
+ }
+ __setup("enable_userswap", enable_userswap_setup);
+-- 
+2.17.1
+

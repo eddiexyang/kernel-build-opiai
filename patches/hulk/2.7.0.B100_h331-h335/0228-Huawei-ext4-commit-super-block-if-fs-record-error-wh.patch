@@ -1,0 +1,56 @@
+From bd119e89cbf24d333381911610ff37397c8318be Mon Sep 17 00:00:00 2001
+From: Ye Bin <yebin10@huawei.com>
+Date: Wed, 1 Mar 2023 19:59:08 +0800
+Subject: [PATCH 228/500] [Huawei] ext4: commit super block if fs record error
+ when journal record without error
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188471
+
+--------------------------------
+
+Now, 'es->s_state' maybe covered by recover journal. And journal errno
+maybe not recorded in journal sb as IO error. ext4_update_super() only
+update error information when 'sbi->s_add_error_count' large than zero.
+Then 'EXT4_ERROR_FS' flag maybe lost.
+To solve above issue just recover 'es->s_state' error flag after journal
+replay like error info.
+
+Signed-off-by: Ye Bin <yebin10@huawei.com>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/super.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index e6ac740ca181..67ae0ef70f04 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5554,7 +5554,9 @@ static int ext4_load_journal(struct super_block *sb,
+ 	if (!ext4_has_feature_journal_needs_recovery(sb))
+ 		err = jbd2_journal_wipe(journal, !really_read_only);
+ 	if (!err) {
++		int err2;
+ 		char *save = kmalloc(EXT4_S_ERR_LEN, GFP_KERNEL);
++
+ 		if (save)
+ 			memcpy(save, ((char *) es) +
+ 			       EXT4_S_ERR_START, EXT4_S_ERR_LEN);
+@@ -5563,6 +5565,11 @@ static int ext4_load_journal(struct super_block *sb,
+ 			memcpy(((char *) es) + EXT4_S_ERR_START,
+ 			       save, EXT4_S_ERR_LEN);
+ 		kfree(save);
++		es->s_state |= cpu_to_le16(EXT4_SB(sb)->s_mount_state &
++					   EXT4_ERROR_FS);
++		/* Write out restored error information to the superblock */
++		err2 = ext4_commit_super(sb);
++		err = err ? : err2;
+ 	}
+ 
+ 	if (err) {
+-- 
+2.17.1
+

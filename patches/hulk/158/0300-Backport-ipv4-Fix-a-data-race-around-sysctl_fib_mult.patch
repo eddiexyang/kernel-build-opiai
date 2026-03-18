@@ -1,0 +1,46 @@
+From f0d44ff21e67bb83eb546c32709fe932cb1bde03 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Mon, 18 Jul 2022 10:26:39 -0700
+Subject: [PATCH 0300/1076] [Backport] ipv4: Fix a data-race around
+ sysctl_fib_multipath_use_neigh.
+
+stable inclusion
+from stable-v5.10.134
+commit e045d672ba06e1d35bacb56374d350de0ac99066
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e045d672ba06e1d35bacb56374d350de0ac99066
+
+--------------------------------
+
+[ Upstream commit 87507bcb4f5de16bb419e9509d874f4db6c0ad0f ]
+
+While reading sysctl_fib_multipath_use_neigh, it can be changed
+concurrently.  Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: a6db4494d218 ("net: ipv4: Consider failed nexthops in multipath routes")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv4/fib_semantics.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index c4fb5d8d2682..4d60a99daec2 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -2232,7 +2232,7 @@ void fib_select_multipath(struct fib_result *res, int hash)
+ 	}
+ 
+ 	change_nexthops(fi) {
+-		if (net->ipv4.sysctl_fib_multipath_use_neigh) {
++		if (READ_ONCE(net->ipv4.sysctl_fib_multipath_use_neigh)) {
+ 			if (!fib_good_nh(nexthop_nh))
+ 				continue;
+ 			if (!first) {
+-- 
+2.17.1
+

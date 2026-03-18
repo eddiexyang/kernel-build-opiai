@@ -1,0 +1,38 @@
+From fbd59e80589b0d493d994aba6621f49d8c07547a Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 6 Jun 2022 07:28:18 +0000
+Subject: [PATCH 2642/4585] [Huawei] mm/sharepool: Fix using uninitialized
+ sp_flag
+
+Offering: HULK
+ascend inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5DS9S
+
+-------------------------------------------------
+
+Add the missing initialization for kc.sp_flag in
+sp_make_share_kva_to_spg(). Or a random value would be used in
+sp_remap_kva_to_vma().
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 1e28aa56f74c..88158051f749 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2788,7 +2788,7 @@ static void *sp_make_share_kva_to_spg(unsigned long kva, unsigned long size,
+ 	}
+ 
+ 	spa->kva = kva;
+-
++	kc.sp_flags = sp_flags;
+ 	list_for_each_entry(spg_node, &spg->procs, proc_node) {
+ 		mm = spg_node->master->mm;
+ 		kc.state = K2U_NORMAL;
+-- 
+2.17.1
+

@@ -1,0 +1,229 @@
+From 1fed7580055c9e0ce0dc7181827689966f951bce Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Fri, 10 Sep 2021 06:08:47 +0000
+Subject: [PATCH] driver/svm: reserve address range for svsp
+
+ascend inclusion
+category: feature
+bugzilla: NA
+DTS: AR0001TKKL
+CVE: NA
+
+-----------------------------------------------------------------
+
+A range is reserved from the user address space to ensure that the
+process cannot apply for the address range.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ arch/arm64/mm/init.c                   |  3 ++
+ fs/hugetlbfs/inode.c                   | 12 ++++++-
+ include/linux/mman.h                   | 46 ++++++++++++++++++++++++++
+ include/uapi/asm-generic/mman-common.h |  1 +
+ mm/mmap.c                              | 31 +++++++++++++++--
+ 5 files changed, 90 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/mm/init.c b/arch/arm64/mm/init.c
+index eff7b30b6..e944d609f 100644
+--- a/arch/arm64/mm/init.c
++++ b/arch/arm64/mm/init.c
+@@ -805,6 +805,9 @@ void ascend_enable_all_features(void)
+ #ifdef CONFIG_CORELOCKUP_DETECTOR
+ 	enable_corelockup_detector = true;
+ #endif
++
++	if (IS_ENABLED(CONFIG_ASCEND_SVSP))
++		enable_mmap_svsp = 1;
+ }
+ 
+ static int __init ascend_enable_setup(char *__unused)
+diff --git a/fs/hugetlbfs/inode.c b/fs/hugetlbfs/inode.c
+index 6e821b5be..6bb4f79cd 100644
+--- a/fs/hugetlbfs/inode.c
++++ b/fs/hugetlbfs/inode.c
+@@ -259,6 +259,9 @@ hugetlb_get_unmapped_area_bottomup(struct file *file, unsigned long addr,
+ 	if (enable_mmap_dvpp)
+ 		dvpp_mmap_get_area(&info, flags);
+ 
++	if (enable_mmap_svsp)
++		svsp_mmap_get_area(&info, flags);
++
+ 	return vm_unmapped_area(&info);
+ }
+ 
+@@ -279,6 +282,9 @@ hugetlb_get_unmapped_area_topdown(struct file *file, unsigned long addr,
+ 	if (enable_mmap_dvpp)
+ 		dvpp_mmap_get_area(&info, flags);
+ 
++	if (enable_mmap_svsp)
++		svsp_mmap_get_area(&info, flags);
++
+ 	addr = vm_unmapped_area(&info);
+ 
+ 	/*
+@@ -296,6 +302,9 @@ hugetlb_get_unmapped_area_topdown(struct file *file, unsigned long addr,
+ 		if (enable_mmap_dvpp)
+ 			dvpp_mmap_get_area(&info, flags);
+ 
++	if (enable_mmap_svsp)
++		svsp_mmap_get_area(&info, flags);
++
+ 		addr = vm_unmapped_area(&info);
+ 	}
+ 
+@@ -325,7 +334,8 @@ hugetlb_get_unmapped_area(struct file *file, unsigned long addr,
+ 	if (addr) {
+ 		addr = ALIGN(addr, huge_page_size(h));
+ 
+-		if (dvpp_mmap_check(addr, len, flags))
++		if (dvpp_mmap_check(addr, len, flags) ||
++		    svsp_mmap_check(addr, len, flags))
+ 			return -ENOMEM;
+ 
+ 		vma = find_vma(mm, addr);
+diff --git a/include/linux/mman.h b/include/linux/mman.h
+index f13546c35..0f626d95a 100644
+--- a/include/linux/mman.h
++++ b/include/linux/mman.h
+@@ -87,6 +87,52 @@ static inline int dvpp_mmap_zone(unsigned long addr) { return 0; }
+ 
+ #endif
+ 
++extern int enable_mmap_svsp;
++
++#ifdef CONFIG_ASCEND_SVSP
++#define SVSP_MMAP_BASE		0x180000000000UL
++#define SVSP_MMAP_SIZE		0x080000000000UL
++
++static inline int svsp_mmap_check(unsigned long addr, unsigned long len,
++				  unsigned long flags)
++{
++	if (enable_mmap_svsp && (flags & MAP_SVSP) &&
++	    (addr < (SVSP_MMAP_BASE + SVSP_MMAP_SIZE)) &&
++	    (addr > SVSP_MMAP_BASE))
++		return -EINVAL;
++	else
++		return 0;
++}
++
++static inline void svsp_mmap_get_area(struct vm_unmapped_area_info *info,
++				      unsigned long flags)
++{
++	if (flags & MAP_SVSP) {
++		info->low_limit = SVSP_MMAP_BASE;
++		info->high_limit = SVSP_MMAP_BASE + SVSP_MMAP_SIZE;
++	} else {
++#ifdef CONFIG_ASCEND_DVPP_MMAP
++		dvpp_mmap_get_area(info, flags);
++#endif
++	}
++}
++
++#else
++#define SVSP_MMAP_BASE		0
++#define SVSP_MMAP_SIZE		0
++static inline int svsp_mmap_check(unsigned long addr, unsigned long len,
++				  unsigned long flags)
++{
++	return 0;
++}
++
++static inline void svsp_mmap_get_area(struct vm_unmapped_area_info *info,
++				      unsigned long flags)
++{
++
++}
++#endif
++
+ /*
+  * Arrange for legacy / undefined architecture specific flags to be
+  * ignored by mmap handling code.
+diff --git a/include/uapi/asm-generic/mman-common.h b/include/uapi/asm-generic/mman-common.h
+index f94f65d42..01503f35e 100644
+--- a/include/uapi/asm-generic/mman-common.h
++++ b/include/uapi/asm-generic/mman-common.h
+@@ -29,6 +29,7 @@
+ #define MAP_HUGETLB		0x040000	/* create a huge page mapping */
+ #define MAP_SYNC		0x080000 /* perform synchronous page faults for the mapping */
+ #define MAP_FIXED_NOREPLACE	0x100000	/* MAP_FIXED which doesn't unmap underlying mapping */
++#define MAP_SVSP		0x400000
+ 
+ #define MAP_UNINITIALIZED 0x4000000	/* For anonymous mmap, memory could be
+ 					 * uninitialized */
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 4a2bf19ef..d1dd73f96 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -2244,7 +2244,8 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
+ 	if (addr) {
+ 		addr = PAGE_ALIGN(addr);
+ 
+-		if (dvpp_mmap_check(addr, len, flags))
++		if (dvpp_mmap_check(addr, len, flags) ||
++		    svsp_mmap_check(addr, len, flags))
+ 			return -ENOMEM;
+ 
+ 		vma = find_vma_prev(mm, addr, &prev);
+@@ -2264,6 +2265,9 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
+ 	if (enable_mmap_dvpp)
+ 		dvpp_mmap_get_area(&info, flags);
+ 
++	if (enable_mmap_svsp)
++		svsp_mmap_get_area(&info, flags);
++
+ 	sp_area_work_around(&info, flags);
+ 
+ 	return vm_unmapped_area(&info);
+@@ -2299,7 +2303,8 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
+ 	if (addr) {
+ 		addr = PAGE_ALIGN(addr);
+ 
+-		if (dvpp_mmap_check(addr, len, flags))
++		if (dvpp_mmap_check(addr, len, flags) ||
++		    svsp_mmap_check(addr, len, flags))
+ 			return -ENOMEM;
+ 
+ 		vma = find_vma_prev(mm, addr, &prev);
+@@ -2319,6 +2324,9 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
+ 	if (enable_mmap_dvpp)
+ 		dvpp_mmap_get_area(&info, flags);
+ 
++	if (enable_mmap_svsp)
++		svsp_mmap_get_area(&info, flags);
++
+ 	sp_area_work_around(&info, flags);
+ 
+ 	addr = vm_unmapped_area(&info);
+@@ -2338,6 +2346,9 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
+ 		if (enable_mmap_dvpp)
+ 			dvpp_mmap_get_area(&info, flags);
+ 
++		if (enable_mmap_svsp)
++			svsp_mmap_get_area(&info, flags);
++
+ 		sp_area_work_around(&info, flags);
+ 
+ 		addr = vm_unmapped_area(&info);
+@@ -3973,3 +3984,19 @@ static int __init ascend_enable_mmap_dvpp(char *s)
+ __setup("enable_mmap_dvpp", ascend_enable_mmap_dvpp);
+ 
+ #endif
++
++int enable_mmap_svsp __read_mostly;
++
++#ifdef CONFIG_ASCEND_SVSP
++
++static int __init ascend_enable_mmap_svsp(char *s)
++{
++	enable_mmap_svsp = 1;
++
++	pr_info("Ascend enable svsp mmap features\n");
++
++	return 1;
++}
++__setup("enable_mmap_svsp", ascend_enable_mmap_svsp);
++
++#endif
+-- 
+2.17.1
+

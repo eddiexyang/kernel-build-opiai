@@ -1,0 +1,165 @@
+From 2a4fbe6789e8968f9110cac94f1139d6c396c1d3 Mon Sep 17 00:00:00 2001
+From: xu xin <xu.xin16@zte.com.cn>
+Date: Fri, 19 May 2023 15:38:44 +0800
+Subject: [PATCH 621/780] [Backport] ksm: count ksm merging pages for each
+ process
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 7609385337a4feb6236e42dcd0df2185683ce839
+category: feature
+bugzilla: 188921
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7609385337a4feb6236e42dcd0df2185683ce839
+
+----------------------------------------------------------------------
+
+Some applications or containers want to use KSM by calling madvise() to
+advise areas of address space to be MERGEABLE.  But they may not know
+which applications are more likely to cause real merges in the
+deployment.  If this patch is applied, it helps them know their
+corresponding number of merged pages, and then optimize their app code.
+
+As current KSM only counts the number of KSM merging pages(e.g.
+ksm_pages_sharing and ksm_pages_shared) of the whole system, we cannot see
+the more fine-grained KSM merging, for the upper application optimization,
+the merging area cannot be set easily according to the KSM page merging
+probability of each process.  Therefore, it is necessary to add extra
+statistical means so that the upper level users can know the detailed KSM
+merging information of each process.
+
+We add a new proc file named as ksm_merging_pages under /proc/<pid>/ to
+indicate the involved ksm merging pages of this process.
+
+[akpm@linux-foundation.org: fix comment typo, remove BUG_ON()s]
+Link: https://lkml.kernel.org/r/20220325082318.2352853-1-xu.xin16@zte.com.cn
+Signed-off-by: xu xin <xu.xin16@zte.com.cn>
+Reported-by: kernel test robot <lkp@intel.com>
+Reviewed-by: Yang Yang <yang.yang29@zte.com.cn>
+Reviewed-by: Ran Xiaokai <ran.xiaokai@zte.com.cn>
+Reported-by: Zeal Robot <zealci@zte.com.cn>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: Alexey Dobriyan <adobriyan@gmail.com>
+Cc: Stephen Rothwell <sfr@canb.auug.org.au>
+Cc: Ohhoon Kwon <ohoono.kwon@samsung.com>
+Cc: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: Stephen Brennan <stephen.s.brennan@oracle.com>
+Cc: Vlastimil Babka <vbabka@suse.cz>
+Cc: Feng Tang <feng.tang@intel.com>
+Cc: Yang Yang <yang.yang29@zte.com.cn>
+Cc: Ran Xiaokai <ran.xiaokai@zte.com.cn>
+Cc: Zeal Robot <zealci@zte.com.cn>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Conflicts:
+	include/linux/mm_types.h
+Signed-off-by: Nanyong Sun <sunnanyong@huawei.com>
+Signed-off-by: Longlong Xia <xialonglong1@huawei.com>
+---
+ fs/proc/base.c           | 22 ++++++++++++++++++++++
+ include/linux/mm_types.h |  8 ++++++++
+ mm/ksm.c                 |  8 ++++++++
+ 3 files changed, 38 insertions(+)
+
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index ab6ccf26df02..8f36da844190 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -3347,6 +3347,22 @@ static int proc_pid_patch_state(struct seq_file *m, struct pid_namespace *ns,
+ }
+ #endif /* CONFIG_LIVEPATCH */
+ 
++#ifdef CONFIG_KSM
++static int proc_pid_ksm_merging_pages(struct seq_file *m, struct pid_namespace *ns,
++				struct pid *pid, struct task_struct *task)
++{
++	struct mm_struct *mm;
++
++	mm = get_task_mm(task);
++	if (mm) {
++		seq_printf(m, "%lu\n", mm->ksm_merging_pages);
++		mmput(mm);
++	}
++
++	return 0;
++}
++#endif /* CONFIG_KSM */
++
+ #ifdef CONFIG_STACKLEAK_METRICS
+ static int proc_stack_depth(struct seq_file *m, struct pid_namespace *ns,
+ 				struct pid *pid, struct task_struct *task)
+@@ -3488,6 +3504,9 @@ static const struct pid_entry tgid_base_stuff[] = {
+ #ifdef CONFIG_ASCEND_SHARE_POOL
+ 	ONE("sp_group", 0444, proc_sp_group_state),
+ #endif
++#ifdef CONFIG_KSM
++	ONE("ksm_merging_pages",  S_IRUSR, proc_pid_ksm_merging_pages),
++#endif
+ };
+ 
+ static int proc_tgid_base_readdir(struct file *file, struct dir_context *ctx)
+@@ -3834,6 +3853,9 @@ static const struct pid_entry tid_base_stuff[] = {
+ #ifdef CONFIG_QOS_SCHED_DYNAMIC_AFFINITY
+ 	REG("preferred_cpuset", 0644, proc_preferred_cpuset_operations),
+ #endif
++#ifdef CONFIG_KSM
++	ONE("ksm_merging_pages",  S_IRUSR, proc_pid_ksm_merging_pages),
++#endif
+ };
+ 
+ static int proc_tid_base_readdir(struct file *file, struct dir_context *ctx)
+diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
+index 99ae1f9a9019..82b511592404 100644
+--- a/include/linux/mm_types.h
++++ b/include/linux/mm_types.h
+@@ -623,7 +623,15 @@ struct mm_struct {
+ #else
+ 	KABI_RESERVE(1)
+ #endif
++#ifdef CONFIG_KSM
++	/*
++	 * Represent how many pages of this process are involved in KSM
++	 * merging.
++	 */
++	KABI_USE(2, unsigned long ksm_merging_pages)
++#else
+ 	KABI_RESERVE(2)
++#endif
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+ 	KABI_RESERVE(5)
+diff --git a/mm/ksm.c b/mm/ksm.c
+index 169c0da1a9db..e82b58167da1 100644
+--- a/mm/ksm.c
++++ b/mm/ksm.c
+@@ -642,6 +642,9 @@ static void remove_node_from_stable_tree(struct stable_node *stable_node)
+ 			ksm_pages_sharing--;
+ 		else
+ 			ksm_pages_shared--;
++
++		rmap_item->mm->ksm_merging_pages--;
++
+ 		VM_BUG_ON(stable_node->rmap_hlist_len <= 0);
+ 		stable_node->rmap_hlist_len--;
+ 		put_anon_vma(rmap_item->anon_vma);
+@@ -791,6 +794,9 @@ static void remove_rmap_item_from_tree(struct rmap_item *rmap_item)
+ 			ksm_pages_sharing--;
+ 		else
+ 			ksm_pages_shared--;
++
++		rmap_item->mm->ksm_merging_pages--;
++
+ 		VM_BUG_ON(stable_node->rmap_hlist_len <= 0);
+ 		stable_node->rmap_hlist_len--;
+ 
+@@ -2026,6 +2032,8 @@ static void stable_tree_append(struct rmap_item *rmap_item,
+ 		ksm_pages_sharing++;
+ 	else
+ 		ksm_pages_shared++;
++
++	rmap_item->mm->ksm_merging_pages++;
+ }
+ 
+ /*
+-- 
+2.17.1
+

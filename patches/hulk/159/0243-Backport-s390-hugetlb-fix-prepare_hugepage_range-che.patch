@@ -1,0 +1,60 @@
+From 502bc48fc26f037feea37fafd3db573e3c95c3ea Mon Sep 17 00:00:00 2001
+From: Gerald Schaefer <gerald.schaefer@linux.ibm.com>
+Date: Fri, 19 Aug 2022 18:53:43 +0200
+Subject: [PATCH 243/595] [Backport] s390/hugetlb: fix prepare_hugepage_range()
+ check for 2 GB hugepages
+
+stable inclusion
+from stable-v5.10.142
+commit 0361d50e86c0a87feefa3d723deea9e4d5317341
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5Z5BV
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0361d50e86c0a87feefa3d723deea9e4d5317341
+
+--------------------------------
+
+commit 7c8d42fdf1a84b1a0dd60d6528309c8ec127e87c upstream.
+
+The alignment check in prepare_hugepage_range() is wrong for 2 GB
+hugepages, it only checks for 1 MB hugepage alignment.
+
+This can result in kernel crash in __unmap_hugepage_range() at the
+BUG_ON(start & ~huge_page_mask(h)) alignment check, for mappings
+created with MAP_FIXED at unaligned address.
+
+Fix this by correctly handling multiple hugepage sizes, similar to the
+generic version of prepare_hugepage_range().
+
+Fixes: d08de8e2d867 ("s390/mm: add support for 2GB hugepages")
+Cc: <stable@vger.kernel.org> # 4.8+
+Acked-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Gerald Schaefer <gerald.schaefer@linux.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/s390/include/asm/hugetlb.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/arch/s390/include/asm/hugetlb.h b/arch/s390/include/asm/hugetlb.h
+index 60f9241e5e4a..d3642fb634bd 100644
+--- a/arch/s390/include/asm/hugetlb.h
++++ b/arch/s390/include/asm/hugetlb.h
+@@ -28,9 +28,11 @@ pte_t huge_ptep_get_and_clear(struct mm_struct *mm,
+ static inline int prepare_hugepage_range(struct file *file,
+ 			unsigned long addr, unsigned long len)
+ {
+-	if (len & ~HPAGE_MASK)
++	struct hstate *h = hstate_file(file);
++
++	if (len & ~huge_page_mask(h))
+ 		return -EINVAL;
+-	if (addr & ~HPAGE_MASK)
++	if (addr & ~huge_page_mask(h))
+ 		return -EINVAL;
+ 	return 0;
+ }
+-- 
+2.17.1
+

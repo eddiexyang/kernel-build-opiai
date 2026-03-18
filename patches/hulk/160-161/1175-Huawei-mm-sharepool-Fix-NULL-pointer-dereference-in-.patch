@@ -1,0 +1,85 @@
+From 1b0b5f1dc308c4a240868a573b222585544d91b5 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 9 Dec 2022 03:32:13 +0000
+Subject: [PATCH 1175/1398] [Huawei] mm/sharepool: Fix NULL pointer dereference
+ in mg_sp_group_del_task
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I650K6
+
+--------------------------------
+
+If we delete a task that has not been added to any group from a
+specified group, NULL pointer dereference would occur.
+[  162.566615] Unable to handle kernel NULL pointer dereference at virtual address 0000000000000008
+[  162.567699] Mem abort info:
+[  162.567971]   ESR = 0x96000006
+[  162.568187]   EC = 0x25: DABT (current EL), IL = 32 bits
+[  162.568508]   SET = 0, FnV = 0
+[  162.568670]   EA = 0, S1PTW = 0
+[  162.568794] Data abort info:
+[  162.568906]   ISV = 0, ISS = 0x00000006
+[  162.569032]   CM = 0, WnR = 0
+[  162.569314] user pgtable: 4k pages, 48-bit VAs, pgdp=00000001029e0000
+[  162.569516] [0000000000000008] pgd=00000001026da003, p4d=00000001026da003, pud=0000000102a90003, pmd=0000000000000000
+[  162.570346] Internal error: Oops: 96000006 [#1] SMP
+[  162.570524] CPU: 0 PID: 880 Comm: test_sp_group_d Tainted: G        W  O      5.10.0+ #1
+[  162.570868] Hardware name: linux,dummy-virt (DT)
+[  162.571053] pstate: 00000005 (nzcv daif -PAN -UAO -TCO BTYPE=--)
+[  162.571370] pc : mg_sp_group_del_task+0x164/0x488
+[  162.571511] lr : mg_sp_group_del_task+0x158/0x488
+[  162.571644] sp : ffff8000127d3ca0
+[  162.571749] x29: ffff8000127d3ca0 x28: ffff372281b8c140
+[  162.571922] x27: 0000000000000000 x26: ffff372280b261c0
+[  162.572090] x25: ffffd075db9a9000 x24: ffffd075db9a90f8
+[  162.572259] x23: ffffd075db9a90e0 x22: 0000000000000371
+[  162.572425] x21: ffff372280826b00 x20: 0000000000000000
+[  162.572592] x19: ffffd075db12b000 x18: 0000000000000000
+[  162.572756] x17: 0000000000000000 x16: ffffd075da51e60c
+[  162.572923] x15: 0000ffffdcf1a540 x14: 0000000000000000
+[  162.573087] x13: 0000000000000000 x12: 0000000000000000
+[  162.573250] x11: 0000000000000040 x10: ffffd075db5f1908
+[  162.573415] x9 : ffffd075db5f1900 x8 : ffff3722816f54b0
+[  162.573579] x7 : 0000000000000000 x6 : 0000000000000000
+[  162.573741] x5 : ffff3722816f5488 x4 : 0000000000000000
+[  162.573906] x3 : ffff372280b2620c x2 : ffff37228036b4a0
+[  162.574069] x1 : 0000000000000000 x0 : ffff372280b261c0
+[  162.574239] Call trace:
+[  162.574336]  mg_sp_group_del_task+0x164/0x488
+[  162.575262]  dev_ioctl+0x10cc/0x2478 [sharepool_dev]
+[  162.575443]  __arm64_sys_ioctl+0xb4/0xf0
+[  162.575585]  el0_svc_common.constprop.0+0xe4/0x2d4
+[  162.575726]  do_el0_svc+0x34/0xa8
+[  162.575838]  el0_svc+0x1c/0x28
+[  162.575941]  el0_sync_handler+0x90/0xf0
+[  162.576060]  el0_sync+0x168/0x180
+[  162.576391] Code: 97f4d4bf aa0003fa b4001580 f9420c01 (f8408c20)
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index bd1ef2cc8803..6f9833111608 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1684,6 +1684,13 @@ int mg_sp_group_del_task(int tgid, int spg_id)
+ 		goto out_put_task;
+ 	}
+ 
++	if (!mm->sp_group_master) {
++		up_write(&sp_group_sem);
++		pr_err("task(%d) is not in any group(%d)\n", tgid, spg_id);
++		ret = -EINVAL;
++		goto out_put_mm;
++	}
++
+ 	spg_node = find_spg_node_by_spg(mm, spg);
+ 	if (!spg_node) {
+ 		up_write(&sp_group_sem);
+-- 
+2.17.1
+

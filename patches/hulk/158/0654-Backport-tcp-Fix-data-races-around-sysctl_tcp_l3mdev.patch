@@ -1,0 +1,69 @@
+From 1d595a4fc6367bafe1a56576165bf895a9271e45 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Wed, 13 Jul 2022 13:51:59 -0700
+Subject: [PATCH 0654/1076] [Backport] tcp: Fix data-races around
+ sysctl_tcp_l3mdev_accept.
+
+stable inclusion
+from stable-v5.10.137
+commit 1d9c81833dec46ccb52a1d0db970fefb7c4fa071
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1d9c81833dec46ccb52a1d0db970fefb7c4fa071
+
+--------------------------------
+
+[ Upstream commit 08a75f10679470552a3a443f9aefd1399604d31d ]
+
+While reading sysctl_tcp_l3mdev_accept, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its readers.
+
+Fixes: 6dd9a14e92e5 ("net: Allow accepted sockets to be bound to l3mdev domain")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/net/inet_hashtables.h | 2 +-
+ include/net/inet_sock.h       | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/net/inet_hashtables.h b/include/net/inet_hashtables.h
+index 816851807fa8..1a3bf9726b75 100644
+--- a/include/net/inet_hashtables.h
++++ b/include/net/inet_hashtables.h
+@@ -201,7 +201,7 @@ static inline bool inet_sk_bound_dev_eq(struct net *net, int bound_dev_if,
+ 					int dif, int sdif)
+ {
+ #if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
+-	return inet_bound_dev_eq(!!net->ipv4.sysctl_tcp_l3mdev_accept,
++	return inet_bound_dev_eq(!!READ_ONCE(net->ipv4.sysctl_tcp_l3mdev_accept),
+ 				 bound_dev_if, dif, sdif);
+ #else
+ 	return inet_bound_dev_eq(true, bound_dev_if, dif, sdif);
+diff --git a/include/net/inet_sock.h b/include/net/inet_sock.h
+index ad4ff63bc47a..ea9233fd7fc0 100644
+--- a/include/net/inet_sock.h
++++ b/include/net/inet_sock.h
+@@ -122,7 +122,7 @@ static inline int inet_request_bound_dev_if(const struct sock *sk,
+ #ifdef CONFIG_NET_L3_MASTER_DEV
+ 	struct net *net = sock_net(sk);
+ 
+-	if (!bound_dev_if && net->ipv4.sysctl_tcp_l3mdev_accept)
++	if (!bound_dev_if && READ_ONCE(net->ipv4.sysctl_tcp_l3mdev_accept))
+ 		return l3mdev_master_ifindex_by_index(net, skb->skb_iif);
+ #endif
+ 
+@@ -134,7 +134,7 @@ static inline int inet_sk_bound_l3mdev(const struct sock *sk)
+ #ifdef CONFIG_NET_L3_MASTER_DEV
+ 	struct net *net = sock_net(sk);
+ 
+-	if (!net->ipv4.sysctl_tcp_l3mdev_accept)
++	if (!READ_ONCE(net->ipv4.sysctl_tcp_l3mdev_accept))
+ 		return l3mdev_master_ifindex_by_index(net,
+ 						      sk->sk_bound_dev_if);
+ #endif
+-- 
+2.17.1
+

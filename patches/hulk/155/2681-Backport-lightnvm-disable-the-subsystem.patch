@@ -1,0 +1,48 @@
+From 949dd6beebbd618ac1c1feba2ff8f66e9589aa97 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Fri, 29 Apr 2022 11:31:23 +0200
+Subject: [PATCH 2681/4585] [Backport] lightnvm: disable the subsystem
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.114
+commit 549209caabc89f2877ad5f62d11fca5c052e0e8f
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5ESJO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=549209caabc89f2877ad5f62d11fca5c052e0e8f
+
+--------------------------------
+
+In commit 9ea9b9c48387 ("remove the lightnvm subsystem") the lightnvm
+subsystem was removed as there is no hardware in the wild for it, and
+the code is known to have problems.  This should also be disabled for
+older LTS kernels as well to prevent anyone from accidentally using it.
+
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Matias Bjørling <mb@lightnvm.io>
+Cc: Javier González <javier@javigon.com>
+Cc: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/lightnvm/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/lightnvm/Kconfig b/drivers/lightnvm/Kconfig
+index 4c2ce210c123..95b09148167e 100644
+--- a/drivers/lightnvm/Kconfig
++++ b/drivers/lightnvm/Kconfig
+@@ -5,7 +5,7 @@
+ 
+ menuconfig NVM
+ 	bool "Open-Channel SSD target support"
+-	depends on BLOCK
++	depends on BLOCK && BROKEN
+ 	help
+ 	  Say Y here to get to enable Open-channel SSDs.
+ 
+-- 
+2.17.1
+

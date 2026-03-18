@@ -1,0 +1,112 @@
+From 8dad4c2cc574b0dbcdfd533ff4d6b0d34cdb56a2 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Wed, 15 Mar 2023 20:17:17 +0800
+Subject: [PATCH 012/921] [Huawei] livepatch/core: Fix hungtask against cpu
+ hotplug on x86
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188530
+
+--------------------------------
+
+Concurrently enable/disable livepatch and online/offline cpu cause
+deadlock:
+  __klp_{enable,disable}_patch()      _cpu_{up,down}()
+  --------                            --------
+  mutex_lock(&text_mutex);
+                                      cpus_write_lock();
+  cpus_read_lock();
+                                      mutex_lock(&text_mutex);
+
+__klp_{enable,disable}_patch() hold text_mutex then wait cpu_hotplug_lock,
+while _cpu_{up,down}() hold cpu_hotplug_lock but wait text_mutex,
+finally result in the deadlock.
+
+Cpu hotplug locking is a "percpu" rw semaphore, however cpus_write_lock()
+on one cpu can block all cpus_read_lock() on other cpus.
+
+Similar lock issue was solved in commit 2d1e38f56622 ("kprobes: Cure
+hotplug lock ordering issues") which change lock order to be:
+  kprobe_mutex -> cpus_rwsem -> jump_label_mutex -> text_mutex
+
+Therefore take cpus_read_lock() before text_mutex to avoid deadlock.
+
+Fixes: f5a6746743d8 ("livepatch/x86: support livepatch without ftrace")
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ kernel/livepatch/core.c | 36 +++++++++++++++++++++++++-----------
+ 1 file changed, 25 insertions(+), 11 deletions(-)
+
+diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
+index c6e23e8daf64..23cb14a8d30a 100644
+--- a/kernel/livepatch/core.c
++++ b/kernel/livepatch/core.c
+@@ -1856,6 +1856,27 @@ static void klp_breakpoint_post_process(struct klp_patch *patch, bool restore)
+ 	module_put(patch->mod);
+ }
+ 
++int klp_stop_machine(cpu_stop_fn_t fn, void *data, const struct cpumask *cpus)
++{
++	int ret;
++
++	/*
++	 * Cpu hotplug locking is a "percpu" rw semaphore, however write
++	 * lock and read lock on it are globally mutual exclusive, that is
++	 * cpus_write_lock() on one cpu can block all cpus_read_lock()
++	 * on other cpus, vice versa.
++	 *
++	 * Since cpu hotplug take the cpus_write_lock() before text_mutex,
++	 * here take cpus_read_lock() before text_mutex to avoid deadlock.
++	 */
++	cpus_read_lock();
++	arch_klp_code_modify_prepare();
++	ret = stop_machine_cpuslocked(fn, data, cpus);
++	arch_klp_code_modify_post_process();
++	cpus_read_unlock();
++	return ret;
++}
++
+ static int __klp_disable_patch(struct klp_patch *patch)
+ {
+ 	int ret;
+@@ -1876,9 +1897,7 @@ static int __klp_disable_patch(struct klp_patch *patch)
+ 	}
+ #endif
+ 
+-	arch_klp_code_modify_prepare();
+-	ret = stop_machine(klp_try_disable_patch, &patch_data, cpu_online_mask);
+-	arch_klp_code_modify_post_process();
++	ret = klp_stop_machine(klp_try_disable_patch, &patch_data, cpu_online_mask);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -2314,10 +2333,8 @@ static int klp_breakpoint_enable_patch(struct klp_patch *patch, int *cnt)
+ 
+ 		retry_cnt++;
+ 
+-		arch_klp_code_modify_prepare();
+-		ret = stop_machine(klp_try_enable_patch, &patch_data,
+-				   cpu_online_mask);
+-		arch_klp_code_modify_post_process();
++		ret = klp_stop_machine(klp_try_enable_patch, &patch_data,
++				       cpu_online_mask);
+ 		if (!ret || ret != -EAGAIN)
+ 			break;
+ 
+@@ -2381,10 +2398,7 @@ static int __klp_enable_patch(struct klp_patch *patch)
+ 	if (ret)
+ 		return ret;
+ 
+-	arch_klp_code_modify_prepare();
+-	ret = stop_machine(klp_try_enable_patch, &patch_data,
+-			   cpu_online_mask);
+-	arch_klp_code_modify_post_process();
++	ret = klp_stop_machine(klp_try_enable_patch, &patch_data, cpu_online_mask);
+ 	if (!ret)
+ 		goto move_patch_to_tail;
+ 	if (ret != -EAGAIN)
+-- 
+2.17.1
+

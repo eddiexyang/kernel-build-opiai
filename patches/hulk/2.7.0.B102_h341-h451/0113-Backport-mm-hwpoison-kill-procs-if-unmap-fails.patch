@@ -1,0 +1,79 @@
+From 9c47e7b3ddcf5ddf331cb27fdf793bb286c00428 Mon Sep 17 00:00:00 2001
+From: Miaohe Lin <linmiaohe@huawei.com>
+Date: Thu, 18 Aug 2022 21:00:15 +0800
+Subject: [PATCH 0113/1646] [Backport] mm, hwpoison: kill procs if unmap fails
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 0792a4a6195a6d67a4ead2554da393cbd8dcdf5a
+category: bugfix
+bugzilla: 188021
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=0792a4a6195a6d67a4ead2554da393cbd8dcdf5a
+
+--------------------------------
+
+If try_to_unmap() fails, the hwpoisoned page still resides in the address
+space of some processes.  We should kill these processes or the hwpoisoned
+page might be consumed later.  collect_procs() is always called to collect
+relevant processes now so they can be killed later if unmap fails.
+
+[linmiaohe@huawei.com: v2]
+  Link: https://lkml.kernel.org/r/20220823032346.4260-6-linmiaohe@huawei.com
+Link: https://lkml.kernel.org/r/20220818130016.45313-6-linmiaohe@huawei.com
+Signed-off-by: Miaohe Lin <linmiaohe@huawei.com>
+Acked-by: Naoya Horiguchi <naoya.horiguchi@nec.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/memory-failure.c | 12 ++++--------
+ 1 file changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/mm/memory-failure.c b/mm/memory-failure.c
+index 28e22e4eb698..b2bc8f43f5a2 100644
+--- a/mm/memory-failure.c
++++ b/mm/memory-failure.c
+@@ -1229,7 +1229,7 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
+ 	struct address_space *mapping;
+ 	LIST_HEAD(tokill);
+ 	bool unmap_success = true;
+-	int kill = 1, forcekill;
++	int forcekill;
+ 	struct page *hpage = *hpagep;
+ 	bool mlocked = PageMlocked(hpage);
+ 
+@@ -1272,7 +1272,6 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
+ 		if (page_mkclean(hpage)) {
+ 			SetPageDirty(hpage);
+ 		} else {
+-			kill = 0;
+ 			ttu |= TTU_IGNORE_HWPOISON;
+ 			pr_info("Memory failure: %#lx: corrupted page was clean: dropped without side effects\n",
+ 				pfn);
+@@ -1283,12 +1282,8 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
+ 	 * First collect all the processes that have the page
+ 	 * mapped in dirty form.  This has to be done before try_to_unmap,
+ 	 * because ttu takes the rmap data structures down.
+-	 *
+-	 * Error handling: We ignore errors here because
+-	 * there's nothing that can be done.
+ 	 */
+-	if (kill)
+-		collect_procs(hpage, &tokill, flags & MF_ACTION_REQUIRED);
++	collect_procs(hpage, &tokill, flags & MF_ACTION_REQUIRED);
+ 
+ 	if (!PageHuge(hpage)) {
+ 		unmap_success = try_to_unmap(hpage, ttu);
+@@ -1335,7 +1330,8 @@ static bool hwpoison_user_mappings(struct page *p, unsigned long pfn,
+ 	 * use a more force-full uncatchable kill to prevent
+ 	 * any accesses to the poisoned memory.
+ 	 */
+-	forcekill = PageDirty(hpage) || (flags & MF_MUST_KILL);
++	forcekill = PageDirty(hpage) || (flags & MF_MUST_KILL) ||
++		    !unmap_success;
+ 	kill_procs(&tokill, forcekill, !unmap_success, pfn, flags);
+ 
+ 	return unmap_success;
+-- 
+2.17.1
+

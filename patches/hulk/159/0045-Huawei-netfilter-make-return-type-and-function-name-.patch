@@ -1,0 +1,40 @@
+From 149b1cdcd50dc3dd294f6d0cb2a4d37ca23ff998 Mon Sep 17 00:00:00 2001
+From: Lu Wei <luwei32@huawei.com>
+Date: Wed, 19 Oct 2022 12:33:54 +0800
+Subject: [PATCH 045/595] [Huawei] netfilter: make return-type and
+ function-name in the same line
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187830
+
+--------------------------------
+
+The return-type-of-the-function should be on the same line
+as the function-name.
+
+Fixes: 877e893ac68e ("bpf: Add new bpf helper to get SO_ORIGINAL_DST/REPLY_SRC")
+Signed-off-by: Lu Wei <luwei32@huawei.com>
+---
+ net/netfilter/nf_conntrack_proto.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto.c b/net/netfilter/nf_conntrack_proto.c
+index ca4bfbc8afd8..b0fc4d881d76 100644
+--- a/net/netfilter/nf_conntrack_proto.c
++++ b/net/netfilter/nf_conntrack_proto.c
+@@ -292,8 +292,8 @@ getorigdst(struct sock *sk, int optval, void __user *user, int *len)
+ 	return -ENOENT;
+ }
+ 
+-static int
+-bpf_getorigdst_impl(struct sock *sk, int optval, void *user, int *len, int dir)
++static int bpf_getorigdst_impl(struct sock *sk, int optval, void *user,
++			       int *len, int dir)
+ {
+ 	const struct inet_sock *inet = inet_sk(sk);
+ 	const struct nf_conntrack_tuple_hash *h;
+-- 
+2.17.1
+

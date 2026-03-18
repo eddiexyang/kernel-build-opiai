@@ -1,0 +1,48 @@
+From ac0d8a7b4ae83dcc1e626e06e0eb8e20a64d4222 Mon Sep 17 00:00:00 2001
+From: Ding Tianhong <dingtianhong@huawei.com>
+Date: Thu, 7 Apr 2022 16:12:36 +0800
+Subject: [PATCH 2075/2592] [Huawei] share_pool: don't trace the invalid spa
+ address
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I4M23J
+
+Reference: https://gitee.com/openeuler/kernel/commit/924086510fd3b933a1735a9151c8c1b4609127df
+
+--------------------------------
+
+Don't use the spa's va_start if the spa is not valid.
+
+Signed-off-by: Ding Tianhong <dingtianhong@huawei.com>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ mm/share_pool.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 79261b207f2e..fafa9836853d 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2508,13 +2508,14 @@ static void sp_alloc_finish(int result, struct sp_area *spa,
+ 		sp_update_process_stat(current, true, spa);
+ 
+ 	/* this will free spa if mmap failed */
+-	if (spa && !IS_ERR(spa))
++	if (spa && !IS_ERR(spa)) {
+ 		__sp_area_drop(spa);
++		trace_sp_alloc_finish(ac, spa->va_start);
++	}
+ 
+ 	if (!is_pass_through)
+ 		sp_group_drop(spg);
+ 
+-	trace_sp_alloc_finish(ac, spa->va_start);
+ 	sp_dump_stack();
+ 	sp_try_to_compact();
+ }
+-- 
+2.17.1
+

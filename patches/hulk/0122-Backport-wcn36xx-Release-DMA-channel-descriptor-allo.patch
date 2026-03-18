@@ -1,0 +1,48 @@
+From 4526ac28e3031c7bd0c58ab743a36c9bba1b3bab Mon Sep 17 00:00:00 2001
+From: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Date: Wed, 27 Apr 2022 11:09:50 +0800
+Subject: [PATCH 0122/2065] [Backport] wcn36xx: Release DMA channel descriptor
+ allocations
+
+stable inclusion
+from stable-v5.10.94
+commit 0d53c47f6ab5164d8b020063c16b5a7c6e4aef77
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0d53c47f6ab5164d8b020063c16b5a7c6e4aef77
+
+--------------------------------
+
+[ Upstream commit 3652096e5263ad67604b0323f71d133485f410e5 ]
+
+When unloading the driver we are not releasing the DMA descriptors which we
+previously allocated.
+
+Fixes: 8e84c2582169 ("wcn36xx: mac80211 driver for Qualcomm WCN3660/WCN3680 hardware")
+Signed-off-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Signed-off-by: Kalle Valo <kvalo@codeaurora.org>
+Link: https://lore.kernel.org/r/20211105122152.1580542-3-bryan.odonoghue@linaro.org
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/net/wireless/ath/wcn36xx/dxe.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/net/wireless/ath/wcn36xx/dxe.c b/drivers/net/wireless/ath/wcn36xx/dxe.c
+index 0909d0c423cb..b117d8a0f446 100644
+--- a/drivers/net/wireless/ath/wcn36xx/dxe.c
++++ b/drivers/net/wireless/ath/wcn36xx/dxe.c
+@@ -1014,4 +1014,9 @@ void wcn36xx_dxe_deinit(struct wcn36xx *wcn)
+ 
+ 	wcn36xx_dxe_ch_free_skbs(wcn, &wcn->dxe_rx_l_ch);
+ 	wcn36xx_dxe_ch_free_skbs(wcn, &wcn->dxe_rx_h_ch);
++
++	wcn36xx_dxe_deinit_descs(wcn->dev, &wcn->dxe_tx_l_ch);
++	wcn36xx_dxe_deinit_descs(wcn->dev, &wcn->dxe_tx_h_ch);
++	wcn36xx_dxe_deinit_descs(wcn->dev, &wcn->dxe_rx_l_ch);
++	wcn36xx_dxe_deinit_descs(wcn->dev, &wcn->dxe_rx_h_ch);
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,71 @@
+From a32e47c699f50052d4d9e091cc71ecefd8a4d1f9 Mon Sep 17 00:00:00 2001
+From: Maxime Ripard <maxime@cerno.tech>
+Date: Wed, 27 Apr 2022 11:16:48 +0800
+Subject: [PATCH 2939/4585] [Backport] drm/vc4: hdmi: Make sure the device is
+ powered with CEC
+
+stable inclusion
+from stable-v5.10.97
+commit ac4ba79bb02881ed714adaa89faee601a18bff6d
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ac4ba79bb02881ed714adaa89faee601a18bff6d
+
+--------------------------------
+
+commit 20b0dfa86bef0e80b41b0e5ac38b92f23b6f27f9 upstream.
+
+Similarly to what we encountered with the detect hook with DRM, nothing
+actually prevents any of the CEC callback from being run while the HDMI
+output is disabled.
+
+However, this is an issue since any register access to the controller
+when it's powered down will result in a silent hang.
+
+Let's make sure we run the runtime_pm hooks when the CEC adapter is
+opened and closed by the userspace to avoid that issue.
+
+Fixes: 15b4511a4af6 ("drm/vc4: add HDMI CEC support")
+Reviewed-by: Dave Stevenson <dave.stevenson@raspberrypi.com>
+Signed-off-by: Maxime Ripard <maxime@cerno.tech>
+Link: https://patchwork.freedesktop.org/patch/msgid/20210819135931.895976-6-maxime@cerno.tech
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/vc4/vc4_hdmi.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_hdmi.c b/drivers/gpu/drm/vc4/vc4_hdmi.c
+index a308f2d05d17..d513146f6077 100644
+--- a/drivers/gpu/drm/vc4/vc4_hdmi.c
++++ b/drivers/gpu/drm/vc4/vc4_hdmi.c
+@@ -1401,8 +1401,14 @@ static int vc4_hdmi_cec_adap_enable(struct cec_adapter *adap, bool enable)
+ 	struct vc4_hdmi *vc4_hdmi = cec_get_drvdata(adap);
+ 	/* clock period in microseconds */
+ 	const u32 usecs = 1000000 / CEC_CLOCK_FREQ;
+-	u32 val = HDMI_READ(HDMI_CEC_CNTRL_5);
++	u32 val;
++	int ret;
++
++	ret = pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev);
++	if (ret)
++		return ret;
+ 
++	val = HDMI_READ(HDMI_CEC_CNTRL_5);
+ 	val &= ~(VC4_HDMI_CEC_TX_SW_RESET | VC4_HDMI_CEC_RX_SW_RESET |
+ 		 VC4_HDMI_CEC_CNT_TO_4700_US_MASK |
+ 		 VC4_HDMI_CEC_CNT_TO_4500_US_MASK);
+@@ -1527,6 +1533,8 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
+ 	if (ret < 0)
+ 		goto err_delete_cec_adap;
+ 
++	pm_runtime_put(&vc4_hdmi->pdev->dev);
++
+ 	return 0;
+ 
+ err_delete_cec_adap:
+-- 
+2.17.1
+

@@ -1,0 +1,50 @@
+From 9f6a2994cd21313d15a12e35641911074d22ace5 Mon Sep 17 00:00:00 2001
+From: Zhen Lei <thunder.leizhen@huawei.com>
+Date: Thu, 4 Feb 2021 11:14:11 +0800
+Subject: [PATCH 2675/4585] [Huawei] arm: flush DCache line to PoC on
+ Hi1380/Hi1381
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 47948
+
+-------------------------------------------------------------------------
+
+For software instruction breakpoint, we normally modify the instructions
+first, then flush its DCache area and invalid its ICache area. For arm32,
+the DCache lines are flushed to PoU, but Hi1380/Hi1381 requires it to be
+flushd to PoC. Otherwise, cache coherency can not be guranteed in multi-
+core environment.
+
+Signed-off-by: Li Bin <huawei.libin@huawei.com>
+Reviewed-by: Wei Xiao <xiaowei774@huawei.com>
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+Reviewed-by: Chang Liao <liaochang1@huawei.com>
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+Patchwork Links: http://patchwork.huawei.com/project/hulk5.10/list/?series=13580
+Signed-off-by: Zeng Heng <zengheng4@huawei.com>
+---
+ arch/arm/mm/cache-v7.S | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm/mm/cache-v7.S b/arch/arm/mm/cache-v7.S
+index 307f381eee71..032a9d4e3e76 100644
+--- a/arch/arm/mm/cache-v7.S
++++ b/arch/arm/mm/cache-v7.S
+@@ -288,7 +288,12 @@ ENTRY(v7_coherent_user_range)
+ 	ALT_UP(W(nop))
+ #endif
+ 1:
++#ifdef CONFIG_CPU_V7
++ USER(	mcr	p15, 0, r12, c7, c14, 1	)	@ clean D line to the point of coherency,
++						@ for hi1380/hi1381
++#else
+  USER(	mcr	p15, 0, r12, c7, c11, 1	)	@ clean D line to the point of unification
++#endif
+ 	add	r12, r12, r2
+ 	cmp	r12, r1
+ 	blo	1b
+-- 
+2.17.1
+

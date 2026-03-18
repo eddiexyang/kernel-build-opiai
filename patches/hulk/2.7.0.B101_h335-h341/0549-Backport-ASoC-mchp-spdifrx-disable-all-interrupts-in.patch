@@ -1,0 +1,48 @@
+From 5ccdad169debceefa0fa91c12733d54941eb49c8 Mon Sep 17 00:00:00 2001
+From: Claudiu Beznea <claudiu.beznea@microchip.com>
+Date: Mon, 30 Jan 2023 14:06:43 +0200
+Subject: [PATCH 549/921] [Backport] ASoC: mchp-spdifrx: disable all interrupts
+ in mchp_spdifrx_dai_remove()
+
+stable inclusion
+from stable-v5.10.173
+commit ce07bbe038aead7d9fc996e52a5d92d0243abaac
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ce07bbe038aead7d9fc996e52a5d92d0243abaac
+
+--------------------------------
+
+[ Upstream commit aaecdc32b7e35b4f9b457fb3509414aa9a932589 ]
+
+CSC interrupts which might be used in controls are on bits 8 and 9 of
+SPDIFRX_IDR register. Thus disable all the interrupts that are exported
+by driver.
+
+Fixes: ef265c55c1ac ("ASoC: mchp-spdifrx: add driver for SPDIF RX")
+Signed-off-by: Claudiu Beznea <claudiu.beznea@microchip.com>
+Link: https://lore.kernel.org/r/20230130120647.638049-5-claudiu.beznea@microchip.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/soc/atmel/mchp-spdifrx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/atmel/mchp-spdifrx.c b/sound/soc/atmel/mchp-spdifrx.c
+index eb1b8724e11f..03b7037239b8 100644
+--- a/sound/soc/atmel/mchp-spdifrx.c
++++ b/sound/soc/atmel/mchp-spdifrx.c
+@@ -921,7 +921,7 @@ static int mchp_spdifrx_dai_remove(struct snd_soc_dai *dai)
+ 	struct mchp_spdifrx_dev *dev = snd_soc_dai_get_drvdata(dai);
+ 
+ 	/* Disable interrupts */
+-	regmap_write(dev->regmap, SPDIFRX_IDR, 0xFF);
++	regmap_write(dev->regmap, SPDIFRX_IDR, GENMASK(14, 0));
+ 
+ 	clk_disable_unprepare(dev->pclk);
+ 
+-- 
+2.17.1
+

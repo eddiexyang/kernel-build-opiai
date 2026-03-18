@@ -1,0 +1,78 @@
+From 2a6a24c135834821b65fa9518d5197beeeeb8c4c Mon Sep 17 00:00:00 2001
+From: Kevin Tian <kevin.tian@intel.com>
+Date: Wed, 5 Jan 2022 04:35:20 -0800
+Subject: [PATCH 0833/1646] [Backport] x86/fpu: Provide fpu_update_guest_xfd()
+ for IA32_XFD emulation
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 8eb9a48ac1e86a8a59f7123b529d6e498fb1f163
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8eb9a48ac1e86a8a59f7123b529d6e498fb1f163
+
+--------------------------------
+
+Guest XFD can be updated either in the emulation path or in the
+restore path.
+
+Provide a wrapper to update guest_fpu::fpstate::xfd. If the guest
+fpstate is currently in-use, also update the per-cpu xfd cache and
+the actual MSR.
+
+Signed-off-by: Kevin Tian <kevin.tian@intel.com>
+Signed-off-by: Jing Liu <jing2.liu@intel.com>
+Signed-off-by: Yang Zhong <yang.zhong@intel.com>
+Message-Id: <20220105123532.12586-10-yang.zhong@intel.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/fpu/api.h |  6 ++++++
+ arch/x86/kernel/fpu/core.c     | 12 ++++++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/arch/x86/include/asm/fpu/api.h b/arch/x86/include/asm/fpu/api.h
+index 17bd517897a7..aef9b9322358 100644
+--- a/arch/x86/include/asm/fpu/api.h
++++ b/arch/x86/include/asm/fpu/api.h
+@@ -119,6 +119,12 @@ extern void fpu_free_guest_fpstate(struct fpu_guest *gfpu);
+ extern int fpu_swap_kvm_fpstate(struct fpu_guest *gfpu, bool enter_guest);
+ extern int fpu_enable_guest_xfd_features(struct fpu_guest *guest_fpu, u64 xfeatures);
+ 
++#ifdef CONFIG_X86_64
++extern void fpu_update_guest_xfd(struct fpu_guest *guest_fpu, u64 xfd);
++#else
++static inline void fpu_update_guest_xfd(struct fpu_guest *guest_fpu, u64 xfd) { }
++#endif
++
+ extern void fpu_copy_guest_fpstate_to_uabi(struct fpu_guest *gfpu, void *buf, unsigned int size, u32 pkru);
+ extern int fpu_copy_uabi_to_guest_fpstate(struct fpu_guest *gfpu, const void *buf, u64 xcr0, u32 *vpkru);
+ 
+diff --git a/arch/x86/kernel/fpu/core.c b/arch/x86/kernel/fpu/core.c
+index 0bb03b51385d..88ad24a52d88 100644
+--- a/arch/x86/kernel/fpu/core.c
++++ b/arch/x86/kernel/fpu/core.c
+@@ -267,6 +267,18 @@ int fpu_enable_guest_xfd_features(struct fpu_guest *guest_fpu, u64 xfeatures)
+ }
+ EXPORT_SYMBOL_GPL(fpu_enable_guest_xfd_features);
+ 
++#ifdef CONFIG_X86_64
++void fpu_update_guest_xfd(struct fpu_guest *guest_fpu, u64 xfd)
++{
++	fpregs_lock();
++	guest_fpu->fpstate->xfd = xfd;
++	if (guest_fpu->fpstate->in_use)
++		xfd_update_state(guest_fpu->fpstate);
++	fpregs_unlock();
++}
++EXPORT_SYMBOL_GPL(fpu_update_guest_xfd);
++#endif /* CONFIG_X86_64 */
++
+ int fpu_swap_kvm_fpstate(struct fpu_guest *guest_fpu, bool enter_guest)
+ {
+ 	struct fpstate *guest_fps = guest_fpu->fpstate;
+-- 
+2.17.1
+

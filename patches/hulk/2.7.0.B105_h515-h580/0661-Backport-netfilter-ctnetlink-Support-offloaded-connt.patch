@@ -1,0 +1,72 @@
+From 204182011a8b9666b1aad87f016d03bbea3700b8 Mon Sep 17 00:00:00 2001
+From: Paul Blakey <paulb@nvidia.com>
+Date: Wed, 22 Mar 2023 09:35:32 +0200
+Subject: [PATCH 661/780] [Backport] netfilter: ctnetlink: Support offloaded
+ conntrack entry deletion
+
+stable inclusion
+from stable-v5.10.182
+commit 468bebc426ba19f285ea4d9d9135c7584d123e20
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=468bebc426ba19f285ea4d9d9135c7584d123e20
+
+--------------------------------
+
+commit 9b7c68b3911aef84afa4cbfc31bce20f10570d51 upstream.
+
+Currently, offloaded conntrack entries (flows) can only be deleted
+after they are removed from offload, which is either by timeout,
+tcp state change or tc ct rule deletion. This can cause issues for
+users wishing to manually delete or flush existing entries.
+
+Support deletion of offloaded conntrack entries.
+
+Example usage:
+ # Delete all offloaded (and non offloaded) conntrack entries
+ # whose source address is 1.2.3.4
+ $ conntrack -D -s 1.2.3.4
+ # Delete all entries
+ $ conntrack -F
+
+Signed-off-by: Paul Blakey <paulb@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Acked-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Cc: Demi Marie Obenour <demi@invisiblethingslab.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/netfilter/nf_conntrack_netlink.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_netlink.c b/net/netfilter/nf_conntrack_netlink.c
+index 8b43449742c2..467b3a199d85 100644
+--- a/net/netfilter/nf_conntrack_netlink.c
++++ b/net/netfilter/nf_conntrack_netlink.c
+@@ -1493,9 +1493,6 @@ static const struct nla_policy ct_nla_policy[CTA_MAX+1] = {
+ 
+ static int ctnetlink_flush_iterate(struct nf_conn *ct, void *data)
+ {
+-	if (test_bit(IPS_OFFLOAD_BIT, &ct->status))
+-		return 0;
+-
+ 	return ctnetlink_filter_match(ct, data);
+ }
+ 
+@@ -1561,11 +1558,6 @@ static int ctnetlink_del_conntrack(struct net *net, struct sock *ctnl,
+ 
+ 	ct = nf_ct_tuplehash_to_ctrack(h);
+ 
+-	if (test_bit(IPS_OFFLOAD_BIT, &ct->status)) {
+-		nf_ct_put(ct);
+-		return -EBUSY;
+-	}
+-
+ 	if (cda[CTA_ID]) {
+ 		__be32 id = nla_get_be32(cda[CTA_ID]);
+ 
+-- 
+2.17.1
+

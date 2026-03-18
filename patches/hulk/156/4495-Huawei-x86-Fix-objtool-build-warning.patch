@@ -1,0 +1,44 @@
+From 1092fd008568a4793773c270c63b7942b61bd15e Mon Sep 17 00:00:00 2001
+From: Lin Yujun <linyujun809@huawei.com>
+Date: Thu, 11 Aug 2022 14:30:10 +0800
+Subject: [PATCH 4495/4585] [Huawei] x86: Fix objtool build warning
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187378
+
+--------------------------------
+
+fix these build warning
+arch/x86/lib/copy_page_64.o: warning: objtool: copy_page_nocache()+0xdf: 'naked' return found in RETHUNK build
+arch/x86/lib/copy_page_64.o: warning: objtool: copy_page_nocache_barrir()+0x3: 'naked' return found in RETHUNK build
+
+The reference 5.10-stable branch  patches are as follows:
+3c91e2257622 x86: Prepare asm files for straight-line-speculation
+
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/lib/copy_page_64.S | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/lib/copy_page_64.S b/arch/x86/lib/copy_page_64.S
+index c31a9a79b18e..71c9c91e20b2 100644
+--- a/arch/x86/lib/copy_page_64.S
++++ b/arch/x86/lib/copy_page_64.S
+@@ -153,10 +153,10 @@ SYM_FUNC_START(copy_page_nocache)
+ 	movq	(%rsp), %rbx
+ 	movq	1*8(%rsp), %r12
+ 	addq	$2*8, %rsp
+-	ret
++	RET
+ SYM_FUNC_END(copy_page_nocache)
+ 
+ SYM_FUNC_START(copy_page_nocache_barrir)
+ 	ALTERNATIVE "", "sfence", X86_FEATURE_XMM2
+-	ret
++	RET
+ SYM_FUNC_END(copy_page_nocache_barrir)
+-- 
+2.17.1
+

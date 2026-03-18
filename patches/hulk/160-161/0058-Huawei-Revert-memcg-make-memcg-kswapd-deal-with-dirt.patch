@@ -1,0 +1,110 @@
+From ea5cb2e59a9c6b4a60fcc49bfe6f12684e7c9dec Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Mon, 14 Nov 2022 11:39:09 +0800
+Subject: [PATCH 0058/1398] [Huawei] Revert "memcg: make memcg kswapd deal with
+ dirty"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187973
+
+-------------------------------
+
+This reverts commit 70d020aec8e7e8b17c8db7919b6cbc99620cff3e.
+
+A better solution of memcg async reclaim will be applied, just revert
+origin memcg kswapd patchset.
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ include/linux/mmzone.h |  8 ++++----
+ mm/vmscan.c            | 11 ++++-------
+ 2 files changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index 7a1e442eccdc..2cdce018e38a 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -277,10 +277,6 @@ enum lruvec_flags {
+ 	LRUVEC_CONGESTED,		/* lruvec has many dirty pages
+ 					 * backed by a congested BDI
+ 					 */
+-	LRUVEC_DIRTY,			/* reclaim scanning has recently found
+-					 * many dirty file pages at the tail of
+-					 * the LRU.
+-					 */
+ };
+ 
+ struct lruvec {
+@@ -604,6 +600,10 @@ struct zone {
+ } ____cacheline_internodealigned_in_smp;
+ 
+ enum pgdat_flags {
++	PGDAT_DIRTY,			/* reclaim scanning has recently found
++					 * many dirty file pages at the tail
++					 * of the LRU.
++					 */
+ 	PGDAT_WRITEBACK,		/* reclaim scanning has recently found
+ 					 * many pages under writeback
+ 					 */
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index bba0abde8ca7..62b5b66c11be 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1283,7 +1283,6 @@ static unsigned int shrink_page_list(struct list_head *page_list,
+ 	LIST_HEAD(free_pages);
+ 	unsigned int nr_reclaimed = 0;
+ 	unsigned int pgactivate = 0;
+-	struct lruvec *target_lruvec = mem_cgroup_lruvec(sc->target_mem_cgroup, pgdat);
+ 
+ 	memset(stat, 0, sizeof(*stat));
+ 	cond_resched();
+@@ -1530,7 +1529,7 @@ static unsigned int shrink_page_list(struct list_head *page_list,
+ 			 */
+ 			if (page_is_file_lru(page) &&
+ 			    (!current_is_kswapd() || !PageReclaim(page) ||
+-			     !test_bit(LRUVEC_DIRTY, &target_lruvec->flags))) {
++			     !test_bit(PGDAT_DIRTY, &pgdat->flags))) {
+ 				/*
+ 				 * Immediately reclaim when written back.
+ 				 * Similar in principal to deactivate_page()
+@@ -3064,7 +3063,7 @@ static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
+ 
+ 		/* Allow kswapd to start writing pages during reclaim.*/
+ 		if (sc->nr.unqueued_dirty == sc->nr.file_taken)
+-			set_bit(LRUVEC_DIRTY, &target_lruvec->flags);
++			set_bit(PGDAT_DIRTY, &pgdat->flags);
+ 
+ 		/*
+ 		 * If kswapd scans pages marked for immediate
+@@ -3084,7 +3083,7 @@ static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
+ 	 * Legacy memcg will stall in page writeback so avoid forcibly
+ 	 * stalling in wait_iff_congested().
+ 	 */
+-	if (((current_is_kswapd() && !cgroup_reclaim(sc))||
++	if ((current_is_kswapd() ||
+ 	     (cgroup_reclaim(sc) && writeback_throttling_sane(sc))) &&
+ 	    sc->nr.dirty && sc->nr.dirty == sc->nr.congested)
+ 		set_bit(LRUVEC_CONGESTED, &target_lruvec->flags);
+@@ -3318,8 +3317,6 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
+ 			lruvec = mem_cgroup_lruvec(sc->target_mem_cgroup,
+ 						   zone->zone_pgdat);
+ 			clear_bit(LRUVEC_CONGESTED, &lruvec->flags);
+-			if (current_is_kswapd())
+-				clear_bit(LRUVEC_DIRTY, &lruvec->flags);
+ 		}
+ 	}
+ 
+@@ -3710,7 +3707,7 @@ static void clear_pgdat_congested(pg_data_t *pgdat)
+ 	struct lruvec *lruvec = mem_cgroup_lruvec(NULL, pgdat);
+ 
+ 	clear_bit(LRUVEC_CONGESTED, &lruvec->flags);
+-	clear_bit(LRUVEC_DIRTY, &pgdat->flags);
++	clear_bit(PGDAT_DIRTY, &pgdat->flags);
+ 	clear_bit(PGDAT_WRITEBACK, &pgdat->flags);
+ }
+ 
+-- 
+2.17.1
+

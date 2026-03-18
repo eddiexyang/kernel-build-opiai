@@ -1,0 +1,202 @@
+From 3052963aaaf754303d09b666b11dcb44d07f854c Mon Sep 17 00:00:00 2001
+From: Kim Phillips <kim.phillips@amd.com>
+Date: Tue, 17 Aug 2021 17:10:47 -0500
+Subject: [PATCH 0393/1646] [Backport] perf/amd/uncore: Allow the driver to be
+ built as a module
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 05485745ad482c1910a45f23a5c255f6a0df0f46
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YLE2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=05485745ad482c1910a45f23a5c255f6a0df0f46
+
+--------------------------------
+
+Add support to build the AMD uncore driver as a module.
+
+This is in order to facilitate development without having
+to reboot the kernel in most cases.
+
+Signed-off-by: Kim Phillips <kim.phillips@amd.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Link: https://lore.kernel.org/r/20210817221048.88063-8-kim.phillips@amd.com
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+
+[Backport] x86/cpu: Add get_llc_id() helper function
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 9164d9493a792682143af12b182be12d7c32b195
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I65D55
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9164d9493a792682143af12b182be12d7c32b195
+
+--------------------------------
+
+Factor out a helper function rather than export cpu_llc_id, which is
+needed in order to be able to build the AMD uncore driver as a module.
+
+Signed-off-by: Kim Phillips <kim.phillips@amd.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Link: https://lore.kernel.org/r/20210817221048.88063-7-kim.phillips@amd.com
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/x86/events/Kconfig          | 11 +++++++++++
+ arch/x86/events/amd/Makefile     |  5 +++--
+ arch/x86/events/amd/uncore.c     | 30 ++++++++++++++++++++++++++++--
+ arch/x86/include/asm/processor.h |  2 ++
+ arch/x86/kernel/cpu/amd.c        |  2 +-
+ arch/x86/kernel/cpu/common.c     |  6 ++++++
+ 6 files changed, 51 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/events/Kconfig b/arch/x86/events/Kconfig
+index b8c488eec07e..09c56965750a 100644
+--- a/arch/x86/events/Kconfig
++++ b/arch/x86/events/Kconfig
+@@ -34,6 +34,17 @@ config PERF_EVENTS_AMD_POWER
+ 	  (CPUID Fn8000_0007_EDX[12]) interface to calculate the
+ 	  average power consumption on Family 15h processors.
+ 
++config PERF_EVENTS_AMD_UNCORE
++	tristate "AMD Uncore performance events"
++	depends on PERF_EVENTS && CPU_SUP_AMD
++	default y
++	help
++	  Include support for AMD uncore performance events for use with
++	  e.g., perf stat -e amd_l3/.../,amd_df/.../.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called 'amd-uncore'.
++
+ config PERF_EVENTS_AMD_BRS
+ 	depends on PERF_EVENTS && CPU_SUP_AMD
+ 	bool "AMD Zen3 Branch Sampling support"
+diff --git a/arch/x86/events/amd/Makefile b/arch/x86/events/amd/Makefile
+index 40c242ac9d0e..b9f5d4610256 100644
+--- a/arch/x86/events/amd/Makefile
++++ b/arch/x86/events/amd/Makefile
+@@ -1,9 +1,10 @@
+ # SPDX-License-Identifier: GPL-2.0
+-obj-$(CONFIG_CPU_SUP_AMD)		+= core.o uncore.o
++obj-$(CONFIG_CPU_SUP_AMD)		+= core.o
+ obj-$(CONFIG_PERF_EVENTS_AMD_BRS)	+= brs.o
+ obj-$(CONFIG_PERF_EVENTS_AMD_POWER)	+= power.o
+ obj-$(CONFIG_X86_LOCAL_APIC)		+= ibs.o
++obj-$(CONFIG_PERF_EVENTS_AMD_UNCORE)	+= amd-uncore.o
++amd-uncore-objs				:= uncore.o
+ ifdef CONFIG_AMD_IOMMU
+ obj-$(CONFIG_CPU_SUP_AMD)		+= iommu.o
+ endif
+-
+diff --git a/arch/x86/events/amd/uncore.c b/arch/x86/events/amd/uncore.c
+index 41a6abb1bc24..bd9a49fb4c66 100644
+--- a/arch/x86/events/amd/uncore.c
++++ b/arch/x86/events/amd/uncore.c
+@@ -407,6 +407,7 @@ static struct pmu amd_nb_pmu = {
+ 	.stop		= amd_uncore_stop,
+ 	.read		= amd_uncore_read,
+ 	.capabilities	= PERF_PMU_CAP_NO_EXCLUDE | PERF_PMU_CAP_NO_INTERRUPT,
++	.module		= THIS_MODULE,
+ };
+ 
+ static struct pmu amd_llc_pmu = {
+@@ -421,6 +422,7 @@ static struct pmu amd_llc_pmu = {
+ 	.stop		= amd_uncore_stop,
+ 	.read		= amd_uncore_read,
+ 	.capabilities	= PERF_PMU_CAP_NO_EXCLUDE | PERF_PMU_CAP_NO_INTERRUPT,
++	.module		= THIS_MODULE,
+ };
+ 
+ static struct amd_uncore *amd_uncore_alloc(unsigned int cpu)
+@@ -535,7 +537,7 @@ static int amd_uncore_cpu_starting(unsigned int cpu)
+ 
+ 	if (amd_uncore_llc) {
+ 		uncore = *per_cpu_ptr(amd_uncore_llc, cpu);
+-		uncore->id = per_cpu(cpu_llc_id, cpu);
++		uncore->id = get_llc_id(cpu);
+ 
+ 		uncore = amd_uncore_find_online_sibling(uncore, amd_uncore_llc);
+ 		*per_cpu_ptr(amd_uncore_llc, cpu) = uncore;
+@@ -761,4 +763,28 @@ static int __init amd_uncore_init(void)
+ 
+ 	return ret;
+ }
+-device_initcall(amd_uncore_init);
++
++static void __exit amd_uncore_exit(void)
++{
++	cpuhp_remove_state(CPUHP_AP_PERF_X86_AMD_UNCORE_ONLINE);
++	cpuhp_remove_state(CPUHP_AP_PERF_X86_AMD_UNCORE_STARTING);
++	cpuhp_remove_state(CPUHP_PERF_X86_AMD_UNCORE_PREP);
++
++	if (boot_cpu_has(X86_FEATURE_PERFCTR_LLC)) {
++		perf_pmu_unregister(&amd_llc_pmu);
++		free_percpu(amd_uncore_llc);
++		amd_uncore_llc = NULL;
++	}
++
++	if (boot_cpu_has(X86_FEATURE_PERFCTR_NB)) {
++		perf_pmu_unregister(&amd_nb_pmu);
++		free_percpu(amd_uncore_nb);
++		amd_uncore_nb = NULL;
++	}
++}
++
++module_init(amd_uncore_init);
++module_exit(amd_uncore_exit);
++
++MODULE_DESCRIPTION("AMD Uncore Driver");
++MODULE_LICENSE("GPL v2");
+diff --git a/arch/x86/include/asm/processor.h b/arch/x86/include/asm/processor.h
+index d8335c680998..857083f73bb1 100644
+--- a/arch/x86/include/asm/processor.h
++++ b/arch/x86/include/asm/processor.h
+@@ -821,6 +821,8 @@ extern int set_tsc_mode(unsigned int val);
+ 
+ DECLARE_PER_CPU(u64, msr_misc_features_shadow);
+ 
++extern u16 get_llc_id(unsigned int cpu);
++
+ #ifdef CONFIG_CPU_SUP_AMD
+ extern u16 amd_get_nb_id(int cpu);
+ extern u32 amd_get_nodes_per_socket(void);
+diff --git a/arch/x86/kernel/cpu/amd.c b/arch/x86/kernel/cpu/amd.c
+index ec3fa4dc9031..9df90ac5ba6a 100644
+--- a/arch/x86/kernel/cpu/amd.c
++++ b/arch/x86/kernel/cpu/amd.c
+@@ -445,7 +445,7 @@ static void srat_detect_node(struct cpuinfo_x86 *c)
+ 
+ 	node = numa_cpu_node(cpu);
+ 	if (node == NUMA_NO_NODE)
+-		node = per_cpu(cpu_llc_id, cpu);
++		node = get_llc_id(cpu);
+ 
+ 	/*
+ 	 * On multi-fabric platform (e.g. Numascale NumaChip) a
+diff --git a/arch/x86/kernel/cpu/common.c b/arch/x86/kernel/cpu/common.c
+index 134d7bd39ba2..980f9b2e51c2 100644
+--- a/arch/x86/kernel/cpu/common.c
++++ b/arch/x86/kernel/cpu/common.c
+@@ -78,6 +78,12 @@ EXPORT_SYMBOL(smp_num_siblings);
+ /* Last level cache ID of each logical CPU */
+ DEFINE_PER_CPU_READ_MOSTLY(u16, cpu_llc_id) = BAD_APICID;
+ 
++u16 get_llc_id(unsigned int cpu)
++{
++	return per_cpu(cpu_llc_id, cpu);
++}
++EXPORT_SYMBOL_GPL(get_llc_id);
++
+ /* correctly size the local cpu masks */
+ void __init setup_cpu_local_masks(void)
+ {
+-- 
+2.17.1
+

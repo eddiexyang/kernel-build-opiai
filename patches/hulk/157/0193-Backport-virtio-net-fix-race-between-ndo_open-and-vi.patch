@@ -1,0 +1,67 @@
+From c9fece819fe7a16a31c55668ac0197d1865b4508 Mon Sep 17 00:00:00 2001
+From: Jason Wang <jasowang@redhat.com>
+Date: Fri, 17 Jun 2022 15:29:49 +0800
+Subject: [PATCH 193/261] [Backport] virtio-net: fix race between ndo_open()
+ and virtio_device_ready()
+
+stable inclusion
+from stable-v5.10.129
+commit f7b8fb4584456c5cdc3400b14d69d28a0c4a701a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PD6F
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f7b8fb4584456c5cdc3400b14d69d28a0c4a701a
+
+--------------------------------
+
+commit 50c0ada627f56c92f5953a8bf9158b045ad026a1 upstream.
+
+We currently call virtio_device_ready() after netdev
+registration. Since ndo_open() can be called immediately
+after register_netdev, this means there exists a race between
+ndo_open() and virtio_device_ready(): the driver may start to use the
+device before DRIVER_OK which violates the spec.
+
+Fix this by switching to use register_netdevice() and protect the
+virtio_device_ready() with rtnl_lock() to make sure ndo_open() can
+only be called after virtio_device_ready().
+
+Fixes: 4baf1e33d0842 ("virtio_net: enable VQs early")
+Signed-off-by: Jason Wang <jasowang@redhat.com>
+Message-Id: <20220617072949.30734-1-jasowang@redhat.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ drivers/net/virtio_net.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/virtio_net.c b/drivers/net/virtio_net.c
+index c75e4a1d0544..3bcff03c22f1 100644
+--- a/drivers/net/virtio_net.c
++++ b/drivers/net/virtio_net.c
+@@ -3177,14 +3177,20 @@ static int virtnet_probe(struct virtio_device *vdev)
+ 		}
+ 	}
+ 
+-	err = register_netdev(dev);
++	/* serialize netdev register + virtio_device_ready() with ndo_open() */
++	rtnl_lock();
++
++	err = register_netdevice(dev);
+ 	if (err) {
+ 		pr_debug("virtio_net: registering device failed\n");
++		rtnl_unlock();
+ 		goto free_failover;
+ 	}
+ 
+ 	virtio_device_ready(vdev);
+ 
++	rtnl_unlock();
++
+ 	err = virtnet_cpu_notif_add(vi);
+ 	if (err) {
+ 		pr_debug("virtio_net: registering cpu notifier failed\n");
+-- 
+2.17.1
+

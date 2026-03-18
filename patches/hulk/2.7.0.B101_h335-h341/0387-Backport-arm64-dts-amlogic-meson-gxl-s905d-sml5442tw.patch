@@ -1,0 +1,43 @@
+From a18f348114d3a003fb3c7f92355ab92cae9cc3f4 Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 24 Jan 2023 11:34:26 +0100
+Subject: [PATCH 387/921] [Backport] arm64: dts: amlogic:
+ meson-gxl-s905d-sml5442tw: drop invalid clock-names property
+
+stable inclusion
+from stable-v5.10.173
+commit 436060c1b6684815eb7219ce3af034feeedbe4da
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=436060c1b6684815eb7219ce3af034feeedbe4da
+
+--------------------------------
+
+[ Upstream commit e3bd275ccbacf5eb18eaa311cea39f8bf8655feb ]
+
+Fixes:
+bluetooth: 'clock-names' does not match any of the regexes: 'pinctrl-[0-9]+'
+
+Link: https://lore.kernel.org/r/20230124-b4-amlogic-bindings-fixups-v1-5-44351528957e@linaro.org
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm64/boot/dts/amlogic/meson-gxl-s905d-sml5442tw.dts | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gxl-s905d-sml5442tw.dts b/arch/arm64/boot/dts/amlogic/meson-gxl-s905d-sml5442tw.dts
+index 0b95e9ecbef0..ca3fd6b67b94 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gxl-s905d-sml5442tw.dts
++++ b/arch/arm64/boot/dts/amlogic/meson-gxl-s905d-sml5442tw.dts
+@@ -75,6 +75,5 @@
+ 		enable-gpios = <&gpio GPIOX_17 GPIO_ACTIVE_HIGH>;
+ 		max-speed = <2000000>;
+ 		clocks = <&wifi32k>;
+-		clock-names = "lpo";
+ 	};
+ };
+-- 
+2.17.1
+

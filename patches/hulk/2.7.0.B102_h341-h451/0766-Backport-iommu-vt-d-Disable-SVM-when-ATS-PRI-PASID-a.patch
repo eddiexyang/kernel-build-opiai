@@ -1,0 +1,51 @@
+From 1d1babc6a044a1484518498407e7e98408c843b0 Mon Sep 17 00:00:00 2001
+From: Kyung Min Park <kyung.min.park@intel.com>
+Date: Sun, 14 Mar 2021 13:15:34 -0700
+Subject: [PATCH 0766/1646] [Backport] iommu/vt-d: Disable SVM when
+ ATS/PRI/PASID are not enabled in the device
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit dec991e4722d763130c8ccd92523f2a173f8a7cd
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=dec991e4722d763130c8ccd92523f2a173f8a7cd
+
+--------------------------------
+
+Currently, the Intel VT-d supports Shared Virtual Memory (SVM) only when
+IO page fault is supported. Otherwise, shared memory pages can not be
+swapped out and need to be pinned. The device needs the Address Translation
+Service (ATS), Page Request Interface (PRI) and Process Address Space
+Identifier (PASID) capabilities to be enabled to support IO page fault.
+
+Disable SVM when ATS, PRI and PASID are not enabled in the device.
+
+Signed-off-by: Kyung Min Park <kyung.min.park@intel.com>
+Acked-by: Lu Baolu <baolu.lu@linux.intel.com>
+Link: https://lore.kernel.org/r/20210314201534.918-1-kyung.min.park@intel.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/iommu/intel/iommu.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/iommu/intel/iommu.c b/drivers/iommu/intel/iommu.c
+index 927c04652b5d..4c00e2d2999a 100644
+--- a/drivers/iommu/intel/iommu.c
++++ b/drivers/iommu/intel/iommu.c
+@@ -6251,6 +6251,9 @@ intel_iommu_dev_enable_feat(struct device *dev, enum iommu_dev_features feat)
+ 		if (!info)
+ 			return -EINVAL;
+ 
++		if (!info->pasid_enabled || !info->pri_enabled || !info->ats_enabled)
++			return -EINVAL;
++
+ 		if (info->iommu->flags & VTD_FLAG_SVM_CAPABLE)
+ 			return 0;
+ 	}
+-- 
+2.17.1
+

@@ -1,0 +1,77 @@
+From 0b197e5651a1312125943076acb24e53d9c59d0c Mon Sep 17 00:00:00 2001
+From: Paolo Abeni <pabeni@redhat.com>
+Date: Mon, 16 Nov 2020 10:48:04 +0100
+Subject: [PATCH 421/780] [Backport] tcp: factor out __tcp_close() helper
+
+stable inclusion
+from stable-v5.10.181
+commit f86568eca4c9808cc5e5aa3759ebba96c40b0131
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f86568eca4c9808cc5e5aa3759ebba96c40b0131
+
+--------------------------------
+
+[ Upstream commit 77c3c95637526f1e4330cc9a4b2065f668c2c4fe ]
+
+unlocked version of protocol level close, will be used by
+MPTCP to allow decouple orphaning and subflow level close.
+
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Stable-dep-of: e14cadfd80d7 ("tcp: add annotations around sk->sk_shutdown accesses")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/net/tcp.h | 1 +
+ net/ipv4/tcp.c    | 9 +++++++--
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index 9c86ff1e3ed1..219e9f1051ba 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -384,6 +384,7 @@ void tcp_update_metrics(struct sock *sk);
+ void tcp_init_metrics(struct sock *sk);
+ void tcp_metrics_init(void);
+ bool tcp_peer_is_proven(struct request_sock *req, struct dst_entry *dst);
++void __tcp_close(struct sock *sk, long timeout);
+ void tcp_close(struct sock *sk, long timeout);
+ void tcp_init_sock(struct sock *sk);
+ void tcp_init_transfer(struct sock *sk, int bpf_op, struct sk_buff *skb);
+diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
+index 852ac9c70bb7..235ef746cf61 100644
+--- a/net/ipv4/tcp.c
++++ b/net/ipv4/tcp.c
+@@ -2514,13 +2514,12 @@ bool tcp_check_oom(struct sock *sk, int shift)
+ 	return too_many_orphans || out_of_socket_memory;
+ }
+ 
+-void tcp_close(struct sock *sk, long timeout)
++void __tcp_close(struct sock *sk, long timeout)
+ {
+ 	struct sk_buff *skb;
+ 	int data_was_unread = 0;
+ 	int state;
+ 
+-	lock_sock(sk);
+ 	sk->sk_shutdown = SHUTDOWN_MASK;
+ 
+ 	if (sk->sk_state == TCP_LISTEN) {
+@@ -2684,6 +2683,12 @@ void tcp_close(struct sock *sk, long timeout)
+ out:
+ 	bh_unlock_sock(sk);
+ 	local_bh_enable();
++}
++
++void tcp_close(struct sock *sk, long timeout)
++{
++	lock_sock(sk);
++	__tcp_close(sk, timeout);
+ 	release_sock(sk);
+ 	sock_put(sk);
+ }
+-- 
+2.17.1
+

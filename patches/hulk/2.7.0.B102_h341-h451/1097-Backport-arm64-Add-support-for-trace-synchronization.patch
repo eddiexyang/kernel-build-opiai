@@ -1,0 +1,47 @@
+From 3580e042514be4eb25402696d59a5ce5258fe017 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:37:59 +0800
+Subject: [PATCH 1097/1646] [Backport] arm64: Add support for trace
+ synchronization barrier
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit be96826942e8f82acef9902058d1b5e3edb83990
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=be96826942e8f82acef9902058d1b5e3edb83990
+
+--------------------------------
+
+tsb csync synchronizes the trace operation of instructions.
+The instruction is a nop when FEAT_TRF is not implemented.
+
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Will Deacon <will.deacon@arm.com>
+Acked-by: Catalin Marinas <catalin.marinas@arm.com>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20210405164307.1720226-4-suzuki.poulose@arm.com
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/arm64/include/asm/barrier.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/include/asm/barrier.h b/arch/arm64/include/asm/barrier.h
+index 2a13b1c2c390..f150a862dadd 100644
+--- a/arch/arm64/include/asm/barrier.h
++++ b/arch/arm64/include/asm/barrier.h
+@@ -23,6 +23,7 @@
+ #define dsb(opt)	asm volatile("dsb " #opt : : : "memory")
+ 
+ #define psb_csync()	asm volatile("hint #17" : : : "memory")
++#define tsb_csync()	asm volatile("hint #18" : : : "memory")
+ #define csdb()		asm volatile("hint #20" : : : "memory")
+ 
+ /*
+-- 
+2.17.1
+

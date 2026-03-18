@@ -1,0 +1,45 @@
+From 109e64a10c9c6bed8d0041bd938989b457c5cff6 Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Thu, 11 Aug 2022 10:42:47 +0000
+Subject: [PATCH 4436/4585] [Huawei] mm: sharepool: Remove the comment and fix
+ a bug in mg_sp_group_id_by_pid()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5LY2R
+
+-------------------------------------------
+
+Remove the meaningless comment in mg_sp_free() and the fix the
+bug in mg_sp_group_id_by_pid() parameter check path.
+
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ mm/share_pool.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index b7ceb6618af8..22e62bd7a0b6 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1018,7 +1018,7 @@ int mg_sp_group_id_by_pid(int pid, int *spg_ids, int *num)
+ 
+ 	check_interrupt_context();
+ 
+-	if (!spg_ids || num <= 0)
++	if (!spg_ids || !num || *num <= 0)
+ 		return -EINVAL;
+ 
+ 	ret = get_task(pid, &tsk);
+@@ -2181,7 +2181,6 @@ int mg_sp_free(unsigned long addr, int id)
+ 
+ 	sp_free_unmap_fallocate(fc.spa);
+ 
+-	/* current->mm == NULL: allow kthread */
+ 	if (current->mm == NULL)
+ 		atomic64_sub(fc.spa->real_size, &kthread_stat.alloc_size);
+ 	else
+-- 
+2.17.1
+

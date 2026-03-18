@@ -1,0 +1,39 @@
+From 716fba12ffb04c8196bf56135e79f5329dd85f9d Mon Sep 17 00:00:00 2001
+From: Zhang Wensheng <zhangwensheng5@huawei.com>
+Date: Tue, 28 Jun 2022 17:22:59 +0800
+Subject: [PATCH 2628/4585] [Huawei] scsi: iscsi: fix conn wrapper create error
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187082
+
+-------------------------------
+
+In commit 980021f57410 ("[Huawei] scsi: iscsi: fix kabi broken
+in struct iscsi_cls_conn") which fix kabi by wrapper. there is
+a problem that "conn->dd" data will overwrite the memory of lock in
+struct iscsi_cls_conn_wrapper.
+
+Fixes: 980021f57410 ("[Huawei] scsi: iscsi: fix kabi broken in struct iscsi_cls_conn")
+Signed-off-by: Zhang Wensheng <zhangwensheng5@huawei.com>
+---
+ drivers/scsi/scsi_transport_iscsi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/scsi_transport_iscsi.c b/drivers/scsi/scsi_transport_iscsi.c
+index 2b161cf041e2..55b4ada390a6 100644
+--- a/drivers/scsi/scsi_transport_iscsi.c
++++ b/drivers/scsi/scsi_transport_iscsi.c
+@@ -2410,7 +2410,7 @@ iscsi_create_conn(struct iscsi_cls_session *session, int dd_size, uint32_t cid)
+ 
+ 	conn = &conn_wrapper->conn;
+ 	if (dd_size)
+-		conn->dd_data = &conn[1];
++		conn->dd_data = &conn_wrapper[1];
+ 
+ 	mutex_init(&conn->ep_mutex);
+ 	spin_lock_init(&conn_wrapper->lock);
+-- 
+2.17.1
+

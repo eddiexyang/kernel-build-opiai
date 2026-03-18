@@ -1,0 +1,114 @@
+From 77c39b1c1ffd4ccaa3fc14055f83e10c1bc75270 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Mon, 3 Apr 2023 18:12:18 +0800
+Subject: [PATCH 0089/1646] [Huawei] mm/dynamic_hugetlb: support dynamic
+ hugetlb on arm64
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 46904
+
+--------------------------------
+
+To support dynamic hugetlb on arm64, we need to do two more things. The
+first one is to fix kabi broken in mem_cgroup, we use kabi_reserve_5 to
+fix it in previous patch. The second one is to check cont-bit hugetlb
+since this feature only support for PMD-size and PUD-size hugepage.
+
+This feature only support for 4KB pagesize, not support for 16KB and 64KB.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ fs/Kconfig                      |  2 +-
+ fs/hugetlbfs/inode.c            |  2 +-
+ include/linux/dynamic_hugetlb.h |  4 ++--
+ mm/dynamic_hugetlb.c            | 13 ++++++++++---
+ 4 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/fs/Kconfig b/fs/Kconfig
+index 94fa8c0f879b..3985d054bb02 100644
+--- a/fs/Kconfig
++++ b/fs/Kconfig
+@@ -262,7 +262,7 @@ config HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON
+ 
+ config DYNAMIC_HUGETLB
+ 	bool "Dynamic HugeTLB"
+-	depends on X86_64
++	depends on X86_64 || (ARM64 && ARM64_4K_PAGES)
+ 	depends on HUGETLBFS
+ 	depends on MEMCG && CGROUP_HUGETLB
+ 	help
+diff --git a/fs/hugetlbfs/inode.c b/fs/hugetlbfs/inode.c
+index 1782ff5ae360..6e821b5bed39 100644
+--- a/fs/hugetlbfs/inode.c
++++ b/fs/hugetlbfs/inode.c
+@@ -1207,7 +1207,7 @@ static struct inode *hugetlbfs_alloc_inode(struct super_block *sb)
+ 	 */
+ 	mpol_shared_policy_init(&p->policy, NULL);
+ 	/* Initialize hpool here in case of a quick call to destroy */
+-	link_hpool(p);
++	link_hpool(p, sbinfo->hstate);
+ 
+ 	return &p->vfs_inode;
+ }
+diff --git a/include/linux/dynamic_hugetlb.h b/include/linux/dynamic_hugetlb.h
+index 0978b4927f6a..676a292b6d06 100644
+--- a/include/linux/dynamic_hugetlb.h
++++ b/include/linux/dynamic_hugetlb.h
+@@ -102,7 +102,7 @@ bool free_page_to_dhugetlb_pool(struct page *page);
+ void free_page_list_to_dhugetlb_pool(struct list_head *list);
+ int task_has_mem_in_hpool(struct task_struct *tsk);
+ 
+-void link_hpool(struct hugetlbfs_inode_info *p);
++void link_hpool(struct hugetlbfs_inode_info *p, struct hstate *h);
+ void unlink_hpool(struct hugetlbfs_inode_info *p);
+ bool file_has_mem_in_hpool(struct hugetlbfs_inode_info *p);
+ int dhugetlb_acct_memory(struct hstate *h, long delta, struct hugetlbfs_inode_info *p);
+@@ -152,7 +152,7 @@ static inline int task_has_mem_in_hpool(struct task_struct *tsk)
+ }
+ 
+ #ifdef CONFIG_HUGETLBFS
+-static inline void link_hpool(struct hugetlbfs_inode_info *p)
++static inline void link_hpool(struct hugetlbfs_inode_info *p, struct hstate *h)
+ {
+ }
+ static inline void unlink_hpool(struct hugetlbfs_inode_info *p)
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 380c523d9c27..c35f8f7bfa69 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -5,6 +5,7 @@
+ 
+ #include <linux/rmap.h>
+ #include <linux/migrate.h>
++#include <linux/memblock.h>
+ #include <linux/memory_hotplug.h>
+ #include <linux/dynamic_hugetlb.h>
+ 
+@@ -621,13 +622,19 @@ void free_page_list_to_dhugetlb_pool(struct list_head *list)
+ 	}
+ }
+ 
+-void link_hpool(struct hugetlbfs_inode_info *p)
++void link_hpool(struct hugetlbfs_inode_info *p, struct hstate *h)
+ {
++	unsigned long size;
++
+ 	if (!dhugetlb_enabled || !p)
+ 		return;
+ 
+-	p->hpool = find_hpool_by_task(current);
+-	if (!get_hpool_unless_zero(p->hpool))
++	size = huge_page_size(h);
++	if (size == PMD_SIZE || size == PUD_SIZE) {
++		p->hpool = find_hpool_by_task(current);
++		if (!get_hpool_unless_zero(p->hpool))
++			p->hpool = NULL;
++	} else
+ 		p->hpool = NULL;
+ }
+ 
+-- 
+2.17.1
+

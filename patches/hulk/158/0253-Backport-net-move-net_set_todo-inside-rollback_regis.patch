@@ -1,0 +1,90 @@
+From c6e4242bd88485ad7d61f7d3a47e76a24db83a7a Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Fri, 15 Jul 2022 19:26:29 +0300
+Subject: [PATCH 0253/1076] [Backport] net: move net_set_todo inside
+ rollback_registered()
+
+stable inclusion
+from stable-v5.10.134
+commit b1158677d46bd67e32d6606d1f8c01d8ba9e6d22
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b1158677d46bd67e32d6606d1f8c01d8ba9e6d22
+
+--------------------------------
+
+commit 2014beea7eb165c745706b13659a0f1d0a9a2a61 upstream.
+
+Commit 93ee31f14f6f ("[NET]: Fix free_netdev on register_netdev
+failure.") moved net_set_todo() outside of rollback_registered()
+so that rollback_registered() can be used in the failure path of
+register_netdevice() but without risking a double free.
+
+Since commit cf124db566e6 ("net: Fix inconsistent teardown and
+release of private netdev state."), however, we have a better
+way of handling that condition, since destructors don't call
+free_netdev() directly.
+
+After the change in commit c269a24ce057 ("net: make free_netdev()
+more lenient with unregistering devices") we can now move
+net_set_todo() back.
+
+Reviewed-by: Edwin Peer <edwin.peer@broadcom.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Fedor Pchelkin <pchelkin@ispras.ru>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/core/dev.c | 11 +++--------
+ 1 file changed, 3 insertions(+), 8 deletions(-)
+
+diff --git a/net/core/dev.c b/net/core/dev.c
+index ee0b405681db..8c9d25e5c6c1 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -9602,8 +9602,10 @@ static void rollback_registered_many(struct list_head *head)
+ 
+ 	synchronize_net();
+ 
+-	list_for_each_entry(dev, head, unreg_list)
++	list_for_each_entry(dev, head, unreg_list) {
+ 		dev_put(dev);
++		net_set_todo(dev);
++	}
+ }
+ 
+ static void rollback_registered(struct net_device *dev)
+@@ -10154,7 +10156,6 @@ int register_netdevice(struct net_device *dev)
+ 		/* Expect explicit free_netdev() on failure */
+ 		dev->needs_free_netdev = false;
+ 		rollback_registered(dev);
+-		net_set_todo(dev);
+ 		goto out;
+ 	}
+ 	/*
+@@ -10769,8 +10770,6 @@ void unregister_netdevice_queue(struct net_device *dev, struct list_head *head)
+ 		list_move_tail(&dev->unreg_list, head);
+ 	} else {
+ 		rollback_registered(dev);
+-		/* Finish processing unregister after unlock */
+-		net_set_todo(dev);
+ 	}
+ }
+ EXPORT_SYMBOL(unregister_netdevice_queue);
+@@ -10784,12 +10783,8 @@ EXPORT_SYMBOL(unregister_netdevice_queue);
+  */
+ void unregister_netdevice_many(struct list_head *head)
+ {
+-	struct net_device *dev;
+-
+ 	if (!list_empty(head)) {
+ 		rollback_registered_many(head);
+-		list_for_each_entry(dev, head, unreg_list)
+-			net_set_todo(dev);
+ 		list_del(head);
+ 	}
+ }
+-- 
+2.17.1
+

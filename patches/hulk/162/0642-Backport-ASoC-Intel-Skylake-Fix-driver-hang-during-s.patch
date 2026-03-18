@@ -1,0 +1,51 @@
+From 1fea7d868695263003d629437c278d0ddc31217b Mon Sep 17 00:00:00 2001
+From: Cezary Rojewski <cezary.rojewski@intel.com>
+Date: Mon, 5 Dec 2022 09:53:29 +0100
+Subject: [PATCH 642/905] [Backport] ASoC: Intel: Skylake: Fix driver hang
+ during shutdown
+
+stable inclusion
+from stable-v5.10.163
+commit c2eb1a3877f593cb022b9e32564037536f0fe763
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c2eb1a3877f593cb022b9e32564037536f0fe763
+
+--------------------------------
+
+[ Upstream commit 171107237246d66bce04f3769d33648f896b4ce3 ]
+
+AudioDSP cores and HDAudio links need to be turned off on shutdown to
+ensure no communication or data transfer occurs during the procedure.
+
+Fixes: c5a76a246989 ("ASoC: Intel: Skylake: Add shutdown callback")
+Signed-off-by: Cezary Rojewski <cezary.rojewski@intel.com>
+Tested-by: Lukasz Majczak <lma@semihlaf.com>
+Link: https://lore.kernel.org/r/20221205085330.857665-6-cezary.rojewski@intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/soc/intel/skylake/skl.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/intel/skylake/skl.c b/sound/soc/intel/skylake/skl.c
+index 83b1eb70b40a..2085e12dc611 100644
+--- a/sound/soc/intel/skylake/skl.c
++++ b/sound/soc/intel/skylake/skl.c
+@@ -1100,7 +1100,10 @@ static void skl_shutdown(struct pci_dev *pci)
+ 	if (!skl->init_done)
+ 		return;
+ 
+-	snd_hdac_stop_streams_and_chip(bus);
++	snd_hdac_stop_streams(bus);
++	snd_hdac_ext_bus_link_power_down_all(bus);
++	skl_dsp_sleep(skl->dsp);
++
+ 	list_for_each_entry(s, &bus->stream_list, list) {
+ 		stream = stream_to_hdac_ext_stream(s);
+ 		snd_hdac_ext_stream_decouple(bus, stream, false);
+-- 
+2.17.1
+

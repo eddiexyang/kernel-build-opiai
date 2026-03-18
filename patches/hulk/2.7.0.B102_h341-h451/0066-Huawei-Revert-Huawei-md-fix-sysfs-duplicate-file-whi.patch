@@ -1,0 +1,63 @@
+From b37e5aa977d84f2cca7764fc25a7bae1fae9ff13 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Mon, 17 Apr 2023 19:19:30 +0800
+Subject: [PATCH 0066/1646] [Huawei] Revert "[Huawei] md: fix sysfs duplicate
+ file while adding device"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188553
+
+--------------------------------
+
+This reverts commit d78f9f51295374769584938f243133d8bc54ef35.
+Fix the bug by next path.
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 0197c6603f1b..119c0552916a 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -87,7 +87,6 @@ static struct workqueue_struct *md_wq;
+ static struct workqueue_struct *md_misc_wq;
+ static struct workqueue_struct *md_rdev_misc_wq;
+ 
+-static void export_rdev(struct md_rdev *rdev);
+ static int remove_and_add_spares(struct mddev *mddev,
+ 				 struct md_rdev *this);
+ static void mddev_detach(struct mddev *mddev);
+@@ -2496,9 +2495,8 @@ static int bind_rdev_to_array(struct md_rdev *rdev, struct mddev *mddev)
+ static void rdev_delayed_delete(struct work_struct *ws)
+ {
+ 	struct md_rdev *rdev = container_of(ws, struct md_rdev, del_work);
+-
+ 	kobject_del(&rdev->kobj);
+-	export_rdev(rdev);
++	kobject_put(&rdev->kobj);
+ }
+ 
+ static void unbind_rdev_from_array(struct md_rdev *rdev)
+@@ -2524,6 +2522,7 @@ static void unbind_rdev_from_array(struct md_rdev *rdev)
+ 	 */
+ 	synchronize_rcu();
+ 	INIT_WORK(&rdev->del_work, rdev_delayed_delete);
++	kobject_get(&rdev->kobj);
+ 	queue_work(md_rdev_misc_wq, &rdev->del_work);
+ }
+ 
+@@ -2574,6 +2573,7 @@ static void export_rdev(struct md_rdev *rdev)
+ void md_kick_rdev_from_array(struct md_rdev *rdev)
+ {
+ 	unbind_rdev_from_array(rdev);
++	export_rdev(rdev);
+ }
+ EXPORT_SYMBOL_GPL(md_kick_rdev_from_array);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,66 @@
+From ea640b790771ed5ffbbf00c20d1711fc5cbbd884 Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Tue, 15 Nov 2022 13:46:54 +0000
+Subject: [PATCH 0066/1398] [Huawei] hugetlbfs: Add config to isolate the code
+ of share_pool
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187974
+
+------------------------------------------------
+
+Add config to encapsulate the code introduced in
+2fb141bf9c23 ("[Huawei] mm: sharepool: fix hugepage_rsvd count increase
+error").
+
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ fs/hugetlbfs/inode.c | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/fs/hugetlbfs/inode.c b/fs/hugetlbfs/inode.c
+index ba19eab8a74e..7daba66cf1ff 100644
+--- a/fs/hugetlbfs/inode.c
++++ b/fs/hugetlbfs/inode.c
+@@ -601,9 +601,18 @@ static void remove_inode_hugepages(struct inode *inode, loff_t lstart,
+ 			 * if the page is from buddy system, do not add to freed.
+ 			 * because freed is used for hugetlbfs reservation accounting.
+ 			 */
+-			if (HPageTemporary(page) == 0) {
+-				freed++;
+-				if (!truncate_op && unlikely(hugetlb_unreserve_pages(inode,
++
++#ifdef CONFIG_ASCEND_SHARE_POOL
++			if (HPageTemporary(page) != 0) {
++				unlock_page(page);
++				if (!truncate_op)
++					mutex_unlock(&hugetlb_fault_mutex_table[hash]);
++				continue;
++			}
++#endif
++			freed++;
++			if (!truncate_op) {
++				if (unlikely(hugetlb_unreserve_pages(inode,
+ 								index, index + 1, 1)))
+ 					hugetlb_fix_reserve_counts(inode);
+ 			}
+@@ -1058,10 +1067,13 @@ static int hugetlbfs_error_remove_page(struct address_space *mapping,
+ 	pgoff_t index = page->index;
+ 
+ 	remove_huge_page(page);
++#ifdef CONFIG_ASCEND_SHARE_POOL
+ 	if (HPageTemporary(page) == 0 &&
+ 			unlikely(hugetlb_unreserve_pages(inode, index, index + 1, 1)))
++#else
++	if (unlikely(hugetlb_unreserve_pages(inode, index, index + 1, 1)))
++#endif
+ 		hugetlb_fix_reserve_counts(inode);
+-
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

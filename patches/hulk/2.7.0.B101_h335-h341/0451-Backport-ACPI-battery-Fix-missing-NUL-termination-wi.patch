@@ -1,0 +1,54 @@
+From b7cd9510ca62347a38a47f235dde5355b382e1b5 Mon Sep 17 00:00:00 2001
+From: Armin Wolf <W_Armin@gmx.de>
+Date: Sat, 14 Jan 2023 09:50:50 +0100
+Subject: [PATCH 451/921] [Backport] ACPI: battery: Fix missing NUL-termination
+ with large strings
+
+stable inclusion
+from stable-v5.10.173
+commit 6fb7dead798c97f6c13acdea1023979d16dd7482
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=6fb7dead798c97f6c13acdea1023979d16dd7482
+
+--------------------------------
+
+[ Upstream commit f2ac14b5f197e4a2dec51e5ceaa56682ff1592bc ]
+
+When encountering a string bigger than the destination buffer (32 bytes),
+the string is not properly NUL-terminated, causing buffer overreads later.
+
+This for example happens on the Inspiron 3505, where the battery
+model name is larger than 32 bytes, which leads to sysfs showing
+the model name together with the serial number string (which is
+NUL-terminated and thus prevents worse).
+
+Fix this by using strscpy() which ensures that the result is
+always NUL-terminated.
+
+Fixes: 106449e870b3 ("ACPI: Battery: Allow extract string from integer")
+Signed-off-by: Armin Wolf <W_Armin@gmx.de>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/acpi/battery.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/acpi/battery.c b/drivers/acpi/battery.c
+index be743d177bcb..8b43efe97da5 100644
+--- a/drivers/acpi/battery.c
++++ b/drivers/acpi/battery.c
+@@ -454,7 +454,7 @@ static int extract_package(struct acpi_battery *battery,
+ 			u8 *ptr = (u8 *)battery + offsets[i].offset;
+ 			if (element->type == ACPI_TYPE_STRING ||
+ 			    element->type == ACPI_TYPE_BUFFER)
+-				strncpy(ptr, element->string.pointer, 32);
++				strscpy(ptr, element->string.pointer, 32);
+ 			else if (element->type == ACPI_TYPE_INTEGER) {
+ 				strncpy(ptr, (u8 *)&element->integer.value,
+ 					sizeof(u64));
+-- 
+2.17.1
+

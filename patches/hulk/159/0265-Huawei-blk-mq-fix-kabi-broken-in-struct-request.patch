@@ -1,0 +1,95 @@
+From b2124a6e9fa9d6a06f091aa367e1544269e3d886 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Thu, 3 Nov 2022 22:24:53 +0800
+Subject: [PATCH 265/595] [Huawei] blk-mq: fix kabi broken in struct request
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187921
+
+--------------------------------
+
+Enable CONFIG_BLK_RQ_ALLOC_TIME will cause kabi broken, use request
+wrapper to fix it.
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ block/blk-iocost.c     | 7 ++++---
+ block/blk-mq.c         | 2 +-
+ include/linux/blk-mq.h | 4 ++++
+ include/linux/blkdev.h | 4 ----
+ 4 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/block/blk-iocost.c b/block/blk-iocost.c
+index 0a2ab2cd4fcf..1e2e76c2d4f2 100644
+--- a/block/blk-iocost.c
++++ b/block/blk-iocost.c
+@@ -2747,8 +2747,9 @@ static void ioc_rqos_done(struct rq_qos *rqos, struct request *rq)
+ 	struct ioc_pcpu_stat *ccs;
+ 	u64 on_q_ns, rq_wait_ns, size_nsec;
+ 	int pidx, rw;
++	struct request_wrapper *rq_wrapper = request_to_wrapper(rq);
+ 
+-	if (!ioc->enabled || !rq->alloc_time_ns || !rq->start_time_ns)
++	if (!ioc->enabled || !rq_wrapper->alloc_time_ns || !rq->start_time_ns)
+ 		return;
+ 
+ 	switch (req_op(rq) & REQ_OP_MASK) {
+@@ -2764,8 +2765,8 @@ static void ioc_rqos_done(struct rq_qos *rqos, struct request *rq)
+ 		return;
+ 	}
+ 
+-	on_q_ns = ktime_get_ns() - rq->alloc_time_ns;
+-	rq_wait_ns = rq->start_time_ns - rq->alloc_time_ns;
++	on_q_ns = ktime_get_ns() - rq_wrapper->alloc_time_ns;
++	rq_wait_ns = rq->start_time_ns - rq_wrapper->alloc_time_ns;
+ 	size_nsec = div64_u64(calc_size_vtime_cost(rq, ioc), VTIME_PER_NSEC);
+ 
+ 	ccs = get_cpu_ptr(ioc->pcpu_stat);
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index fd0909170259..fc27dcd9b912 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -387,7 +387,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
+ 	rq->rq_disk = NULL;
+ 	rq->part = NULL;
+ #ifdef CONFIG_BLK_RQ_ALLOC_TIME
+-	rq->alloc_time_ns = alloc_time_ns;
++	request_to_wrapper(rq)->alloc_time_ns = alloc_time_ns;
+ #endif
+ 	request_to_wrapper(rq)->stat_time_ns = 0;
+ 	if (blk_mq_need_time_stamp(rq))
+diff --git a/include/linux/blk-mq.h b/include/linux/blk-mq.h
+index aa0c8ef9a50f..4f9fbfbe410e 100644
+--- a/include/linux/blk-mq.h
++++ b/include/linux/blk-mq.h
+@@ -308,6 +308,10 @@ struct request_wrapper {
+ 
+ 	/* Time that I/O was counted in part_get_stat_info(). */
+ 	u64 stat_time_ns;
++#ifdef CONFIG_BLK_RQ_ALLOC_TIME
++	/* Time that the first bio started allocating this request. */
++	u64 alloc_time_ns;
++#endif
+ };
+ 
+ #define request_to_wrapper(_rq) container_of(_rq, struct request_wrapper, rq)
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index e4bcb11d6202..f924ed81fadd 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -200,10 +200,6 @@ struct request {
+ 
+ 	struct gendisk *rq_disk;
+ 	struct hd_struct *part;
+-#ifdef CONFIG_BLK_RQ_ALLOC_TIME
+-	/* Time that the first bio started allocating this request. */
+-	u64 alloc_time_ns;
+-#endif
+ 	/* Time that this request was allocated for this IO. */
+ 	u64 start_time_ns;
+ 	/* Time that I/O was submitted to the device. */
+-- 
+2.17.1
+

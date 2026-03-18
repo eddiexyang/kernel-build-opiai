@@ -1,0 +1,118 @@
+From c88087c6f324ce8252dbf9f883d91c7d7a78cdef Mon Sep 17 00:00:00 2001
+From: Guo Mengqi <guomengqi3@huawei.com>
+Date: Mon, 27 Jun 2022 11:08:45 +0800
+Subject: [PATCH 060/595] [Huawei] mm/sharepool: Fix sharepool hugepage cgroup
+ uncount error.
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187892
+
+----------------------------------------------
+
+If current->flag is set as PF_MEMALLOC, memcgroup will not check
+current's allocation against memory use limit, which cause system run
+out of memory.
+
+According to
+https://lkml.indiana.edu/hypermail/linux/kernel/0911.2/00576.html,
+PF_MEMALLOC shall only be used when more memory are sure to be freed as a
+result of this allocation.
+
+Do not use PF_MEMALLOC, rather, remove __GFP_RECLAIM from gfp_mask to
+ensure no reclaim.
+
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ include/linux/hugetlb.h |  6 ++++--
+ mm/hugetlb.c            |  3 +++
+ mm/share_pool.c         | 27 +++------------------------
+ 3 files changed, 10 insertions(+), 26 deletions(-)
+
+diff --git a/include/linux/hugetlb.h b/include/linux/hugetlb.h
+index d691071f3ecd..1c780d188e8c 100644
+--- a/include/linux/hugetlb.h
++++ b/include/linux/hugetlb.h
+@@ -621,9 +621,11 @@ int huge_add_to_page_cache(struct page *page, struct address_space *mapping,
+ #define HUGETLB_ALLOC_NONE             0x00
+ #define HUGETLB_ALLOC_NORMAL           0x01    /* normal hugepage */
+ #define HUGETLB_ALLOC_BUDDY            0x02    /* buddy hugepage */
+-#define HUGETLB_ALLOC_MASK             (HUGETLB_ALLOC_NONE | \
++#define HUGETLB_ALLOC_NORECLAIM        0x04    /* no reclaim */
++#define HUGETLB_ALLOC_MASK             (HUGETLB_ALLOC_NONE   | \
+ 					HUGETLB_ALLOC_NORMAL | \
+-					HUGETLB_ALLOC_BUDDY)
++					HUGETLB_ALLOC_BUDDY  | \
++					HUGETLB_ALLOC_NORECLAIM)
+ 
+ const struct hstate *hugetlb_get_hstate(void);
+ struct page *hugetlb_alloc_hugepage(int nid, int flag);
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index 615a2d3d5778..d687f271901e 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -6269,6 +6269,9 @@ struct page *hugetlb_alloc_hugepage(int nid, int flag)
+ 	if (enable_charge_mighp)
+ 		gfp_mask |= __GFP_ACCOUNT;
+ 
++	if (flag & HUGETLB_ALLOC_NORECLAIM)
++		gfp_mask &= ~__GFP_RECLAIM;
++
+ 	if (flag & HUGETLB_ALLOC_NORMAL)
+ 		page = hugetlb_alloc_hugepage_normal(h, gfp_mask, nid);
+ 	else if (flag & HUGETLB_ALLOC_BUDDY)
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 299a3dc12fdb..d079c5cbbfe9 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2451,35 +2451,13 @@ static void sp_alloc_fallback(struct sp_area *spa, struct sp_alloc_context *ac)
+ static int sp_alloc_populate(struct mm_struct *mm, struct sp_area *spa,
+ 			     struct sp_alloc_context *ac)
+ {
+-	int ret = 0;
+-	unsigned long sp_addr = spa->va_start;
+-	unsigned int noreclaim_flag = 0;
+-
+-	/*
+-	 * The direct reclaim and compact may take a long
+-	 * time. As a result, sp mutex will be hold for too
+-	 * long time to casue the hung task problem. In this
+-	 * case, set the PF_MEMALLOC flag to prevent the
+-	 * direct reclaim and compact from being executed.
+-	 * Since direct reclaim and compact are not performed
+-	 * when the fragmentation is severe or the memory is
+-	 * insufficient, 2MB continuous physical pages fail
+-	 * to be allocated. This situation is allowed.
+-	 */
+-	if (spa->is_hugepage)
+-		noreclaim_flag = memalloc_noreclaim_save();
+-
+ 	/*
+ 	 * We are not ignoring errors, so if we fail to allocate
+ 	 * physical memory we just return failure, so we won't encounter
+ 	 * page fault later on, and more importantly sp_make_share_u2k()
+ 	 * depends on this feature (and MAP_LOCKED) to work correctly.
+ 	 */
+-	ret = do_mm_populate(mm, sp_addr, ac->populate, 0);
+-	if (spa->is_hugepage)
+-		memalloc_noreclaim_restore(noreclaim_flag);
+-
+-	return ret;
++	return do_mm_populate(mm, spa->va_start, ac->populate, 0);
+ }
+ 
+ static long sp_mbind(struct mm_struct *mm, unsigned long start, unsigned long len,
+@@ -4234,7 +4212,8 @@ vm_fault_t sharepool_no_page(struct mm_struct *mm,
+ 
+ 		page = alloc_huge_page(vma, haddr, 0);
+ 		if (IS_ERR(page)) {
+-			page = hugetlb_alloc_hugepage(node_id, HUGETLB_ALLOC_BUDDY);
++			page = hugetlb_alloc_hugepage(node_id,
++					HUGETLB_ALLOC_BUDDY | HUGETLB_ALLOC_NORECLAIM);
+ 			if (!page)
+ 				page = ERR_PTR(-ENOMEM);
+ 		}
+-- 
+2.17.1
+

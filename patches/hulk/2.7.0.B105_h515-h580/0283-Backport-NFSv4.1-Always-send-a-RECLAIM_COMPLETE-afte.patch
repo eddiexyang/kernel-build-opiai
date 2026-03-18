@@ -1,0 +1,55 @@
+From 789d1650b87d9e78cd0a663aa7f2c6e5d0b316cb Mon Sep 17 00:00:00 2001
+From: Trond Myklebust <trond.myklebust@hammerspace.com>
+Date: Mon, 13 Mar 2023 18:45:53 -0400
+Subject: [PATCH 283/780] [Backport] NFSv4.1: Always send a RECLAIM_COMPLETE
+ after establishing lease
+
+stable inclusion
+from stable-v5.10.180
+commit 73a65744c7fd785b3fd9d9541a6f238d0faae0ac
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=73a65744c7fd785b3fd9d9541a6f238d0faae0ac
+
+--------------------------------
+
+[ Upstream commit 40882deb83c29d8df4470d4e5e7f137b6acf7ad1 ]
+
+The spec requires that we always at least send a RECLAIM_COMPLETE when
+we're done establishing the lease and recovering any state.
+
+Fixes: fce5c838e133 ("nfs41: RECLAIM_COMPLETE functionality")
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/nfs/nfs4state.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/fs/nfs/nfs4state.c b/fs/nfs/nfs4state.c
+index 628e030f8e3b..ff6ca05a9d44 100644
+--- a/fs/nfs/nfs4state.c
++++ b/fs/nfs/nfs4state.c
+@@ -67,6 +67,8 @@
+ 
+ #define OPENOWNER_POOL_SIZE	8
+ 
++static void nfs4_state_start_reclaim_reboot(struct nfs_client *clp);
++
+ const nfs4_stateid zero_stateid = {
+ 	{ .data = { 0 } },
+ 	.type = NFS4_SPECIAL_STATEID_TYPE,
+@@ -330,6 +332,8 @@ int nfs41_init_clientid(struct nfs_client *clp, const struct cred *cred)
+ 	status = nfs4_proc_create_session(clp, cred);
+ 	if (status != 0)
+ 		goto out;
++	if (!(clp->cl_exchange_flags & EXCHGID4_FLAG_CONFIRMED_R))
++		nfs4_state_start_reclaim_reboot(clp);
+ 	nfs41_finish_session_reset(clp);
+ 	nfs_mark_client_ready(clp, NFS_CS_READY);
+ out:
+-- 
+2.17.1
+

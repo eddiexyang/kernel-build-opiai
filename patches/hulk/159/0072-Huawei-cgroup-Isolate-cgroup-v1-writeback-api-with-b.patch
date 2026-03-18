@@ -1,0 +1,48 @@
+From dc535fcefa756bea718543bd628d0bec22575ce2 Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Sat, 29 Oct 2022 10:52:20 +0800
+Subject: [PATCH 072/595] [Huawei] cgroup: Isolate cgroup v1 writeback api with
+ boot cmdline
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187773
+
+-------------------------------
+
+When cgroup1_writeback is false, don't call any cgroup v1 writeback
+function.
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ mm/backing-dev.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/mm/backing-dev.c b/mm/backing-dev.c
+index cbdf63ec2c32..88287c35263d 100644
+--- a/mm/backing-dev.c
++++ b/mm/backing-dev.c
+@@ -1084,6 +1084,9 @@ void wb_kill_memcg_blkcg(struct cgroup_subsys_state *css)
+ {
+ 	struct cgroup_subsys *ss = css->ss;
+ 
++	if (!cgroup1_writeback)
++		return;
++
+ 	lockdep_assert_held(&cgroup_mutex);
+ 
+ 	if (ss->id == io_cgrp_id)
+@@ -1099,6 +1102,9 @@ void wb_attach_memcg_to_blkcg(struct cgroup_subsys_state *memcg_css,
+ 	struct cgroup_subsys_state *pre_blkcss = memcg->wb_blk_css;
+ 	struct blkcg *blkcg = css_to_blkcg(blkcg_css);
+ 
++	if (!cgroup1_writeback)
++		return;
++
+ 	lockdep_assert_held(&cgroup_mutex);
+ 
+ 	css_get(blkcg_css);
+-- 
+2.17.1
+

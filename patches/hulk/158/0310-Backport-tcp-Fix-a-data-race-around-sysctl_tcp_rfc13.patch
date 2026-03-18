@@ -1,0 +1,46 @@
+From 785e58904bad75e3fec82774044c0d12af523334 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Mon, 18 Jul 2022 10:26:51 -0700
+Subject: [PATCH 0310/1076] [Backport] tcp: Fix a data-race around
+ sysctl_tcp_rfc1337.
+
+stable inclusion
+from stable-v5.10.134
+commit 805f1c7ce47030dbb663b7d2a84c9473a27df774
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=805f1c7ce47030dbb663b7d2a84c9473a27df774
+
+--------------------------------
+
+[ Upstream commit 0b484c91911e758e53656d570de58c2ed81ec6f2 ]
+
+While reading sysctl_tcp_rfc1337, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv4/tcp_minisocks.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ipv4/tcp_minisocks.c b/net/ipv4/tcp_minisocks.c
+index 32e28c55f00d..054f51cf8ea3 100644
+--- a/net/ipv4/tcp_minisocks.c
++++ b/net/ipv4/tcp_minisocks.c
+@@ -180,7 +180,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
+ 			 * Oh well... nobody has a sufficient solution to this
+ 			 * protocol bug yet.
+ 			 */
+-			if (twsk_net(tw)->ipv4.sysctl_tcp_rfc1337 == 0) {
++			if (!READ_ONCE(twsk_net(tw)->ipv4.sysctl_tcp_rfc1337)) {
+ kill:
+ 				inet_twsk_deschedule_put(tw);
+ 				return TCP_TW_SUCCESS;
+-- 
+2.17.1
+

@@ -1,0 +1,42 @@
+From 796673dd640e19a2c52f0d1dc51bc14ad163249a Mon Sep 17 00:00:00 2001
+From: Konstantin Meskhidze <konstantin.meskhidze@huawei.com>
+Date: Wed, 30 Nov 2022 10:50:46 +0800
+Subject: [PATCH 680/921] [Backport] drm: amd: display: Fix memory leakage
+
+stable inclusion
+from stable-v5.10.173
+commit d473c55ce1975c9e601c25293328a5039225d2b2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d473c55ce1975c9e601c25293328a5039225d2b2
+
+--------------------------------
+
+[ Upstream commit 6b8701be1f66064ca72733c5f6e13748cdbf8397 ]
+
+This commit fixes memory leakage in dc_construct_ctx() function.
+
+Signed-off-by: Konstantin Meskhidze <konstantin.meskhidze@huawei.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 99887bcfada0..7e0a55aa2b18 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -616,6 +616,7 @@ static bool dc_construct_ctx(struct dc *dc,
+ 
+ 	dc_ctx->perf_trace = dc_perf_trace_create();
+ 	if (!dc_ctx->perf_trace) {
++		kfree(dc_ctx);
+ 		ASSERT_CRITICAL(false);
+ 		return false;
+ 	}
+-- 
+2.17.1
+

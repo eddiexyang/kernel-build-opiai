@@ -1,0 +1,47 @@
+From 323c8391e1d7b7f32d63779eb9852476fc43c16d Mon Sep 17 00:00:00 2001
+From: Janusz Krzysztofik <jmkrzyszt@gmail.com>
+Date: Sun, 10 Apr 2022 15:07:54 +0200
+Subject: [PATCH 3764/4585] [Backport] ARM: OMAP1: clock: Fix UART rate
+ reporting algorithm
+
+stable inclusion
+from stable-v5.10.121
+commit 039966775ca0a1b5bf767b26994030c2a3139ec3
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=039966775ca0a1b5bf767b26994030c2a3139ec3
+
+--------------------------------
+
+[ Upstream commit 338d5d476cde853dfd97378d20496baabc2ce3c0 ]
+
+Since its introduction to the mainline kernel, omap1_uart_recalc() helper
+makes incorrect use of clk->enable_bit as a ready to use bitmap mask while
+it only provides the bit number.  Fix it.
+
+Signed-off-by: Janusz Krzysztofik <jmkrzyszt@gmail.com>
+Acked-by: Tony Lindgren <tony@atomide.com>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/mach-omap1/clock.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/mach-omap1/clock.c b/arch/arm/mach-omap1/clock.c
+index bd5be82101f3..d89bda12bf3c 100644
+--- a/arch/arm/mach-omap1/clock.c
++++ b/arch/arm/mach-omap1/clock.c
+@@ -41,7 +41,7 @@ static DEFINE_SPINLOCK(clockfw_lock);
+ unsigned long omap1_uart_recalc(struct clk *clk)
+ {
+ 	unsigned int val = __raw_readl(clk->enable_reg);
+-	return val & clk->enable_bit ? 48000000 : 12000000;
++	return val & 1 << clk->enable_bit ? 48000000 : 12000000;
+ }
+ 
+ unsigned long omap1_sossi_recalc(struct clk *clk)
+-- 
+2.17.1
+

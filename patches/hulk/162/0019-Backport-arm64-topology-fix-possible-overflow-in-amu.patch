@@ -1,0 +1,53 @@
+From 351cf6d925181679b15e7411a90b8154d8450f67 Mon Sep 17 00:00:00 2001
+From: Sergey Shtylyov <s.shtylyov@omp.ru>
+Date: Fri, 16 Sep 2022 23:17:07 +0300
+Subject: [PATCH 019/905] [Backport] arm64: topology: fix possible overflow in
+ amu_fie_setup()
+
+stable inclusion
+from stable-v5.10.150
+commit 904f881b57360cf85de962d84d8614d94431f60e
+category: bugfix
+bugzilla: 188217
+
+Reference:  https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=904f881b57360cf85de962d84d8614d94431f60e
+
+--------------------------------
+
+cpufreq_get_hw_max_freq() returns max frequency in kHz as *unsigned int*,
+while freq_inv_set_max_ratio() gets passed this frequency in Hz as 'u64'.
+Multiplying max frequency by 1000 can potentially result in overflow --
+multiplying by 1000ULL instead should avoid that...
+
+Found by Linux Verification Center (linuxtesting.org) with the SVACE static
+analysis tool.
+
+Fixes: cd0ed03a8903 ("arm64: use activity monitors for frequency invariance")
+Signed-off-by: Sergey Shtylyov <s.shtylyov@omp.ru>
+Link: https://lore.kernel.org/r/01493d64-2bce-d968-86dc-11a122a9c07d@omp.ru
+Signed-off-by: Will Deacon <will@kernel.org>
+
+conflicts:
+	arch/arm64/kernel/topology.c
+
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ arch/arm64/kernel/topology.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/topology.c b/arch/arm64/kernel/topology.c
+index 7d2fe0acf5b1..886d8a7d23c0 100644
+--- a/arch/arm64/kernel/topology.c
++++ b/arch/arm64/kernel/topology.c
+@@ -252,7 +252,7 @@ static int __init init_amu_fie(void)
+ 	for_each_present_cpu(cpu) {
+ 		if (!freq_counters_valid(cpu) ||
+ 		    freq_inv_set_max_ratio(cpu,
+-					   cpufreq_get_hw_max_freq(cpu) * 1000,
++					   cpufreq_get_hw_max_freq(cpu) * 1000ULL,
+ 					   arch_timer_get_rate()))
+ 			continue;
+ 
+-- 
+2.17.1
+

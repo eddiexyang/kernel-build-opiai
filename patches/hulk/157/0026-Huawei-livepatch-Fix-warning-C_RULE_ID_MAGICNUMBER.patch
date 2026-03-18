@@ -1,0 +1,155 @@
+From af76fdd54ad2a97f13265f4f614cd4487a1c5ea2 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Mon, 22 Aug 2022 19:36:23 +0000
+Subject: [PATCH 026/261] [Huawei] livepatch: Fix warning C_RULE_ID_MAGICNUMBER
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187321
+
+--------------------------------
+
+CodeCheck reports that:
+  Do not use magic numbers.The number is 10
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/arm/kernel/livepatch.c        | 11 +----------
+ arch/arm64/kernel/livepatch.c      | 10 +---------
+ arch/powerpc/kernel/livepatch_32.c | 11 +----------
+ arch/powerpc/kernel/livepatch_64.c | 11 +----------
+ arch/x86/kernel/livepatch.c        |  2 +-
+ include/linux/livepatch.h          | 16 ++++++++++++++++
+ 6 files changed, 21 insertions(+), 40 deletions(-)
+
+diff --git a/arch/arm/kernel/livepatch.c b/arch/arm/kernel/livepatch.c
+index bc09f338e713..b4d26474ba33 100644
+--- a/arch/arm/kernel/livepatch.c
++++ b/arch/arm/kernel/livepatch.c
+@@ -277,16 +277,7 @@ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			frame.sp = current_stack_pointer;
+ 			frame.lr = (unsigned long)__builtin_return_address(0);
+ 			frame.pc = (unsigned long)do_check_calltrace;
+-		} else if (strncmp(t->comm, "migration/", 10) == 0) {
+-			/*
+-			 * current on other CPU
+-			 * we call this in stop_machine, so the current
+-			 * of each CPUs is mirgation, just compare the
+-			 * task_comm here, because we can't get the
+-			 * cpu_curr(task_cpu(t))). This assumes that no
+-			 * other thread will pretend to be a stopper via
+-			 * task_comm.
+-			 */
++		} else if (klp_is_migration_thread(t->comm)) {
+ 			continue;
+ 		} else {
+ 			frame.fp = thread_saved_fp(t);
+diff --git a/arch/arm64/kernel/livepatch.c b/arch/arm64/kernel/livepatch.c
+index 8ec09c22dc26..42b4caa225fb 100644
+--- a/arch/arm64/kernel/livepatch.c
++++ b/arch/arm64/kernel/livepatch.c
+@@ -275,15 +275,7 @@ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			frame.fp = (unsigned long)__builtin_frame_address(0);
+ 			frame.pc = (unsigned long)do_check_calltrace;
+ 		} else if (strncmp(t->comm, "migration/", 10) == 0) {
+-			/*
+-			 * current on other CPU
+-			 * we call this in stop_machine, so the current
+-			 * of each CPUs is mirgation, just compare the
+-			 * task_comm here, because we can't get the
+-			 * cpu_curr(task_cpu(t))). This assumes that no
+-			 * other thread will pretend to be a stopper via
+-			 * task_comm.
+-			 */
++		} else if (klp_is_migration_thread(t->comm)) {
+ 			continue;
+ 		} else {
+ 			frame.fp = thread_saved_fp(t);
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index 4eefae2f92dc..3b9e720983ca 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -293,16 +293,7 @@ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			 * backtrace is so similar
+ 			 */
+ 			stack = (unsigned long *)current_stack_pointer;
+-		} else if (strncmp(t->comm, "migration/", 10) == 0) {
+-			/*
+-			 * current on other CPU
+-			 * we call this in stop_machine, so the current
+-			 * of each CPUs is mirgation, just compare the
+-			 * task_comm here, because we can't get the
+-			 * cpu_curr(task_cpu(t))). This assumes that no
+-			 * other thread will pretend to be a stopper via
+-			 * task_comm.
+-			 */
++		} else if (klp_is_migration_thread(t->comm)) {
+ 			continue;
+ 		} else {
+ 			/*
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index aca7361ac12b..8c7b44acf74e 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -314,16 +314,7 @@ static int do_check_calltrace(struct walk_stackframe_args *args,
+ 			 * so similar
+ 			 */
+ 			stack = (unsigned long *)current_stack_pointer;
+-		} else if (strncmp(t->comm, "migration/", 10) == 0) {
+-			/*
+-			 * current on other CPU
+-			 * we call this in stop_machine, so the current
+-			 * of each CPUs is mirgation, just compare the
+-			 * task_comm here, because we can't get the
+-			 * cpu_curr(task_cpu(t))). This assumes that no
+-			 * other thread will pretend to be a stopper via
+-			 * task_comm.
+-			 */
++		} else if (klp_is_migration_thread(t->comm)) {
+ 			continue;
+ 		} else {
+ 			/*
+diff --git a/arch/x86/kernel/livepatch.c b/arch/x86/kernel/livepatch.c
+index 5488bf014637..0241e560bd2e 100644
+--- a/arch/x86/kernel/livepatch.c
++++ b/arch/x86/kernel/livepatch.c
+@@ -315,7 +315,7 @@ static int do_check_calltrace(bool (*fn)(void *, int *, unsigned long), void *da
+ #endif
+ 
+ 	for_each_process_thread(g, t) {
+-		if (!strncmp(t->comm, "migration/", 10))
++		if (klp_is_migration_thread(t->comm))
+ 			continue;
+ 
+ #ifdef CONFIG_ARCH_STACKWALK
+diff --git a/include/linux/livepatch.h b/include/linux/livepatch.h
+index 9301f8e9bb90..56ad1c1dd83e 100644
+--- a/include/linux/livepatch.h
++++ b/include/linux/livepatch.h
+@@ -316,6 +316,22 @@ static inline bool klp_have_reliable_stack(void) { return true; }
+ #define klp_smp_isb()
+ #endif
+ 
++#define KLP_MIGRATION_NAME_PREFIX	"migration/"
++static inline bool klp_is_migration_thread(const char *task_name)
++{
++	/*
++	 * current on other CPU
++	 * we call this in stop_machine, so the current
++	 * of each CPUs is migration, just compare the
++	 * task_comm here, because we can't get the
++	 * cpu_curr(task_cpu(t))). This assumes that no
++	 * other thread will pretend to be a stopper via
++	 * task_comm.
++	 */
++	return !strncmp(task_name, KLP_MIGRATION_NAME_PREFIX,
++			sizeof(KLP_MIGRATION_NAME_PREFIX) - 1);
++}
++
+ #endif /* CONFIG_LIVEPATCH_PER_TASK_CONSISTENCY */
+ 
+ #else /* !CONFIG_LIVEPATCH */
+-- 
+2.17.1
+

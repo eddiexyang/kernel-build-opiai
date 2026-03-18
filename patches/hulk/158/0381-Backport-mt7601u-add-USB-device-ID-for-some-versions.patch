@@ -1,0 +1,47 @@
+From 132b715181f695b74bb5a820d28b6c4df4003e49 Mon Sep 17 00:00:00 2001
+From: Wei Mingzhi <whistler@member.fsf.org>
+Date: Sat, 19 Jun 2021 00:08:40 +0800
+Subject: [PATCH 0381/1076] [Backport] mt7601u: add USB device ID for some
+ versions of XiaoDu WiFi Dongle.
+
+stable inclusion
+from stable-v5.10.135
+commit e500aa9f2d76d63592ec09752a2fa7d058bc9dde
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UE71
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e500aa9f2d76d63592ec09752a2fa7d058bc9dde
+
+--------------------------------
+
+commit 829eea7c94e0bac804e65975639a2f2e5f147033 upstream.
+
+USB device ID of some versions of XiaoDu WiFi Dongle is 2955:1003
+instead of 2955:1001. Both are the same mt7601u hardware.
+
+Signed-off-by: Wei Mingzhi <whistler@member.fsf.org>
+Acked-by: Jakub Kicinski <kubakici@wp.pl>
+Signed-off-by: Kalle Valo <kvalo@codeaurora.org>
+Link: https://lore.kernel.org/r/20210618160840.305024-1-whistler@member.fsf.org
+Cc: Yan Xinyu <sdlyyxy@bupt.edu.cn>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/mediatek/mt7601u/usb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/wireless/mediatek/mt7601u/usb.c b/drivers/net/wireless/mediatek/mt7601u/usb.c
+index 6bcc4a13ae6c..cc772045d526 100644
+--- a/drivers/net/wireless/mediatek/mt7601u/usb.c
++++ b/drivers/net/wireless/mediatek/mt7601u/usb.c
+@@ -26,6 +26,7 @@ static const struct usb_device_id mt7601u_device_table[] = {
+ 	{ USB_DEVICE(0x2717, 0x4106) },
+ 	{ USB_DEVICE(0x2955, 0x0001) },
+ 	{ USB_DEVICE(0x2955, 0x1001) },
++	{ USB_DEVICE(0x2955, 0x1003) },
+ 	{ USB_DEVICE(0x2a5f, 0x1000) },
+ 	{ USB_DEVICE(0x7392, 0x7710) },
+ 	{ 0, }
+-- 
+2.17.1
+

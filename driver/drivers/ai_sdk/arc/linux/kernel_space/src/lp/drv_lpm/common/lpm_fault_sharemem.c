@@ -1,0 +1,1 @@
+../../drv_lpm_devmng/public/lpm_devmng_sharemem.c

@@ -1,0 +1,84 @@
+From cdc8b10194bf58604aac689d25c090ceb58b71cb Mon Sep 17 00:00:00 2001
+From: Chen Jiahao <chenjiahao16@huawei.com>
+Date: Fri, 11 Nov 2022 04:59:20 +0800
+Subject: [PATCH 0016/1398] [Huawei] arm64: Introduce
+ CONFIG_IPI_BACKTRACE_NO_NMI
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187959
+
+-------------------------------
+
+Introduce CONFIG_IPI_BACKTRACE_NO_NMI to isolate feature
+which providing IPI backtrace without NMI enabled.
+
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/arm64/Kconfig                     | 6 ++++++
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ arch/arm64/kernel/ipi_nmi.c            | 6 ++++++
+ 3 files changed, 13 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 71050f5b6e5e..3f41346cf2d4 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1952,6 +1952,12 @@ config ARM64_PSEUDO_NMI
+ 
+ 	  If unsure, say N
+ 
++config IPI_BACKTRACE_NO_NMI
++	bool "support IPI backtrace without NMI enabled"
++	default n
++	help
++	  Adds support for printing IPI backtrace when NMI is not supported.
++
+ if ARM64_PSEUDO_NMI
+ config ARM64_DEBUG_PRIORITY_MASKING
+ 	bool "Debug interrupt priority masking"
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 836e85470ce2..0fda432ba6c9 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -511,6 +511,7 @@ CONFIG_ARM64_EPAN=y
+ CONFIG_ARM64_SVE=y
+ CONFIG_ARM64_MODULE_PLTS=y
+ CONFIG_ARM64_PSEUDO_NMI=y
++CONFIG_IPI_BACKTRACE_NO_NMI=y
+ # CONFIG_ARM64_DEBUG_PRIORITY_MASKING is not set
+ CONFIG_RELOCATABLE=y
+ CONFIG_RANDOMIZE_BASE=y
+diff --git a/arch/arm64/kernel/ipi_nmi.c b/arch/arm64/kernel/ipi_nmi.c
+index 9a8f7c256117..da41001f4dbb 100644
+--- a/arch/arm64/kernel/ipi_nmi.c
++++ b/arch/arm64/kernel/ipi_nmi.c
+@@ -33,6 +33,7 @@ void arm64_send_nmi(cpumask_t *mask)
+ 	__ipi_send_mask(ipi_nmi_desc, mask);
+ }
+ 
++#ifdef CONFIG_IPI_BACKTRACE_NO_NMI
+ static void ipi_cpu_backtrace(void *info)
+ {
+ 	printk_safe_enter();
+@@ -60,11 +61,16 @@ static void arm64_send_ipi(cpumask_t *mask)
+ 			pr_info("Sending IPI failed to CPU %d\n", cpu);
+ 	}
+ }
++#endif
+ 
+ bool arch_trigger_cpumask_backtrace(const cpumask_t *mask, bool exclude_self)
+ {
+ 	if (!ipi_nmi_desc)
++#ifdef CONFIG_IPI_BACKTRACE_NO_NMI
+ 		nmi_trigger_cpumask_backtrace(mask, exclude_self, arm64_send_ipi);
++#else
++		return false;
++#endif
+ 	else
+ 		nmi_trigger_cpumask_backtrace(mask, exclude_self, arm64_send_nmi);
+ 
+-- 
+2.17.1
+

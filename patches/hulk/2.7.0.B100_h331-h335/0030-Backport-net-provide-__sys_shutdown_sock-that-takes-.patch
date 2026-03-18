@@ -1,0 +1,79 @@
+From b5a9f7cbd3e4a025d6e14f7c875c77c17a23b733 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Sat, 5 Sep 2020 11:13:35 -0600
+Subject: [PATCH 030/500] [Backport] net: provide __sys_shutdown_sock() that
+ takes a socket
+
+stable inclusion
+from stable-v5.10.162
+commit 069ac28d92432dd7cdac0a2c141a1b3b8d4330d5
+category: bugfix
+bugzilla: 188335
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?h=v5.10.167&id=069ac28d92432dd7cdac0a2c141a1b3b8d4330d5
+
+--------------------------------
+
+[ Upstream commit b713c195d59332277a31a59c91f755e53b5b302b ]
+
+No functional changes in this patch, needed to provide io_uring support
+for shutdown(2).
+
+Cc: netdev@vger.kernel.org
+Cc: David S. Miller <davem@davemloft.net>
+Acked-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ include/linux/socket.h |  1 +
+ net/socket.c           | 15 ++++++++++++---
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/socket.h b/include/linux/socket.h
+index 9aa530d497da..42222a84167f 100644
+--- a/include/linux/socket.h
++++ b/include/linux/socket.h
+@@ -436,5 +436,6 @@ extern int __sys_getpeername(int fd, struct sockaddr __user *usockaddr,
+ 			     int __user *usockaddr_len);
+ extern int __sys_socketpair(int family, int type, int protocol,
+ 			    int __user *usockvec);
++extern int __sys_shutdown_sock(struct socket *sock, int how);
+ extern int __sys_shutdown(int fd, int how);
+ #endif /* _LINUX_SOCKET_H */
+diff --git a/net/socket.c b/net/socket.c
+index 26751e2f4251..ea4e9cd4ba31 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -2185,6 +2185,17 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname,
+  *	Shutdown a socket.
+  */
+ 
++int __sys_shutdown_sock(struct socket *sock, int how)
++{
++	int err;
++
++	err = security_socket_shutdown(sock, how);
++	if (!err)
++		err = sock->ops->shutdown(sock, how);
++
++	return err;
++}
++
+ int __sys_shutdown(int fd, int how)
+ {
+ 	int err, fput_needed;
+@@ -2192,9 +2203,7 @@ int __sys_shutdown(int fd, int how)
+ 
+ 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
+ 	if (sock != NULL) {
+-		err = security_socket_shutdown(sock, how);
+-		if (!err)
+-			err = sock->ops->shutdown(sock, how);
++		err = __sys_shutdown_sock(sock, how);
+ 		fput_light(sock->file, fput_needed);
+ 	}
+ 	return err;
+-- 
+2.17.1
+

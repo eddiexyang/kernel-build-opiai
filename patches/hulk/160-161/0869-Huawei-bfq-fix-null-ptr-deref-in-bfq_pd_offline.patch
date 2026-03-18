@@ -1,0 +1,54 @@
+From 2430919fbeae41c4473750d7cd68a288241cbc52 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Wed, 21 Dec 2022 16:38:49 +0800
+Subject: [PATCH 0869/1398] [Huawei] bfq: fix null-ptr-deref in bfq_pd_offline
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188174
+
+--------------------------------
+
+bfqg->bfqd is assigned in bfq_pd_init(). bfqg may be allocted but not
+initialized when bfq_pd_alloc() return NULL in blkcg_activate_policy().
+queue_lock is unlock now and delete cgroup at this time will cause error.
+
+  T1					T2
+  bfq_init_queue
+   bfq_create_group_hierarchy
+    blkcg_activate_policy
+     traverse q->blkg_list
+      1)pd_alloc_fn success
+         blkg->pd[pol->plid] = pd
+      2)pd_alloc_fn fail
+         spin_unlock_irq(&q->queue_lock)
+	  -> 1)is alloced but not init
+					blkcg_destroy_blkgs
+  					 blkg_destroy
+  					  if blkg->pd[i]
+  					   bfq_pd_offline
+  					    use bfqg->bfqd -> error
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ block/bfq-cgroup.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/block/bfq-cgroup.c b/block/bfq-cgroup.c
+index 36ba7324f685..a285711f1b48 100644
+--- a/block/bfq-cgroup.c
++++ b/block/bfq-cgroup.c
+@@ -911,6 +911,9 @@ static void bfq_pd_offline(struct blkg_policy_data *pd)
+ 	unsigned long flags;
+ 	int i;
+ 
++	if (!bfqg->online)
++		return;
++
+ 	spin_lock_irqsave(&bfqd->lock, flags);
+ 
+ 	if (!entity) /* root group */
+-- 
+2.17.1
+

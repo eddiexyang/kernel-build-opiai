@@ -1,0 +1,46 @@
+From b5f60e611387844be1813bd9cb671f7e7dba2a73 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Fri, 15 Jul 2022 10:17:51 -0700
+Subject: [PATCH 0289/1076] [Backport] tcp: Fix a data-race around
+ sysctl_tcp_notsent_lowat.
+
+stable inclusion
+from stable-v5.10.134
+commit fd6f1284e380c377932186042ff0b5c987fb2b92
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fd6f1284e380c377932186042ff0b5c987fb2b92
+
+--------------------------------
+
+[ Upstream commit 55be873695ed8912eb77ff46d1d1cadf028bd0f3 ]
+
+While reading sysctl_tcp_notsent_lowat, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: c9bee3b7fdec ("tcp: TCP_NOTSENT_LOWAT socket option")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/net/tcp.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index 6094ee2ba43a..059e47fe8c37 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -1975,7 +1975,7 @@ void __tcp_v4_send_check(struct sk_buff *skb, __be32 saddr, __be32 daddr);
+ static inline u32 tcp_notsent_lowat(const struct tcp_sock *tp)
+ {
+ 	struct net *net = sock_net((struct sock *)tp);
+-	return tp->notsent_lowat ?: net->ipv4.sysctl_tcp_notsent_lowat;
++	return tp->notsent_lowat ?: READ_ONCE(net->ipv4.sysctl_tcp_notsent_lowat);
+ }
+ 
+ /* @wake is one when sk_stream_write_space() calls us.
+-- 
+2.17.1
+

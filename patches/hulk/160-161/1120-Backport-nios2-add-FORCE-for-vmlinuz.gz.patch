@@ -1,0 +1,46 @@
+From 5f045112893e2babdbd7daa0ee97d5a1852271db Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Wed, 23 Nov 2022 19:20:53 -0800
+Subject: [PATCH 1120/1398] [Backport] nios2: add FORCE for vmlinuz.gz
+
+stable inclusion
+from stable-v5.10.157
+commit fbe955be268b0fc9205146789178231ad0ab4820
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68TNM
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fbe955be268b0fc9205146789178231ad0ab4820
+
+--------------------------------
+
+[ Upstream commit 869e4ae4cd2a23d625aaa14ae62dbebf768cb77d ]
+
+Add FORCE to placate a warning from make:
+
+arch/nios2/boot/Makefile:24: FORCE prerequisite is missing
+
+Fixes: 2fc8483fdcde ("nios2: Build infrastructure")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Masahiro Yamada <masahiroy@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/nios2/boot/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/nios2/boot/Makefile b/arch/nios2/boot/Makefile
+index 37dfc7e584bc..0b704c1f379f 100644
+--- a/arch/nios2/boot/Makefile
++++ b/arch/nios2/boot/Makefile
+@@ -20,7 +20,7 @@ $(obj)/vmlinux.bin: vmlinux FORCE
+ $(obj)/vmlinux.gz: $(obj)/vmlinux.bin FORCE
+ 	$(call if_changed,gzip)
+ 
+-$(obj)/vmImage: $(obj)/vmlinux.gz
++$(obj)/vmImage: $(obj)/vmlinux.gz FORCE
+ 	$(call if_changed,uimage)
+ 	@$(kecho) 'Kernel: $@ is ready'
+ 
+-- 
+2.17.1
+

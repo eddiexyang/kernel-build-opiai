@@ -1,0 +1,47 @@
+From 8c204cad3af129565ce8014c16e7083b5dc18e44 Mon Sep 17 00:00:00 2001
+From: Haowen Bai <baihaowen@meizu.com>
+Date: Fri, 25 Mar 2022 18:17:13 +0800
+Subject: [PATCH 3688/4585] [Backport] b43legacy: Fix assigning negative value
+ to unsigned variable
+
+stable inclusion
+from stable-v5.10.121
+commit 4ae5a2ccf5da143cb210ce2f82f5f74a822bfd8e
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4ae5a2ccf5da143cb210ce2f82f5f74a822bfd8e
+
+--------------------------------
+
+[ Upstream commit 3f6b867559b3d43a7ce1b4799b755e812fc0d503 ]
+
+fix warning reported by smatch:
+drivers/net/wireless/broadcom/b43legacy/phy.c:1181 b43legacy_phy_lo_b_measure()
+warn: assigning (-772) to unsigned variable 'fval'
+
+Signed-off-by: Haowen Bai <baihaowen@meizu.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/1648203433-8736-1-git-send-email-baihaowen@meizu.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/broadcom/b43legacy/phy.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/broadcom/b43legacy/phy.c b/drivers/net/wireless/broadcom/b43legacy/phy.c
+index 05404fbd1e70..c1395e622759 100644
+--- a/drivers/net/wireless/broadcom/b43legacy/phy.c
++++ b/drivers/net/wireless/broadcom/b43legacy/phy.c
+@@ -1123,7 +1123,7 @@ void b43legacy_phy_lo_b_measure(struct b43legacy_wldev *dev)
+ 	struct b43legacy_phy *phy = &dev->phy;
+ 	u16 regstack[12] = { 0 };
+ 	u16 mls;
+-	u16 fval;
++	s16 fval;
+ 	int i;
+ 	int j;
+ 
+-- 
+2.17.1
+

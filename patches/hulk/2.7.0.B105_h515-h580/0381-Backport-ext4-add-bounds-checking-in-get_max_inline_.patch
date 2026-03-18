@@ -1,0 +1,74 @@
+From d63e0709bf9250e18058b9850b8c3c2c3dfb1f0d Mon Sep 17 00:00:00 2001
+From: Theodore Ts'o <tytso@mit.edu>
+Date: Fri, 12 May 2023 15:11:02 -0400
+Subject: [PATCH 381/780] [Backport] ext4: add bounds checking in
+ get_max_inline_xattr_value_size()
+
+stable inclusion
+from stable-v5.10.180
+commit 4597554b4f7b29e7fd78aa449bab648f8da4ee2c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4597554b4f7b29e7fd78aa449bab648f8da4ee2c
+
+--------------------------------
+
+commit 2220eaf90992c11d888fe771055d4de330385f01 upstream.
+
+Normally the extended attributes in the inode body would have been
+checked when the inode is first opened, but if someone is writing to
+the block device while the file system is mounted, it's possible for
+the inode table to get corrupted.  Add bounds checking to avoid
+reading beyond the end of allocated memory if this happens.
+
+Reported-by: syzbot+1966db24521e5f6e23f7@syzkaller.appspotmail.com
+Link: https://syzkaller.appspot.com/bug?extid=1966db24521e5f6e23f7
+Cc: stable@kernel.org
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/ext4/inline.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ext4/inline.c b/fs/ext4/inline.c
+index e94e671cc2e3..db4fcdbe6049 100644
+--- a/fs/ext4/inline.c
++++ b/fs/ext4/inline.c
+@@ -32,6 +32,7 @@ static int get_max_inline_xattr_value_size(struct inode *inode,
+ 	struct ext4_xattr_ibody_header *header;
+ 	struct ext4_xattr_entry *entry;
+ 	struct ext4_inode *raw_inode;
++	void *end;
+ 	int free, min_offs;
+ 
+ 	if (!EXT4_INODE_HAS_XATTR_SPACE(inode))
+@@ -55,14 +56,23 @@ static int get_max_inline_xattr_value_size(struct inode *inode,
+ 	raw_inode = ext4_raw_inode(iloc);
+ 	header = IHDR(inode, raw_inode);
+ 	entry = IFIRST(header);
++	end = (void *)raw_inode + EXT4_SB(inode->i_sb)->s_inode_size;
+ 
+ 	/* Compute min_offs. */
+-	for (; !IS_LAST_ENTRY(entry); entry = EXT4_XATTR_NEXT(entry)) {
++	while (!IS_LAST_ENTRY(entry)) {
++		void *next = EXT4_XATTR_NEXT(entry);
++
++		if (next >= end) {
++			EXT4_ERROR_INODE(inode,
++					 "corrupt xattr in inline inode");
++			return 0;
++		}
+ 		if (!entry->e_value_inum && entry->e_value_size) {
+ 			size_t offs = le16_to_cpu(entry->e_value_offs);
+ 			if (offs < min_offs)
+ 				min_offs = offs;
+ 		}
++		entry = next;
+ 	}
+ 	free = min_offs -
+ 		((void *)entry - (void *)IFIRST(header)) - sizeof(__u32);
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From e9f9b3a794e07db98b0b9f68f4d792d41097444c Mon Sep 17 00:00:00 2001
+From: GUO Zihua <guozihua@huawei.com>
+Date: Sat, 25 Mar 2023 09:29:04 +0800
+Subject: [PATCH 0116/1646] [Huawei] ima: Fix memory leakage in
+ ima_store_template
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6P3K4
+
+Reference: https://gitee.com/openeuler/kernel/commit/021057693141c2cc03c1e6ea8029dd2a79f96bf2
+
+--------------------------------
+
+There is a memory leakage in ima_store_template when ima_add_template_entry
+returns a non-zero value and duplicated_entry was successfully
+generated. Fix it by freeing duplicated_entry in that case.
+
+Fixes: 31604143977f ("ima: Add support for measurement with digest lists")
+Signed-off-by: GUO Zihua <guozihua@huawei.com>
+Reviewed-by: Roberto Sassu <roberto.sassu@huawei.com>
+Reviewed-by: Wang Weiyang <wangweiyang2@huawei.com>
+Reviewed-by: Cai Xinchen <caixinchen1@huawei.com>
+Signed-off-by: GUO Zihua <guozihua@huawei.com>
+---
+ security/integrity/ima/ima_api.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/security/integrity/ima/ima_api.c b/security/integrity/ima/ima_api.c
+index d9f4599dee40..6ecaf6834844 100644
+--- a/security/integrity/ima/ima_api.c
++++ b/security/integrity/ima/ima_api.c
+@@ -133,7 +133,9 @@ int ima_store_template(struct ima_template_entry *entry,
+ 
+ 	entry->pcr = pcr;
+ 	result = ima_add_template_entry(entry, violation, op, inode, filename);
+-	if (!result && duplicated_entry) {
++	if (result) {
++		kfree(duplicated_entry);
++	} else if (duplicated_entry) {
+ 		result = ima_add_template_entry(duplicated_entry, violation, op,
+ 						inode, filename);
+ 		if (result < 0)
+-- 
+2.17.1
+

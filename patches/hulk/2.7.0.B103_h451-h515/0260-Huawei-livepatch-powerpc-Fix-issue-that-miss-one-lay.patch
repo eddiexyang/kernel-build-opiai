@@ -1,0 +1,350 @@
+From eb8a30a5c57ace251a58adb9f5bfed04b2045c30 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Fri, 2 Jun 2023 08:37:00 +0800
+Subject: [PATCH 260/263] [Huawei] livepatch/powerpc: Fix issue that miss one
+ layer on stack checking
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188834
+
+--------------------------------
+
+Suppose task 'T' is running in function 'B', and user is doing livepatch
+for function 'A', and function 'A' is calling 'B'.
+
+Then task 'T' will be interrupted by stop_machine, and suppose that 'B'
+has not saved the link register (which point to address in 'A') into stack
+memory, and data in link register position may be invalid, then 'A' would
+be missed on stack checking.
+
+To find a solution, we list following cases (suppose calling chain: P ->
+A -> B, A runs `bl B`, 'nip' means instruction pointer found in interrupt
+frame, 'lr' means link register found in interrupt frame, 'frame->pc'
+means link register saved in first stack frame):
+ 1. 'nip' is in 'A', `bl B` is not executed, then: 'lr' is in 'P',
+    'frame->pc' should be ignored;
+ 2. 'nip' is in some ppc64_stub or ppc32_plt which also not save link
+     register, then: 'lr' is in 'A', 'frame->pc' should be ignored;
+ 3. 'nip' is in 'B', but 'B' has not saved link register, then: 'lr' is
+    in 'A', 'frame->pc' should be ignored;
+ 4. 'nip' is in 'B', 'B' has saved link register, then: 'lr' is in 'A',
+    'frame->pc' is also in 'A';
+ 5. 'nip' is in 'A', 'B' has returned but its stack pointer is not moved,
+    then 'lr' is in 'A', 'frame->pc' is also in 'A';
+ 6. 'nip' is in 'A', 'B' has returned and its stack pointer is moved,
+    then 'lr' is in 'A', 'frame->pc' is in 'P'.
+
+As a conclusion, we need to:
+  1. check 'nip' or 'lr' or both if they are not in same function;
+  2. ignore 'frame->pc' if 'nip' and 'lr' are not in same function.
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/powerpc/include/asm/livepatch.h | 14 ++++++
+ arch/powerpc/kernel/livepatch.c      | 73 +++++++++++++++++++++++++++-
+ arch/powerpc/kernel/livepatch_32.c   | 40 +--------------
+ arch/powerpc/kernel/livepatch_64.c   | 40 +--------------
+ 4 files changed, 89 insertions(+), 78 deletions(-)
+
+diff --git a/arch/powerpc/include/asm/livepatch.h b/arch/powerpc/include/asm/livepatch.h
+index d7bc32fb0505..857189b75b7a 100644
+--- a/arch/powerpc/include/asm/livepatch.h
++++ b/arch/powerpc/include/asm/livepatch.h
+@@ -121,11 +121,25 @@ struct arch_klp_data {
+ #define KLP_MAX_REPLACE_SIZE sizeof_field(struct arch_klp_data, old_insns)
+ 
+ struct stackframe {
++	/* stack frame to be unwinded */
+ 	unsigned long sp;
++	/* link register saved in last stack frame */
+ 	unsigned long pc;
++	/* instruction register saved in pt_regs */
+ 	unsigned long nip;
++	/* link register saved in pt_regs */
++	unsigned long link;
++	/* stack frame pointer (r1 register) saved in pt_regs */
++	unsigned long sfp;
++	/* check if nip and link are in same function */
++	unsigned int nip_link_in_same_func;
++	/* check if it is top frame before interrupt */
++	unsigned int is_top_frame;
+ };
+ 
++int klp_check_jump_func(struct stackframe *frame, void *ws_args);
++int klp_check_module_calltrace(struct stackframe *frame, void *ws_args);
++
+ #ifdef PPC64_ELF_ABI_v1
+ struct klp_func_node;
+ void arch_klp_set_brk_func(struct klp_func_node *func_node, void *new_func);
+diff --git a/arch/powerpc/kernel/livepatch.c b/arch/powerpc/kernel/livepatch.c
+index a13c853947ff..41150a64f447 100644
+--- a/arch/powerpc/kernel/livepatch.c
++++ b/arch/powerpc/kernel/livepatch.c
+@@ -23,6 +23,7 @@
+ #include <linux/module.h>
+ #include <linux/ftrace.h>
+ #include <linux/livepatch.h>
++#include <linux/kallsyms.h>
+ #include <asm/probes.h>
+ #include <asm/livepatch.h>
+ #include <asm/code-patching.h>
+@@ -67,6 +68,22 @@ int klp_brk_handler(struct pt_regs *regs)
+ 	return 1;
+ }
+ 
++static int check_addr_in_same_func(unsigned long addr1, unsigned long addr2)
++{
++	unsigned long size = 0;
++	unsigned long offset = 0;
++	unsigned long start;
++
++	if (addr1 == 0 || addr2 == 0)
++		return 0;
++	if (addr1 == addr2)
++		return 1;
++	if (!kallsyms_lookup_size_offset(addr1, &size, &offset))
++		return 0;
++	start = addr1 - offset;
++	return (addr2 >= start) && (addr2 - start < size);
++}
++
+ int klp_unwind_frame(struct task_struct *tsk, struct stackframe *frame)
+ {
+ 	unsigned long *stack;
+@@ -79,7 +96,10 @@ int klp_unwind_frame(struct task_struct *tsk, struct stackframe *frame)
+ 
+ 	if (frame->nip != 0)
+ 		frame->nip = 0;
++	if (frame->link != 0)
++		frame->link = 0;
+ 
++	frame->is_top_frame = (frame->sfp == frame->sp);
+ 	stack = (unsigned long *)frame->sp;
+ 
+ 	/*
+@@ -94,10 +114,14 @@ int klp_unwind_frame(struct task_struct *tsk, struct stackframe *frame)
+ 		struct pt_regs *regs = (struct pt_regs *)
+ 			(frame->sp + STACK_FRAME_OVERHEAD);
+ 		frame->nip = regs->nip;
+-		pr_debug("--- interrupt: task = %d/%s, trap %lx at NIP=x%lx/%pS, LR=0x%lx/%pS\n",
++		frame->link = regs->link;
++		frame->sfp = regs->gpr[PT_R1];
++		frame->nip_link_in_same_func = check_addr_in_same_func(frame->nip, frame->link);
++		pr_debug("--- interrupt: task = %d/%s, trap %lx at NIP=0x%lx/%pS, LR=0x%lx/%pS, SFP=0x%lx, nip_link_in_same_func=%u\n",
+ 			tsk->pid, tsk->comm, regs->trap,
+ 			regs->nip, (void *)regs->nip,
+-			regs->link, (void *)regs->link);
++			regs->link, (void *)regs->link,
++			frame->sfp, frame->nip_link_in_same_func);
+ 	}
+ 
+ 	frame->sp = stack[0];
+@@ -113,6 +137,51 @@ int klp_unwind_frame(struct task_struct *tsk, struct stackframe *frame)
+ 	return 0;
+ }
+ 
++int klp_check_jump_func(struct stackframe *frame, void *ws_args)
++{
++	struct walk_stackframe_args *args = ws_args;
++
++	/* check NIP when the exception stack switching */
++	if (frame->nip && !args->check_func(args->data, &args->ret, frame->nip))
++		return args->ret;
++	if (frame->link && !frame->nip_link_in_same_func &&
++	    !args->check_func(args->data, &args->ret, frame->link))
++		return args->ret;
++	/*
++	 * There are two cases that frame->pc is reliable:
++	 *   1. frame->pc is not in top frame before interrupt;
++	 *   2. nip and link are in same function;
++	 */
++	if (!frame->is_top_frame || frame->nip_link_in_same_func) {
++		if (!args->check_func(args->data, &args->ret, frame->pc))
++			return args->ret;
++	}
++	return 0;
++}
++
++int klp_check_module_calltrace(struct stackframe *frame, void *ws_args)
++{
++	struct walk_stackframe_args *args = ws_args;
++	struct module *mod = args->data;
++
++	/* check NIP when the exception stack switching */
++	if (frame->nip && within_module_core(frame->nip, mod))
++		goto err_out;
++	if (frame->link && !frame->nip_link_in_same_func &&
++	    within_module_core(frame->link, mod))
++		goto err_out;
++	if (!frame->is_top_frame || frame->nip_link_in_same_func) {
++		if (within_module_core(frame->pc, mod))
++			goto err_out;
++	}
++
++	return 0;
++
++err_out:
++	pr_err("module %s is in use!\n", mod->name);
++	return (args->ret = -EBUSY);
++}
++
+ int klp_patch_text(u32 *dst, const u32 *src, int len)
+ {
+ 	int i;
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index fdebfa995eca..7796d22239b1 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -81,26 +81,11 @@ void notrace klp_walk_stackframe(struct stackframe *frame,
+ 	}
+ }
+ 
+-static int klp_check_jump_func(struct stackframe *frame, void *ws_args)
+-{
+-	struct walk_stackframe_args *args = ws_args;
+-
+-	/* check the PC first */
+-	if (!args->check_func(args->data, &args->ret, frame->pc))
+-		return args->ret;
+-
+-	/* check NIP when the exception stack switching */
+-	if (frame->nip && !args->check_func(args->data, &args->ret, frame->nip))
+-		return args->ret;
+-
+-	return 0;
+-}
+-
+ static int check_task_calltrace(struct task_struct *t,
+ 				struct walk_stackframe_args *args,
+ 				int (*fn)(struct stackframe *, void *))
+ {
+-	struct stackframe frame;
++	struct stackframe frame = { 0 };
+ 	unsigned long *stack;
+ 
+ 	if (t == current) {
+@@ -128,7 +113,6 @@ static int check_task_calltrace(struct task_struct *t,
+ 
+ 	frame.sp = (unsigned long)stack;
+ 	frame.pc = stack[STACK_FRAME_LR_SAVE];
+-	frame.nip = 0;
+ 	klp_walk_stackframe(&frame, fn, t, args);
+ 	if (args->ret) {
+ 		pr_info("PID: %d Comm: %.20s\n", t->pid, t->comm);
+@@ -188,26 +172,6 @@ int arch_klp_check_calltrace(bool (*check_func)(void *, int *, unsigned long), v
+ 	return do_check_calltrace(&args, klp_check_jump_func);
+ }
+ 
+-static int check_module_calltrace(struct stackframe *frame, void *ws_args)
+-{
+-	struct walk_stackframe_args *args = ws_args;
+-	struct module *mod = args->data;
+-
+-	/* check the PC first */
+-	if (within_module_core(frame->pc, mod))
+-		goto err_out;
+-
+-	/* check NIP when the exception stack switching */
+-	if (frame->nip && within_module_core(frame->nip, mod))
+-		goto err_out;
+-
+-	return 0;
+-
+-err_out:
+-	pr_err("module %s is in use!\n", mod->name);
+-	return (args->ret = -EBUSY);
+-}
+-
+ int arch_klp_module_check_calltrace(void *data)
+ {
+ 	struct walk_stackframe_args args = {
+@@ -215,7 +179,7 @@ int arch_klp_module_check_calltrace(void *data)
+ 		.ret = 0
+ 	};
+ 
+-	return do_check_calltrace(&args, check_module_calltrace);
++	return do_check_calltrace(&args, klp_check_module_calltrace);
+ }
+ 
+ #endif
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index 315c1db23c7e..561a495b2c48 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -191,26 +191,11 @@ static void notrace klp_walk_stackframe(struct stackframe *frame,
+ 	}
+ }
+ 
+-static int klp_check_jump_func(struct stackframe *frame, void *ws_args)
+-{
+-	struct walk_stackframe_args *args = ws_args;
+-
+-	/* check the PC first */
+-	if (!args->check_func(args->data, &args->ret, frame->pc))
+-		return args->ret;
+-
+-	/* check NIP when the exception stack switching */
+-	if (frame->nip && !args->check_func(args->data, &args->ret, frame->nip))
+-		return args->ret;
+-
+-	return 0;
+-}
+-
+ static int check_task_calltrace(struct task_struct *t,
+ 				struct walk_stackframe_args *args,
+ 				int (*fn)(struct stackframe *, void *))
+ {
+-	struct stackframe frame;
++	struct stackframe frame = { 0 };
+ 	unsigned long *stack;
+ 
+ 	if (t == current) {
+@@ -240,7 +225,6 @@ static int check_task_calltrace(struct task_struct *t,
+ 
+ 	frame.sp = (unsigned long)stack;
+ 	frame.pc = stack[STACK_FRAME_LR_SAVE];
+-	frame.nip = 0;
+ 	klp_walk_stackframe(&frame, fn, t, args);
+ 	if (args->ret) {
+ 		pr_info("PID: %d Comm: %.20s\n", t->pid, t->comm);
+@@ -300,26 +284,6 @@ int arch_klp_check_calltrace(bool (*check_func)(void *, int *, unsigned long), v
+ 	return do_check_calltrace(&args, klp_check_jump_func);
+ }
+ 
+-static int check_module_calltrace(struct stackframe *frame, void *ws_args)
+-{
+-	struct walk_stackframe_args *args = ws_args;
+-	struct module *mod = args->data;
+-
+-	/* check the PC first */
+-	if (within_module_core(frame->pc, mod))
+-		goto err_out;
+-
+-	/* check NIP when the exception stack switching */
+-	if (frame->nip && within_module_core(frame->nip, mod))
+-		goto err_out;
+-
+-	return 0;
+-
+-err_out:
+-	pr_err("module %s is in use!\n", mod->name);
+-	return (args->ret = -EBUSY);
+-}
+-
+ int arch_klp_module_check_calltrace(void *data)
+ {
+ 	struct walk_stackframe_args args = {
+@@ -327,7 +291,7 @@ int arch_klp_module_check_calltrace(void *data)
+ 		.ret = 0
+ 	};
+ 
+-	return do_check_calltrace(&args, check_module_calltrace);
++	return do_check_calltrace(&args, klp_check_module_calltrace);
+ }
+ 
+ #endif
+-- 
+2.17.1
+

@@ -1,0 +1,111 @@
+From 63e5129b0cc19c6d047dc5eae079a5a6c8258e76 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Mon, 20 Jun 2022 03:05:09 -0700
+Subject: [PATCH 868/905] [Backport] raw: complete rcu conversion
+
+mainline inclusion
+from mainline-v6.0-rc1
+commit af185d8c76333daa877678e0166a7b45e63bf3c4
+category: bugfix
+bugzilla: 188116
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=af185d8c76333daa877678e0166a7b45e63bf3c4
+
+--------------------------------
+
+raw_diag_dump() can use rcu_read_lock() instead of read_lock()
+
+Now the hashinfo lock is only used from process context,
+in write mode only, we can convert it to a spinlock,
+and we do not need to block BH anymore.
+
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Link: https://lore.kernel.org/r/20220620100509.3493504-1-eric.dumazet@gmail.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Conflicts:
+	net/ipv4/raw.c
+Signed-off-by: Ziyang Xuan <william.xuanziyang@huawei.com>
+---
+ include/net/raw.h   | 4 ++--
+ net/ipv4/raw.c      | 8 ++++----
+ net/ipv4/raw_diag.c | 4 ++--
+ 3 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/include/net/raw.h b/include/net/raw.h
+index 537d9d1df890..5e665934ebc7 100644
+--- a/include/net/raw.h
++++ b/include/net/raw.h
+@@ -32,7 +32,7 @@ int raw_rcv(struct sock *, struct sk_buff *);
+ #define RAW_HTABLE_SIZE	MAX_INET_PROTOS
+ 
+ struct raw_hashinfo {
+-	rwlock_t lock;
++	spinlock_t lock;
+ 	struct hlist_nulls_head ht[RAW_HTABLE_SIZE];
+ };
+ 
+@@ -40,7 +40,7 @@ static inline void raw_hashinfo_init(struct raw_hashinfo *hashinfo)
+ {
+ 	int i;
+ 
+-	rwlock_init(&hashinfo->lock);
++	spin_lock_init(&hashinfo->lock);
+ 	for (i = 0; i < RAW_HTABLE_SIZE; i++)
+ 		INIT_HLIST_NULLS_HEAD(&hashinfo->ht[i], i);
+ }
+diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c
+index 484434ecc275..1eb98c66db3b 100644
+--- a/net/ipv4/raw.c
++++ b/net/ipv4/raw.c
+@@ -95,11 +95,11 @@ int raw_hash_sk(struct sock *sk)
+ 
+ 	hlist = &h->ht[inet_sk(sk)->inet_num & (RAW_HTABLE_SIZE - 1)];
+ 
+-	write_lock_bh(&h->lock);
++	spin_lock(&h->lock);
+ 	__sk_nulls_add_node_rcu(sk, hlist);
+ 	sock_set_flag(sk, SOCK_RCU_FREE);
+ 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
+-	write_unlock_bh(&h->lock);
++	spin_unlock(&h->lock);
+ 
+ 	return 0;
+ }
+@@ -109,10 +109,10 @@ void raw_unhash_sk(struct sock *sk)
+ {
+ 	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
+ 
+-	write_lock_bh(&h->lock);
++	spin_lock(&h->lock);
+ 	if (__sk_nulls_del_node_init_rcu(sk))
+ 		sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
+-	write_unlock_bh(&h->lock);
++	spin_unlock(&h->lock);
+ }
+ EXPORT_SYMBOL_GPL(raw_unhash_sk);
+ 
+diff --git a/net/ipv4/raw_diag.c b/net/ipv4/raw_diag.c
+index e88f4ba807f1..a5fcca24f9eb 100644
+--- a/net/ipv4/raw_diag.c
++++ b/net/ipv4/raw_diag.c
+@@ -159,7 +159,7 @@ static void raw_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
+ 	s_slot = cb->args[0];
+ 	num = s_num = cb->args[1];
+ 
+-	read_lock(&hashinfo->lock);
++	rcu_read_lock();
+ 	for (slot = s_slot; slot < RAW_HTABLE_SIZE; s_num = 0, slot++) {
+ 		num = 0;
+ 
+@@ -187,7 +187,7 @@ static void raw_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
+ 	}
+ 
+ out_unlock:
+-	read_unlock(&hashinfo->lock);
++	rcu_read_unlock();
+ 
+ 	cb->args[0] = slot;
+ 	cb->args[1] = num;
+-- 
+2.17.1
+

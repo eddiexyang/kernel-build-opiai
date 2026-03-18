@@ -1,0 +1,81 @@
+From e01439bbd3c7c7a7a682ce03a081d225cc5f98f3 Mon Sep 17 00:00:00 2001
+From: Zhang Yi <yi.zhang@huawei.com>
+Date: Wed, 18 May 2022 20:08:55 +0800
+Subject: [PATCH 2131/2592] [Huawei] ext4: fix warning when submitting
+ superblock in ext4_commit_super()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186737
+
+--------------------------------
+
+We have already check the io_error and uptodate flag before submitting
+the superblock buffer, and re-set the uptodate flag if it has been
+failed to write out. But it was lockless and could be raced by another
+ext4_commit_super(), and finally trigger '!uptodate' WARNING when
+marking buffer dirty. Fix it by submit buffer directly.
+
+Signed-off-by: Zhang Yi <yi.zhang@huawei.com>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/super.c | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index a6419161f856..0faf10dc17ae 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5638,7 +5638,6 @@ static void ext4_update_super(struct super_block *sb)
+ static int ext4_commit_super(struct super_block *sb)
+ {
+ 	struct buffer_head *sbh = EXT4_SB(sb)->s_sbh;
+-	int error = 0;
+ 
+ 	if (!sbh)
+ 		return -EINVAL;
+@@ -5647,6 +5646,13 @@ static int ext4_commit_super(struct super_block *sb)
+ 
+ 	ext4_update_super(sb);
+ 
++	lock_buffer(sbh);
++	/* Buffer got discarded which means block device got invalidated */
++	if (!buffer_mapped(sbh)) {
++		unlock_buffer(sbh);
++		return -EIO;
++	}
++
+ 	if (buffer_write_io_error(sbh) || !buffer_uptodate(sbh)) {
+ 		/*
+ 		 * Oh, dear.  A previous attempt to write the
+@@ -5661,17 +5667,21 @@ static int ext4_commit_super(struct super_block *sb)
+ 		clear_buffer_write_io_error(sbh);
+ 		set_buffer_uptodate(sbh);
+ 	}
+-	BUFFER_TRACE(sbh, "marking dirty");
+-	mark_buffer_dirty(sbh);
+-	error = __sync_dirty_buffer(sbh,
+-		REQ_SYNC | (test_opt(sb, BARRIER) ? REQ_FUA : 0));
++	get_bh(sbh);
++	sbh->b_end_io = end_buffer_write_sync;
++	/* Clear potential dirty bit if it was journalled update */
++	clear_buffer_dirty(sbh);
++	submit_bh(REQ_OP_WRITE,
++		  REQ_SYNC | (test_opt(sb, BARRIER) ? REQ_FUA : 0), sbh);
++	wait_on_buffer(sbh);
+ 	if (buffer_write_io_error(sbh)) {
+ 		ext4_msg(sb, KERN_ERR, "I/O error while writing "
+ 		       "superblock");
+ 		clear_buffer_write_io_error(sbh);
+ 		set_buffer_uptodate(sbh);
++		return -EIO;
+ 	}
+-	return error;
++	return 0;
+ }
+ 
+ /*
+-- 
+2.17.1
+

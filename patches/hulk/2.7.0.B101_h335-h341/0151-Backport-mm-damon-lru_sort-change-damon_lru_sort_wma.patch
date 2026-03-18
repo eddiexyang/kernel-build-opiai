@@ -1,0 +1,44 @@
+From 31fea958dac4ccdf9b7b58acd60bd03e122ecd8e Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Thu, 15 Sep 2022 10:10:24 +0800
+Subject: [PATCH 151/921] [Backport] mm/damon/lru_sort: change
+ damon_lru_sort_wmarks to static
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit e47b082579f307d0367b1fb7ca3698fd9c73a88b
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e47b082579f307d0367b1fb7ca3698fd9c73a88b
+
+--------------------------------
+
+damon_lru_sort_wmarks is only used in lru_sort.c now, change it to static.
+
+Link: https://lkml.kernel.org/r/20220915021024.4177940-2-yangyingliang@huawei.com
+Fixes: 189aa3d58206 ("mm/damon/lru_sort: use watermarks parameters generator macro")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/lru_sort.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/damon/lru_sort.c b/mm/damon/lru_sort.c
+index a91c1e364fc7..4a40054ba03b 100644
+--- a/mm/damon/lru_sort.c
++++ b/mm/damon/lru_sort.c
+@@ -77,7 +77,7 @@ static struct damos_quota damon_lru_sort_quota = {
+ };
+ DEFINE_DAMON_MODULES_DAMOS_TIME_QUOTA(damon_lru_sort_quota);
+ 
+-struct damos_watermarks damon_lru_sort_wmarks = {
++static struct damos_watermarks damon_lru_sort_wmarks = {
+ 	.metric = DAMOS_WMARK_FREE_MEM_RATE,
+ 	.interval = 5000000,	/* 5 seconds */
+ 	.high = 200,		/* 20 percent */
+-- 
+2.17.1
+

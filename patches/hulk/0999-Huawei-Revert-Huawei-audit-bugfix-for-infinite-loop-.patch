@@ -1,0 +1,53 @@
+From 9b10d08f92c3267ddce87b1c900a8e5e1485c921 Mon Sep 17 00:00:00 2001
+From: Cui GaoSheng <cuigaosheng1@huawei.com>
+Date: Wed, 9 Mar 2022 01:21:31 -0500
+Subject: [PATCH 0999/2065] [Huawei] Revert "[Huawei] audit: bugfix for
+ infinite loop when flush the hold queue"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186383
+
+--------------------------------
+
+This reverts commit eea117b25587cb6186381b169ecac1432b269a1d.
+
+Signed-off-by: Cui GaoSheng <cuigaosheng1@huawei.com>
+---
+ kernel/audit.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/kernel/audit.c b/kernel/audit.c
+index 21be62bc8205..2a38cbaf3ddb 100644
+--- a/kernel/audit.c
++++ b/kernel/audit.c
+@@ -732,8 +732,6 @@ static int kauditd_send_queue(struct sock *sk, u32 portid,
+ 		if (!sk) {
+ 			if (err_hook)
+ 				(*err_hook)(skb);
+-			if (queue == &audit_hold_queue)
+-				goto out;
+ 			continue;
+ 		}
+ 
+@@ -750,8 +748,6 @@ static int kauditd_send_queue(struct sock *sk, u32 portid,
+ 					(*err_hook)(skb);
+ 				if (rc == -EAGAIN)
+ 					rc = 0;
+-				if (queue == &audit_hold_queue)
+-					goto out;
+ 				/* continue to drain the queue */
+ 				continue;
+ 			} else
+@@ -763,7 +759,6 @@ static int kauditd_send_queue(struct sock *sk, u32 portid,
+ 		}
+ 	}
+ 
+-out:
+ 	return (rc >= 0 ? 0 : rc);
+ }
+ 
+-- 
+2.17.1
+

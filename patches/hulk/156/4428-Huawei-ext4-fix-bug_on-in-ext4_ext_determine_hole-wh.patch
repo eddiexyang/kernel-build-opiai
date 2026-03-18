@@ -1,0 +1,43 @@
+From bb550ca0eec95d425b66bf7793ffb9965c8e4bc6 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Fri, 12 Aug 2022 11:27:17 +0800
+Subject: [PATCH 4428/4585] [Huawei] ext4: fix bug_on in
+ ext4_ext_determine_hole when eh_entries is zero
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187444
+
+--------------------------------
+
+we got a BUG_ON() in ext4_ext_determine_hole when mount and operate on
+crafted image(See detail in [Link]).The root cause of this issue is that
+the eh_entries of a non-leaf node (eh_depth > 0) is 0. Obviously, these
+two variables are contradictory. Therefore, we add a check to
+__ext4_ext_check to solve this issue.
+
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=215941
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/extents.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/fs/ext4/extents.c b/fs/ext4/extents.c
+index 9d06695c04ab..be89f512dccd 100644
+--- a/fs/ext4/extents.c
++++ b/fs/ext4/extents.c
+@@ -459,6 +459,10 @@ static int __ext4_ext_check(const char *function, unsigned int line,
+ 		error_msg = "invalid eh_entries";
+ 		goto corrupted;
+ 	}
++	if (unlikely((eh->eh_entries == 0) && (depth > 0))) {
++		error_msg = "contradictory eh_entries and eh_depth";
++		goto corrupted;
++	}
+ 	if (!ext4_valid_extent_entries(inode, eh, lblk, &pblk, depth)) {
+ 		error_msg = "invalid extent entries";
+ 		goto corrupted;
+-- 
+2.17.1
+

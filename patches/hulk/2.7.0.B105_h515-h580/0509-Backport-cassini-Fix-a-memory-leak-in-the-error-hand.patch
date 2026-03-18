@@ -1,0 +1,51 @@
+From 2ee7b4b3be3f50d7102c70128909f2f3409c0b74 Mon Sep 17 00:00:00 2001
+From: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Date: Mon, 15 May 2023 21:09:11 +0200
+Subject: [PATCH 509/780] [Backport] cassini: Fix a memory leak in the error
+ handling path of cas_init_one()
+
+stable inclusion
+from stable-v5.10.181
+commit dc61f7582cc92d547d02e141cd66f5d1f4ed8012
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=dc61f7582cc92d547d02e141cd66f5d1f4ed8012
+
+--------------------------------
+
+[ Upstream commit 412cd77a2c24b191c65ea53025222418db09817c ]
+
+cas_saturn_firmware_init() allocates some memory using vmalloc(). This
+memory is freed in the .remove() function but not it the error handling
+path of the probe.
+
+Add the missing vfree() to avoid a memory leak, should an error occur.
+
+Fixes: fcaa40669cd7 ("cassini: use request_firmware")
+Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Reviewed-by: Pavan Chebbi <pavan.chebbi@broadcom.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/sun/cassini.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/ethernet/sun/cassini.c b/drivers/net/ethernet/sun/cassini.c
+index 9ff894ba8d3e..d245f6e21e8c 100644
+--- a/drivers/net/ethernet/sun/cassini.c
++++ b/drivers/net/ethernet/sun/cassini.c
+@@ -5122,6 +5122,8 @@ static int cas_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 		cas_shutdown(cp);
+ 	mutex_unlock(&cp->pm_mutex);
+ 
++	vfree(cp->fw_data);
++
+ 	pci_iounmap(pdev, cp->regs);
+ 
+ 
+-- 
+2.17.1
+

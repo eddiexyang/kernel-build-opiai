@@ -1,0 +1,61 @@
+From c6af08f982129737ad5d3f0df68f185118654a94 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Thu, 20 Jul 2023 20:12:33 +0800
+Subject: [PATCH 07/53] [Huawei] mm/sharepool: Delete populate element in
+ sp_alloc_context
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+No need to use it.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 484006ab7240..8a26a7f1fbfe 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2153,7 +2153,6 @@ struct sp_alloc_context {
+ 	unsigned long size;
+ 	unsigned long size_aligned;
+ 	unsigned long sp_flags;
+-	unsigned long populate;
+ 	int state;
+ 	bool have_mbind;
+ 	enum spa_type type;
+@@ -2287,13 +2286,11 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 		return (int)mmap_addr;
+ 	}
+ 
+-	ac->populate = populate;
+-	if (ac->sp_flags & SP_PROT_RO)
+-		vma->vm_flags &= ~VM_MAYWRITE;
+-
+-	/* clean PTE_RDONLY flags or trigger SMMU event */
+ 	if (prot & PROT_WRITE)
++		/* clean PTE_RDONLY flags or trigger SMMU event */
+ 		vma->vm_page_prot = __pgprot(((~PTE_RDONLY) & vma->vm_page_prot.pgprot) | PTE_DIRTY);
++	else
++		vma->vm_flags &= ~VM_MAYWRITE;
+ 	up_write(&mm->mmap_lock);
+ 
+ 	if (!ac->have_mbind) {
+@@ -2312,7 +2309,7 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	 * page fault later on, and more importantly sp_make_share_u2k()
+ 	 * depends on this feature (and MAP_LOCKED) to work correctly.
+ 	 */
+-	ret = do_mm_populate(mm, spa->va_start, ac->populate, 0);
++	ret = do_mm_populate(mm, spa->va_start, populate, 0);
+ 	if (ret) {
+ 		if (unlikely(fatal_signal_pending(current)))
+ 			pr_warn_ratelimited("allocation failed, current thread is killed\n");
+-- 
+2.17.1
+

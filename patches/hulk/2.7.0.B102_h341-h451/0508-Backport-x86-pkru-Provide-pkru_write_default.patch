@@ -1,0 +1,49 @@
+From c2e34bceb867cb5fa43c85ce4175ec274d8f6b00 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 23 Jun 2021 14:02:09 +0200
+Subject: [PATCH 0508/1646] [Backport] x86/pkru: Provide pkru_write_default()
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit ff7ebff47c595e747aa1bb10d8a30b2acb7d425b
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=ff7ebff47c595e747aa1bb10d8a30b2acb7d425b
+
+--------------------------------
+
+Provide a simple and trivial helper which just writes the PKRU default
+value without trying to fiddle with the task's xsave buffer.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Reviewed-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210623121455.513729794@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/pkru.h | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/x86/include/asm/pkru.h b/arch/x86/include/asm/pkru.h
+index 19d3d7b98465..7e4550911c51 100644
+--- a/arch/x86/include/asm/pkru.h
++++ b/arch/x86/include/asm/pkru.h
+@@ -60,4 +60,12 @@ static inline void write_pkru(u32 pkru)
+ 	fpregs_unlock();
+ }
+ 
++static inline void pkru_write_default(void)
++{
++	if (!cpu_feature_enabled(X86_FEATURE_OSPKE))
++		return;
++
++	wrpkru(pkru_get_init_value());
++}
++
+ #endif
+-- 
+2.17.1
+

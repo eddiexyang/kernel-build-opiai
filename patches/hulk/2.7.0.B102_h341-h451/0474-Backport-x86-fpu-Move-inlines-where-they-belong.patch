@@ -1,0 +1,84 @@
+From 78865e5c391419cf6bcaa563e054489e71c97889 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 23 Jun 2021 14:01:34 +0200
+Subject: [PATCH 0474/1646] [Backport] x86/fpu: Move inlines where they belong
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit e68524456c855e500f0a636adb1aa977e1e0b4d8
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e68524456c855e500f0a636adb1aa977e1e0b4d8
+
+--------------------------------
+
+They are only used in fpstate_init() and there is no point to have them in
+a header just to make reading the code harder.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Reviewed-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210623121452.023118522@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/fpu/internal.h | 14 --------------
+ arch/x86/kernel/fpu/core.c          | 15 +++++++++++++++
+ 2 files changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/arch/x86/include/asm/fpu/internal.h b/arch/x86/include/asm/fpu/internal.h
+index 0c15fa492d59..ffa48b852300 100644
+--- a/arch/x86/include/asm/fpu/internal.h
++++ b/arch/x86/include/asm/fpu/internal.h
+@@ -86,20 +86,6 @@ extern void fpstate_init_soft(struct swregs_state *soft);
+ static inline void fpstate_init_soft(struct swregs_state *soft) {}
+ #endif
+ 
+-static inline void fpstate_init_xstate(struct xregs_state *xsave)
+-{
+-	/*
+-	 * XRSTORS requires these bits set in xcomp_bv, or it will
+-	 * trigger #GP:
+-	 */
+-	xsave->header.xcomp_bv = XCOMP_BV_COMPACTED_FORMAT | xfeatures_mask_all;
+-}
+-
+-static inline void fpstate_init_fxstate(struct fxregs_state *fx)
+-{
+-	fx->cwd = 0x37f;
+-	fx->mxcsr = MXCSR_DEFAULT;
+-}
+ extern void fpstate_sanitize_xstate(struct fpu *fpu);
+ 
+ /* Returns 0 or the negated trap number, which results in -EFAULT for #PF */
+diff --git a/arch/x86/kernel/fpu/core.c b/arch/x86/kernel/fpu/core.c
+index 571220ac8bea..9ff467bb4894 100644
+--- a/arch/x86/kernel/fpu/core.c
++++ b/arch/x86/kernel/fpu/core.c
+@@ -181,6 +181,21 @@ void fpu__save(struct fpu *fpu)
+ 	fpregs_unlock();
+ }
+ 
++static inline void fpstate_init_xstate(struct xregs_state *xsave)
++{
++	/*
++	 * XRSTORS requires these bits set in xcomp_bv, or it will
++	 * trigger #GP:
++	 */
++	xsave->header.xcomp_bv = XCOMP_BV_COMPACTED_FORMAT | xfeatures_mask_all;
++}
++
++static inline void fpstate_init_fxstate(struct fxregs_state *fx)
++{
++	fx->cwd = 0x37f;
++	fx->mxcsr = MXCSR_DEFAULT;
++}
++
+ /*
+  * Legacy x87 fpstate state init:
+  */
+-- 
+2.17.1
+

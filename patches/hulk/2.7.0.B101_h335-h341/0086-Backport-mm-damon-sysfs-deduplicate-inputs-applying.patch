@@ -1,0 +1,126 @@
+From 1fd6c9e9630b582474c6a0ef6dc82bd9e64aba7b Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Mon, 6 Jun 2022 18:23:08 +0000
+Subject: [PATCH 086/921] [Backport] mm/damon/sysfs: deduplicate inputs
+ applying
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit a79b68ee3e21f3e5e39b6bd07759c1b4d5267bc4
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a79b68ee3e21f3e5e39b6bd07759c1b4d5267bc4
+
+--------------------------------
+
+DAMON sysfs interface's DAMON context building and its online parameter
+update have duplicated code.  This commit removes the duplicate.
+
+Link: https://lkml.kernel.org/r/20220606182310.48781-5-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/sysfs.c | 59 ++++++++++++++++++++----------------------------
+ 1 file changed, 24 insertions(+), 35 deletions(-)
+
+diff --git a/mm/damon/sysfs.c b/mm/damon/sysfs.c
+index 8810e6abdb06..c35809c6087c 100644
+--- a/mm/damon/sysfs.c
++++ b/mm/damon/sysfs.c
+@@ -2357,6 +2357,23 @@ static inline bool damon_sysfs_kdamond_running(
+ 		damon_sysfs_ctx_running(kdamond->damon_ctx);
+ }
+ 
++static int damon_sysfs_apply_inputs(struct damon_ctx *ctx,
++		struct damon_sysfs_context *sys_ctx)
++{
++	int err;
++
++	err = damon_select_ops(ctx, sys_ctx->ops_id);
++	if (err)
++		return err;
++	err = damon_sysfs_set_attrs(ctx, sys_ctx->attrs);
++	if (err)
++		return err;
++	err = damon_sysfs_set_targets(ctx, sys_ctx->targets);
++	if (err)
++		return err;
++	return damon_sysfs_set_schemes(ctx, sys_ctx->schemes);
++}
++
+ /*
+  * damon_sysfs_commit_input() - Commit user inputs to a running kdamond.
+  * @kdamond:	The kobject wrapper for the associated kdamond.
+@@ -2365,31 +2382,14 @@ static inline bool damon_sysfs_kdamond_running(
+  */
+ static int damon_sysfs_commit_input(struct damon_sysfs_kdamond *kdamond)
+ {
+-	struct damon_ctx *ctx = kdamond->damon_ctx;
+-	struct damon_sysfs_context *sys_ctx;
+-	int err = 0;
+-
+ 	if (!damon_sysfs_kdamond_running(kdamond))
+ 		return -EINVAL;
+ 	/* TODO: Support multiple contexts per kdamond */
+ 	if (kdamond->contexts->nr != 1)
+ 		return -EINVAL;
+ 
+-	sys_ctx = kdamond->contexts->contexts_arr[0];
+-
+-	err = damon_select_ops(ctx, sys_ctx->ops_id);
+-	if (err)
+-		return err;
+-	err = damon_sysfs_set_attrs(ctx, sys_ctx->attrs);
+-	if (err)
+-		return err;
+-	err = damon_sysfs_set_targets(ctx, sys_ctx->targets);
+-	if (err)
+-		return err;
+-	err = damon_sysfs_set_schemes(ctx, sys_ctx->schemes);
+-	if (err)
+-		return err;
+-	return err;
++	return damon_sysfs_apply_inputs(kdamond->damon_ctx,
++			kdamond->contexts->contexts_arr[0]);
+ }
+ 
+ /*
+@@ -2436,27 +2436,16 @@ static struct damon_ctx *damon_sysfs_build_ctx(
+ 	if (!ctx)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	err = damon_select_ops(ctx, sys_ctx->ops_id);
+-	if (err)
+-		goto out;
+-	err = damon_sysfs_set_attrs(ctx, sys_ctx->attrs);
+-	if (err)
+-		goto out;
+-	err = damon_sysfs_set_targets(ctx, sys_ctx->targets);
+-	if (err)
+-		goto out;
+-	err = damon_sysfs_set_schemes(ctx, sys_ctx->schemes);
+-	if (err)
+-		goto out;
++	err = damon_sysfs_apply_inputs(ctx, sys_ctx);
++	if (err) {
++		damon_destroy_ctx(ctx);
++		return ERR_PTR(err);
++	}
+ 
+ 	ctx->callback.after_wmarks_check = damon_sysfs_cmd_request_callback;
+ 	ctx->callback.after_aggregation = damon_sysfs_cmd_request_callback;
+ 	ctx->callback.before_terminate = damon_sysfs_before_terminate;
+ 	return ctx;
+-
+-out:
+-	damon_destroy_ctx(ctx);
+-	return ERR_PTR(err);
+ }
+ 
+ static int damon_sysfs_turn_damon_on(struct damon_sysfs_kdamond *kdamond)
+-- 
+2.17.1
+

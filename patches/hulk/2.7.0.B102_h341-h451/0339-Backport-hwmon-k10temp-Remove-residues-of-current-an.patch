@@ -1,0 +1,56 @@
+From 603e1853e17b688a35f42ed422d382103084bd75 Mon Sep 17 00:00:00 2001
+From: suma hegde <suma.hegde@amd.com>
+Date: Thu, 2 Sep 2021 23:11:54 +0530
+Subject: [PATCH 0339/1646] [Backport] hwmon: (k10temp) Remove residues of
+ current and voltage
+
+mainline inclusion
+from mainline-v5.15
+commit 23c69b90365c8280b627aa969393d828ff47ac14
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5NGRU
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=23c69b90365c8280b627aa969393d828ff47ac14
+
+-------------------------------------------------
+
+Commit id "b00647c46c9d7f6ee1ff6aaf335906101755e614",
+adds reporting current and voltage to k10temp.c
+
+The commit id "0a4e668b5d52eed8026f5d717196b02b55fb2dc6",
+removed reporting current and voltage from k10temp.c
+
+The curr and in(voltage) entries are not removed from
+"k10temp_info" structure. Removing those residue entries.
+while at it, update k10temp driver documentation
+
+Signed-off-by: suma hegde <suma.hegde@amd.com>
+Cc: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20210902174155.7365-2-nchatrad@amd.com
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Xie Haocheng <haocheng.xie@amd.com>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ drivers/hwmon/k10temp.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/hwmon/k10temp.c b/drivers/hwmon/k10temp.c
+index 38bc35ac8135..3618a924e78e 100644
+--- a/drivers/hwmon/k10temp.c
++++ b/drivers/hwmon/k10temp.c
+@@ -362,12 +362,6 @@ static const struct hwmon_channel_info *k10temp_info[] = {
+ 			   HWMON_T_INPUT | HWMON_T_LABEL,
+ 			   HWMON_T_INPUT | HWMON_T_LABEL,
+ 			   HWMON_T_INPUT | HWMON_T_LABEL),
+-	HWMON_CHANNEL_INFO(in,
+-			   HWMON_I_INPUT | HWMON_I_LABEL,
+-			   HWMON_I_INPUT | HWMON_I_LABEL),
+-	HWMON_CHANNEL_INFO(curr,
+-			   HWMON_C_INPUT | HWMON_C_LABEL,
+-			   HWMON_C_INPUT | HWMON_C_LABEL),
+ 	NULL
+ };
+ 
+-- 
+2.17.1
+

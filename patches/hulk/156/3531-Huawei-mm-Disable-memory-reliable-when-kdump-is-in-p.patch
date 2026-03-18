@@ -1,0 +1,49 @@
+From f8501ba9f0ea209c3d3423d6ede25b6926b6cb34 Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 14 Mar 2022 21:56:59 +0800
+Subject: [PATCH 3531/4585] [Huawei] mm: Disable memory reliable when kdump is
+ in progress
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187270
+
+--------------------------------
+
+Kdump only have limited memory and will lead to bugly memory reliable
+features if memory reliable if enabled. So disable memory reliable if kdump
+is in progress.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/mem_reliable.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/mm/mem_reliable.c b/mm/mem_reliable.c
+index ec58949f4af3..e0c410cddf7c 100644
+--- a/mm/mem_reliable.c
++++ b/mm/mem_reliable.c
+@@ -7,6 +7,7 @@
+ #include <linux/memory_hotplug.h>
+ #include <linux/seq_file.h>
+ #include <linux/mmzone.h>
++#include <linux/crash_dump.h>
+ 
+ DEFINE_STATIC_KEY_FALSE(mem_reliable);
+ EXPORT_SYMBOL_GPL(mem_reliable);
+@@ -72,6 +73,11 @@ void mem_reliable_init(bool has_unmirrored_mem, unsigned long *zone_movable_pfn)
+ 	if (!reliable_enabled)
+ 		return;
+ 
++	if (is_kdump_kernel()) {
++		pr_info("ignoring memory reliable due to in crashkernel\n");
++		return;
++	}
++
+ 	if (atomic_long_read(&total_reliable_mem) == 0) {
+ 		memset(zone_movable_pfn, 0,
+ 		       sizeof(unsigned long) * MAX_NUMNODES);
+-- 
+2.17.1
+

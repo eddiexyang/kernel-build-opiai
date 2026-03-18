@@ -1,0 +1,82 @@
+From 649069121d330263b09c17da4d529c3244c330ea Mon Sep 17 00:00:00 2001
+From: Saurabh Sengar <ssengar@linux.microsoft.com>
+Date: Tue, 28 Mar 2023 00:30:04 -0700
+Subject: [PATCH 161/780] [Backport] x86/ioapic: Don't return 0 from
+ arch_dynirq_lower_bound()
+
+stable inclusion
+from stable-v5.10.180
+commit 55fc2246c46d8cc2ea56497664eaa4d7412409c8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=55fc2246c46d8cc2ea56497664eaa4d7412409c8
+
+--------------------------------
+
+[ Upstream commit 5af507bef93c09a94fb8f058213b489178f4cbe5 ]
+
+arch_dynirq_lower_bound() is invoked by the core interrupt code to
+retrieve the lowest possible Linux interrupt number for dynamically
+allocated interrupts like MSI.
+
+The x86 implementation uses this to exclude the IO/APIC GSI space.
+This works correctly as long as there is an IO/APIC registered, but
+returns 0 if not. This has been observed in VMs where the BIOS does
+not advertise an IO/APIC.
+
+0 is an invalid interrupt number except for the legacy timer interrupt
+on x86. The return value is unchecked in the core code, so it ends up
+to allocate interrupt number 0 which is subsequently considered to be
+invalid by the caller, e.g. the MSI allocation code.
+
+The function has already a check for 0 in the case that an IO/APIC is
+registered, as ioapic_dynirq_base is 0 in case of device tree setups.
+
+Consolidate this and zero check for both ioapic_dynirq_base and gsi_top,
+which is used in the case that no IO/APIC is registered.
+
+Fixes: 3e5bedc2c258 ("x86/apic: Fix arch_dynirq_lower_bound() bug for DT enabled machines")
+Signed-off-by: Saurabh Sengar <ssengar@linux.microsoft.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://lore.kernel.org/r/1679988604-20308-1-git-send-email-ssengar@linux.microsoft.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/x86/kernel/apic/io_apic.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/kernel/apic/io_apic.c b/arch/x86/kernel/apic/io_apic.c
+index 18c006c95d3f..9da0dc1361de 100644
+--- a/arch/x86/kernel/apic/io_apic.c
++++ b/arch/x86/kernel/apic/io_apic.c
+@@ -2465,17 +2465,21 @@ static int io_apic_get_redir_entries(int ioapic)
+ 
+ unsigned int arch_dynirq_lower_bound(unsigned int from)
+ {
++	unsigned int ret;
++
+ 	/*
+ 	 * dmar_alloc_hwirq() may be called before setup_IO_APIC(), so use
+ 	 * gsi_top if ioapic_dynirq_base hasn't been initialized yet.
+ 	 */
+-	if (!ioapic_initialized)
+-		return gsi_top;
++	ret = ioapic_dynirq_base ? : gsi_top;
++
+ 	/*
+-	 * For DT enabled machines ioapic_dynirq_base is irrelevant and not
+-	 * updated. So simply return @from if ioapic_dynirq_base == 0.
++	 * For DT enabled machines ioapic_dynirq_base is irrelevant and
++	 * always 0. gsi_top can be 0 if there is no IO/APIC registered.
++	 * 0 is an invalid interrupt number for dynamic allocations. Return
++	 * @from instead.
+ 	 */
+-	return ioapic_dynirq_base ? : from;
++	return ret ? : from;
+ }
+ 
+ #ifdef CONFIG_X86_32
+-- 
+2.17.1
+

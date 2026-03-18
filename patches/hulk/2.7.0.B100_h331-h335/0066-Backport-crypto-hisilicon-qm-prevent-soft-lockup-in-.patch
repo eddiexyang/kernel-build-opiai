@@ -1,0 +1,44 @@
+From 9796eb789e09a8550d546bb6acc9d600c77550e3 Mon Sep 17 00:00:00 2001
+From: Weili Qian <qianweili@huawei.com>
+Date: Thu, 9 Feb 2023 18:02:04 +0800
+Subject: [PATCH 066/500] [Backport] crypto: hisilicon/qm - prevent soft lockup
+ in qm_poll_req_cb()'s loop
+
+driver inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6DRLU
+
+Reference: https://gitee.com/openeuler/kernel/commit/5042b4225de99f2a3151f0f306dc8aeadb8e4217
+
+--------------------------------
+
+The function qm_poll_req_cb() may take a while due to
+complex req_cb, so soft lockup may occur in kernel
+with preemption disabled.
+
+Add a cond_resched() to prevent that.
+
+Signed-off-by: Weili Qian <qianweili@huawei.com>
+Signed-off-by: JiangShui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index b58cff78c55b..2517230b7175 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -863,6 +863,8 @@ static void qm_poll_req_cb(struct hisi_qp *qp)
+ 		qm_db(qm, qp->qp_id, QM_DOORBELL_CMD_CQ,
+ 		      qp->qp_status.cq_head, 0);
+ 		atomic_dec(&qp->qp_status.used);
++
++		cond_resched();
+ 	}
+ 
+ 	/* set c_flag */
+-- 
+2.17.1
+

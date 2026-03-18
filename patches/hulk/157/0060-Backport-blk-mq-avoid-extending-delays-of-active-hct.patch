@@ -1,0 +1,59 @@
+From 5d41dadc16783cf37aff36b6e15f1d2987c181fd Mon Sep 17 00:00:00 2001
+From: David Jeffery <djeffery@redhat.com>
+Date: Mon, 31 Jan 2022 15:33:37 -0500
+Subject: [PATCH 060/261] [Backport] blk-mq: avoid extending delays of active
+ hctx from blk_mq_delay_run_hw_queues
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 8f5fea65b06de1cc51d4fc23fb4d378d1abd6ed7
+category: bugfix
+bugzilla: 187541
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?8f5fea65b06de1cc51d4fc23fb4d378d1abd6ed7
+
+--------------------------------
+
+When blk_mq_delay_run_hw_queues sets an hctx to run in the future, it can
+reset the delay length for an already pending delayed work run_work. This
+creates a scenario where multiple hctx may have their queues set to run,
+but if one runs first and finds nothing to do, it can reset the delay of
+another hctx and stall the other hctx's ability to run requests.
+
+To avoid this I/O stall when an hctx's run_work is already pending,
+leave it untouched to run at its current designated time rather than
+extending its delay. The work will still run which keeps closed the race
+calling blk_mq_delay_run_hw_queues is needed for while also avoiding the
+I/O stall.
+
+Signed-off-by: David Jeffery <djeffery@redhat.com>
+Reviewed-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20220131203337.GA17666@redhat
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-mq.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index 5bbf97594596..32020c34637a 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -1834,6 +1834,14 @@ void blk_mq_delay_run_hw_queues(struct request_queue *q, unsigned long msecs)
+ 	queue_for_each_hw_ctx(q, hctx, i) {
+ 		if (blk_mq_hctx_stopped(hctx))
+ 			continue;
++		/*
++		 * If there is already a run_work pending, leave the
++		 * pending delay untouched. Otherwise, a hctx can stall
++		 * if another hctx is re-delaying the other's work
++		 * before the work executes.
++		 */
++		if (delayed_work_pending(&hctx->run_work))
++			continue;
+ 		/*
+ 		 * Dispatch from this hctx either if there's no hctx preferred
+ 		 * by IO scheduler or if it has requests that bypass the
+-- 
+2.17.1
+

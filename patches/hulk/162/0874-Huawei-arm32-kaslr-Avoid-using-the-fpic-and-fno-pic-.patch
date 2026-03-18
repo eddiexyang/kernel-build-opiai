@@ -1,0 +1,39 @@
+From 696171003744031956444e762abfce0e06941e7f Mon Sep 17 00:00:00 2001
+From: Cui GaoSheng <cuigaosheng1@huawei.com>
+Date: Mon, 6 Feb 2023 05:25:05 -0500
+Subject: [PATCH 874/905] [Huawei] arm32: kaslr: Avoid using the -fpic and
+ fno-pic parameters together
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188368
+
+--------------------------------
+
+Avoid using conflicting compilation parameters during compilation,
+so we move -fpic from KBUILD_CFLAGS to CFLAGS_KERNEL to avoid
+using -fpic and fno-pic parameters together.
+
+Signed-off-by: Cui GaoSheng <cuigaosheng1@huawei.com>
+---
+ arch/arm/Makefile | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/Makefile b/arch/arm/Makefile
+index 8300530757ae..d6817de42f24 100644
+--- a/arch/arm/Makefile
++++ b/arch/arm/Makefile
+@@ -49,7 +49,8 @@ KBUILD_LDFLAGS	+= -EL
+ endif
+ 
+ ifeq ($(CONFIG_RELOCATABLE),y)
+-KBUILD_CFLAGS		+= -fpic -include $(srctree)/include/linux/hidden.h
++KBUILD_CFLAGS		+= -include $(srctree)/include/linux/hidden.h
++CFLAGS_KERNEL		+= -fpic
+ CFLAGS_MODULE		+= -fno-pic
+ LDFLAGS_vmlinux		+= -pie -shared -Bsymbolic
+ endif
+-- 
+2.17.1
+

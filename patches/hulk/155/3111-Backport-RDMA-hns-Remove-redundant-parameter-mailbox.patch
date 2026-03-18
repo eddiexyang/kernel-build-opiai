@@ -1,0 +1,120 @@
+From 5b8679c51a03cd46dd24d14df777e9ad8cee90a2 Mon Sep 17 00:00:00 2001
+From: Wenpeng Liang <liangwenpeng@huawei.com>
+Date: Tue, 21 Jun 2022 17:06:10 +0800
+Subject: [PATCH 3111/4585] [Backport] RDMA/hns: Remove redundant parameter
+ "mailbox" in the mailbox
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 479dc93ba75da134e84c1993c9b62caa6f6ccdc6
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5A9XK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=479dc93ba75da134e84c1993c9b62caa6f6ccdc6
+
+--------------------------------
+
+The parameter "out_param" of the mailbox is always null when the context is
+destroyed. So remove the function parameter "mailbox".
+
+Link: https://lore.kernel.org/r/20220302064830.61706-4-liangwenpeng@huawei.com
+Signed-off-by: Wenpeng Liang <liangwenpeng@huawei.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Zhengfeng Luo <luozhengfeng@h-partners.com>
+Reviewed-by: Yangyang Li <liyangyang20@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/infiniband/hw/hns/hns_roce_device.h |  1 -
+ drivers/infiniband/hw/hns/hns_roce_mr.c     | 11 +++++------
+ drivers/infiniband/hw/hns/hns_roce_srq.c    |  6 ++----
+ 3 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_device.h b/drivers/infiniband/hw/hns/hns_roce_device.h
+index 4077d5e95af2..d02f235ab820 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_device.h
++++ b/drivers/infiniband/hw/hns/hns_roce_device.h
+@@ -1140,7 +1140,6 @@ int hns_roce_map_mr_sg(struct ib_mr *ibmr, struct scatterlist *sg, int sg_nents,
+ 		       unsigned int *sg_offset);
+ int hns_roce_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata);
+ int hns_roce_hw_destroy_mpt(struct hns_roce_dev *hr_dev,
+-			    struct hns_roce_cmd_mailbox *mailbox,
+ 			    unsigned long mpt_index);
+ unsigned long key_to_hw_index(u32 key);
+ 
+diff --git a/drivers/infiniband/hw/hns/hns_roce_mr.c b/drivers/infiniband/hw/hns/hns_roce_mr.c
+index ece569107869..d80a06cb8aa1 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_mr.c
++++ b/drivers/infiniband/hw/hns/hns_roce_mr.c
+@@ -56,11 +56,10 @@ static int hns_roce_hw_create_mpt(struct hns_roce_dev *hr_dev,
+ }
+ 
+ int hns_roce_hw_destroy_mpt(struct hns_roce_dev *hr_dev,
+-			    struct hns_roce_cmd_mailbox *mailbox,
+ 			    unsigned long mpt_index)
+ {
+-	return hns_roce_cmd_mbox(hr_dev, 0, mailbox ? mailbox->dma : 0,
+-				 mpt_index, HNS_ROCE_CMD_DESTROY_MPT);
++	return hns_roce_cmd_mbox(hr_dev, 0, 0, mpt_index,
++				 HNS_ROCE_CMD_DESTROY_MPT);
+ }
+ 
+ static int alloc_mr_key(struct hns_roce_dev *hr_dev, struct hns_roce_mr *mr)
+@@ -142,7 +141,7 @@ static void hns_roce_mr_free(struct hns_roce_dev *hr_dev,
+ 	int ret;
+ 
+ 	if (mr->enabled) {
+-		ret = hns_roce_hw_destroy_mpt(hr_dev, NULL,
++		ret = hns_roce_hw_destroy_mpt(hr_dev,
+ 					      key_to_hw_index(mr->key) &
+ 					      (hr_dev->caps.num_mtpts - 1));
+ 		if (ret)
+@@ -305,7 +304,7 @@ int hns_roce_rereg_user_mr(struct ib_mr *ibmr, int flags, u64 start, u64 length,
+ 	if (ret)
+ 		goto free_cmd_mbox;
+ 
+-	ret = hns_roce_hw_destroy_mpt(hr_dev, NULL, mtpt_idx);
++	ret = hns_roce_hw_destroy_mpt(hr_dev, mtpt_idx);
+ 	if (ret)
+ 		ibdev_warn(ib_dev, "failed to destroy MPT, ret = %d.\n", ret);
+ 
+@@ -474,7 +473,7 @@ static void hns_roce_mw_free(struct hns_roce_dev *hr_dev,
+ 	int ret;
+ 
+ 	if (mw->enabled) {
+-		ret = hns_roce_hw_destroy_mpt(hr_dev, NULL,
++		ret = hns_roce_hw_destroy_mpt(hr_dev,
+ 					      key_to_hw_index(mw->rkey) &
+ 					      (hr_dev->caps.num_mtpts - 1));
+ 		if (ret)
+diff --git a/drivers/infiniband/hw/hns/hns_roce_srq.c b/drivers/infiniband/hw/hns/hns_roce_srq.c
+index b39965db3184..cf24c8a23983 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_srq.c
++++ b/drivers/infiniband/hw/hns/hns_roce_srq.c
+@@ -68,11 +68,9 @@ static int hns_roce_hw_create_srq(struct hns_roce_dev *dev,
+ }
+ 
+ static int hns_roce_hw_destroy_srq(struct hns_roce_dev *dev,
+-				   struct hns_roce_cmd_mailbox *mailbox,
+ 				   unsigned long srq_num)
+ {
+-	return hns_roce_cmd_mbox(dev, 0, mailbox ? mailbox->dma : 0, srq_num,
+-				 HNS_ROCE_CMD_DESTROY_SRQ);
++	return hns_roce_cmd_mbox(dev, 0, 0, srq_num, HNS_ROCE_CMD_DESTROY_SRQ);
+ }
+ 
+ static int alloc_srqc(struct hns_roce_dev *hr_dev, struct hns_roce_srq *srq)
+@@ -144,7 +142,7 @@ static void free_srqc(struct hns_roce_dev *hr_dev, struct hns_roce_srq *srq)
+ 	struct hns_roce_srq_table *srq_table = &hr_dev->srq_table;
+ 	int ret;
+ 
+-	ret = hns_roce_hw_destroy_srq(hr_dev, NULL, srq->srqn);
++	ret = hns_roce_hw_destroy_srq(hr_dev, srq->srqn);
+ 	if (ret)
+ 		dev_err(hr_dev->dev, "DESTROY_SRQ failed (%d) for SRQN %06lx\n",
+ 			ret, srq->srqn);
+-- 
+2.17.1
+

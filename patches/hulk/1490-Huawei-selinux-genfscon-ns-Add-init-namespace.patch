@@ -1,0 +1,88 @@
+From a2f9bd6e40c5a71053085f64b657f393bf8af761 Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Thu, 20 Jan 2022 11:56:08 +0800
+Subject: [PATCH 1490/2065] [Huawei] selinux: genfscon ns: Add init namespace
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186697
+
+----------------------------------------
+
+Create an initial genfscon namespace for init and all other processes,
+and make them always use it for now (before new namespace can be
+created).
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c            | 7 +++++++
+ security/selinux/include/objsec.h   | 1 +
+ security/selinux/include/security.h | 7 +++++++
+ 3 files changed, 15 insertions(+)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 9fc4f3161b94..51a983439cb7 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -109,6 +109,9 @@ struct selinux_state selinux_state;
+ /* SECMARK reference count */
+ static atomic_t selinux_secmark_refcount = ATOMIC_INIT(0);
+ 
++const char *SELINUX_NS_INIT_NAME = "";
++static struct selinux_ns init_selinux_ns;
++
+ #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+ static int selinux_enforcing_boot __initdata;
+ 
+@@ -254,6 +257,7 @@ static void cred_init_security(void)
+ 
+ 	tsec = selinux_cred(cred);
+ 	tsec->osid = tsec->sid = SECINITSID_KERNEL;
++	tsec->ns = &init_selinux_ns;
+ }
+ 
+ /*
+@@ -7287,6 +7291,9 @@ static __init int selinux_init(void)
+ 	mutex_init(&selinux_state.status_lock);
+ 	mutex_init(&selinux_state.policy_mutex);
+ 
++	init_selinux_ns.name = SELINUX_NS_INIT_NAME;
++	refcount_set(&init_selinux_ns.count, 1);
++
+ 	/* Set the security state for the initial task. */
+ 	cred_init_security();
+ 
+diff --git a/security/selinux/include/objsec.h b/security/selinux/include/objsec.h
+index 330b7b6d44e0..c3bbfc8d3bc4 100644
+--- a/security/selinux/include/objsec.h
++++ b/security/selinux/include/objsec.h
+@@ -35,6 +35,7 @@ struct task_security_struct {
+ 	u32 create_sid;		/* fscreate SID */
+ 	u32 keycreate_sid;	/* keycreate SID */
+ 	u32 sockcreate_sid;	/* fscreate SID */
++	struct selinux_ns *ns;	/* selinux namespace */
+ } __randomize_layout;
+ 
+ enum label_initialized {
+diff --git a/security/selinux/include/security.h b/security/selinux/include/security.h
+index c4dd4a79add3..25d0a02ed42a 100644
+--- a/security/selinux/include/security.h
++++ b/security/selinux/include/security.h
+@@ -106,6 +106,13 @@ struct selinux_state {
+ 	struct mutex policy_mutex;
+ } __randomize_layout;
+ 
++struct selinux_ns {
++	refcount_t count;
++	struct work_struct work;
++	const char *name;
++	struct selinux_ns *parent;
++};
++
+ void selinux_avc_init(struct selinux_avc **avc);
+ 
+ extern struct selinux_state selinux_state;
+-- 
+2.17.1
+

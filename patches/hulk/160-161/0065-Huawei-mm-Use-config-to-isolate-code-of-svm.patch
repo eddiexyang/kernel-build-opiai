@@ -1,0 +1,39 @@
+From 8b944e54d2822bfaf814f03158ba46cc2b2afdae Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Tue, 15 Nov 2022 01:33:40 +0000
+Subject: [PATCH 0065/1398] [Huawei] mm: Use config to isolate code of svm
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187974
+
+-------------------------------------------------
+
+Use CONFIG_SVM to isolate code of svm introduced in
+7fbd2bf7023dab52e0207089bf97812a0e241679.
+
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ mm/mmap.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 24d9826bdee0..5971ff4392ff 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -1479,9 +1479,11 @@ unsigned long __do_mmap_mm(struct mm_struct *mm, struct file *file,
+ 			pkey = 0;
+ 	}
+ 
++#ifdef CONFIG_HISI_SVM
+ 	/* Physical address is within 4G */
+ 	if (flags & MAP_PA32BIT)
+ 		vm_flags |= VM_PA32BIT;
++#endif
+ 
+ 	/* Do simple checking here so the lower-level routines won't have
+ 	 * to. we assume access permissions have been handled by the open
+-- 
+2.17.1
+

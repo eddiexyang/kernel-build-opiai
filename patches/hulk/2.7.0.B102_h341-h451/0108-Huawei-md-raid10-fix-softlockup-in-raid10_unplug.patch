@@ -1,0 +1,46 @@
+From c77822c296fbc873b6bc340b86a5f1ae6a21651c Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Thu, 20 Apr 2023 19:16:53 +0800
+Subject: [PATCH 0108/1646] [Huawei] md/raid10: fix softlockup in raid10_unplug
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188628
+
+--------------------------------
+
+There is no limit to the number of io for raid10 plug, whitch may result
+in excessive memory usage and potential softlockup when a large number of
+io are submitted at once. There is no good way to fix it now, just add
+schedule point to prevent softlockup.
+
+Fixes: 57c67df48866 ("md/raid10: submit IO from originating thread instead of md thread.")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/raid10.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index 2411e92db237..a3f88af082e2 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -904,6 +904,7 @@ static void flush_pending_writes(struct r10conf *conf)
+ 			else
+ 				submit_bio_noacct(bio);
+ 			bio = next;
++			cond_resched();
+ 		}
+ 		blk_finish_plug(&plug);
+ 	} else
+@@ -1106,6 +1107,7 @@ static void raid10_unplug(struct blk_plug_cb *cb, bool from_schedule)
+ 		else
+ 			submit_bio_noacct(bio);
+ 		bio = next;
++		cond_resched();
+ 	}
+ 	kfree(plug);
+ }
+-- 
+2.17.1
+

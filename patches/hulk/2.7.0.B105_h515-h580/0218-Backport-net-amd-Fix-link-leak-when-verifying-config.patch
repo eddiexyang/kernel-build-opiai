@@ -1,0 +1,57 @@
+From db4354374c01d99004f7812d63bc6d1953b33331 Mon Sep 17 00:00:00 2001
+From: Gencen Gan <gangecen@hust.edu.cn>
+Date: Mon, 24 Apr 2023 23:28:01 +0800
+Subject: [PATCH 218/780] [Backport] net: amd: Fix link leak when verifying
+ config failed
+
+stable inclusion
+from stable-v5.10.180
+commit 0abcb0b0d629fd598c0ab5358ae605cb1d94d88f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0abcb0b0d629fd598c0ab5358ae605cb1d94d88f
+
+--------------------------------
+
+[ Upstream commit d325c34d9e7e38d371c0a299d415e9b07f66a1fb ]
+
+After failing to verify configuration, it returns directly without
+releasing link, which may cause memory leak.
+
+Paolo Abeni thinks that the whole code of this driver is quite
+"suboptimal" and looks unmainatained since at least ~15y, so he
+suggests that we could simply remove the whole driver, please
+take it into consideration.
+
+Simon Horman suggests that the fix label should be set to
+"Linux-2.6.12-rc2" considering that the problem has existed
+since the driver was introduced and the commit above doesn't
+seem to exist in net/net-next.
+
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Signed-off-by: Gan Gecen <gangecen@hust.edu.cn>
+Reviewed-by: Dongliang Mu <dzm91@hust.edu.cn>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/amd/nmclan_cs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/amd/nmclan_cs.c b/drivers/net/ethernet/amd/nmclan_cs.c
+index 11c0b13edd30..f34881637505 100644
+--- a/drivers/net/ethernet/amd/nmclan_cs.c
++++ b/drivers/net/ethernet/amd/nmclan_cs.c
+@@ -650,7 +650,7 @@ static int nmclan_config(struct pcmcia_device *link)
+     } else {
+       pr_notice("mace id not found: %x %x should be 0x40 0x?9\n",
+ 		sig[0], sig[1]);
+-      return -ENODEV;
++      goto failed;
+     }
+   }
+ 
+-- 
+2.17.1
+

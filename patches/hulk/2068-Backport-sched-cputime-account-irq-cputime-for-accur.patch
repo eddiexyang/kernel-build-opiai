@@ -1,0 +1,132 @@
+From 5ef292e4be8ef18961ca425aecf90f4f737b3ce2 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Tue, 10 May 2022 21:03:28 +0800
+Subject: [PATCH 2068/2592] [Backport] sched/cputime: account irq cputime for
+ accurately
+
+hulk inclusion
+category: bugfix
+bugzilla: 186427
+
+Reference: https://gitee.com/openeuler/kernel/commit/ad6a0d7a355215bfd4ac2efe220ea14d3b779f9f
+
+-------------------------------
+
+If there are a lot of interruptions, the CPU usage fluctuation
+will be more serious. Because CONFIG_IRQ_TIME_ACCOUNTING is not
+enabled, the interrupt time is not counted separately. If the
+interrupt occurs during the idle period, the idle runtime including
+irq time. When irq occurs during other task, the runtime of the
+task include irq time also.
+
+Therefore, when the irq is irregular, the occupancy statistics
+of the CPU may fluctuate greatly.
+
+In this patch, use CONFIG_IRQ_TIME_ACCOUNTING to count the
+irq time, the irq time is subtracted from the idle time, and
+the CPU usage can be relatively accurately counted.
+
+conflicts:
+	kernel/sched/cputime.c
+
+Signed-off-by: Xie XiuQi <xiexiuqi@huawei.com>
+Reviewed-by: Cheng Jian <cj.chengjian@huawei.com>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ include/linux/kernel_stat.h |  2 ++
+ kernel/sched/cputime.c      | 36 ++++++++++++++++++++++++++++++------
+ 2 files changed, 32 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/kernel_stat.h b/include/linux/kernel_stat.h
+index 8fff3500d50e..d089ef530e04 100644
+--- a/include/linux/kernel_stat.h
++++ b/include/linux/kernel_stat.h
+@@ -28,6 +28,8 @@ enum cpu_usage_stat {
+ 	CPUTIME_STEAL,
+ 	CPUTIME_GUEST,
+ 	CPUTIME_GUEST_NICE,
++	CPUTIME_SOFTIRQ_IDLE,
++	CPUTIME_IRQ_IDLE,
+ 	NR_STATS,
+ };
+ 
+diff --git a/kernel/sched/cputime.c b/kernel/sched/cputime.c
+index 5af20da6d249..c31ca8d5c0b0 100644
+--- a/kernel/sched/cputime.c
++++ b/kernel/sched/cputime.c
+@@ -52,6 +52,7 @@ void irqtime_account_irq(struct task_struct *curr)
+ 	struct irqtime *irqtime = this_cpu_ptr(&cpu_irqtime);
+ 	s64 delta;
+ 	int cpu;
++	struct rq *rq = this_rq();
+ 
+ 	if (!sched_clock_irqtime)
+ 		return;
+@@ -66,10 +67,16 @@ void irqtime_account_irq(struct task_struct *curr)
+ 	 * in that case, so as not to confuse scheduler with a special task
+ 	 * that do not consume any time, but still wants to run.
+ 	 */
+-	if (hardirq_count())
++	if (hardirq_count()) {
+ 		irqtime_account_delta(irqtime, delta, CPUTIME_IRQ);
+-	else if (in_serving_softirq() && curr != this_cpu_ksoftirqd())
++		if (curr == rq->idle)
++			kcpustat_this_cpu->cpustat[CPUTIME_IRQ_IDLE] += delta;
++	} else if (in_serving_softirq() && curr != this_cpu_ksoftirqd()) {
+ 		irqtime_account_delta(irqtime, delta, CPUTIME_SOFTIRQ);
++		if (curr == rq->idle)
++			kcpustat_this_cpu->cpustat[CPUTIME_SOFTIRQ_IDLE] += delta;
++	}
++
+ }
+ EXPORT_SYMBOL_GPL(irqtime_account_irq);
+ 
+@@ -1094,13 +1101,21 @@ int sched_idle_time_adjust(int cpu, u64 *utime, u64 *stime)
+ 	struct rq_cputime *rq_cputime = &per_cpu(rq_cputimes, cpu);
+ 	struct cputime *prev = &rq_cputime->cpu_prev_time;
+ 	struct cputime *last = &rq_cputime->cpu_last_time;
+-	u64 ut, st, delta, delta_ut, delta_st;
++	u64 ut, st, delta, delta_ut, delta_st, hi = 0, si = 0;
+ 	struct kernel_cpustat kcs;
+ 
+ 	raw_spin_lock(&rq_cputime->lock);
+ 	kcpustat_cpu_fetch(&kcs, cpu);
+ 
+-	delta = cpu_clock(cpu) - get_idle_time(&kcs, cpu) - (prev->utime + prev->stime);
++#ifdef CONFIG_IRQ_TIME_ACCOUNTING
++	if (sched_clock_irqtime) {
++		hi = kcpustat_cpu(cpu).cpustat[CPUTIME_IRQ];
++		si = kcpustat_cpu(cpu).cpustat[CPUTIME_SOFTIRQ];
++	}
++#endif /* CONFIG_IRQ_TIME_ACCOUNTING */
++
++	delta = cpu_clock(cpu) - get_idle_time(&kcs, cpu) -
++		(prev->utime + prev->stime) - (hi + si);
+ 	ut = kcpustat_cpu(cpu).cpustat[CPUTIME_USER];
+ 	st = kcpustat_cpu(cpu).cpustat[CPUTIME_SYSTEM];
+ 
+@@ -1139,9 +1154,18 @@ int sched_idle_time_adjust(int cpu, u64 *utime, u64 *stime)
+ unsigned long long sched_get_idle_time(int cpu)
+ {
+ 	struct rq_cputime *rt = &per_cpu(rq_cputimes, cpu);
++	u64 hi = 0, si = 0;
++
++#ifdef CONFIG_IRQ_TIME_ACCOUNTING
++	if (sched_clock_irqtime) {
++		hi = kcpustat_cpu(cpu).cpustat[CPUTIME_IRQ_IDLE];
++		si = kcpustat_cpu(cpu).cpustat[CPUTIME_SOFTIRQ_IDLE];
++	}
++#endif /* CONFIG_IRQ_TIME_ACCOUNTING */
+ 
+ 	if (is_idle_task(cpu_curr(cpu)))
+-		return rt->sum_idle_time + cpu_clock(cpu) - rt->last_entry_idle;
++		return rt->sum_idle_time + cpu_clock(cpu) -
++		       rt->last_entry_idle - hi - si;
+ 	else
+-		return rt->sum_idle_time;
++		return rt->sum_idle_time - hi - si;
+ }
+-- 
+2.17.1
+

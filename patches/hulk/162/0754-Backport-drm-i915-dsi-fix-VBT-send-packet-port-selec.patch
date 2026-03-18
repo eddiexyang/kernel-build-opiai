@@ -1,0 +1,55 @@
+From d2b166051ffe04d47039b74f840d0f7bc3544994 Mon Sep 17 00:00:00 2001
+From: Mikko Kovanen <mikko.kovanen@aavamobile.com>
+Date: Sat, 26 Nov 2022 13:27:13 +0000
+Subject: [PATCH 754/905] [Backport] drm/i915/dsi: fix VBT send packet port
+ selection for dual link DSI
+
+stable inclusion
+from stable-v5.10.163
+commit bf83a303f2b56fc996ee9afd53a0a2cc71ffffad
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=bf83a303f2b56fc996ee9afd53a0a2cc71ffffad
+
+--------------------------------
+
+commit f9cdf4130671d767071607d0a7568c9bd36a68d0 upstream.
+
+intel_dsi->ports contains bitmask of enabled ports and correspondingly
+logic for selecting port for VBT packet sending must use port specific
+bitmask when deciding appropriate port.
+
+Fixes: 08c59dde71b7 ("drm/i915/dsi: fix VBT send packet port selection for ICL+")
+Cc: stable@vger.kernel.org
+Signed-off-by: Mikko Kovanen <mikko.kovanen@aavamobile.com>
+Reviewed-by: Jani Nikula <jani.nikula@intel.com>
+Signed-off-by: Jani Nikula <jani.nikula@intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/DBBPR09MB466592B16885D99ABBF2393A91119@DBBPR09MB4665.eurprd09.prod.outlook.com
+(cherry picked from commit 8d58bb7991c45f6b60710cc04c9498c6ea96db90)
+Signed-off-by: Rodrigo Vivi <rodrigo.vivi@intel.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/i915/display/intel_dsi_vbt.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/i915/display/intel_dsi_vbt.c b/drivers/gpu/drm/i915/display/intel_dsi_vbt.c
+index 8777d35ac7a7..117ea44fd8be 100644
+--- a/drivers/gpu/drm/i915/display/intel_dsi_vbt.c
++++ b/drivers/gpu/drm/i915/display/intel_dsi_vbt.c
+@@ -133,9 +133,9 @@ static enum port intel_dsi_seq_port_to_port(struct intel_dsi *intel_dsi,
+ 		return ffs(intel_dsi->ports) - 1;
+ 
+ 	if (seq_port) {
+-		if (intel_dsi->ports & PORT_B)
++		if (intel_dsi->ports & BIT(PORT_B))
+ 			return PORT_B;
+-		else if (intel_dsi->ports & PORT_C)
++		else if (intel_dsi->ports & BIT(PORT_C))
+ 			return PORT_C;
+ 	}
+ 
+-- 
+2.17.1
+

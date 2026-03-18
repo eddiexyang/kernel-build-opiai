@@ -1,0 +1,121 @@
+From 84c374eff60655c42ee14c9f1130b62ee538d60f Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Thu, 25 May 2023 19:03:43 +0800
+Subject: [PATCH 192/263] [Huawei] Revert "[Huawei] md/raid10: prioritize read
+ from rdev instrad of replacement"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188642
+
+--------------------------------
+
+This reverts commit 48af7e5547c6d5d4f1d76e5339a94de5a6a44028.
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/raid10.c | 32 ++++++++------------------------
+ 1 file changed, 8 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index e1fbf8751e1b..3854d9b0d0e6 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -708,23 +708,22 @@ static sector_t raid10_find_virt(struct r10conf *conf, sector_t sector, int dev)
+  */
+ static struct md_rdev *read_balance(struct r10conf *conf,
+ 				    struct r10bio *r10_bio,
+-				    int *max_sectors, bool rdev_prio)
++				    int *max_sectors)
+ {
+ 	const sector_t this_sector = r10_bio->sector;
+ 	int disk, slot;
+-	int sectors;
++	int sectors = r10_bio->sectors;
+ 	int best_good_sectors;
+ 	sector_t new_distance, best_dist;
+ 	struct md_rdev *best_dist_rdev, *best_pending_rdev, *rdev = NULL;
+ 	int do_balance;
+ 	int best_dist_slot, best_pending_slot;
+-	bool has_nonrot_disk;
++	bool has_nonrot_disk = false;
+ 	unsigned int min_pending;
+ 	struct geom *geo = &conf->geo;
+ 
+ 	raid10_find_phys(conf, r10_bio);
+ 	rcu_read_lock();
+-retry:
+ 	best_dist_slot = -1;
+ 	min_pending = UINT_MAX;
+ 	best_dist_rdev = NULL;
+@@ -732,8 +731,6 @@ static struct md_rdev *read_balance(struct r10conf *conf,
+ 	best_dist = MaxSector;
+ 	best_good_sectors = 0;
+ 	do_balance = 1;
+-	sectors = r10_bio->sectors;
+-	has_nonrot_disk = false;
+ 	clear_bit(R10BIO_FailFast, &r10_bio->state);
+ 	/*
+ 	 * Check if we can balance. We can balance on the whole
+@@ -758,10 +755,7 @@ static struct md_rdev *read_balance(struct r10conf *conf,
+ 		if (r10_bio->devs[slot].bio == IO_BLOCKED)
+ 			continue;
+ 		disk = r10_bio->devs[slot].devnum;
+-		if (!rdev_prio)
+-			rdev = rcu_dereference(conf->mirrors[disk].replacement);
+-		else
+-			rdev = NULL;
++		rdev = rcu_dereference(conf->mirrors[disk].replacement);
+ 		if (rdev == NULL || test_bit(Faulty, &rdev->flags) ||
+ 		    test_bit(WantRemove, &rdev->flags) ||
+ 		    r10_bio->devs[slot].addr + sectors >
+@@ -785,13 +779,8 @@ static struct md_rdev *read_balance(struct r10conf *conf,
+ 		dev_sector = r10_bio->devs[slot].addr;
+ 		if (is_badblock(rdev, dev_sector, sectors,
+ 				&first_bad, &bad_sectors)) {
+-			if (best_dist < MaxSector || rdev_prio)
+-				/*
+-				 * Already have a better slot.
+-				 * Or prevent io loss while the data are only
+-				 * readable from replacement (rdev isn't NULL
+-				 * and will not retry).
+-				 */
++			if (best_dist < MaxSector)
++				/* Already have a better slot */
+ 				continue;
+ 			if (first_bad <= dev_sector) {
+ 				/* Cannot read here.  If this is the
+@@ -864,11 +853,6 @@ static struct md_rdev *read_balance(struct r10conf *conf,
+ 		}
+ 	}
+ 
+-	if (slot < 0 && rdev_prio) {
+-		rdev_prio = false;
+-		goto retry;
+-	}
+-
+ 	if (slot >= 0) {
+ 		atomic_inc(&rdev->nr_pending);
+ 		r10_bio->read_slot = slot;
+@@ -1200,7 +1184,7 @@ static void raid10_read_request(struct mddev *mddev, struct bio *bio,
+ 	}
+ 
+ 	regular_request_wait(mddev, conf, bio, r10_bio->sectors);
+-	rdev = read_balance(conf, r10_bio, &max_sectors, true);
++	rdev = read_balance(conf, r10_bio, &max_sectors);
+ 	if (!rdev) {
+ 		if (err_rdev) {
+ 			pr_crit_ratelimited("md/raid10:%s: %s: unrecoverable I/O read error for block %llu\n",
+@@ -4591,7 +4575,7 @@ static sector_t reshape_request(struct mddev *mddev, sector_t sector_nr,
+ 	r10_bio->sector = sector_nr;
+ 	set_bit(R10BIO_IsReshape, &r10_bio->state);
+ 	r10_bio->sectors = last - sector_nr + 1;
+-	rdev = read_balance(conf, r10_bio, &max_sectors, false);
++	rdev = read_balance(conf, r10_bio, &max_sectors);
+ 	BUG_ON(!test_bit(R10BIO_Previous, &r10_bio->state));
+ 
+ 	if (!rdev) {
+-- 
+2.17.1
+

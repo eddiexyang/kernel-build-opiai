@@ -1,0 +1,46 @@
+From becbe11724525919e6808fcae802c0c62cec8a6c Mon Sep 17 00:00:00 2001
+From: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Date: Sun, 26 Mar 2023 09:06:37 +0200
+Subject: [PATCH 293/780] [Backport] dmaengine: mv_xor_v2: Fix an error code.
+
+stable inclusion
+from stable-v5.10.180
+commit 033f00eb8969e99d9a06ac0c77adcab3501ef1fe
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=033f00eb8969e99d9a06ac0c77adcab3501ef1fe
+
+--------------------------------
+
+[ Upstream commit 827026ae2e56ec05ef1155661079badbbfc0b038 ]
+
+If the probe is deferred, -EPROBE_DEFER should be returned, not
++EPROBE_DEFER.
+
+Fixes: 3cd2c313f1d6 ("dmaengine: mv_xor_v2: Fix clock resource by adding a register clock")
+Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Link: https://lore.kernel.org/r/201170dff832a3c496d125772e10070cd834ebf2.1679814350.git.christophe.jaillet@wanadoo.fr
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/dma/mv_xor_v2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/dma/mv_xor_v2.c b/drivers/dma/mv_xor_v2.c
+index 4800c596433a..9f3e011fbd91 100644
+--- a/drivers/dma/mv_xor_v2.c
++++ b/drivers/dma/mv_xor_v2.c
+@@ -756,7 +756,7 @@ static int mv_xor_v2_probe(struct platform_device *pdev)
+ 
+ 	xor_dev->clk = devm_clk_get(&pdev->dev, NULL);
+ 	if (PTR_ERR(xor_dev->clk) == -EPROBE_DEFER) {
+-		ret = EPROBE_DEFER;
++		ret = -EPROBE_DEFER;
+ 		goto disable_reg_clk;
+ 	}
+ 	if (!IS_ERR(xor_dev->clk)) {
+-- 
+2.17.1
+

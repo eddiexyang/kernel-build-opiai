@@ -1,0 +1,53 @@
+From 9818476fb4150335960cfee496713891d61fa722 Mon Sep 17 00:00:00 2001
+From: Yang Guang <yang.guang5@zte.com.cn>
+Date: Tue, 19 Jul 2022 16:51:17 +0800
+Subject: [PATCH 0899/1646] [Backport] crypto: hisilicon/hpre - use swap() to
+ make code cleaner
+
+mainline inclusion
+from mainline-v5.17-rc1
+commit 574c833ef3a60dc5dff6c9e885a30ba13e88971e
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=574c833ef3a60dc5dff6c9e885a30ba13e88971e
+
+--------------------------------
+
+Use the macro 'swap()' defined in 'include/linux/minmax.h' to avoid
+opencoding it.
+
+Reported-by: Zeal Robot <zealci@zte.com.cn>
+Signed-off-by: Yang Guang <yang.guang5@zte.com.cn>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/hpre/hpre_crypto.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/hpre/hpre_crypto.c b/drivers/crypto/hisilicon/hpre/hpre_crypto.c
+index 8c814c6d0028..940387e7b711 100644
+--- a/drivers/crypto/hisilicon/hpre/hpre_crypto.c
++++ b/drivers/crypto/hisilicon/hpre/hpre_crypto.c
+@@ -1177,13 +1177,10 @@ static void hpre_rsa_exit_tfm(struct crypto_akcipher *tfm)
+ static void hpre_key_to_big_end(u8 *data, int len)
+ {
+ 	int i, j;
+-	u8 tmp;
+ 
+ 	for (i = 0; i < len / 2; i++) {
+ 		j = len - i - 1;
+-		tmp = data[j];
+-		data[j] = data[i];
+-		data[i] = tmp;
++		swap(data[j], data[i]);
+ 	}
+ }
+ 
+-- 
+2.17.1
+

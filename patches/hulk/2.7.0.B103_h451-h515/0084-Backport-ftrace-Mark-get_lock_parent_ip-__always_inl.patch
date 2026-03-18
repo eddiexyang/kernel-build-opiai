@@ -1,0 +1,52 @@
+From e78554f87e3aa378d99cb7ac777b44b0b6548330 Mon Sep 17 00:00:00 2001
+From: John Keeping <john@metanate.com>
+Date: Mon, 27 Mar 2023 18:36:46 +0100
+Subject: [PATCH 084/263] [Backport] ftrace: Mark get_lock_parent_ip()
+ __always_inline
+
+stable inclusion
+from stable-v5.10.178
+commit eadcad0a47bfeeba9fac06047f3141eb725420b2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I71Z4N
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=eadcad0a47bfeeba9fac06047f3141eb725420b2
+
+--------------------------------
+
+commit ea65b41807a26495ff2a73dd8b1bab2751940887 upstream.
+
+If the compiler decides not to inline this function then preemption
+tracing will always show an IP inside the preemption disabling path and
+never the function actually calling preempt_{enable,disable}.
+
+Link: https://lore.kernel.org/linux-trace-kernel/20230327173647.1690849-1-john@metanate.com
+
+Cc: Masami Hiramatsu <mhiramat@kernel.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: stable@vger.kernel.org
+Fixes: f904f58263e1d ("sched/debug: Fix preempt_disable_ip recording for preempt_disable()")
+Signed-off-by: John Keeping <john@metanate.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/linux/ftrace.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/ftrace.h b/include/linux/ftrace.h
+index 1bd3a0356ae4..b9dd113599eb 100644
+--- a/include/linux/ftrace.h
++++ b/include/linux/ftrace.h
+@@ -811,7 +811,7 @@ static inline void __ftrace_enabled_restore(int enabled)
+ #define CALLER_ADDR5 ((unsigned long)ftrace_return_address(5))
+ #define CALLER_ADDR6 ((unsigned long)ftrace_return_address(6))
+ 
+-static inline unsigned long get_lock_parent_ip(void)
++static __always_inline unsigned long get_lock_parent_ip(void)
+ {
+ 	unsigned long addr = CALLER_ADDR0;
+ 
+-- 
+2.17.1
+

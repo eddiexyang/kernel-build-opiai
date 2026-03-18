@@ -1,0 +1,95 @@
+From 15c7f1515b75f42e9bc681ab31f24a885ddfe9b9 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Thu, 17 Dec 2020 15:44:29 -0300
+Subject: [PATCH 850/905] [Backport] tools headers cpufeatures: Sync with the
+ kernel sources
+
+mainline inclusion
+from mainline-v5.11-rc1
+commit f93c789a3e245707e3eddcaab5c2b7c62615692d
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6DQOD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit?id=f93c789a3e245707e3eddcaab5c2b7c62615692d
+
+--------------------------------
+
+To pick the changes in:
+
+  e7b6385b01d8e9fb ("x86/cpufeatures: Add Intel SGX hardware bits")
+
+That causes only these 'perf bench' objects to rebuild:
+
+  CC       /tmp/build/perf/bench/mem-memcpy-x86-64-asm.o
+  CC       /tmp/build/perf/bench/mem-memset-x86-64-asm.o
+
+And addresses these perf build warnings:
+
+  Warning: Kernel ABI header at 'tools/arch/x86/include/asm/disabled-features.h' differs from latest version at 'arch/x86/include/asm/disabled-features.h'
+  diff -u tools/arch/x86/include/asm/disabled-features.h arch/x86/include/asm/disabled-features.h
+  Warning: Kernel ABI header at 'tools/arch/x86/include/asm/cpufeatures.h' differs from latest version at 'arch/x86/include/asm/cpufeatures.h'
+  diff -u tools/arch/x86/include/asm/cpufeatures.h arch/x86/include/asm/cpufeatures.h
+
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Borislav Petkov <bp@suse.de>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Sean Christopherson <seanjc@google.com>
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+[liwei: Fix conflict in tools/arch/x86/include/asm/disabled-features.h]
+Signed-off-by: Wei Li <liwei391@huawei.com>
+---
+ tools/arch/x86/include/asm/cpufeatures.h       | 2 ++
+ tools/arch/x86/include/asm/disabled-features.h | 8 +++++++-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/tools/arch/x86/include/asm/cpufeatures.h b/tools/arch/x86/include/asm/cpufeatures.h
+index 8cbc7cef1d49..6918ef8a7edf 100644
+--- a/tools/arch/x86/include/asm/cpufeatures.h
++++ b/tools/arch/x86/include/asm/cpufeatures.h
+@@ -241,6 +241,7 @@
+ /* Intel-defined CPU features, CPUID level 0x00000007:0 (EBX), word 9 */
+ #define X86_FEATURE_FSGSBASE		( 9*32+ 0) /* RDFSBASE, WRFSBASE, RDGSBASE, WRGSBASE instructions*/
+ #define X86_FEATURE_TSC_ADJUST		( 9*32+ 1) /* TSC adjustment MSR 0x3B */
++#define X86_FEATURE_SGX			( 9*32+ 2) /* Software Guard Extensions */
+ #define X86_FEATURE_BMI1		( 9*32+ 3) /* 1st group bit manipulation extensions */
+ #define X86_FEATURE_HLE			( 9*32+ 4) /* Hardware Lock Elision */
+ #define X86_FEATURE_AVX2		( 9*32+ 5) /* AVX2 instructions */
+@@ -365,6 +366,7 @@
+ #define X86_FEATURE_MOVDIRI		(16*32+27) /* MOVDIRI instruction */
+ #define X86_FEATURE_MOVDIR64B		(16*32+28) /* MOVDIR64B instruction */
+ #define X86_FEATURE_ENQCMD		(16*32+29) /* ENQCMD and ENQCMDS instructions */
++#define X86_FEATURE_SGX_LC		(16*32+30) /* Software Guard Extensions Launch Control */
+ 
+ /* AMD-defined CPU features, CPUID level 0x80000007 (EBX), word 17 */
+ #define X86_FEATURE_OVERFLOW_RECOV	(17*32+ 0) /* MCA overflow recovery support */
+diff --git a/tools/arch/x86/include/asm/disabled-features.h b/tools/arch/x86/include/asm/disabled-features.h
+index d109c5ec967c..559938bc896e 100644
+--- a/tools/arch/x86/include/asm/disabled-features.h
++++ b/tools/arch/x86/include/asm/disabled-features.h
+@@ -81,6 +81,12 @@
+ # define DISABLE_ENQCMD (1 << (X86_FEATURE_ENQCMD & 31))
+ #endif
+ 
++#ifdef CONFIG_X86_SGX
++# define DISABLE_SGX	0
++#else
++# define DISABLE_SGX	(1 << (X86_FEATURE_SGX & 31))
++#endif
++
+ /*
+  * Make sure to add features to the correct mask
+  */
+@@ -93,7 +99,7 @@
+ #define DISABLED_MASK6	0
+ #define DISABLED_MASK7	(DISABLE_PTI)
+ #define DISABLED_MASK8	0
+-#define DISABLED_MASK9	(DISABLE_SMAP)
++#define DISABLED_MASK9	(DISABLE_SMAP|DISABLE_SGX)
+ #define DISABLED_MASK10	0
+ #define DISABLED_MASK11	(DISABLE_RETPOLINE|DISABLE_RETHUNK|DISABLE_UNRET)
+ #define DISABLED_MASK12	0
+-- 
+2.17.1
+

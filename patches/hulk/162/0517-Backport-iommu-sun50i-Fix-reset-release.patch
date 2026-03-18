@@ -1,0 +1,63 @@
+From 7ba986cf558cfb5429ad55e14c17a60cba8942d2 Mon Sep 17 00:00:00 2001
+From: Jernej Skrabec <jernej.skrabec@gmail.com>
+Date: Tue, 25 Oct 2022 18:54:11 +0200
+Subject: [PATCH 517/905] [Backport] iommu/sun50i: Fix reset release
+
+stable inclusion
+from stable-v5.10.163
+commit 160b92ab4a253dfb0f7cc03b9c33617e9c530104
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=160b92ab4a253dfb0f7cc03b9c33617e9c530104
+
+--------------------------------
+
+[ Upstream commit 9ad0c1252e84dbc664f0462707182245ed603237 ]
+
+Reset signal is asserted by writing 0 to the corresponding locations of
+masters we want to reset. So in order to deassert all reset signals, we
+should write 1's to all locations.
+
+Current code writes 1's to locations of masters which were just reset
+which is good. However, at the same time it also writes 0's to other
+locations and thus asserts reset signals of remaining masters. Fix code
+by writing all 1's when we want to deassert all reset signals.
+
+This bug was discovered when working with Cedrus (video decoder). When
+it faulted, display went blank due to reset signal assertion.
+
+Fixes: 4100b8c229b3 ("iommu: Add Allwinner H6 IOMMU driver")
+Signed-off-by: Jernej Skrabec <jernej.skrabec@gmail.com>
+Link: https://lore.kernel.org/r/20221025165415.307591-2-jernej.skrabec@gmail.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/iommu/sun50i-iommu.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/sun50i-iommu.c b/drivers/iommu/sun50i-iommu.c
+index ea6db1341916..3dead4f91420 100644
+--- a/drivers/iommu/sun50i-iommu.c
++++ b/drivers/iommu/sun50i-iommu.c
+@@ -28,6 +28,7 @@
+ #include <linux/types.h>
+ 
+ #define IOMMU_RESET_REG			0x010
++#define IOMMU_RESET_RELEASE_ALL			0xffffffff
+ #define IOMMU_ENABLE_REG		0x020
+ #define IOMMU_ENABLE_ENABLE			BIT(0)
+ 
+@@ -905,7 +906,7 @@ static irqreturn_t sun50i_iommu_irq(int irq, void *dev_id)
+ 	iommu_write(iommu, IOMMU_INT_CLR_REG, status);
+ 
+ 	iommu_write(iommu, IOMMU_RESET_REG, ~status);
+-	iommu_write(iommu, IOMMU_RESET_REG, status);
++	iommu_write(iommu, IOMMU_RESET_REG, IOMMU_RESET_RELEASE_ALL);
+ 
+ 	spin_unlock(&iommu->iommu_lock);
+ 
+-- 
+2.17.1
+

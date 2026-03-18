@@ -1,0 +1,70 @@
+From 8880b9daf991283bd19391b73ee5479dc92ff0bb Mon Sep 17 00:00:00 2001
+From: Zhen Lei <thunder.leizhen@huawei.com>
+Date: Sat, 19 Nov 2022 17:25:05 +0800
+Subject: [PATCH 769/780] [Backport] sched: Add helper
+ nr_context_switches_cpu()
+
+mainline inclusion
+from mainline-v6.3-rc1
+commit 7c182722a0a9447e31f9645de4f311e5bc59b480
+category: feature
+bugzilla: 188933
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7c182722a0a9447e31f9645de4f311e5bc59b480
+
+--------------------------------
+
+Add a function nr_context_switches_cpu() that returns  number of context
+switches since boot on the specified CPU.  This information will be used
+to diagnose RCU CPU stalls.
+
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Juri Lelli <juri.lelli@redhat.com>
+Cc: Vincent Guittot <vincent.guittot@linaro.org>
+Cc: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Cc: Steven Rostedt <rostedt@goodmis.org>
+Cc: Ben Segall <bsegall@google.com>
+Cc: Mel Gorman <mgorman@suse.de>
+Cc: Daniel Bristot de Oliveira <bristot@redhat.com>
+Cc: Valentin Schneider <vschneid@redhat.com>
+Reviewed-by: Frederic Weisbecker <frederic@kernel.org>
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+---
+ include/linux/kernel_stat.h | 1 +
+ kernel/sched/core.c         | 5 +++++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/include/linux/kernel_stat.h b/include/linux/kernel_stat.h
+index 3120e0aad091..c170609f3716 100644
+--- a/include/linux/kernel_stat.h
++++ b/include/linux/kernel_stat.h
+@@ -49,6 +49,7 @@ DECLARE_PER_CPU(struct kernel_cpustat, kernel_cpustat);
+ #define kstat_cpu(cpu) per_cpu(kstat, cpu)
+ #define kcpustat_cpu(cpu) per_cpu(kernel_cpustat, cpu)
+ 
++extern unsigned long long nr_context_switches_cpu(int cpu);
+ extern unsigned long long nr_context_switches(void);
+ 
+ extern unsigned int kstat_irqs_cpu(unsigned int irq, int cpu);
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1167c64f93fa..bf885053a827 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -3905,6 +3905,11 @@ bool single_task_running(void)
+ }
+ EXPORT_SYMBOL(single_task_running);
+ 
++unsigned long long nr_context_switches_cpu(int cpu)
++{
++	return cpu_rq(cpu)->nr_switches;
++}
++
+ unsigned long long nr_context_switches(void)
+ {
+ 	int i;
+-- 
+2.17.1
+

@@ -1,0 +1,78 @@
+From 08ca5f94755f079e4273902c027a5d7819611d8f Mon Sep 17 00:00:00 2001
+From: Chanho Park <chanho61.park@samsung.com>
+Date: Thu, 7 Apr 2022 18:11:28 +0900
+Subject: [PATCH 2581/2592] [Backport] arm64: Add part number for Arm
+ Cortex-A78AE
+
+stable inclusion
+from stable-v5.10.111
+commit 9de98470db6ec5223ab47ec50b21c40f4d08655c
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5BCQ4
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9de98470db6ec5223ab47ec50b21c40f4d08655c
+
+--------------------------------
+
+commit 83bea32ac7ed37bbda58733de61fc9369513f9f9 upstream.
+
+Add the MIDR part number info for the Arm Cortex-A78AE[1] and add it to
+spectre-BHB affected list[2].
+
+[1]: https://developer.arm.com/Processors/Cortex-A78AE
+[2]: https://developer.arm.com/Arm%20Security%20Center/Spectre-BHB
+
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: James Morse <james.morse@arm.com>
+Signed-off-by: Chanho Park <chanho61.park@samsung.com>
+Link: https://lore.kernel.org/r/20220407091128.8700-1-chanho61.park@samsung.com
+Signed-off-by: Will Deacon <will@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+conflicts:
+	arch/arm64/include/asm/cputype.h
+	arch/arm64/kernel/proton-pack.c
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm64/include/asm/cputype.h | 2 ++
+ arch/arm64/kernel/proton-pack.c  | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/arch/arm64/include/asm/cputype.h b/arch/arm64/include/asm/cputype.h
+index 2e0066f13ad4..662708c56397 100644
+--- a/arch/arm64/include/asm/cputype.h
++++ b/arch/arm64/include/asm/cputype.h
+@@ -76,6 +76,7 @@
+ #define ARM_CPU_PART_CORTEX_A77		0xD0D
+ #define ARM_CPU_PART_NEOVERSE_V1	0xD40
+ #define ARM_CPU_PART_CORTEX_A78		0xD41
++#define ARM_CPU_PART_CORTEX_A78AE	0xD42
+ #define ARM_CPU_PART_CORTEX_X1		0xD44
+ #define ARM_CPU_PART_CORTEX_A78C	0xD4B
+ #define ARM_CPU_PART_CORTEX_A510	0xD46
+@@ -131,6 +132,7 @@
+ #define MIDR_CORTEX_A77	MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A77)
+ #define MIDR_NEOVERSE_V1 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V1)
+ #define MIDR_CORTEX_A78 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78)
++#define MIDR_CORTEX_A78AE	MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78AE)
+ #define MIDR_CORTEX_X1 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_X1)
+ #define MIDR_CORTEX_A78C MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A78C)
+ #define MIDR_CORTEX_A510 MIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A510)
+diff --git a/arch/arm64/kernel/proton-pack.c b/arch/arm64/kernel/proton-pack.c
+index a3fb28e170dd..e807f77737e0 100644
+--- a/arch/arm64/kernel/proton-pack.c
++++ b/arch/arm64/kernel/proton-pack.c
+@@ -861,6 +861,7 @@ u8 spectre_bhb_loop_affected(int scope)
+ 	if (scope == SCOPE_LOCAL_CPU) {
+ 		static const struct midr_range spectre_bhb_k32_list[] = {
+ 			MIDR_ALL_VERSIONS(MIDR_CORTEX_A78),
++			MIDR_ALL_VERSIONS(MIDR_CORTEX_A78AE),
+ 			MIDR_ALL_VERSIONS(MIDR_CORTEX_A78C),
+ 			MIDR_ALL_VERSIONS(MIDR_CORTEX_X1),
+ 			MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V1),
+-- 
+2.17.1
+

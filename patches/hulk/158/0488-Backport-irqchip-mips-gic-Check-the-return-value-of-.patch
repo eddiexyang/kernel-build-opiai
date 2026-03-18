@@ -1,0 +1,49 @@
+From ec13ae79527d6faeb559da1c4cc0107c4ece84b4 Mon Sep 17 00:00:00 2001
+From: William Dean <williamsukatube@163.com>
+Date: Sat, 23 Jul 2022 18:01:28 +0800
+Subject: [PATCH 0488/1076] [Backport] irqchip/mips-gic: Check the return value
+ of ioremap() in gic_of_init()
+
+stable inclusion
+from stable-v5.10.137
+commit 2b8c55900d46369b7d280b669aad83dfa9e0ae7a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2b8c55900d46369b7d280b669aad83dfa9e0ae7a
+
+--------------------------------
+
+[ Upstream commit 71349cc85e5930dce78ed87084dee098eba24b59 ]
+
+The function ioremap() in gic_of_init() can fail, so
+its return value should be checked.
+
+Reported-by: Hacash Robot <hacashRobot@santino.com>
+Signed-off-by: William Dean <williamsukatube@163.com>
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20220723100128.2964304-1-williamsukatube@163.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/irqchip/irq-mips-gic.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/irqchip/irq-mips-gic.c b/drivers/irqchip/irq-mips-gic.c
+index 8b08b31ea2ba..8ada91bdbe4d 100644
+--- a/drivers/irqchip/irq-mips-gic.c
++++ b/drivers/irqchip/irq-mips-gic.c
+@@ -766,6 +766,10 @@ static int __init gic_of_init(struct device_node *node,
+ 	}
+ 
+ 	mips_gic_base = ioremap(gic_base, gic_len);
++	if (!mips_gic_base) {
++		pr_err("Failed to ioremap gic_base\n");
++		return -ENOMEM;
++	}
+ 
+ 	gicconfig = read_gic_config();
+ 	gic_shared_intrs = gicconfig & GIC_CONFIG_NUMINTERRUPTS;
+-- 
+2.17.1
+

@@ -1,0 +1,77 @@
+From 345c979b6a578ddf11aaf92a1776d5c68cd0bce0 Mon Sep 17 00:00:00 2001
+From: Dave Jiang <dave.jiang@intel.com>
+Date: Fri, 4 Mar 2022 14:02:57 -0700
+Subject: [PATCH 0795/1646] [Backport] dmaengine: idxd: move wq irq enabling to
+ after device enable
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 439b5e765a00a546e8f6b6eedac69889d0b5a869
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I596WO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=439b5e765a00a546e8f6b6eedac69889d0b5a869
+
+--------------------------------
+
+Move the calling of request_irq() and other related irq setup code until
+after the WQ is successfully enabled. This reduces the amount of
+setup/teardown if the wq is not configured correctly and cannot be enabled.
+
+Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+Link: https://lore.kernel.org/r/164642777730.179702.1880317757087484299.stgit@djiang5-desk3.ch.intel.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Xiaochen Shen <xiaochen.shen@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/dma/idxd/dma.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/dma/idxd/dma.c b/drivers/dma/idxd/dma.c
+index f9ed55011775..c112b397f626 100644
+--- a/drivers/dma/idxd/dma.c
++++ b/drivers/dma/idxd/dma.c
+@@ -313,13 +313,6 @@ static int idxd_dmaengine_drv_probe(struct idxd_dev *idxd_dev)
+ 	mutex_lock(&wq->wq_lock);
+ 	wq->type = IDXD_WQT_KERNEL;
+ 
+-	rc = idxd_wq_request_irq(wq);
+-	if (rc < 0) {
+-		idxd->cmd_status = IDXD_SCMD_WQ_IRQ_ERR;
+-		dev_dbg(dev, "WQ %d irq setup failed: %d\n", wq->id, rc);
+-		goto err_irq;
+-	}
+-
+ 	rc = __drv_enable_wq(wq);
+ 	if (rc < 0) {
+ 		dev_dbg(dev, "Enable wq %d failed: %d\n", wq->id, rc);
+@@ -327,6 +320,13 @@ static int idxd_dmaengine_drv_probe(struct idxd_dev *idxd_dev)
+ 		goto err;
+ 	}
+ 
++	rc = idxd_wq_request_irq(wq);
++	if (rc < 0) {
++		idxd->cmd_status = IDXD_SCMD_WQ_IRQ_ERR;
++		dev_dbg(dev, "WQ %d irq setup failed: %d\n", wq->id, rc);
++		goto err_irq;
++	}
++
+ 	rc = idxd_wq_alloc_resources(wq);
+ 	if (rc < 0) {
+ 		idxd->cmd_status = IDXD_SCMD_WQ_RES_ALLOC_ERR;
+@@ -358,10 +358,10 @@ static int idxd_dmaengine_drv_probe(struct idxd_dev *idxd_dev)
+ err_ref:
+ 	idxd_wq_free_resources(wq);
+ err_res_alloc:
+-	__drv_disable_wq(wq);
+-err:
+ 	idxd_wq_free_irq(wq);
+ err_irq:
++	__drv_disable_wq(wq);
++err:
+ 	wq->type = IDXD_WQT_NONE;
+ 	mutex_unlock(&wq->wq_lock);
+ 	return rc;
+-- 
+2.17.1
+

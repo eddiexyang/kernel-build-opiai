@@ -1,0 +1,51 @@
+From 79a47646071916c38addea1f74b6fb5f152e7caa Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Wed, 25 Aug 2021 07:42:44 +0200
+Subject: [PATCH 067/261] [Backport] configfs: return -ENAMETOOLONG earlier in
+ configfs_lookup
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 417b962ddeca2b70eb72d28c87541bdad4e234f8
+category: bugfix
+bugzilla: 187567
+
+Reference: https://lkml.iu.edu/hypermail/linux/kernel/2108.3/01861.html
+
+--------------------------------
+
+Just like most other file systems: get the simple checks out of the
+way first.
+
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/configfs/dir.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/fs/configfs/dir.c b/fs/configfs/dir.c
+index 5ad27e484014..e28ab91d973d 100644
+--- a/fs/configfs/dir.c
++++ b/fs/configfs/dir.c
+@@ -465,6 +465,9 @@ static struct dentry * configfs_lookup(struct inode *dir,
+ 	int found = 0;
+ 	int err;
+ 
++	if (dentry->d_name.len > NAME_MAX)
++		return ERR_PTR(-ENAMETOOLONG);
++
+ 	/*
+ 	 * Fake invisibility if dir belongs to a group/default groups hierarchy
+ 	 * being attached
+@@ -495,8 +498,6 @@ static struct dentry * configfs_lookup(struct inode *dir,
+ 		 * If it doesn't exist and it isn't a NOT_PINNED item,
+ 		 * it must be negative.
+ 		 */
+-		if (dentry->d_name.len > NAME_MAX)
+-			return ERR_PTR(-ENAMETOOLONG);
+ 		d_add(dentry, NULL);
+ 		return NULL;
+ 	}
+-- 
+2.17.1
+

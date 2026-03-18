@@ -1,0 +1,154 @@
+From d5fcd4f4ea46b2c2e5a28f498f143fc811cefb76 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Tue, 25 Jul 2023 16:46:19 +0800
+Subject: [PATCH 23/53] [Huawei] mm/sharepool: Unwrap
+ sp_make_share_kva_to_spg()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+Just unwrap sp_make_share_kva_to_spg() and no logic changes.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 101 ++++++++++++++++++++----------------------------
+ 1 file changed, 41 insertions(+), 60 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 4ad85da89e53..8f2b12b0c86b 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2467,56 +2467,6 @@ static bool vmalloc_area_set_flag(unsigned long kva, unsigned long flags)
+ 	return false;
+ }
+ 
+-/**
+- * Share kernel memory to a spg, the current process must be in that group
+- * @kc: the context for k2u, including kva, size, flags...
+- * @spg: the sp group to be shared with
+- *
+- * Return: the shared user address to start at
+- */
+-static void *sp_make_share_kva_to_spg(struct sp_k2u_context *kc, struct sp_group *spg)
+-{
+-	int mmap_ret;
+-	int ret = -EINVAL;
+-	struct sp_area *spa;
+-	struct mm_struct *mm;
+-	struct sp_group_node *spg_node;
+-
+-	down_read(&spg->rw_lock);
+-	spa = sp_alloc_area(kc->size_aligned, kc->sp_flags, spg, kc->type, current->tgid, 0);
+-	if (IS_ERR(spa)) {
+-		up_read(&spg->rw_lock);
+-		pr_err("alloc spa failed in k2u_spg (potential no enough virtual memory when -75): %ld\n",
+-				PTR_ERR(spa));
+-		return spa;
+-	}
+-
+-	spa->kva = kc->kva_aligned;
+-	list_for_each_entry(spg_node, &spg->proc_head, proc_node) {
+-		mm = spg_node->master->mm;
+-		mmap_ret = sp_map_spa_to_mm(mm, spa, spg_node->prot, NULL, "k2u");
+-		if (mmap_ret) {
+-			if (mmap_ret == SP_SKIP_ERR)
+-				continue;
+-			pr_err("remap k2u to spg failed %d\n", mmap_ret);
+-			__sp_free(spg, spa->va_start, spa_size(spa), mm);
+-			ret = mmap_ret;
+-			break;
+-		}
+-		ret = mmap_ret;
+-	}
+-
+-	up_read(&spg->rw_lock);
+-	if (!ret) {
+-		sp_update_process_stat(current, true, spa);
+-		vmalloc_area_set_flag(kc->kva_aligned, VM_SHAREPOOL);
+-	}
+-
+-	__sp_area_drop(spa);
+-
+-	return ret ? ERR_PTR(ret) : (void *)spa->va_start;
+-}
+-
+ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 	unsigned long sp_flags, int spg_id, struct sp_k2u_context *kc)
+ {
+@@ -2601,10 +2551,11 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 			unsigned long sp_flags, int tgid, int spg_id)
+ {
+-	void *uva;
+-	int ret;
+-	struct sp_k2u_context kc;
++	int mmap_ret, ret;
++	struct sp_area *spa;
+ 	struct sp_group *spg;
++	struct sp_k2u_context kc;
++	struct sp_group_node *spg_node;
+ 
+ 	spg_id = (spg_id == SPG_ID_NONE) ? SPG_ID_DEFAULT : spg_id;
+ 	ret = sp_k2u_prepare(kva, size, sp_flags, spg_id, &kc);
+@@ -2612,17 +2563,47 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 		return ERR_PTR(ret);
+ 
+ 	spg = sp_group_get_from_mm(current->mm, spg_id);
+-	if (spg) {
+-		uva = sp_make_share_kva_to_spg(&kc, spg);
++	if (!spg) {
++		pr_err("k2u failed, can't find group(%d)\n", spg_id);
++		return ERR_PTR(-ENODEV);
++	}
++
++	down_read(&spg->rw_lock);
++	spa = sp_alloc_area(kc.size_aligned, kc.sp_flags, spg, kc.type, current->tgid, 0);
++	if (IS_ERR(spa)) {
++		up_read(&spg->rw_lock);
++		pr_err("alloc spa failed in k2u_spg (potential no enough virtual memory when -75): %ld\n",
++				PTR_ERR(spa));
+ 		sp_group_put(spg);
+-	} else {
+-		uva = ERR_PTR(-ENODEV);
++		return spa;
++	}
++
++	ret = -EINVAL;
++	spa->kva = kc.kva_aligned;
++	list_for_each_entry(spg_node, &spg->proc_head, proc_node) {
++		struct mm_struct *mm = spg_node->master->mm;
++		mmap_ret = sp_map_spa_to_mm(mm, spa, spg_node->prot, NULL, "k2u");
++		if (mmap_ret) {
++			if (mmap_ret == SP_SKIP_ERR)
++				continue;
++			pr_err("remap k2u to spg failed %d\n", mmap_ret);
++			__sp_free(spg, spa->va_start, spa_size(spa), mm);
++			ret = mmap_ret;
++			break;
++		}
++		ret = mmap_ret;
+ 	}
+ 
+-	if (!IS_ERR(uva))
+-		uva = uva + (kc.kva - kc.kva_aligned);
++	up_read(&spg->rw_lock);
++	if (!ret) {
++		sp_update_process_stat(current, true, spa);
++		vmalloc_area_set_flag(kc.kva_aligned, VM_SHAREPOOL);
++	}
++
++	__sp_area_drop(spa);
++	sp_group_put(spg);
+ 
+-	return uva;
++	return ret ? ERR_PTR(ret) : (void *)(spa->va_start + (kc.kva - kc.kva_aligned));
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_make_share_k2u);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,81 @@
+From 9839177e4665500e5d537ebaadf886998166603e Mon Sep 17 00:00:00 2001
+From: Zhang Yi <yi.zhang@huawei.com>
+Date: Fri, 5 May 2023 20:32:19 +0800
+Subject: [PATCH 1610/1646] [Backport] jbd2: remove released parameter in
+ journal_shrink_one_cp_list()
+
+maillist inclusion
+category: bugfix
+bugzilla: 188616
+
+Reference: https://lore.kernel.org/linux-ext4/20230505123219.4135141-3-yi.zhang@huaweicloud.com/
+
+--------------------------------
+
+After t_checkpoint_io_list is gone, the 'released' parameter in
+journal_shrink_one_cp_list() becomes useless, just remove it.
+
+Signed-off-by: Zhang Yi <yi.zhang@huawei.com>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/jbd2/checkpoint.c | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/fs/jbd2/checkpoint.c b/fs/jbd2/checkpoint.c
+index 4ba8c735ca9a..740ee2fc726f 100644
+--- a/fs/jbd2/checkpoint.c
++++ b/fs/jbd2/checkpoint.c
+@@ -387,15 +387,13 @@ static int journal_clean_one_cp_list(struct journal_head *jh, bool destroy)
+  * journal_shrink_one_cp_list
+  *
+  * Find 'nr_to_scan' written-back checkpoint buffers in the given list
+- * and try to release them. If the whole transaction is released, set
+- * the 'released' parameter. Return the number of released checkpointed
++ * and try to release them. Return the number of released checkpointed
+  * buffers.
+  *
+  * Called with j_list_lock held.
+  */
+ static unsigned long journal_shrink_one_cp_list(struct journal_head *jh,
+-						unsigned long *nr_to_scan,
+-						bool *released)
++						unsigned long *nr_to_scan)
+ {
+ 	struct journal_head *last_jh;
+ 	struct journal_head *next_jh = jh;
+@@ -416,10 +414,8 @@ static unsigned long journal_shrink_one_cp_list(struct journal_head *jh,
+ 
+ 		nr_freed++;
+ 		ret = __jbd2_journal_remove_checkpoint(jh);
+-		if (ret) {
+-			*released = true;
++		if (ret)
+ 			break;
+-		}
+ 
+ 		if (need_resched())
+ 			break;
+@@ -441,7 +437,6 @@ unsigned long jbd2_journal_shrink_checkpoint_list(journal_t *journal,
+ 						  unsigned long *nr_to_scan)
+ {
+ 	transaction_t *transaction, *last_transaction, *next_transaction;
+-	bool released;
+ 	tid_t first_tid = 0, last_tid = 0, next_tid = 0;
+ 	tid_t tid = 0;
+ 	unsigned long nr_freed = 0;
+@@ -474,10 +469,9 @@ unsigned long jbd2_journal_shrink_checkpoint_list(journal_t *journal,
+ 		transaction = next_transaction;
+ 		next_transaction = transaction->t_cpnext;
+ 		tid = transaction->t_tid;
+-		released = false;
+ 
+ 		nr_freed += journal_shrink_one_cp_list(transaction->t_checkpoint_list,
+-						       nr_to_scan, &released);
++						       nr_to_scan);
+ 		if (*nr_to_scan == 0)
+ 			break;
+ 		if (need_resched() || spin_needbreak(&journal->j_list_lock))
+-- 
+2.17.1
+

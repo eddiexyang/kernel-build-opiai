@@ -1,0 +1,46 @@
+From 9468a1c37a81186a19440b3db35abba47f6cc99f Mon Sep 17 00:00:00 2001
+From: Kai Ye <yekai13@huawei.com>
+Date: Tue, 19 Jul 2022 16:51:27 +0800
+Subject: [PATCH 0909/1646] [Backport] crypto: hisilicon/qm - cleanup warning
+ in qm_vf_read_qos
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 05b3bade290d6c940701f97f3233c07cfe27205d
+category: clean up
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=05b3bade290d6c940701f97f3233c07cfe27205d
+
+--------------------------------
+
+The kernel test rebot report this warning: Uninitialized variable: ret.
+The code flow may return value of ret directly. This value is an
+uninitialized variable, here is fix it.
+
+Signed-off-by: Kai Ye <yekai13@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 56a991c9780c..7b24cdea416f 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -4339,7 +4339,7 @@ static void qm_vf_get_qos(struct hisi_qm *qm, u32 fun_num)
+ static int qm_vf_read_qos(struct hisi_qm *qm)
+ {
+ 	int cnt = 0;
+-	int ret;
++	int ret = -EINVAL;
+ 
+ 	/* reset mailbox qos val */
+ 	qm->mb_qos = 0;
+-- 
+2.17.1
+

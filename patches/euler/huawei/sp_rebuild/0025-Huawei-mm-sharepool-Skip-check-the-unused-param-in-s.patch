@@ -1,0 +1,65 @@
+From ee9ffa9a4066b07667724ffcf1777ad3164d846b Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 20:26:29 +0800
+Subject: [PATCH 25/53] [Huawei] mm/sharepool: Skip check the unused param in
+ sp_unshare_uva()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+The @size input parameter of sp_unshare_uva() is not used and its
+meaningless to check it.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index f5185b586a78..45270b57a027 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2889,7 +2889,7 @@ EXPORT_SYMBOL_GPL(mg_sp_make_share_u2k);
+ /*
+  * sp_unshare_uva - unshare a uva from sp_make_share_k2u
+  * @uva: the uva to be unshared
+- * @size: not used actually and we just check it
++ * @size: not used actually
+  * @spg_id: specify the spg of the uva; for local group, it can be SPG_ID_DEFAULT
+  *          unless current process is exiting.
+  *
+@@ -2904,7 +2904,6 @@ static int sp_unshare_uva(unsigned long uva, unsigned long size, int spg_id)
+ {
+ 	int ret = 0;
+ 	struct sp_area *spa;
+-	unsigned int page_size;
+ 	struct sp_group *spg;
+ 
+ 	if (!current->mm) {
+@@ -2934,19 +2933,6 @@ static int sp_unshare_uva(unsigned long uva, unsigned long size, int spg_id)
+ 		ret = -EINVAL;
+ 		goto out_drop_area;
+ 	}
+-	/*
+-	 * 1. overflow actually won't happen due to an spa must be valid.
+-	 * 2. we must unshare [spa->va_start, spa->va_start + spa->real_size) completely
+-	 *    because an spa is one-to-one correspondence with an vma.
+-	 *    Thus input parameter size is not necessarily needed.
+-	 */
+-	page_size = (spa->is_hugepage ? PMD_SIZE : PAGE_SIZE);
+-
+-	if (spa->real_size < ALIGN(size, page_size)) {
+-		ret = -EINVAL;
+-		pr_err("unshare uva failed, invalid parameter size %lu\n", size);
+-		goto out_drop_area;
+-	}
+ 
+ 	down_write(&spa->spg->rw_lock);
+ 	if (!spg_valid(spa->spg)) {
+-- 
+2.17.1
+

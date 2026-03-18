@@ -1,0 +1,132 @@
+From cf609d66bd2b1a6fc14ed33c49dfeb83e61c8502 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Wed, 29 Apr 2020 17:04:12 +0200
+Subject: [PATCH 0419/1646] [Backport] rbtree, sched/fair: Use rb_add_cached()
+
+mainline inclusion
+from mainline-v5.12-rc1-dontuse
+commit bf9be9a163b464aa90f60af13b336da2db8b2ea1
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=bf9be9a163b464aa90f60af13b336da2db8b2ea1
+
+--------------------------------
+
+Reduce rbtree boiler plate by using the new helper function.
+
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Acked-by: Davidlohr Bueso <dbueso@suse.de>
+Signed-off-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ kernel/sched/fair.c | 46 ++++++++++++++-------------------------------
+ 1 file changed, 14 insertions(+), 32 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index bfc634e952c9..baa9e2d6ccbd 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -592,12 +592,15 @@ static inline u64 min_vruntime(u64 min_vruntime, u64 vruntime)
+ 	return min_vruntime;
+ }
+ 
+-static inline int entity_before(struct sched_entity *a,
++static inline bool entity_before(struct sched_entity *a,
+ 				struct sched_entity *b)
+ {
+ 	return (s64)(a->vruntime - b->vruntime) < 0;
+ }
+ 
++#define __node_2_se(node) \
++	rb_entry((node), struct sched_entity, run_node)
++
+ static void update_min_vruntime(struct cfs_rq *cfs_rq)
+ {
+ 	struct sched_entity *curr = cfs_rq->curr;
+@@ -613,8 +616,7 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
+ 	}
+ 
+ 	if (leftmost) { /* non-empty tree */
+-		struct sched_entity *se;
+-		se = rb_entry(leftmost, struct sched_entity, run_node);
++		struct sched_entity *se = __node_2_se(leftmost);
+ 
+ 		if (!curr)
+ 			vruntime = se->vruntime;
+@@ -630,37 +632,17 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
+ #endif
+ }
+ 
++static inline bool __entity_less(struct rb_node *a, const struct rb_node *b)
++{
++	return entity_before(__node_2_se(a), __node_2_se(b));
++}
++
+ /*
+  * Enqueue an entity into the rb-tree:
+  */
+ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+ {
+-	struct rb_node **link = &cfs_rq->tasks_timeline.rb_root.rb_node;
+-	struct rb_node *parent = NULL;
+-	struct sched_entity *entry;
+-	bool leftmost = true;
+-
+-	/*
+-	 * Find the right place in the rbtree:
+-	 */
+-	while (*link) {
+-		parent = *link;
+-		entry = rb_entry(parent, struct sched_entity, run_node);
+-		/*
+-		 * We dont care about collisions. Nodes with
+-		 * the same key stay together.
+-		 */
+-		if (entity_before(se, entry)) {
+-			link = &parent->rb_left;
+-		} else {
+-			link = &parent->rb_right;
+-			leftmost = false;
+-		}
+-	}
+-
+-	rb_link_node(&se->run_node, parent, link);
+-	rb_insert_color_cached(&se->run_node,
+-			       &cfs_rq->tasks_timeline, leftmost);
++	rb_add_cached(&se->run_node, &cfs_rq->tasks_timeline, __entity_less);
+ }
+ 
+ static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+@@ -675,7 +657,7 @@ struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
+ 	if (!left)
+ 		return NULL;
+ 
+-	return rb_entry(left, struct sched_entity, run_node);
++	return __node_2_se(left);
+ }
+ 
+ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
+@@ -685,7 +667,7 @@ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
+ 	if (!next)
+ 		return NULL;
+ 
+-	return rb_entry(next, struct sched_entity, run_node);
++	return __node_2_se(next);
+ }
+ 
+ #ifdef CONFIG_SCHED_DEBUG
+@@ -696,7 +678,7 @@ struct sched_entity *__pick_last_entity(struct cfs_rq *cfs_rq)
+ 	if (!last)
+ 		return NULL;
+ 
+-	return rb_entry(last, struct sched_entity, run_node);
++	return __node_2_se(last);
+ }
+ 
+ /**************************************************************
+-- 
+2.17.1
+

@@ -1,0 +1,113 @@
+From f093d75b910942d546bed83f1dd5a6a7d97a6e5f Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Thu, 21 Sep 2023 14:05:38 +0800
+Subject: [PATCH] mm: isolate non normal nodes from fallback list and cgroup
+ charge
+
+Introduce features to isolate non normal node from fallback list and cgroup
+charge, memory allocations on normal node will never fallback to non normal
+nodes and allocations on non normal node are not charged by any cgroup,
+just like what cdm does.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ arch/arm64/Kconfig       | 11 +++++++++++
+ include/linux/nodemask.h | 13 +++++++++++++
+ mm/memcontrol.c          |  4 ++--
+ mm/page_alloc.c          |  7 +++----
+ 4 files changed, 29 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 7981303dd..8756ddf1c 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1607,6 +1607,17 @@ config ASCEND_BIND_ROOTFS_ON_NORMAL
+ 	  This feature bind rootfs to regular memory nodes(movable nodes are excluded),
+ 	  MEMORY_HOTPLUG is necessary as it is required by the feature movable nodes.
+ 
++config ASCEND_ISOLATE_NON_NORMAL_NODE
++	bool "Isolate non normal node"
++	default n
++	depends on !HIGHMEM
++	depends on !COHERENT_DEVICE
++	depends on MEMORY_HOTPLUG && ARM64 && NUMA
++	help
++	  This option isolate non normal nodes from fallback list and cgroup charge,
++	  memory allocations on normal nodes will never fallback to non normal nodes
++	  and allocations on non normal nodes are not charged by any cgroup.
++
+ config ASCEND_SMMU_QUEUE_SIZE
+     bool "Enable support for changing smmu queue size"
+     default n
+diff --git a/include/linux/nodemask.h b/include/linux/nodemask.h
+index 3a2179b81..8ff47003e 100644
+--- a/include/linux/nodemask.h
++++ b/include/linux/nodemask.h
+@@ -583,6 +583,19 @@ static inline void node_clear_state_cdm(int node)
+ }
+ #endif	/* CONFIG_COHERENT_DEVICE */
+ 
++#ifdef CONFIG_ASCEND_ISOLATE_NON_NORMAL_NODE
++static inline bool is_non_normal_node(int node)
++{
++	return !node_isset(node, node_states[N_NORMAL_MEMORY])
++	       && node_isset(node, node_states[N_MEMORY]);
++}
++#else
++static inline bool is_non_normal_node(int node)
++{
++	return is_cdm_node(node);
++}
++#endif
++
+ #define node_online_map 	node_states[N_ONLINE]
+ #define node_possible_map 	node_states[N_POSSIBLE]
+ 
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index ddd84bc53..5ef64598b 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3101,7 +3101,7 @@ int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order)
+ 
+ 	objcg = get_obj_cgroup_from_current();
+ 	if (objcg) {
+-		if (!mem_cgroup_is_root(objcg->memcg) && is_cdm_node(page_to_nid(page))) {
++		if (!mem_cgroup_is_root(objcg->memcg) && is_non_normal_node(page_to_nid(page))) {
+ 			obj_cgroup_put(objcg);
+ 			return 0;
+ 		}
+@@ -7376,7 +7376,7 @@ int mem_cgroup_charge(struct page *page, struct mm_struct *mm, gfp_t gfp_mask)
+ 	if (!memcg)
+ 		memcg = get_mem_cgroup_from_mm(mm);
+ 
+-	if (!mem_cgroup_is_root(memcg) && is_cdm_node(page_to_nid(page)))
++	if (!mem_cgroup_is_root(memcg) && is_non_normal_node(page_to_nid(page)))
+ 		goto out;
+ 
+ 	ret = try_charge(memcg, gfp_mask, nr_pages);
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index ade657be9..a91c958b1 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -6321,15 +6321,14 @@ static void build_zonelists(pg_data_t *pgdat)
+ 
+ 	memset(node_order, 0, sizeof(node_order));
+ 	while ((node = find_next_best_node(local_node, &used_mask)) >= 0) {
+-#ifdef CONFIG_COHERENT_DEVICE
+ 		/*
+-		 * CDM node's own zones should not be part of any other
++		 * non normal node's own zones should not be part of any other
+ 		 * node's fallback zonelist but only it's own fallback
+ 		 * zonelist.
+ 		 */
+-		if (is_cdm_node(node) && (pgdat->node_id != node))
++		if (is_non_normal_node(node) && (local_node != node)
++			&& !is_non_normal_node(local_node))
+ 			continue;
+-#endif
+ 
+ 		/*
+ 		 * We don't want to pressure a particular node.
+-- 
+2.17.1
+

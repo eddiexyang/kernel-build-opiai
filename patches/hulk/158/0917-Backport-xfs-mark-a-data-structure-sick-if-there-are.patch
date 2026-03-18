@@ -1,0 +1,45 @@
+From bbbb3c0ad4b90f0fd5c2e50decda8c7f862f1ee0 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Mon, 22 Mar 2021 09:51:52 -0700
+Subject: [PATCH 0917/1076] [Backport] xfs: mark a data structure sick if there
+ are cross-referencing errors
+
+mainline inclusion
+from mainline-v5.12-rc4
+commit 9de4b514494a3b49fa708186c0dc4611f1fe549c
+category: bugfix
+bugzilla: 187526
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9de4b514494a3b49fa708186c0dc4611f1fe549c
+
+--------------------------------
+
+If scrub observes cross-referencing errors while scanning a data
+structure, mark the data structure sick.  There's /something/
+inconsistent, even if we can't really tell what it is.
+
+Fixes: 4860a05d2475 ("xfs: scrub/repair should update filesystem metadata health")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Guo Xuenan <guoxuenan@huawei.com>
+---
+ fs/xfs/scrub/health.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/xfs/scrub/health.c b/fs/xfs/scrub/health.c
+index 83d27cdf579b..3de59b5c2ce6 100644
+--- a/fs/xfs/scrub/health.c
++++ b/fs/xfs/scrub/health.c
+@@ -133,7 +133,8 @@ xchk_update_health(
+ 	if (!sc->sick_mask)
+ 		return;
+ 
+-	bad = (sc->sm->sm_flags & XFS_SCRUB_OFLAG_CORRUPT);
++	bad = (sc->sm->sm_flags & (XFS_SCRUB_OFLAG_CORRUPT |
++				   XFS_SCRUB_OFLAG_XCORRUPT));
+ 	switch (type_to_health_flag[sc->sm->sm_type].group) {
+ 	case XHG_AG:
+ 		pag = xfs_perag_get(sc->mp, sc->sm->sm_agno);
+-- 
+2.17.1
+

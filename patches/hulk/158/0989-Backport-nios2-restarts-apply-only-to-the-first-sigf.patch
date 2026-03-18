@@ -1,0 +1,42 @@
+From 32b1a9f8a31986f69865f3ee0b1eebb5d6194b81 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Mon, 8 Aug 2022 16:09:16 +0100
+Subject: [PATCH 0989/1076] [Backport] nios2: restarts apply only to the first
+ sigframe we build...
+
+stable inclusion
+from stable-v5.10.138
+commit 600ff4b13b0ecb94e7ba21531c7386074cca56ea
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5VP9D
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=600ff4b13b0ecb94e7ba21531c7386074cca56ea
+
+--------------------------------
+
+commit 411a76b7219555c55867466c82d70ce928d6c9e1 upstream.
+
+Fixes: b53e906d255d ("nios2: Signal handling support")
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Signed-off-by: Dinh Nguyen <dinguyen@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/nios2/kernel/signal.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/nios2/kernel/signal.c b/arch/nios2/kernel/signal.c
+index d5000d494699..916180e4a997 100644
+--- a/arch/nios2/kernel/signal.c
++++ b/arch/nios2/kernel/signal.c
+@@ -264,6 +264,7 @@ static int do_signal(struct pt_regs *regs)
+ 			regs->ea = restart_addr;
+ 			break;
+ 		}
++		regs->orig_r2 = -1;
+ 	}
+ 
+ 	if (get_signal(&ksig)) {
+-- 
+2.17.1
+

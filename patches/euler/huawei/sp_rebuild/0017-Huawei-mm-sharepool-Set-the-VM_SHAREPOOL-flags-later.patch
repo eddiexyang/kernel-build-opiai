@@ -1,0 +1,103 @@
+From 1589b498093c93e69e087247ba76d20fe1a20afc Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 11:42:15 +0800
+Subject: [PATCH 17/53] [Huawei] mm/sharepool: Set the VM_SHAREPOOL flags later
+ during k2u
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+Move vmalloc_area_set_flag() to where the k2u is success instead that
+place it in sp_k2u_prepare(). So we don't need to rollback the change
+if the k2u failed.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 40 ++++++++++++++++++----------------------
+ 1 file changed, 18 insertions(+), 22 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 6b788773c43e..a3d2bb2e41e2 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2477,6 +2477,19 @@ static unsigned long sp_remap_kva_to_vma(struct sp_area *spa, struct mm_struct *
+ 	return ret_addr;
+ }
+ 
++static bool vmalloc_area_set_flag(unsigned long kva, unsigned long flags)
++{
++	struct vm_struct *area;
++
++	area = find_vm_area((void *)kva);
++	if (area) {
++		area->flags |= flags;
++		return true;
++	}
++
++	return false;
++}
++
+ /**
+  * Share kernel memory to a spg, the current process must be in that group
+  * @kc: the context for k2u, including kva, size, flags...
+@@ -2516,26 +2529,16 @@ static void *sp_make_share_kva_to_spg(struct sp_k2u_context *kc, struct sp_group
+ 
+ out:
+ 	up_read(&spg->rw_lock);
+-	if (!IS_ERR_VALUE(ret_addr))
++	if (!IS_ERR_VALUE(ret_addr)) {
+ 		sp_update_process_stat(current, true, spa);
++		vmalloc_area_set_flag(kc->kva_aligned, VM_SHAREPOOL);
++	}
++
+ 	__sp_area_drop(spa);
+ 
+ 	return (void *)ret_addr;
+ }
+ 
+-static bool vmalloc_area_set_flag(unsigned long kva, unsigned long flags)
+-{
+-	struct vm_struct *area;
+-
+-	area = find_vm_area((void *)kva);
+-	if (area) {
+-		area->flags |= flags;
+-		return true;
+-	}
+-
+-	return false;
+-}
+-
+ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 	unsigned long sp_flags, int spg_id, struct sp_k2u_context *kc)
+ {
+@@ -2574,11 +2577,6 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 	kva_aligned = ALIGN_DOWN(kva, page_size);
+ 	size_aligned = ALIGN(kva + size, page_size) - kva_aligned;
+ 
+-	if (!vmalloc_area_set_flag(kva_aligned, VM_SHAREPOOL)) {
+-		pr_debug("k2u_task kva %lx is not valid\n", kva_aligned);
+-		return -EINVAL;
+-	}
+-
+ 	kc->kva          = kva;
+ 	kc->kva_aligned  = kva_aligned;
+ 	kc->size         = size;
+@@ -2592,9 +2590,7 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 
+ static void *sp_k2u_finish(void *uva, struct sp_k2u_context *kc)
+ {
+-	if (IS_ERR(uva))
+-		vmalloc_area_clr_flag(kc->kva_aligned, VM_SHAREPOOL);
+-	else
++	if (!IS_ERR(uva))
+ 		uva = uva + (kc->kva - kc->kva_aligned);
+ 
+ 	return uva;
+-- 
+2.17.1
+

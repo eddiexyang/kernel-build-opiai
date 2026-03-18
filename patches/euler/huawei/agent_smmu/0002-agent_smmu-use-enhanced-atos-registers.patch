@@ -1,0 +1,429 @@
+From 87a1f5a255d7bf6993fc7394d77eeb7d56fb429f Mon Sep 17 00:00:00 2001
+From: Wu Binfeng <wubinfeng@huawei.com>
+Date: Mon, 6 Sep 2021 09:54:45 +0800
+Subject: [PATCH 2/2] agent_smmu: use enhanced atos registers
+
+---
+ drivers/iommu/ascend_smmu.c | 324 +++++++++++++++++++++++++-----------
+ include/linux/ascend_smmu.h |   2 +-
+ 2 files changed, 231 insertions(+), 95 deletions(-)
+
+diff --git a/drivers/iommu/ascend_smmu.c b/drivers/iommu/ascend_smmu.c
+index a93751367..61c9b5f30 100644
+--- a/drivers/iommu/ascend_smmu.c
++++ b/drivers/iommu/ascend_smmu.c
+@@ -1,5 +1,5 @@
+ /*
+- *  provide a interface to translate iova to pa by agent smmu
++ * provide a interface to translate iova to pa by agent smmu
+  */
+ 
+ #include <linux/bitfield.h>
+@@ -9,8 +9,6 @@
+ #include <linux/acpi.h>
+ #include <linux/ascend_smmu.h>
+ 
+-#define AGENT_SMMU_REG_SIZE            0x20000
+-
+ #define AGENT_SMMU_IDR1			0x4
+ #define IDR1_SSIDSIZE			GENMASK(10, 6)
+ #define IDR1_SIDSIZE			GENMASK(5, 0)
+@@ -19,29 +17,34 @@
+ #define CR0_SMMUEN			(1 << 0)
+ 
+ #define AGENT_SMMU_ATOS_CTRL		0x100
+-#define ATOS_ACTIVE			(1 << 0)
+-
+-#define AGENT_SMMU_ATOS_SID		0x108
+-#define ATOS_STREAMID_MASK		GENMASK_ULL(31, 0)
+-#define ATOS_SUBSTREAMID_MASK		GENMASK_ULL(51, 32)
+-#define ATOS_SSID_VALID_MASK		GENMASK_ULL(52, 52)
+ 
+-#define AGENT_SMMU_ATOS_ADDR		0x110
+-#define ATOS_PHY_ADDR_MASK		GENMASK_ULL(63, 12)
+-#define ATOS_ADDR_TYPE_MASK		GENMASK_ULL(11, 10)
+-#define ATOS_ADDR_S1_TYPE		0x1
+-#define ATOS_ADDR_PnU_MASK		GENMASK_ULL(9, 9)
+-#define ATOS_ADDR_RnW_MASK		GENMASK_ULL(8, 8)
+-#define ATOS_ADDR_InD_MASK		GENMASK_ULL(7, 7)
+-#define ATOS_ADDR_HTTUI_MASK		GENMASK_ULL(6, 6)
+-
+-#define AGENT_SMMU_ATOS_PAR		0x118
+-#define ATOS_PAR_F			(1 << 0)
++#define ENHANCED_ATOS_UNIT_ADDR		0x1700	/* first unit */
++#define ENHANCED_ATOS_UNIT_SIZE		0x18
++
++#define ENHANCED_ATOS_SID		0x0
++#define ENHANCED_ATOS_STREAMID_MASK	GENMASK_ULL(31, 0)
++#define ENHANCED_ATOS_SUBSTREAMID_MASK	GENMASK_ULL(51, 32)
++#define ENHANCED_ATOS_SSID_VALID_MASK	GENMASK_ULL(52, 52)
++
++#define ENHANCED_ATOS_ADDR		0x8
++#define ENHANCED_ATOS_ADDR_ADDR_MASK	GENMASK_ULL(63, 12)
++#define ENHANCED_ATOS_ADDR_TYPE_MASK	GENMASK_ULL(11, 10)
++#define ENHANCED_ATOS_ADDR_TYPE_S1	0x01
++#define ENHANCED_ATOS_ADDR_PnU_MASK	GENMASK_ULL(9, 9)
++#define ENHANCED_ATOS_ADDR_RnW_MASK	GENMASK_ULL(8, 8)
++#define ENHANCED_ATOS_ADDR_InD_MASK	GENMASK_ULL(7, 7)
++#define ENHANCED_ATOS_ADDR_HTTUI_MASK	GENMASK_ULL(6, 6)
++
++#define ENHANCED_ATOS_PAR		0x10
++#define ENHANCED_ATOS_PAR_FAULT		(1 << 0)
++#define ENHANCED_ATOS_PAR_SIZE		(1 << 11)
++#define ENHANCED_ATOS_PAR_ADDR_MASK	GENMASK_ULL(51, 12)
++#define ENHANCED_ATOS_PAR_FAULTCODE	GENMASK_ULL(11, 4)
++#define ENHANCED_ATOS_PAR_REASON	GENMASK_ULL(2, 1)
+ 
+ #define AGENT_SMMU_POLL_US		5
+-#define AGENT_SMMU_TIMEOUT_US		50
+-#define AGENT_SMMU_MAX_SUPPORT_NUM	1
+-#define AGENT_SMMU_FAULT_REASON	GENMASK_ULL(11, 4)
++#define AGENT_SMMU_TIMEOUT_US		250
++#define MAX_REGISTERS			32
+ 
+ static LIST_HEAD(agent_smmu_list);
+ static DEFINE_SPINLOCK(agent_smmu_lock);
+@@ -52,6 +55,7 @@ struct agent_smmu {
+ 	unsigned int max_sid;
+ 	unsigned int max_ssid;
+ 	rwlock_t rw_lock;
++	DECLARE_BITMAP(regs, MAX_REGISTERS);
+ 
+ 	struct list_head list;
+ 	u64 device_id;	/* DIE id */
+@@ -108,7 +112,8 @@ static int agent_smmu_platform_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-	if (!res || resource_size(res) + 1 < AGENT_SMMU_REG_SIZE) {
++	if (!res || resource_size(res) + 1 < ENHANCED_ATOS_UNIT_ADDR +
++	    ENHANCED_ATOS_UNIT_SIZE * MAX_REGISTERS) {
+ 		dev_err(dev, "MMIO region is null or too small, check it.\n");
+ 		ret = -EINVAL;
+ 		goto err_free;
+@@ -141,6 +146,7 @@ static int agent_smmu_platform_probe(struct platform_device *pdev)
+ 	reg = readl_relaxed(agent->base + AGENT_SMMU_IDR1);
+ 	agent->max_sid = (1U << FIELD_GET(IDR1_SIDSIZE, reg)) - 1;
+ 	agent->max_ssid = (1U << FIELD_GET(IDR1_SSIDSIZE, reg)) - 1;
++	bitmap_zero(agent->regs, MAX_REGISTERS);
+ 	rwlock_init(&agent->rw_lock);
+ 	agent->dev = dev;
+ 	platform_set_drvdata(pdev, agent);
+@@ -167,20 +173,153 @@ static int agent_smmu_platform_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-int agent_smmu_iova_to_phys(struct agent_smmu_atos_data *data)
++static void set_registers_unlocked(struct agent_smmu *agent, unsigned long *avl_regs,
++			  unsigned long *loc_regs, int nr)
+ {
+-	struct agent_smmu *agent = NULL;
++	int idx = 0;
++
++	while (nr > 0) {
++		idx = find_next_bit(avl_regs, MAX_REGISTERS, idx);
++		set_bit(idx, loc_regs);
++		set_bit(idx, agent->regs);
++		nr--;
++		idx++;
++	}
++}
++
++/**
++ * registers_acquire - take up available registers(some reg may keep unavailable
++ * state) from agent smmu according to the number of 'need', mark them in
++ * 'loc_regs' and return the number of registers in procession
++ *
++ * @agent: agent smmu
++ * @loc_regs: bitmap recored user's available registers
++ * @need: the number of task still need to be processed
++ */
++static int registers_acquire(struct agent_smmu *agent, unsigned long *loc_regs,
++			     int need)
++{
++	int rest = 0;
++	u32 avl_regs_state = 0;
++	DECLARE_BITMAP(avl_regs, MAX_REGISTERS);
++
++	write_lock(&agent->rw_lock);
++	if (bitmap_full(agent->regs, MAX_REGISTERS)) {
++		rest = 0;
++	} else {
++		avl_regs_state = readl_relaxed(agent->base + AGENT_SMMU_ATOS_CTRL);
++		avl_regs_state = ~avl_regs_state;
++		bitmap_from_arr32(avl_regs, &avl_regs_state, MAX_REGISTERS);
++		bitmap_andnot(avl_regs, avl_regs, agent->regs, MAX_REGISTERS);
++		rest = bitmap_weight(avl_regs, MAX_REGISTERS);
++	}
++	set_registers_unlocked(agent, avl_regs, loc_regs, need > rest ? rest : need);
++	write_unlock(&agent->rw_lock);
++
++	return bitmap_weight(loc_regs, MAX_REGISTERS);
++}
++
++static void write_enhanced_atos(struct agent_smmu *agent, int regs_idx, u64 sid,
++				u64 addr, dma_addr_t iova)
++{
++	void __iomem *unit_base;
++
++	unit_base = agent->base + ENHANCED_ATOS_UNIT_ADDR +
++		    ENHANCED_ATOS_UNIT_SIZE * regs_idx;
++	addr |= iova & ENHANCED_ATOS_ADDR_ADDR_MASK;
++
++	writeq_relaxed(addr, unit_base + ENHANCED_ATOS_ADDR);
++	writeq_relaxed(sid, unit_base + ENHANCED_ATOS_SID);
++}
++
++static int get_section_mask(u64 par, u64 *section_mask) {
++	int i = 0;
+ 
+-	u32 reg_32;
+-	u64 reg_64 = 0;
+-	int res = 0;
+-	int index = 0;
+-	int max_i = AGENT_SMMU_MAX_SUPPORT_NUM;
+-	int count;
++	// using default page size 4KB according to spec
++	*section_mask = ~((1 << 12) - 1);
++
++	// e.g. PAR[Size] is 1 && PAR[14:12] is 0 && PAR[15] is 1, then lowest
++	// bit is 15, so section size is 2^(12+3+1) = 64KB
++	if (par & ENHANCED_ATOS_PAR_SIZE) {
++		par = FIELD_GET(ENHANCED_ATOS_PAR_ADDR_MASK, par);
++		if (!par) {
++			pr_err("agent smmu: err happen in agent smmu PAR[11]\n");
++			return -EFAULT;
++		}
++
++		par = (par ^ (par - 1)) >> 1;
++		for (i = 0; par; i++) {
++			par >>= 1;
++		}
++		*section_mask = ~((1 << (12 + i + 1)) - 1);
++	}
++	return 0;
++}
++
++static int read_enhanced_atos(struct agent_smmu *agent, int regs_idx, int idx,
++			      u32 state, struct agent_smmu_atos_data *data)
++{
++	void __iomem *unit_base = NULL;
++	u64 par = 0;
++	int ret = 0;
++	u64 section_mask = 0;
++	u64 section = 0;
++	int i = 0;
++
++	unit_base = agent->base + ENHANCED_ATOS_UNIT_ADDR +
++		    ENHANCED_ATOS_UNIT_SIZE * regs_idx;
++	par = readq_relaxed(unit_base + ENHANCED_ATOS_PAR);
++
++	if (state & (1 << regs_idx)) {
++		return -EBUSY;
++	} else if (par & ENHANCED_ATOS_PAR_FAULT) {
++		data->pa[idx] = par & ENHANCED_ATOS_PAR_FAULTCODE;
++		data->pa[idx] |= par & ENHANCED_ATOS_PAR_REASON;
++		pr_err("agent smmu: err happend, get PAR 0x%llx\n", par);
++		return -EFAULT;
++	} else {
++		ret = get_section_mask(par, &section_mask);
++		if (ret)
++			return ret;
++		// use ENHANCED_ATOS_PAR_ADDR_MASK not section_mask
++		// since ADDR[63,52] is ATTR or IMPDEF which we don't want
++		data->pa[idx] = (par & ENHANCED_ATOS_PAR_ADDR_MASK & section_mask) |
++				(data->iova[idx] & ~section_mask);
++		section = data->iova[idx] & section_mask;
++
++		for (i = idx + 1; i < data->nr; i++) {
++			if ((data->iova[i] & section_mask) != section)
++				break;
++			data->pa[i] = (par & ENHANCED_ATOS_PAR_ADDR_MASK & section_mask) |
++				      (data->iova[i] & ~section_mask);
++		}
++	}
++	return 0;
++}
++
++#define bitmap_for_each_set_bit(i, src, nbits) \
++	for ((i) = 0; ((i) = find_next_bit((src), (nbits), (i))) < (nbits); (i) += 1)
++
++int agent_smmu_iova_to_phys(struct agent_smmu_atos_data *data, int *succeed)
++{
++	struct agent_smmu *agent = NULL;
++	int ret = 0;
+ 	int i;
+-	int j;
++	u64 sid = 0;
++	u64 addr = 0;
++	int idx = 0;
++	u32 state = 0;
++	DECLARE_BITMAP(loc_regs, MAX_REGISTERS);
++	DECLARE_BITMAP(bitmask, MAX_REGISTERS);
++	u32 bitmask_u32;
++
++	if (!data || !data->iova || !data->pa || data->nr <= 0 || !succeed) {
++		return -EINVAL;
++	}
+ 
+-	if (!data || !data->iova || !data->pa || data->nr <= 0) {
++	// now only HTTUI = 1 is allowed
++	if (!data->httui) {
++		pr_err("agent smmu: check httui, make sure is vaild\n");
+ 		return -EINVAL;
+ 	}
+ 
+@@ -194,80 +333,77 @@ int agent_smmu_iova_to_phys(struct agent_smmu_atos_data *data)
+ 	}
+ 	spin_unlock(&agent_smmu_lock);
+ 
+-	write_lock(&agent->rw_lock);
+-
+-	count = 1 + (data->nr - 1) / AGENT_SMMU_MAX_SUPPORT_NUM;
+-	/* ensure ATOS_CTRL.RUN is 0  */
+-	reg_32 = readl_relaxed(agent->base + AGENT_SMMU_ATOS_CTRL);
+-	if (reg_32 & ATOS_ACTIVE) {
+-		pr_err("the agent smmu is in a query, try later\n");
+-		res = -EBUSY;
+-		goto out;
++	if (data->sid > agent->max_sid || data->ssid > agent->max_ssid) {
++		pr_err("agent smmu: sid or ssid out of acceptable range.\n");
++		ret = -EINVAL;
++		goto put_device;
+ 	}
+ 
+-	if (data->sid > agent->max_sid || data->ssid > agent->max_ssid) {
+-		pr_err("sid or ssid out of acceptable range.\n");
+-		res = -EINVAL;
+-		goto out;
++	*succeed = 0;
++	/* make sure default return is 0 because 0 make sence too */
++	for (i = 0; i < data->nr; i++) {
++		data->pa[i] = 0;
++	}
++	/* joint sid and addr first*/
++	sid = FIELD_PREP(ENHANCED_ATOS_STREAMID_MASK, data->sid);
++	sid |= FIELD_PREP(ENHANCED_ATOS_SUBSTREAMID_MASK, data->ssid);
++	sid |= FIELD_PREP(ENHANCED_ATOS_SSID_VALID_MASK, data->ssid ? 1 : 0);
++	addr |= FIELD_PREP(ENHANCED_ATOS_ADDR_TYPE_MASK, ENHANCED_ATOS_ADDR_TYPE_S1);
++	addr |= FIELD_PREP(ENHANCED_ATOS_ADDR_PnU_MASK, data->pnu ? 1 : 0);
++	addr |= FIELD_PREP(ENHANCED_ATOS_ADDR_RnW_MASK, data->rnw ? 1 : 0);
++	addr |= FIELD_PREP(ENHANCED_ATOS_ADDR_InD_MASK, data->ind ? 1 : 0);
++	addr |= FIELD_PREP(ENHANCED_ATOS_ADDR_HTTUI_MASK, data->httui ? 1 : 0);
++	bitmap_zero(loc_regs, MAX_REGISTERS);
++	if (!registers_acquire(agent, loc_regs, data->nr)) {
++		pr_err("agent smmu: busy now, try again later.\n");
++		ret = -EBUSY;
++		goto put_device;
+ 	}
+ 
+-	for (j = 0; j < count; j++) {
+-		if (j == count - 1) {
+-			max_i = data->nr - index;
+-		}
++	idx = *succeed;
++	while (idx < data->nr) {
++		bitmap_zero(bitmask, MAX_REGISTERS);
+ 
+-		/* write sid and ssid */
+-		reg_64 = FIELD_PREP(ATOS_STREAMID_MASK, data->sid);
+-		reg_64 |= FIELD_PREP(ATOS_SUBSTREAMID_MASK, data->ssid);
+-		reg_64 |= FIELD_PREP(ATOS_SSID_VALID_MASK, data->ssid ? 1 : 0);
+-		writeq_relaxed(reg_64, agent->base + AGENT_SMMU_ATOS_SID);
+-
+-		/* write iova */
+-		for (i = 0; i < max_i; i++, index++) {
+-			reg_64 = data->iova[index] & PAGE_MASK; //addr
+-			reg_64 |= FIELD_PREP(ATOS_ADDR_TYPE_MASK, ATOS_ADDR_S1_TYPE);
+-			reg_64 |= FIELD_PREP(ATOS_ADDR_PnU_MASK, data->pnu ? 1 : 0);
+-			reg_64 |= FIELD_PREP(ATOS_ADDR_RnW_MASK, data->rnw ? 1 : 0);
+-			reg_64 |= FIELD_PREP(ATOS_ADDR_InD_MASK, data->ind ? 1 : 0);
+-			reg_64 |= FIELD_PREP(ATOS_ADDR_HTTUI_MASK, data->httui ? 1 : 0);
+-			writeq_relaxed(reg_64, agent->base + AGENT_SMMU_ATOS_ADDR);
++		bitmap_for_each_set_bit(i, loc_regs, MAX_REGISTERS) {
++			if (idx >= data->nr)
++				break;
++			write_enhanced_atos(agent, i, sid, addr, data->iova[idx++]);
++			bitmap_set(bitmask, i, MAX_REGISTERS);
+ 		}
+ 
+-		/* write run bit to start translate operation */
+-		writel(ATOS_ACTIVE, agent->base + AGENT_SMMU_ATOS_CTRL);
+-
+-		/* poll run bit */
+-		if (readl_poll_timeout(agent->base + AGENT_SMMU_ATOS_CTRL,
+-					reg_32, !(reg_32 & ATOS_ACTIVE),
+-					AGENT_SMMU_POLL_US,
+-					AGENT_SMMU_TIMEOUT_US)) {
+-			pr_err("iova to phys timed out, sid = %x, ssid = %u.\n",
+-					data->sid, data->ssid);
+-			res = -EBUSY;
+-			goto out;
+-		}
++		bitmap_to_arr32(&bitmask_u32, bitmask, MAX_REGISTERS);
++		writel(bitmask_u32, agent->base + AGENT_SMMU_ATOS_CTRL);
++		readl_poll_timeout(agent->base + AGENT_SMMU_ATOS_CTRL, state,
++				   !(state & bitmask_u32), AGENT_SMMU_POLL_US,
++				   AGENT_SMMU_TIMEOUT_US);
++
++		idx = *succeed;
++		bitmap_for_each_set_bit(i, bitmask, MAX_REGISTERS) {
++			if (idx >= data->nr)
++				break;
+ 
+-		/* get pa */
+-		index -= max_i;
+-		for (i = 0; i < max_i; i++, index++) {
+-			reg_64 = readq_relaxed(agent->base + AGENT_SMMU_ATOS_PAR);
+-			if (reg_64 & ATOS_PAR_F) {
+-				pr_err("translation fault, iova = 0x%llx, "
+-				       "sid = %x , ssid = %u, PAR = 0x%llx\n",
+-				       data->iova[index], data->sid, data->ssid, reg_64);
+-				/* low 12 bit record the reason */
+-				data->pa[index] = reg_64 & AGENT_SMMU_FAULT_REASON;
+-			} else {
+-				data->pa[index] = (reg_64 & ATOS_PHY_ADDR_MASK) |
+-						  (data->iova[index] & ~PAGE_MASK);
++			if (data->pa[idx] != 0) {
++				idx++;
++				continue;
+ 			}
++			ret = read_enhanced_atos(agent, i, idx, state, data);
++			if (ret) {
++				*succeed = idx;
++				pr_err("agent smmu: translate failed, reason %d\n", ret);
++				goto free_bits;
++			}
++			idx++;
+ 		}
++		*succeed = idx;
+ 	}
+ 
+-out:
++free_bits:
++	write_lock(&agent->rw_lock);
++	bitmap_andnot(agent->regs, agent->regs, loc_regs, MAX_REGISTERS);
+ 	write_unlock(&agent->rw_lock);
++put_device:
+ 	put_device(agent->dev);
+-	return res;
++	return ret;
+ }
+ EXPORT_SYMBOL_GPL(agent_smmu_iova_to_phys);
+ 
+diff --git a/include/linux/ascend_smmu.h b/include/linux/ascend_smmu.h
+index afa525791..98bc72361 100644
+--- a/include/linux/ascend_smmu.h
++++ b/include/linux/ascend_smmu.h
+@@ -56,7 +56,7 @@ struct agent_smmu_atos_data {
+ 	u64 device_id;
+ };
+ 
+-extern int agent_smmu_iova_to_phys(struct agent_smmu_atos_data *data);
++extern int agent_smmu_iova_to_phys(struct agent_smmu_atos_data *data, int *succeed);
+ 
+ #endif
+ 
+-- 
+2.33.0
+

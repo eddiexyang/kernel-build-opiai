@@ -1,0 +1,40 @@
+From 8da7cb6c9ea8bbbea5a380c135aaa4ca10fa9ef7 Mon Sep 17 00:00:00 2001
+From: Tong Tiangen <tongtiangen@huawei.com>
+Date: Fri, 13 Jan 2023 07:23:43 +0000
+Subject: [PATCH 001/905] [Huawei] arm64: fix return value type of memcpy_mcs()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188249
+
+--------------------------------
+
+The return value type of function memcpy_mcs() should be unsigned long.
+Currently, using this function will force type conversion, but the error
+of the return value type must be corrected.
+
+Fixes: 11ac448894fc ("[Huawei] arm64: introduce copy_mc_to_kernel() implementation")
+Signed-off-by: Tong Tiangen <tongtiangen@huawei.com>
+---
+ arch/arm64/include/asm/string.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/include/asm/string.h b/arch/arm64/include/asm/string.h
+index 08e0327a1719..c12a3ca42d61 100644
+--- a/arch/arm64/include/asm/string.h
++++ b/arch/arm64/include/asm/string.h
+@@ -36,8 +36,8 @@ extern void *memcpy(void *, const void *, __kernel_size_t);
+ extern void *__memcpy(void *, const void *, __kernel_size_t);
+ 
+ #define __HAVE_ARCH_MEMCPY_MC
+-extern unsigned long *memcpy_mcs(void *, const void *, __kernel_size_t);
+-extern unsigned long *__memcpy_mcs(void *, const void *, __kernel_size_t);
++extern unsigned long memcpy_mcs(void *, const void *, __kernel_size_t);
++extern unsigned long __memcpy_mcs(void *, const void *, __kernel_size_t);
+ 
+ #define __HAVE_ARCH_MEMMOVE
+ extern void *memmove(void *, const void *, __kernel_size_t);
+-- 
+2.17.1
+

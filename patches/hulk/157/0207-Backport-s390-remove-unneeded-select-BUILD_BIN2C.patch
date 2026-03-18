@@ -1,0 +1,47 @@
+From a56acc6b86e2ff2f020e026d29d8acf33f63f1c3 Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Tue, 14 Jun 2022 02:09:00 +0900
+Subject: [PATCH 207/261] [Backport] s390: remove unneeded 'select BUILD_BIN2C'
+
+stable inclusion
+from stable-v5.10.129
+commit 4b480a7940ff85674cde15dacd1764e69e7f680b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5PD6F
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4b480a7940ff85674cde15dacd1764e69e7f680b
+
+--------------------------------
+
+commit 25deecb21c18ee29e3be8ac6177b2a9504c33d2d upstream.
+
+Since commit 4c0f032d4963 ("s390/purgatory: Omit use of bin2c"),
+s390 builds the purgatory without using bin2c.
+
+Remove 'select BUILD_BIN2C' to avoid the unneeded build of bin2c.
+
+Fixes: 4c0f032d4963 ("s390/purgatory: Omit use of bin2c")
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Link: https://lore.kernel.org/r/20220613170902.1775211-1-masahiroy@kernel.org
+Signed-off-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/s390/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/s390/Kconfig b/arch/s390/Kconfig
+index a7e38600096d..7461318e10fb 100644
+--- a/arch/s390/Kconfig
++++ b/arch/s390/Kconfig
+@@ -507,7 +507,6 @@ config KEXEC
+ config KEXEC_FILE
+ 	bool "kexec file based system call"
+ 	select KEXEC_CORE
+-	select BUILD_BIN2C
+ 	depends on CRYPTO
+ 	depends on CRYPTO_SHA256
+ 	depends on CRYPTO_SHA256_S390
+-- 
+2.17.1
+

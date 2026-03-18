@@ -1,0 +1,49 @@
+From 6ff368ef5fd5fdeeff69f173e71995ff9bcb1208 Mon Sep 17 00:00:00 2001
+From: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Date: Sun, 26 Feb 2023 23:10:03 +0100
+Subject: [PATCH 170/780] [Backport] wifi: rtw88: mac: Return the original
+ error from rtw_pwr_seq_parser()
+
+stable inclusion
+from stable-v5.10.180
+commit 1980dd8c53ec6383358645073463e7a155f16f0a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=1980dd8c53ec6383358645073463e7a155f16f0a
+
+--------------------------------
+
+[ Upstream commit b7ed9fa2cb76ca7a3c3cd4a6d35748fe1fbda9f6 ]
+
+rtw_pwr_seq_parser() calls rtw_sub_pwr_seq_parser() which can either
+return -EBUSY, -EINVAL or 0. Propagate the original error code instead
+of unconditionally returning -EBUSY in case of an error.
+
+Fixes: e3037485c68e ("rtw88: new Realtek 802.11ac driver")
+Signed-off-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Reviewed-by: Ping-Ke Shih <pkshih@realtek.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/20230226221004.138331-2-martin.blumenstingl@googlemail.com
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/wireless/realtek/rtw88/mac.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/realtek/rtw88/mac.c b/drivers/net/wireless/realtek/rtw88/mac.c
+index 59028b121b00..fd427c606fa2 100644
+--- a/drivers/net/wireless/realtek/rtw88/mac.c
++++ b/drivers/net/wireless/realtek/rtw88/mac.c
+@@ -233,7 +233,7 @@ static int rtw_pwr_seq_parser(struct rtw_dev *rtwdev,
+ 
+ 		ret = rtw_sub_pwr_seq_parser(rtwdev, intf_mask, cut_mask, cmd);
+ 		if (ret)
+-			return -EBUSY;
++			return ret;
+ 
+ 		idx++;
+ 	} while (1);
+-- 
+2.17.1
+

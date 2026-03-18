@@ -1,0 +1,111 @@
+From 4ca3bd970fdfb401139eb2180bdcf58fb7c94e39 Mon Sep 17 00:00:00 2001
+From: Gaosheng Cui <cuigaosheng1@huawei.com>
+Date: Wed, 28 Jun 2023 23:45:33 -0400
+Subject: [PATCH 239/780] [Huawei] Revert "[Huawei] cgroup: Stop task iteration
+ when rebinding subsystem"
+
+Offering: HULK
+hulk inclusion
+category: others
+bugzilla: 188807
+
+--------------------------------
+
+This reverts commit fefdd66dc261a373280007f94b6158f244a61ced.
+
+Signed-off-by: Gaosheng Cui <cuigaosheng1@huawei.com>
+---
+ include/linux/cgroup.h |  1 -
+ kernel/cgroup/cgroup.c | 34 +---------------------------------
+ 2 files changed, 1 insertion(+), 34 deletions(-)
+
+diff --git a/include/linux/cgroup.h b/include/linux/cgroup.h
+index 841b4ef240f0..4e6b66d833b1 100644
+--- a/include/linux/cgroup.h
++++ b/include/linux/cgroup.h
+@@ -47,7 +47,6 @@ struct kernel_clone_args;
+ 
+ /* internal flags */
+ #define CSS_TASK_ITER_SKIPPED		(1U << 16)
+-#define CSS_TASK_ITER_STOPPED		(1U << 17)
+ 
+ /* a css_task_iter should be treated as an opaque object */
+ struct css_task_iter {
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index b725420ee06a..67c17bc28dd0 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -215,8 +215,6 @@ static int cgroup_apply_control(struct cgroup *cgrp);
+ static void cgroup_finalize_control(struct cgroup *cgrp, int ret);
+ static void css_task_iter_skip(struct css_task_iter *it,
+ 			       struct task_struct *task);
+-static void css_task_iter_stop(struct css_task_iter *it,
+-			       struct cgroup_subsys *ss);
+ static int cgroup_destroy_locked(struct cgroup *cgrp);
+ static struct cgroup_subsys_state *css_create(struct cgroup *cgrp,
+ 					      struct cgroup_subsys *ss);
+@@ -857,19 +855,6 @@ static void css_set_skip_task_iters(struct css_set *cset,
+ 		css_task_iter_skip(it, task);
+ }
+ 
+-/*
+- * @cset is moving to other list, it's not safe to continue the iteration,
+- * because the cset_head of css_task_iter which is from the old list can
+- * not be used as the stop condition of iteration.
+- */
+-static void css_set_stop_iters(struct css_set *cset, struct cgroup_subsys *ss)
+-{
+-	struct css_task_iter *it, *pos;
+-
+-	list_for_each_entry_safe(it, pos, &cset->task_iters, iters_node)
+-		css_task_iter_stop(it, ss);
+-}
+-
+ /**
+  * css_set_move_task - move a task from one css_set to another
+  * @task: task being moved
+@@ -1790,11 +1775,9 @@ int rebind_subsystems(struct cgroup_root *dst_root, u16 ss_mask)
+ 		css->cgroup = dcgrp;
+ 
+ 		spin_lock_irq(&css_set_lock);
+-		hash_for_each(css_set_table, i, cset, hlist) {
+-			css_set_stop_iters(cset, ss);
++		hash_for_each(css_set_table, i, cset, hlist)
+ 			list_move_tail(&cset->e_cset_node[ss->id],
+ 				       &dcgrp->e_csets[ss->id]);
+-		}
+ 		spin_unlock_irq(&css_set_lock);
+ 
+ 		if (ss->css_rstat_flush) {
+@@ -4753,16 +4736,6 @@ static void css_task_iter_skip(struct css_task_iter *it,
+ 	}
+ }
+ 
+-static void css_task_iter_stop(struct css_task_iter *it,
+-			       struct cgroup_subsys *ss)
+-{
+-	lockdep_assert_held(&css_set_lock);
+-
+-	if (it->ss == ss) {
+-		it->flags |= CSS_TASK_ITER_STOPPED;
+-	}
+-}
+-
+ static void css_task_iter_advance(struct css_task_iter *it)
+ {
+ 	struct task_struct *task;
+@@ -4866,11 +4839,6 @@ struct task_struct *css_task_iter_next(struct css_task_iter *it)
+ 
+ 	spin_lock_irq(&css_set_lock);
+ 
+-	if (it->flags & CSS_TASK_ITER_STOPPED) {
+-		spin_unlock_irq(&css_set_lock);
+-		return NULL;
+-	}
+-
+ 	/* @it may be half-advanced by skips, finish advancing */
+ 	if (it->flags & CSS_TASK_ITER_SKIPPED)
+ 		css_task_iter_advance(it);
+-- 
+2.17.1
+

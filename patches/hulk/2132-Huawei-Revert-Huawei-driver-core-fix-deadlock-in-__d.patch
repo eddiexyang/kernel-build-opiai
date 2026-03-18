@@ -1,0 +1,48 @@
+From 5a3902e784bb6ff1ac03f0e52df66e438dde22d9 Mon Sep 17 00:00:00 2001
+From: Zhang Wensheng <zhangwensheng5@huawei.com>
+Date: Fri, 20 May 2022 14:53:43 +0800
+Subject: [PATCH 2132/2592] [Huawei] Revert "[Huawei] driver core: fix deadlock
+ in __driver_attach"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186731
+
+--------------------------------
+
+This reverts commit 601b59f167e6b8fe6eb5f6c1126dd76d2ec7fb20.
+This patch do not ust "async" flag well, just revert it.
+
+Signed-off-by: Zhang Wensheng <zhangwensheng5@huawei.com>
+---
+ drivers/base/dd.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/base/dd.c b/drivers/base/dd.c
+index 28d545d85afb..4f4e8aedbd2c 100644
+--- a/drivers/base/dd.c
++++ b/drivers/base/dd.c
+@@ -1062,7 +1062,6 @@ static int __driver_attach(struct device *dev, void *data)
+ {
+ 	struct device_driver *drv = data;
+ 	int ret;
+-	bool async = false;
+ 
+ 	/*
+ 	 * Lock device and try to bind to it. We drop the error
+@@ -1099,10 +1098,9 @@ static int __driver_attach(struct device *dev, void *data)
+ 		if (!dev->driver) {
+ 			get_device(dev);
+ 			dev->p->async_driver = drv;
+-			async = true;
++			async_schedule_dev(__driver_attach_async_helper, dev);
+ 		}
+ 		device_unlock(dev);
+-		async_schedule_dev(__driver_attach_async_helper, dev);
+ 		return 0;
+ 	}
+ 
+-- 
+2.17.1
+

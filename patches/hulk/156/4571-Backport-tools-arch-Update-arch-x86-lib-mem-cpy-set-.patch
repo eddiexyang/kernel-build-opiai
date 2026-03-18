@@ -1,0 +1,74 @@
+From 83c764729a45b2d75b5c340ab9e830e6961fefa7 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Sun, 9 May 2021 10:19:37 -0300
+Subject: [PATCH 4571/4585] [Backport] tools arch: Update
+ arch/x86/lib/mem{cpy,set}_64.S copies used in 'perf bench mem memcpy' - again
+
+stable inclusion
+from stable-v5.10.133
+commit 060e39b8c21ceeca3eeaaca5f97dcd8530d85b67
+category: bugfix
+bugzilla: 187378
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=060e39b8c21ceeca3eeaaca5f97dcd8530d85b67
+
+--------------------------------
+
+commit fb24e308b6310541e70d11a3f19dc40742974b95 upstream.
+
+To bring in the change made in this cset:
+
+ 5e21a3ecad1500e3 ("x86/alternative: Merge include files")
+
+This just silences these perf tools build warnings, no change in the tools:
+
+  Warning: Kernel ABI header at 'tools/arch/x86/lib/memcpy_64.S' differs from latest version at 'arch/x86/lib/memcpy_64.S'
+  diff -u tools/arch/x86/lib/memcpy_64.S arch/x86/lib/memcpy_64.S
+  Warning: Kernel ABI header at 'tools/arch/x86/lib/memset_64.S' differs from latest version at 'arch/x86/lib/memset_64.S'
+  diff -u tools/arch/x86/lib/memset_64.S arch/x86/lib/memset_64.S
+
+Cc: Borislav Petkov <bp@suse.de>
+Cc: Juergen Gross <jgross@suse.com>
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ tools/arch/x86/lib/memcpy_64.S                         | 2 +-
+ tools/arch/x86/lib/memset_64.S                         | 2 +-
+ tools/include/asm/{alternative-asm.h => alternative.h} | 0
+ 3 files changed, 2 insertions(+), 2 deletions(-)
+ rename tools/include/asm/{alternative-asm.h => alternative.h} (100%)
+
+diff --git a/tools/arch/x86/lib/memcpy_64.S b/tools/arch/x86/lib/memcpy_64.S
+index 644da05e5e71..59cf2343f3d9 100644
+--- a/tools/arch/x86/lib/memcpy_64.S
++++ b/tools/arch/x86/lib/memcpy_64.S
+@@ -4,7 +4,7 @@
+ #include <linux/linkage.h>
+ #include <asm/errno.h>
+ #include <asm/cpufeatures.h>
+-#include <asm/alternative-asm.h>
++#include <asm/alternative.h>
+ #include <asm/export.h>
+ 
+ .pushsection .noinstr.text, "ax"
+diff --git a/tools/arch/x86/lib/memset_64.S b/tools/arch/x86/lib/memset_64.S
+index 4d793ff820e2..d624f2bc42f1 100644
+--- a/tools/arch/x86/lib/memset_64.S
++++ b/tools/arch/x86/lib/memset_64.S
+@@ -3,7 +3,7 @@
+ 
+ #include <linux/linkage.h>
+ #include <asm/cpufeatures.h>
+-#include <asm/alternative-asm.h>
++#include <asm/alternative.h>
+ #include <asm/export.h>
+ 
+ /*
+diff --git a/tools/include/asm/alternative-asm.h b/tools/include/asm/alternative.h
+similarity index 100%
+rename from tools/include/asm/alternative-asm.h
+rename to tools/include/asm/alternative.h
+-- 
+2.17.1
+

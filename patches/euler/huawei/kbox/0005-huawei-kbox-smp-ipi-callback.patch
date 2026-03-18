@@ -1,0 +1,357 @@
+From 0396ebcbfc7044ce81c9689cff150076cf903c75 Mon Sep 17 00:00:00 2001
+From: lansheng <lansheng@huawei.com>
+Date: Sat, 16 Jul 2022 08:12:42 +0000
+Subject: [PATCH 5/8] huawei kbox smp ipi callback
+
+---
+ arch/arm64/kernel/smp.c | 145 ++++++++++++++++++++++++++++++++++++++
+ arch/x86/kernel/smp.c   | 152 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 297 insertions(+)
+
+diff --git a/arch/arm64/kernel/smp.c b/arch/arm64/kernel/smp.c
+index dd4c76ed8..b3200825b 100644
+--- a/arch/arm64/kernel/smp.c
++++ b/arch/arm64/kernel/smp.c
+@@ -80,6 +80,9 @@ enum ipi_msg_type {
+ 	IPI_TIMER,
+ 	IPI_IRQ_WORK,
+ 	IPI_WAKEUP,
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++	IPI_USER_FUN,
++#endif
+ 	NR_IPI
+ };
+ 
+@@ -87,6 +90,24 @@ static int ipi_irq_base __read_mostly;
+ static int nr_ipi __read_mostly = NR_IPI;
+ static struct irq_desc *ipi_desc[NR_IPI] __read_mostly;
+ 
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++#define OS_SMP_NMI_CALL_WAIT   (1)
++#define OS_SMP_NMI_CALL_NOWAIT   (0)
++static DECLARE_BITMAP(smp_call_mask, NR_CPUS) __read_mostly;
++static atomic_t calling_cpu = ATOMIC_INIT(-1);
++static atomic_t smp_call_not_finished = ATOMIC_INIT(0);
++typedef void (*smp_nmi_call_func_t)(unsigned long info);
++struct smp_nmi_call_function_data {
++	smp_nmi_call_func_t func;
++	unsigned long info;
++};
++
++static struct smp_nmi_call_function_data user_ipi_callback_data = {
++	.func              = NULL,
++	.info              = 0,
++};
++#endif
++
+ static void ipi_setup(int cpu);
+ 
+ #ifdef CONFIG_HOTPLUG_CPU
+@@ -845,6 +866,9 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
+ 	S(IPI_TIMER, "Timer broadcast interrupts"),
+ 	S(IPI_IRQ_WORK, "IRQ work interrupts"),
+ 	S(IPI_WAKEUP, "CPU wake-up interrupts"),
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++	S(IPI_USER_FUN, "User function call interrupts"),
++#endif
+ };
+ 
+ static void smp_cross_call(const struct cpumask *target, unsigned int ipinr);
+@@ -987,6 +1011,23 @@ static void do_handle_IPI(int ipinr)
+ 		break;
+ #endif
+ 
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++	case IPI_USER_FUN:
++		irq_enter();
++		if (cpumask_test_cpu(cpu, to_cpumask(smp_call_mask)) == 0) {
++			irq_exit();
++			break;
++		}
++		if (unlikely(user_ipi_callback_data.func == NULL)) {
++			printk("CPU%u: user ipi callback function not register.\n", cpu);
++		} else {
++			user_ipi_callback_data.func(user_ipi_callback_data.info);
++			cpumask_clear_cpu(cpu, to_cpumask(smp_call_mask));
++		}
++		irq_exit();
++		break;
++#endif
++
+ 	default:
+ 		pr_crit("CPU%u: Unknown IPI message 0x%x\n", cpu, ipinr);
+ 		break;
+@@ -1196,6 +1237,110 @@ bool cpus_are_stuck_in_kernel(void)
+ 	return !!cpus_stuck_in_kernel || smp_spin_tables;
+ }
+ 
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++static int smp_nmi_call_function(smp_nmi_call_func_t run_func, unsigned long data, int wait, long time)
++{
++	unsigned long timeout;
++	int cpu = -1;
++	int cur_cpu = -1;
++
++	/* BSP need os disable the irq */
++	local_irq_disable();
++
++	/*
++	 * Use an own vector here because smp_call_function
++	 * does lots of things not suitable in a panic situation.
++	 */
++	if (num_online_cpus() <= 1) {
++		printk(KERN_EMERG "%s:only one cpu is running!\n", __func__);
++		goto out;
++	}
++
++	/* record current cpu id, parallel not surpport */
++	cur_cpu = smp_processor_id();
++
++	/* juge last calling*/
++	if (atomic_read(&smp_call_not_finished) && (atomic_read(&calling_cpu) != -1)) {
++		printk(KERN_EMERG "%s:smp_call_not_finished,check smp_call_mask\n", __func__);
++		/* if other cpus completed */
++		if (cpumask_empty(to_cpumask(smp_call_mask))) {
++			atomic_set(&smp_call_not_finished, 0);
++			atomic_set(&calling_cpu, -1);
++		} else {
++			printk(KERN_EMERG "warning:last call not finished! cpu_mask = 0x%lx.\n",
++					*smp_call_mask);
++			return -1;
++		}
++	}
++
++	if (atomic_cmpxchg(&calling_cpu, -1, cur_cpu) != -1) {
++		cpu = atomic_read(&calling_cpu);
++		printk(KERN_EMERG "another cpu:%d is running! cur cpu = %d.\n",
++				cpu, cur_cpu);
++		return -1;
++	}
++
++	cpumask_copy(to_cpumask(smp_call_mask), cpu_online_mask);
++	cpumask_clear_cpu(cur_cpu, to_cpumask(smp_call_mask));
++	printk(KERN_EMERG "cpu %d will send nmi ,the cpumask = 0x%lx\n",
++			cur_cpu, *smp_call_mask);
++
++	/* regitster callback */
++	user_ipi_callback_data.func = run_func;
++	user_ipi_callback_data.info = data;
++
++	/* set the flag that others cpu not finish */
++	atomic_add(1, &smp_call_not_finished);
++
++	/*do not call console for console may hung*/
++	console_silent();
++
++	/* current cpu not call the registered function */
++	smp_cross_call(to_cpumask(smp_call_mask), IPI_USER_FUN);
++
++	/* async mode, exit */
++	if (!wait)
++		goto no_wait_exit;
++
++	/*
++	 * Don't wait longer than a second if the caller
++	 * didn't ask us to wait.
++	 */
++	if (time < 0)
++		timeout = USEC_PER_SEC;
++	else
++		timeout = min(USEC_PER_SEC, time);
++	while ((num_online_cpus() > 1) && (timeout--))
++		udelay(1);
++
++	/* all other cpus excuted callback function */
++	if (num_online_cpus() == 1) {
++		atomic_sub(1, &smp_call_not_finished);
++		printk(KERN_EMERG "%s in other cpu exec finished!\n", __func__);
++		/* reset global struct */
++		user_ipi_callback_data.func = NULL;
++		user_ipi_callback_data.info = 0;
++		atomic_set(&calling_cpu, -1);
++		goto out;
++	}
++
++no_wait_exit:
++	printk(KERN_EMERG "%s:async mode, i finished!\n", __func__);
++	printk(KERN_EMERG "%s:this time is running cpumask = 0x%lx\n",
++			__func__, *smp_call_mask);
++	goto out;
++
++out:
++	return 0;
++}
++
++void kbox_smp_nmi_call_function(smp_nmi_call_func_t run_func, unsigned long data, int wait, long time, void *msg)
++{
++	smp_nmi_call_function(run_func, data, wait, time);
++}
++EXPORT_SYMBOL(kbox_smp_nmi_call_function);
++#endif
++
+ #ifdef CONFIG_HARDLOCKUP_DETECTOR_PERF
+ s64 hardlockup_enable;
+ static DEFINE_PER_CPU(u64, cpu_freq_probed);
+diff --git a/arch/x86/kernel/smp.c b/arch/x86/kernel/smp.c
+index eff4ce3b1..262df51fe 100644
+--- a/arch/x86/kernel/smp.c
++++ b/arch/x86/kernel/smp.c
+@@ -277,3 +277,155 @@ struct smp_ops smp_ops = {
+ 	.send_call_func_single_ipi = native_send_call_func_single_ipi,
+ };
+ EXPORT_SYMBOL_GPL(smp_ops);
++
++#ifdef CONFIG_EULEROS_KBOX_SMP_IPI_CALLBACK
++/* taking into account other cpu architecture does not necessarily
++ * have such similar NMI mechanism, or to achieve different,
++ * so put the code under the arch directory
++ */
++
++#define SMP_NMI_CALL_FUNC_NAME "smp_nmi_call"
++#define UDELAY_100US			(100)
++static DECLARE_BITMAP(smp_call_mask, NR_CPUS) __read_mostly;
++static DECLARE_BITMAP(cpu_mask_before_nmi, NR_CPUS);
++static atomic_t calling_cpu = ATOMIC_INIT(-1);
++static atomic_t os_reg_nmi_flag = ATOMIC_INIT(0);
++
++typedef void (*smp_nmi_call_func_t)(unsigned long info, struct pt_regs *regs);
++
++struct smp_nmi_call_function_data {
++	smp_nmi_call_func_t func;
++	unsigned long info;    /* only 8 bytes information can be passed */
++};
++
++static struct smp_nmi_call_function_data smp_nmi_callback_data = {
++	.func = NULL,
++	.info = 0,
++};
++
++static int smp_nmi_call_function_handler(unsigned int val, struct pt_regs *regs)
++{
++	const int cpu = smp_processor_id();
++
++	if (cpumask_test_cpu(cpu, to_cpumask(smp_call_mask))) {
++		if (smp_nmi_callback_data.func) {
++			smp_nmi_callback_data.func(smp_nmi_callback_data.info, regs);
++		}
++
++		cpumask_clear_cpu(cpu, to_cpumask(smp_call_mask));
++		return NMI_HANDLED;
++	}
++
++	return NMI_DONE;
++}
++
++/*
++ * kbox_smp_nmi_call_function(): Run a function on all other CPUs.
++ * @func: The function to run. This must be fast and non-blocking.
++ * @info: An arbitrary pointer to pass to the function.
++ * @wait: If true, wait (atomically) until function has completed
++ *        on other CPUs.
++ * @time: timeout value if @wait is true.
++ * Returns 0.
++ *
++ * If @wait is true, then returns once @func has returned; otherwise
++ * it returns just before the target cpu calls @func.
++ *
++ * You must not call this function with disabled interrupts or from a
++ * hardware interrupt handler or from a bottom half handler.
++ */
++int kbox_smp_nmi_call_function(smp_nmi_call_func_t run_func, unsigned long data, int wait, long time)
++{
++	int ret = 0;
++	long timeout = 0;
++	int cur_cpu = -1;
++
++	/* protection, if the current system is being forced to reboot, then do not execute */
++	if (reboot_force) {
++		pr_emerg("smp_nmi_call_function:now, reboot -f is running!\n");
++		return -1;
++	}
++
++	/*
++	 * Use an own vector here because smp_call_function
++	 * does lots of things not suitable in a panic situation.
++	 */
++	if (num_online_cpus() <= 1) {
++		pr_emerg("smp_nmi_call_function:only one cpu is running!\n");
++		return 0;
++	}
++
++	/* record the current CPU, does not support concurrent */
++	cur_cpu = safe_smp_processor_id();
++	if (atomic_cmpxchg(&calling_cpu, -1, cur_cpu) != -1) {
++		/* Note that it does not modify calling_cpu */
++		pr_emerg("first calling cpu is %d. cur cpu is %d.\n", atomic_read(&calling_cpu), cur_cpu);
++		return -1;
++	}
++
++	smp_nmi_callback_data.func = run_func;
++	smp_nmi_callback_data.info = data;
++
++	cpumask_copy(to_cpumask(smp_call_mask), cpu_online_mask);
++	cpumask_clear_cpu(cur_cpu, to_cpumask(smp_call_mask));
++
++	cpumask_copy(to_cpumask(cpu_mask_before_nmi), to_cpumask(smp_call_mask));
++
++	pr_emerg("cpu %d will send nmi, the cpumask: 0x%lx\n", cur_cpu, *smp_call_mask);
++
++	/* register nmi handler Note that registered the highest priority */
++	if (0 == atomic_read(&os_reg_nmi_flag)) {
++		ret = register_nmi_handler(NMI_LOCAL, smp_nmi_call_function_handler, NMI_FLAG_FIRST, SMP_NMI_CALL_FUNC_NAME);
++		if (ret != 0) {
++			pr_emerg("smp_nmi_call_function register fail, ret = %d\n", ret);
++			goto out;
++		}
++		atomic_set(&os_reg_nmi_flag, 1);
++	}
++
++	/* sync above data before sending NMI */
++	wbinvd();
++	wmb();
++
++	/* Note that sending cpu does not perform callback */
++	apic->send_IPI_allbutself(NMI_VECTOR);
++
++	/* if asynchronous mode, without waiting, exit */
++	if (!wait) {
++		goto out;
++	}
++
++	/*
++	 * Don't wait longer than a second if the caller
++	 * didn't ask us to wait.
++	 */
++	timeout = ((time < 0) ? USEC_PER_SEC : min(USEC_PER_SEC, time));
++	while (timeout > 0) {
++		udelay(UDELAY_100US);
++		timeout -= UDELAY_100US;
++		/* for CPU no stop scenario, cpu will not offline */
++		if (cpumask_empty(to_cpumask(smp_call_mask))) {
++			break;
++		}
++
++		/* for CPU stop scenario, cpu mask will not be cleared */
++		if (num_online_cpus() <= 1) {
++			break;
++		}
++	}
++
++out:
++	pr_emerg("smp_nmi_call_function is finished. wait: %d, time: %ld, timeout: %ld, cpumask: 0x%lx\n",
++		wait, time, timeout, *smp_call_mask);
++
++	cpumask_clear(to_cpumask(cpu_mask_before_nmi));
++	cpumask_clear(to_cpumask(smp_call_mask));
++	udelay(10); /* wait for all other CPUs finish judging func pointer */
++	smp_nmi_callback_data.func = NULL;
++	smp_nmi_callback_data.info = 0;
++	atomic_set(&calling_cpu, -1);
++
++	return 0;
++}
++EXPORT_SYMBOL(kbox_smp_nmi_call_function);
++#endif
+-- 
+2.33.0
+

@@ -1,0 +1,72 @@
+From e3ef9e6aa9b031b63510bd3cb6c5c04c59133d71 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 23 Jun 2021 14:01:50 +0200
+Subject: [PATCH 0489/1646] [Backport] x86/fpu: Cleanup
+ arch_set_user_pkey_access()
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit 9fe8a6f5eed8fff6b2d7dbc99b911334e311732d
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I590ZC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9fe8a6f5eed8fff6b2d7dbc99b911334e311732d
+
+--------------------------------
+
+The function does a sanity check with a WARN_ON_ONCE() but happily proceeds
+when the pkey argument is out of range.
+
+Clean it up.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Reviewed-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210623121453.635764326@linutronix.de
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/kernel/fpu/xstate.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/kernel/fpu/xstate.c b/arch/x86/kernel/fpu/xstate.c
+index 3513d664c95c..440b0d8c15e6 100644
+--- a/arch/x86/kernel/fpu/xstate.c
++++ b/arch/x86/kernel/fpu/xstate.c
+@@ -912,11 +912,10 @@ EXPORT_SYMBOL_GPL(get_xsave_addr);
+  * rights for @pkey to @init_val.
+  */
+ int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+-		unsigned long init_val)
++			      unsigned long init_val)
+ {
+-	u32 old_pkru;
+-	int pkey_shift = (pkey * PKRU_BITS_PER_PKEY);
+-	u32 new_pkru_bits = 0;
++	u32 old_pkru, new_pkru_bits = 0;
++	int pkey_shift;
+ 
+ 	/*
+ 	 * This check implies XSAVE support.  OSPKE only gets
+@@ -930,7 +929,8 @@ int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+ 	 * values originating from in-kernel users.  Complain
+ 	 * if a bad value is observed.
+ 	 */
+-	WARN_ON_ONCE(pkey >= arch_max_pkey());
++	if (WARN_ON_ONCE(pkey >= arch_max_pkey()))
++		return -EINVAL;
+ 
+ 	/* Set the bits we need in PKRU:  */
+ 	if (init_val & PKEY_DISABLE_ACCESS)
+@@ -939,6 +939,7 @@ int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+ 		new_pkru_bits |= PKRU_WD_BIT;
+ 
+ 	/* Shift the bits in to the correct place in PKRU for pkey: */
++	pkey_shift = pkey * PKRU_BITS_PER_PKEY;
+ 	new_pkru_bits <<= pkey_shift;
+ 
+ 	/* Get old PKRU and mask off any old bits in place: */
+-- 
+2.17.1
+

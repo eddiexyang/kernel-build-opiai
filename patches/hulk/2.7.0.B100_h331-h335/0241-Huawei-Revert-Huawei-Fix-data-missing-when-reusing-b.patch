@@ -1,0 +1,68 @@
+From 3f2df27ba95b631a51ddbbcac51e4cd80bf1a95e Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Thu, 2 Mar 2023 17:42:01 +0800
+Subject: [PATCH 241/500] [Huawei] Revert "[Huawei] Fix data missing when
+ reusing bh which is ready to be checkpointed"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188104
+
+--------------------------------
+
+This reverts commit cd9784089445c7b357bfdecd5fa261b6bbe6d485.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/jbd2/transaction.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/fs/jbd2/transaction.c b/fs/jbd2/transaction.c
+index e6f244d3d744..9f776bdba269 100644
+--- a/fs/jbd2/transaction.c
++++ b/fs/jbd2/transaction.c
+@@ -964,7 +964,6 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
+  	start_lock = jiffies;
+ 	lock_buffer(bh);
+ 	spin_lock(&jh->b_state_lock);
+-	spin_lock(&journal->j_list_lock);
+ 
+ 	/* If it takes too long to lock the buffer, trace it */
+ 	time_lock = jbd2_time_diff(start_lock, jiffies);
+@@ -1014,7 +1013,6 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
+ 
+ 	error = -EROFS;
+ 	if (is_handle_aborted(handle)) {
+-		spin_unlock(&journal->j_list_lock);
+ 		spin_unlock(&jh->b_state_lock);
+ 		goto out;
+ 	}
+@@ -1025,10 +1023,8 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
+ 	 * b_next_transaction points to it
+ 	 */
+ 	if (jh->b_transaction == transaction ||
+-	    jh->b_next_transaction == transaction) {
+-		spin_unlock(&journal->j_list_lock);
++	    jh->b_next_transaction == transaction)
+ 		goto done;
+-	}
+ 
+ 	/*
+ 	 * this is the first time this transaction is touching this buffer,
+@@ -1051,11 +1047,11 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
+ 		 * Paired with barrier in jbd2_write_access_granted()
+ 		 */
+ 		smp_wmb();
++		spin_lock(&journal->j_list_lock);
+ 		__jbd2_journal_file_buffer(jh, transaction, BJ_Reserved);
+ 		spin_unlock(&journal->j_list_lock);
+ 		goto done;
+ 	}
+-	spin_unlock(&journal->j_list_lock);
+ 	/*
+ 	 * If there is already a copy-out version of this buffer, then we don't
+ 	 * need to make another one
+-- 
+2.17.1
+

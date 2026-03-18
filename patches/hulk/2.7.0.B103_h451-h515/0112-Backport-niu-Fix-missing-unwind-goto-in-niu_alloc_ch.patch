@@ -1,0 +1,52 @@
+From f2e008c39ed7b25666114efb19866cd34f7b2c5a Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Wed, 5 Apr 2023 23:31:18 -0700
+Subject: [PATCH 112/263] [Backport] niu: Fix missing unwind goto in
+ niu_alloc_channels()
+
+stable inclusion
+from stable-v5.10.178
+commit 8a1fdb35459d5738cd362c8bb33c2ba743c29c17
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I71Z4N
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8a1fdb35459d5738cd362c8bb33c2ba743c29c17
+
+--------------------------------
+
+[ Upstream commit 8ce07be703456acb00e83d99f3b8036252c33b02 ]
+
+Smatch reports: drivers/net/ethernet/sun/niu.c:4525
+	niu_alloc_channels() warn: missing unwind goto?
+
+If niu_rbr_fill() fails, then we are directly returning 'err' without
+freeing the channels.
+
+Fix this by changing direct return to a goto 'out_err'.
+
+Fixes: a3138df9f20e ("[NIU]: Add Sun Neptune ethernet driver.")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/sun/niu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/sun/niu.c b/drivers/net/ethernet/sun/niu.c
+index 860644d182ab..1a269fa8c1a0 100644
+--- a/drivers/net/ethernet/sun/niu.c
++++ b/drivers/net/ethernet/sun/niu.c
+@@ -4503,7 +4503,7 @@ static int niu_alloc_channels(struct niu *np)
+ 
+ 		err = niu_rbr_fill(np, rp, GFP_KERNEL);
+ 		if (err)
+-			return err;
++			goto out_err;
+ 	}
+ 
+ 	tx_rings = kcalloc(num_tx_rings, sizeof(struct tx_ring_info),
+-- 
+2.17.1
+

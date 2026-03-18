@@ -1,0 +1,56 @@
+From 0fd0deaf02f6e6995c1d34cc57a967d8af9aca24 Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Mon, 19 Sep 2022 21:20:02 +0000
+Subject: [PATCH 0508/1076] [Huawei] livepatch/core: Make several functions to
+ be static
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187321
+
+--------------------------------
+
+klp_add_func_node() & klp_del_func_node() should be static.
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ include/linux/livepatch.h | 2 --
+ kernel/livepatch/core.c   | 4 ++--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/include/linux/livepatch.h b/include/linux/livepatch.h
+index 38d707b9b4e1..b11d4afed635 100644
+--- a/include/linux/livepatch.h
++++ b/include/linux/livepatch.h
+@@ -239,8 +239,6 @@ struct klp_func_node {
+ 	void *brk_func;
+ };
+ 
+-void klp_add_func_node(struct klp_func_node *func_node);
+-void klp_del_func_node(struct klp_func_node *func_node);
+ void *klp_get_brk_func(void *addr);
+ 
+ static inline
+diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
+index 532a34a70d14..270da0e311ff 100644
+--- a/kernel/livepatch/core.c
++++ b/kernel/livepatch/core.c
+@@ -1536,12 +1536,12 @@ static struct klp_func_node *klp_find_func_node(const void *old_func)
+ 	return NULL;
+ }
+ 
+-void klp_add_func_node(struct klp_func_node *func_node)
++static void klp_add_func_node(struct klp_func_node *func_node)
+ {
+ 	list_add_rcu(&func_node->node, &klp_func_list);
+ }
+ 
+-void klp_del_func_node(struct klp_func_node *func_node)
++static void klp_del_func_node(struct klp_func_node *func_node)
+ {
+ 	list_del_rcu(&func_node->node);
+ }
+-- 
+2.17.1
+

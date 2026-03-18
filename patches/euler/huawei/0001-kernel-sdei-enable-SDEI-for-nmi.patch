@@ -1,0 +1,62 @@
+From 8e5d56d71109f756394b5065584a84898f9744ac Mon Sep 17 00:00:00 2001
+From: Zhang Jian <zhangjian210@huawei.com>
+Date: Tue, 28 Jun 2022 10:20:35 +0000
+Subject: [PATCH] kernel/sdei: enable SDEI for nmi
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7SZC2
+
+----------------------------------
+
+enable SDEI for nmi
+
+Signed-off-by: Zhang Jian <zhangjian210@huawei.com>
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ arch/arm64/Kconfig       | 7 +++++++
+ arch/arm64/kernel/sdei.c | 2 ++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 68a54e8aa..e1392f871 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -2209,6 +2209,13 @@ config ASCEND_NR_MEMBLOCK
+       Certain ascend platforms need more memblock regions at initialization.
+       This option will change default number of memblock regions to a larger value.
+ 
++config ASCEND_SDEI
++	bool "asend sdei features"
++	default n
++	depends on ARM_SDE_INTERFACE
++	help
++	  SDEI features used in ascend scenarios, should be disabled in other
++	  board.
+ endif
+ 
+ endmenu
+diff --git a/arch/arm64/kernel/sdei.c b/arch/arm64/kernel/sdei.c
+index 2132bd953..31ea45c02 100644
+--- a/arch/arm64/kernel/sdei.c
++++ b/arch/arm64/kernel/sdei.c
+@@ -123,6 +123,7 @@ bool _on_sdei_stack(unsigned long sp, struct stack_info *info)
+ 
+ unsigned long sdei_arch_get_entry_point(int conduit)
+ {
++#ifndef CONFIG_ASCEND_SDEI
+ 	/*
+ 	 * SDEI works between adjacent exception levels. If we booted at EL1 we
+ 	 * assume a hypervisor is marshalling events. If we booted at EL2 and
+@@ -133,6 +134,7 @@ unsigned long sdei_arch_get_entry_point(int conduit)
+ 		pr_err("Not supported on this hardware/boot configuration\n");
+ 		return 0;
+ 	}
++#endif
+ 
+ 	if (IS_ENABLED(CONFIG_VMAP_STACK)) {
+ 		if (init_sdei_stacks())
+-- 
+2.17.1
+

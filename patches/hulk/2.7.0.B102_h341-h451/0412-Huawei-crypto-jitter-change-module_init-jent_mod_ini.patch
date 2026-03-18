@@ -1,0 +1,62 @@
+From 793bff91b406134e4c7dc2b6b18721f7ceae2d7d Mon Sep 17 00:00:00 2001
+From: Gaosheng Cui <cuigaosheng1@huawei.com>
+Date: Mon, 24 Apr 2023 02:15:07 -0400
+Subject: [PATCH 0412/1646] [Huawei] crypto: jitter - change
+ module_init(jent_mod_init) to subsys_initcall(jent_mod_init)
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188715
+
+--------------------------------
+
+The ecdh-nist-p256 algorithm will depend on jitterentropy_rng,
+and when they are build into kernel, the order of registration
+should be done such that the underlying algorithms are ready
+before the ones on top are registered.
+
+We can enable fips=1 and ecdh, the calltrace like below:
+
+alg: ecdh-nist-p256: test failed on vector 2, err=-14
+Kernel panic - not syncing: alg: self-tests for ecdh-generic (ecdh)
+failed in fips mode!
+Call Trace:
+ dump_stack+0x57/0x6e
+ panic+0x109/0x2ca
+ alg_test+0x414/0x420
+ ? __switch_to_asm+0x3a/0x60
+ ? __switch_to_asm+0x34/0x60
+ ? __schedule+0x263/0x640
+ ? crypto_acomp_scomp_free_ctx+0x30/0x30
+ cryptomgr_test+0x22/0x40
+ kthread+0xf9/0x130
+ ? kthread_park+0x90/0x90
+ ret_from_fork+0x22/0x30
+
+The module_init(jent_mod_init) is later than subsys_initcall(ecdh_init),
+so changing module_init(jent_mod_init) to subsys_initcall(jent_mod_init)
+to fix it.
+
+Fixes: c4741b230597 ("crypto: run initcalls for generic implementations earlier")
+Signed-off-by: Gaosheng Cui <cuigaosheng1@huawei.com>
+---
+ crypto/jitterentropy-kcapi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crypto/jitterentropy-kcapi.c b/crypto/jitterentropy-kcapi.c
+index e8a4165a1874..b1d7b5a6e61c 100644
+--- a/crypto/jitterentropy-kcapi.c
++++ b/crypto/jitterentropy-kcapi.c
+@@ -214,7 +214,7 @@ static void __exit jent_mod_exit(void)
+ 	crypto_unregister_rng(&jent_alg);
+ }
+ 
+-module_init(jent_mod_init);
++subsys_initcall(jent_mod_init);
+ module_exit(jent_mod_exit);
+ 
+ MODULE_LICENSE("Dual BSD/GPL");
+-- 
+2.17.1
+

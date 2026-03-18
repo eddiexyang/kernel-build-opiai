@@ -1,0 +1,59 @@
+From 66a80c852567bc078d2bf257d43f923321ac18eb Mon Sep 17 00:00:00 2001
+From: Wang Hai <wanghai38@huawei.com>
+Date: Mon, 22 Aug 2022 20:04:08 +0800
+Subject: [PATCH 024/261] [Huawei] thermal/core: Revert "[Backport]
+ thermal/core: fix a UAF bug in __thermal_cooling_device_register()"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187506
+
+--------------------------------
+
+This reverts commit 0a8151599cebfe939e59c727e31d61941bb982c7.
+
+commit 5674d780b865 ("[Backport] thermal/drivers/core: Use a char pointer
+for the cooling device name") will be reverted. This is its fix patch, so
+it also needs to be revert.
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/thermal/thermal_core.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/thermal/thermal_core.c b/drivers/thermal/thermal_core.c
+index c0d8c882b247..5e48e9cfa044 100644
+--- a/drivers/thermal/thermal_core.c
++++ b/drivers/thermal/thermal_core.c
+@@ -1092,7 +1092,7 @@ __thermal_cooling_device_register(struct device_node *np,
+ {
+ 	struct thermal_cooling_device *cdev;
+ 	struct thermal_zone_device *pos = NULL;
+-	int id, ret;
++	int ret;
+ 
+ 	if (!ops || !ops->get_max_state || !ops->get_cur_state ||
+ 	    !ops->set_cur_state)
+@@ -1106,7 +1106,6 @@ __thermal_cooling_device_register(struct device_node *np,
+ 	if (ret < 0)
+ 		goto out_kfree_cdev;
+ 	cdev->id = ret;
+-	id = ret;
+ 
+ 	cdev->type = kstrdup(type ? type : "", GFP_KERNEL);
+ 	if (!cdev->type) {
+@@ -1148,9 +1147,8 @@ __thermal_cooling_device_register(struct device_node *np,
+ 	thermal_cooling_device_destroy_sysfs(cdev);
+ 	kfree(cdev->type);
+ 	put_device(&cdev->device);
+-	cdev = NULL;
+ out_ida_remove:
+-	ida_simple_remove(&thermal_cdev_ida, id);
++	ida_simple_remove(&thermal_cdev_ida, cdev->id);
+ out_kfree_cdev:
+ 	return ERR_PTR(ret);
+ }
+-- 
+2.17.1
+

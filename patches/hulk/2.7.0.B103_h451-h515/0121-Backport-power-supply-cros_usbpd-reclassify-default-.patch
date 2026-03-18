@@ -1,0 +1,52 @@
+From 933a74b5f7d061ea2ceb86bdbde879a6b005aec8 Mon Sep 17 00:00:00 2001
+From: Grant Grundler <grundler@chromium.org>
+Date: Mon, 12 Dec 2022 13:38:57 -0800
+Subject: [PATCH 121/263] [Backport] power: supply: cros_usbpd: reclassify
+ "default case!" as debug
+
+stable inclusion
+from stable-v5.10.178
+commit ab39582f3081540c2bf5b21e9eeb441b1bf2171e
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I71Z4N
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ab39582f3081540c2bf5b21e9eeb441b1bf2171e
+
+--------------------------------
+
+[ Upstream commit 14c76b2e75bca4d96e2b85a0c12aa43e84fe3f74 ]
+
+This doesn't need to be printed every second as an error:
+...
+<3>[17438.628385] cros-usbpd-charger cros-usbpd-charger.3.auto: Port 1: default case!
+<3>[17439.634176] cros-usbpd-charger cros-usbpd-charger.3.auto: Port 1: default case!
+<3>[17440.640298] cros-usbpd-charger cros-usbpd-charger.3.auto: Port 1: default case!
+...
+
+Reduce priority from ERROR to DEBUG.
+
+Signed-off-by: Grant Grundler <grundler@chromium.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/power/supply/cros_usbpd-charger.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/power/supply/cros_usbpd-charger.c b/drivers/power/supply/cros_usbpd-charger.c
+index d89e08efd2ad..0a4f02e4ae7b 100644
+--- a/drivers/power/supply/cros_usbpd-charger.c
++++ b/drivers/power/supply/cros_usbpd-charger.c
+@@ -276,7 +276,7 @@ static int cros_usbpd_charger_get_power_info(struct port_data *port)
+ 		port->psy_current_max = 0;
+ 		break;
+ 	default:
+-		dev_err(dev, "Port %d: default case!\n", port->port_number);
++		dev_dbg(dev, "Port %d: default case!\n", port->port_number);
+ 		port->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
+ 	}
+ 
+-- 
+2.17.1
+

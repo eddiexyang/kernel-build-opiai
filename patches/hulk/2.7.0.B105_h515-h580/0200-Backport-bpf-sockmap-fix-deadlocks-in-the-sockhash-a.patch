@@ -1,0 +1,93 @@
+From 1098d54c465ede57066b4fca613379c6d1cf1276 Mon Sep 17 00:00:00 2001
+From: Xin Liu <liuxin350@huawei.com>
+Date: Thu, 6 Apr 2023 20:26:22 +0800
+Subject: [PATCH 200/780] [Backport] bpf, sockmap: fix deadlocks in the
+ sockhash and sockmap
+
+stable inclusion
+from stable-v5.10.180
+commit 2f9307222227410453e33654f5d9ed6459351455
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2f9307222227410453e33654f5d9ed6459351455
+
+--------------------------------
+
+[ Upstream commit ed17aa92dc56b6d8883e4b7a8f1c6fbf5ed6cd29 ]
+
+When huang uses sched_switch tracepoint, the tracepoint
+does only one thing in the mounted ebpf program, which
+deletes the fixed elements in sockhash ([0])
+
+It seems that elements in sockhash are rarely actively
+deleted by users or ebpf program. Therefore, we do not
+pay much attention to their deletion. Compared with hash
+maps, sockhash only provides spin_lock_bh protection.
+This causes it to appear to have self-locking behavior
+in the interrupt context.
+
+  [0]:https://lore.kernel.org/all/CABcoxUayum5oOqFMMqAeWuS8+EzojquSOSyDA3J_2omY=2EeAg@mail.gmail.com/
+
+Reported-by: Hsin-Wei Hung <hsinweih@uci.edu>
+Fixes: 604326b41a6f ("bpf, sockmap: convert to generic sk_msg interface")
+Signed-off-by: Xin Liu <liuxin350@huawei.com>
+Acked-by: John Fastabend <john.fastabend@gmail.com>
+Link: https://lore.kernel.org/r/20230406122622.109978-1-liuxin350@huawei.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/core/sock_map.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/net/core/sock_map.c b/net/core/sock_map.c
+index 12c17399114d..e75f4a367161 100644
+--- a/net/core/sock_map.c
++++ b/net/core/sock_map.c
+@@ -433,8 +433,9 @@ static int __sock_map_delete(struct bpf_stab *stab, struct sock *sk_test,
+ {
+ 	struct sock *sk;
+ 	int err = 0;
++	unsigned long flags;
+ 
+-	raw_spin_lock_bh(&stab->lock);
++	raw_spin_lock_irqsave(&stab->lock, flags);
+ 	sk = *psk;
+ 	if (!sk_test || sk_test == sk)
+ 		sk = xchg(psk, NULL);
+@@ -444,7 +445,7 @@ static int __sock_map_delete(struct bpf_stab *stab, struct sock *sk_test,
+ 	else
+ 		err = -EINVAL;
+ 
+-	raw_spin_unlock_bh(&stab->lock);
++	raw_spin_unlock_irqrestore(&stab->lock, flags);
+ 	return err;
+ }
+ 
+@@ -966,11 +967,12 @@ static int sock_hash_delete_elem(struct bpf_map *map, void *key)
+ 	struct bpf_shtab_bucket *bucket;
+ 	struct bpf_shtab_elem *elem;
+ 	int ret = -ENOENT;
++	unsigned long flags;
+ 
+ 	hash = sock_hash_bucket_hash(key, key_size);
+ 	bucket = sock_hash_select_bucket(htab, hash);
+ 
+-	raw_spin_lock_bh(&bucket->lock);
++	raw_spin_lock_irqsave(&bucket->lock, flags);
+ 	elem = sock_hash_lookup_elem_raw(&bucket->head, hash, key, key_size);
+ 	if (elem) {
+ 		hlist_del_rcu(&elem->node);
+@@ -978,7 +980,7 @@ static int sock_hash_delete_elem(struct bpf_map *map, void *key)
+ 		sock_hash_free_elem(htab, elem);
+ 		ret = 0;
+ 	}
+-	raw_spin_unlock_bh(&bucket->lock);
++	raw_spin_unlock_irqrestore(&bucket->lock, flags);
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

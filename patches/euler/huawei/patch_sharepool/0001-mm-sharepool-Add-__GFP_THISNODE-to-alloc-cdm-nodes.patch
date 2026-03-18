@@ -1,0 +1,26 @@
+From 95f7c6f5b78eef500978d19faa0bc075e1ed887b Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 3 Mar 2023 07:47:00 +0000
+Subject: [PATCH] mm/sharepool: Add __GFP_THISNODE to alloc cdm nodes
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index d830790e2..39868886c 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1854,7 +1854,7 @@ static struct sp_area *sp_alloc_area(unsigned long size, unsigned long flags,
+ 
+ 	vstart = mapping->start[device_id];
+ 	vend = mapping->end[device_id];
+-	spa = __kmalloc_node(sizeof(struct sp_area), GFP_KERNEL, node_id);
++	spa = kmalloc(sizeof(struct sp_area), GFP_KERNEL);
+ 	if (unlikely(!spa))
+ 		return ERR_PTR(-ENOMEM);
+ 
+-- 
+2.17.1
+

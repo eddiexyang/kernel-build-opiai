@@ -1,0 +1,52 @@
+From fb35eaaca3ef6098122ffb043c9f692b521095c2 Mon Sep 17 00:00:00 2001
+From: Mike Snitzer <snitzer@kernel.org>
+Date: Tue, 4 Apr 2023 13:34:28 -0400
+Subject: [PATCH 313/780] [Backport] dm integrity: call kmem_cache_destroy() in
+ dm_integrity_init() error path
+
+stable inclusion
+from stable-v5.10.180
+commit 44f29e93a55b544dc961b6f8b4e93abaeaafb9ee
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=44f29e93a55b544dc961b6f8b4e93abaeaafb9ee
+
+--------------------------------
+
+commit 6b79a428c02769f2a11f8ae76bf866226d134887 upstream.
+
+Otherwise the journal_io_cache will leak if dm_register_target() fails.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Mike Snitzer <snitzer@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/md/dm-integrity.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/md/dm-integrity.c b/drivers/md/dm-integrity.c
+index a1c4cc48bf03..7599a122c956 100644
+--- a/drivers/md/dm-integrity.c
++++ b/drivers/md/dm-integrity.c
+@@ -4481,11 +4481,13 @@ static int __init dm_integrity_init(void)
+ 	}
+ 
+ 	r = dm_register_target(&integrity_target);
+-
+-	if (r < 0)
++	if (r < 0) {
+ 		DMERR("register failed %d", r);
++		kmem_cache_destroy(journal_io_cache);
++		return r;
++	}
+ 
+-	return r;
++	return 0;
+ }
+ 
+ static void __exit dm_integrity_exit(void)
+-- 
+2.17.1
+

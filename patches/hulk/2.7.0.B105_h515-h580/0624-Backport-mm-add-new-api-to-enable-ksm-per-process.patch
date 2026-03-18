@@ -1,0 +1,515 @@
+From 76ff9b86e4d6310c41fd03be067aec03c428bce1 Mon Sep 17 00:00:00 2001
+From: Stefan Roesch <shr@devkernel.io>
+Date: Fri, 19 May 2023 15:38:47 +0800
+Subject: [PATCH 624/780] [Backport] mm: add new api to enable ksm per process
+
+mainline inclusion
+from mainline-v6.4-rc1
+commit d7597f59d1d33e9efbffa7060deb9ee5bd119e62
+category: feature
+bugzilla: 188921
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d7597f59d1d33e9efbffa7060deb9ee5bd119e62
+
+----------------------------------------------------------------------
+
+Patch series "mm: process/cgroup ksm support", v9.
+
+So far KSM can only be enabled by calling madvise for memory regions.  To
+be able to use KSM for more workloads, KSM needs to have the ability to be
+enabled / disabled at the process / cgroup level.
+
+Use case 1:
+  The madvise call is not available in the programming language.  An
+  example for this are programs with forked workloads using a garbage
+  collected language without pointers.  In such a language madvise cannot
+  be made available.
+
+  In addition the addresses of objects get moved around as they are
+  garbage collected.  KSM sharing needs to be enabled "from the outside"
+  for these type of workloads.
+
+Use case 2:
+  The same interpreter can also be used for workloads where KSM brings
+  no benefit or even has overhead.  We'd like to be able to enable KSM on
+  a workload by workload basis.
+
+Use case 3:
+  With the madvise call sharing opportunities are only enabled for the
+  current process: it is a workload-local decision.  A considerable number
+  of sharing opportunities may exist across multiple workloads or jobs (if
+  they are part of the same security domain).  Only a higler level entity
+  like a job scheduler or container can know for certain if its running
+  one or more instances of a job.  That job scheduler however doesn't have
+  the necessary internal workload knowledge to make targeted madvise
+  calls.
+
+Security concerns:
+
+  In previous discussions security concerns have been brought up.  The
+  problem is that an individual workload does not have the knowledge about
+  what else is running on a machine.  Therefore it has to be very
+  conservative in what memory areas can be shared or not.  However, if the
+  system is dedicated to running multiple jobs within the same security
+  domain, its the job scheduler that has the knowledge that sharing can be
+  safely enabled and is even desirable.
+
+Performance:
+
+  Experiments with using UKSM have shown a capacity increase of around 20%.
+
+  Here are the metrics from an instagram workload (taken from a machine
+  with 64GB main memory):
+
+   full_scans: 445
+   general_profit: 20158298048
+   max_page_sharing: 256
+   merge_across_nodes: 1
+   pages_shared: 129547
+   pages_sharing: 5119146
+   pages_to_scan: 4000
+   pages_unshared: 1760924
+   pages_volatile: 10761341
+   run: 1
+   sleep_millisecs: 20
+   stable_node_chains: 167
+   stable_node_chains_prune_millisecs: 2000
+   stable_node_dups: 2751
+   use_zero_pages: 0
+   zero_pages_sharing: 0
+
+After the service is running for 30 minutes to an hour, 4 to 5 million
+shared pages are common for this workload when using KSM.
+
+Detailed changes:
+
+1. New options for prctl system command
+   This patch series adds two new options to the prctl system call.
+   The first one allows to enable KSM at the process level and the second
+   one to query the setting.
+
+The setting will be inherited by child processes.
+
+With the above setting, KSM can be enabled for the seed process of a cgroup
+and all processes in the cgroup will inherit the setting.
+
+2. Changes to KSM processing
+   When KSM is enabled at the process level, the KSM code will iterate
+   over all the VMA's and enable KSM for the eligible VMA's.
+
+   When forking a process that has KSM enabled, the setting will be
+   inherited by the new child process.
+
+3. Add general_profit metric
+   The general_profit metric of KSM is specified in the documentation,
+   but not calculated.  This adds the general profit metric to
+   /sys/kernel/debug/mm/ksm.
+
+4. Add more metrics to ksm_stat
+   This adds the process profit metric to /proc/<pid>/ksm_stat.
+
+5. Add more tests to ksm_tests and ksm_functional_tests
+   This adds an option to specify the merge type to the ksm_tests.
+   This allows to test madvise and prctl KSM.
+
+   It also adds a two new tests to ksm_functional_tests: one to test
+   the new prctl options and the other one is a fork test to verify that
+   the KSM process setting is inherited by client processes.
+
+This patch (of 3):
+
+So far KSM can only be enabled by calling madvise for memory regions.  To
+be able to use KSM for more workloads, KSM needs to have the ability to be
+enabled / disabled at the process / cgroup level.
+
+1. New options for prctl system command
+
+   This patch series adds two new options to the prctl system call.
+   The first one allows to enable KSM at the process level and the second
+   one to query the setting.
+
+   The setting will be inherited by child processes.
+
+   With the above setting, KSM can be enabled for the seed process of a
+   cgroup and all processes in the cgroup will inherit the setting.
+
+2. Changes to KSM processing
+
+   When KSM is enabled at the process level, the KSM code will iterate
+   over all the VMA's and enable KSM for the eligible VMA's.
+
+   When forking a process that has KSM enabled, the setting will be
+   inherited by the new child process.
+
+  1) Introduce new MMF_VM_MERGE_ANY flag
+
+     This introduces the new flag MMF_VM_MERGE_ANY flag.  When this flag
+     is set, kernel samepage merging (ksm) gets enabled for all vma's of a
+     process.
+
+  2) Setting VM_MERGEABLE on VMA creation
+
+     When a VMA is created, if the MMF_VM_MERGE_ANY flag is set, the
+     VM_MERGEABLE flag will be set for this VMA.
+
+  3) support disabling of ksm for a process
+
+     This adds the ability to disable ksm for a process if ksm has been
+     enabled for the process with prctl.
+
+  4) add new prctl option to get and set ksm for a process
+
+     This adds two new options to the prctl system call
+     - enable ksm for all vmas of a process (if the vmas support it).
+     - query if ksm has been enabled for a process.
+
+3. Disabling MMF_VM_MERGE_ANY for storage keys in s390
+
+   In the s390 architecture when storage keys are used, the
+   MMF_VM_MERGE_ANY will be disabled.
+
+Link: https://lkml.kernel.org/r/20230418051342.1919757-1-shr@devkernel.io
+Link: https://lkml.kernel.org/r/20230418051342.1919757-2-shr@devkernel.io
+Signed-off-by: Stefan Roesch <shr@devkernel.io>
+Acked-by: David Hildenbrand <david@redhat.com>
+Cc: David Hildenbrand <david@redhat.com>
+Cc: Johannes Weiner <hannes@cmpxchg.org>
+Cc: Michal Hocko <mhocko@suse.com>
+Cc: Rik van Riel <riel@surriel.com>
+Cc: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Conflicts:
+	kernel/sys.c mm/ksm.c mm/mmap.c
+Signed-off-by: Nanyong Sun <sunnanyong@huawei.com>
+Signed-off-by: Longlong Xia <xialonglong1@huawei.com>
+---
+ arch/s390/mm/gmap.c            |   7 ++
+ include/linux/ksm.h            |  21 +++++-
+ include/linux/sched/coredump.h |   1 +
+ include/uapi/linux/prctl.h     |   2 +
+ kernel/sys.c                   |  27 ++++++++
+ mm/ksm.c                       | 113 +++++++++++++++++++++++++++------
+ mm/mmap.c                      |   3 +
+ 7 files changed, 151 insertions(+), 23 deletions(-)
+
+diff --git a/arch/s390/mm/gmap.c b/arch/s390/mm/gmap.c
+index 03e561608eed..0ba3af22bfe5 100644
+--- a/arch/s390/mm/gmap.c
++++ b/arch/s390/mm/gmap.c
+@@ -2573,6 +2573,13 @@ int gmap_mark_unmergeable(void)
+ 	struct vm_area_struct *vma;
+ 	int ret;
+ 
++	/*
++	 * Make sure to disable KSM (if enabled for the whole process or
++	 * individual VMAs). Note that nothing currently hinders user space
++	 * from re-enabling it.
++	 */
++	clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
++
+ 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+ 		ret = ksm_madvise(vma, vma->vm_start, vma->vm_end,
+ 				  MADV_UNMERGEABLE, &vma->vm_flags);
+diff --git a/include/linux/ksm.h b/include/linux/ksm.h
+index 161e8164abcf..7d8f86070cfa 100644
+--- a/include/linux/ksm.h
++++ b/include/linux/ksm.h
+@@ -21,13 +21,26 @@ struct mem_cgroup;
+ #ifdef CONFIG_KSM
+ int ksm_madvise(struct vm_area_struct *vma, unsigned long start,
+ 		unsigned long end, int advice, unsigned long *vm_flags);
++
++void ksm_add_vma(struct vm_area_struct *vma);
++int ksm_enable_merge_any(struct mm_struct *mm);
++
+ int __ksm_enter(struct mm_struct *mm);
+ void __ksm_exit(struct mm_struct *mm);
+ 
+ static inline int ksm_fork(struct mm_struct *mm, struct mm_struct *oldmm)
+ {
+-	if (test_bit(MMF_VM_MERGEABLE, &oldmm->flags))
+-		return __ksm_enter(mm);
++	int ret;
++
++	if (test_bit(MMF_VM_MERGEABLE, &oldmm->flags)) {
++		ret = __ksm_enter(mm);
++		if (ret)
++			return ret;
++	}
++
++	if (test_bit(MMF_VM_MERGE_ANY, &oldmm->flags))
++		set_bit(MMF_VM_MERGE_ANY, &mm->flags);
++
+ 	return 0;
+ }
+ 
+@@ -56,6 +69,10 @@ void ksm_migrate_page(struct page *newpage, struct page *oldpage);
+ 
+ #else  /* !CONFIG_KSM */
+ 
++static inline void ksm_add_vma(struct vm_area_struct *vma)
++{
++}
++
+ static inline int ksm_fork(struct mm_struct *mm, struct mm_struct *oldmm)
+ {
+ 	return 0;
+diff --git a/include/linux/sched/coredump.h b/include/linux/sched/coredump.h
+index dfd82eab2902..6a4d85c7a5f3 100644
+--- a/include/linux/sched/coredump.h
++++ b/include/linux/sched/coredump.h
+@@ -78,4 +78,5 @@ static inline int get_dumpable(struct mm_struct *mm)
+ #define MMF_INIT_MASK		(MMF_DUMPABLE_MASK | MMF_DUMP_FILTER_MASK |\
+ 				 MMF_DISABLE_THP_MASK)
+ 
++#define MMF_VM_MERGE_ANY	29
+ #endif /* _LINUX_SCHED_COREDUMP_H */
+diff --git a/include/uapi/linux/prctl.h b/include/uapi/linux/prctl.h
+index 7f0827705c9a..c4a033d1c169 100644
+--- a/include/uapi/linux/prctl.h
++++ b/include/uapi/linux/prctl.h
+@@ -247,4 +247,6 @@ struct prctl_mm_map {
+ #define PR_SET_IO_FLUSHER		57
+ #define PR_GET_IO_FLUSHER		58
+ 
++#define PR_SET_MEMORY_MERGE		67
++#define PR_GET_MEMORY_MERGE		68
+ #endif /* _LINUX_PRCTL_H */
+diff --git a/kernel/sys.c b/kernel/sys.c
+index c9300fa2181d..57faf96a163e 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -14,6 +14,7 @@
+ #include <linux/highuid.h>
+ #include <linux/fs.h>
+ #include <linux/kmod.h>
++#include <linux/ksm.h>
+ #include <linux/perf_event.h>
+ #include <linux/resource.h>
+ #include <linux/kernel.h>
+@@ -2536,6 +2537,32 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
+ 
+ 		error = (current->flags & PR_IO_FLUSHER) == PR_IO_FLUSHER;
+ 		break;
++#ifdef CONFIG_KSM
++	case PR_SET_MEMORY_MERGE:
++		if (arg3 || arg4 || arg5)
++			return -EINVAL;
++		if (mmap_write_lock_killable(me->mm))
++			return -EINTR;
++
++		if (arg2) {
++			error = ksm_enable_merge_any(me->mm);
++		} else {
++			/*
++			 * TODO: we might want disable KSM on all VMAs and
++			 * trigger unsharing to completely disable KSM.
++			 */
++			clear_bit(MMF_VM_MERGE_ANY, &me->mm->flags);
++			error = 0;
++		}
++		mmap_write_unlock(me->mm);
++		break;
++	case PR_GET_MEMORY_MERGE:
++		if (arg2 || arg3 || arg4 || arg5)
++			return -EINVAL;
++
++		error = !!test_bit(MMF_VM_MERGE_ANY, &me->mm->flags);
++		break;
++#endif
+ 	default:
+ 		error = -EINVAL;
+ 		break;
+diff --git a/mm/ksm.c b/mm/ksm.c
+index ef96c76e387e..5f2546b26402 100644
+--- a/mm/ksm.c
++++ b/mm/ksm.c
+@@ -519,6 +519,32 @@ static int break_ksm(struct vm_area_struct *vma, unsigned long addr)
+ 	return (ret & VM_FAULT_OOM) ? -ENOMEM : 0;
+ }
+ 
++static bool vma_ksm_compatible(struct vm_area_struct *vma)
++{
++	if (vma->vm_flags & (VM_SHARED  | VM_MAYSHARE   | VM_PFNMAP  |
++			     VM_IO      | VM_DONTEXPAND | VM_HUGETLB |
++			     VM_MIXEDMAP))
++		return false;		/* just ignore the advice */
++
++	if (vma_is_dax(vma))
++		return false;
++
++#ifdef CONFIG_COHERENT_DEVICE
++	if (is_cdm_vma(vma))
++		return false;
++#endif
++#ifdef VM_SAO
++	if (vma->vm_flags & VM_SAO)
++		return false;
++#endif
++#ifdef VM_SPARC_ADI
++	if (vma->vm_flags & VM_SPARC_ADI)
++		return false;
++#endif
++
++	return true;
++}
++
+ static struct vm_area_struct *find_mergeable_vma(struct mm_struct *mm,
+ 		unsigned long addr)
+ {
+@@ -1011,6 +1037,7 @@ static int unmerge_and_remove_all_rmap_items(void)
+ 
+ 			free_mm_slot(mm_slot);
+ 			clear_bit(MMF_VM_MERGEABLE, &mm->flags);
++			clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
+ 			mmdrop(mm);
+ 		} else
+ 			spin_unlock(&ksm_mmlist_lock);
+@@ -2372,6 +2399,7 @@ static struct rmap_item *scan_get_next_rmap_item(struct page **page)
+ 
+ 		free_mm_slot(slot);
+ 		clear_bit(MMF_VM_MERGEABLE, &mm->flags);
++		clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
+ 		mmap_read_unlock(mm);
+ 		mmdrop(mm);
+ 	} else {
+@@ -2448,6 +2476,67 @@ static int ksm_scan_thread(void *nothing)
+ 	return 0;
+ }
+ 
++static void __ksm_add_vma(struct vm_area_struct *vma)
++{
++	unsigned long vm_flags = vma->vm_flags;
++
++	if (vm_flags & VM_MERGEABLE)
++		return;
++
++	if (vma_ksm_compatible(vma)) {
++		mmap_assert_write_locked(vma->vm_mm);
++		vma->vm_flags |= VM_MERGEABLE;
++	}
++}
++
++/**
++ * ksm_add_vma - Mark vma as mergeable if compatible
++ *
++ * @vma:  Pointer to vma
++ */
++void ksm_add_vma(struct vm_area_struct *vma)
++{
++	struct mm_struct *mm = vma->vm_mm;
++
++	if (test_bit(MMF_VM_MERGE_ANY, &mm->flags))
++		__ksm_add_vma(vma);
++}
++
++static void ksm_add_vmas(struct mm_struct *mm)
++{
++	struct vm_area_struct *vma;
++
++	for (vma = mm->mmap; vma; vma = vma->vm_next)
++		__ksm_add_vma(vma);
++}
++
++/**
++ * ksm_enable_merge_any - Add mm to mm ksm list and enable merging on all
++ *                        compatible VMA's
++ *
++ * @mm:  Pointer to mm
++ *
++ * Returns 0 on success, otherwise error code
++ */
++int ksm_enable_merge_any(struct mm_struct *mm)
++{
++	int err;
++
++	if (test_bit(MMF_VM_MERGE_ANY, &mm->flags))
++		return 0;
++
++	if (!test_bit(MMF_VM_MERGEABLE, &mm->flags)) {
++		err = __ksm_enter(mm);
++		if (err)
++			return err;
++	}
++
++	set_bit(MMF_VM_MERGE_ANY, &mm->flags);
++	ksm_add_vmas(mm);
++
++	return 0;
++}
++
+ int ksm_madvise(struct vm_area_struct *vma, unsigned long start,
+ 		unsigned long end, int advice, unsigned long *vm_flags)
+ {
+@@ -2456,30 +2545,11 @@ int ksm_madvise(struct vm_area_struct *vma, unsigned long start,
+ 
+ 	switch (advice) {
+ 	case MADV_MERGEABLE:
+-		/*
+-		 * Be somewhat over-protective for now!
+-		 */
+-		if (*vm_flags & (VM_MERGEABLE | VM_SHARED  | VM_MAYSHARE   |
+-				 VM_PFNMAP    | VM_IO      | VM_DONTEXPAND |
+-				 VM_HUGETLB | VM_MIXEDMAP))
+-			return 0;		/* just ignore the advice */
+-
+-		if (vma_is_dax(vma))
+-			return 0;
+-
+-#ifdef CONFIG_COHERENT_DEVICE
+-		if (is_cdm_vma(vma))
++		if (vma->vm_flags & VM_MERGEABLE)
+ 			return 0;
+-#endif
+ 
+-#ifdef VM_SAO
+-		if (*vm_flags & VM_SAO)
++		if (!vma_ksm_compatible(vma))
+ 			return 0;
+-#endif
+-#ifdef VM_SPARC_ADI
+-		if (*vm_flags & VM_SPARC_ADI)
+-			return 0;
+-#endif
+ 
+ 		if (!test_bit(MMF_VM_MERGEABLE, &mm->flags)) {
+ 			err = __ksm_enter(mm);
+@@ -2577,6 +2647,7 @@ void __ksm_exit(struct mm_struct *mm)
+ 
+ 	if (easy_to_free) {
+ 		free_mm_slot(mm_slot);
++		clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
+ 		clear_bit(MMF_VM_MERGEABLE, &mm->flags);
+ 		mmdrop(mm);
+ 	} else if (mm_slot) {
+diff --git a/mm/mmap.c b/mm/mmap.c
+index d6f51da7aad8..bddd7f0f88b9 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -49,6 +49,7 @@
+ #include <linux/sched/mm.h>
+ #include <linux/swapops.h>
+ #include <linux/share_pool.h>
++#include <linux/ksm.h>
+ 
+ #include <linux/uaccess.h>
+ #include <asm/cacheflush.h>
+@@ -1927,6 +1928,7 @@ static unsigned long __mmap_region(struct mm_struct *mm, struct file *file,
+ 			allow_write_access(file);
+ 	}
+ 	file = vma->vm_file;
++	ksm_add_vma(vma);
+ out:
+ 	perf_event_mmap(vma);
+ 
+@@ -3232,6 +3234,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
+ 	vma->vm_flags = flags;
+ 	vma->vm_page_prot = vm_get_page_prot(flags);
+ 	vma_link(mm, vma, prev, rb_link, rb_parent);
++	ksm_add_vma(vma);
+ out:
+ 	perf_event_mmap(vma);
+ 	mm->total_vm += len >> PAGE_SHIFT;
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From 050c6e7bdd92abae5c2756a00c8c3284e0cd6702 Mon Sep 17 00:00:00 2001
+From: Jan Kiszka <jan.kiszka@siemens.com>
+Date: Fri, 4 Mar 2022 07:36:37 +0100
+Subject: [PATCH 3802/4585] [Backport] efi: Add missing prototype for
+ efi_capsule_setup_info
+
+stable inclusion
+from stable-v5.10.121
+commit e7681199bbe421ddf6d20bd7765d4f214f366abf
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e7681199bbe421ddf6d20bd7765d4f214f366abf
+
+--------------------------------
+
+[ Upstream commit aa480379d8bdb33920d68acfd90f823c8af32578 ]
+
+Fixes "no previous declaration for 'efi_capsule_setup_info'" warnings
+under W=1.
+
+Fixes: 2959c95d510c ("efi/capsule: Add support for Quark security header")
+Signed-off-by: Jan Kiszka <jan.kiszka@siemens.com>
+Link: https://lore.kernel.org/r/c28d3f86-dd72-27d1-e2c2-40971b8da6bd@siemens.com
+Signed-off-by: Ard Biesheuvel <ardb@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ include/linux/efi.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/linux/efi.h b/include/linux/efi.h
+index 395a0e344ffd..c6569b664f68 100644
+--- a/include/linux/efi.h
++++ b/include/linux/efi.h
+@@ -167,6 +167,8 @@ struct capsule_info {
+ 	size_t			page_bytes_remain;
+ };
+ 
++int efi_capsule_setup_info(struct capsule_info *cap_info, void *kbuff,
++                           size_t hdr_bytes);
+ int __efi_capsule_setup_info(struct capsule_info *cap_info);
+ 
+ typedef int (*efi_freemem_callback_t) (u64 start, u64 end, void *arg);
+-- 
+2.17.1
+

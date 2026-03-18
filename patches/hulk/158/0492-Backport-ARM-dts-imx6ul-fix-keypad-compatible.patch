@@ -1,0 +1,50 @@
+From 2426604a0974b393c2952c171dc50c428b1fe1f4 Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Mon, 13 Jun 2022 14:33:53 +0200
+Subject: [PATCH 0492/1076] [Backport] ARM: dts: imx6ul: fix keypad compatible
+
+stable inclusion
+from stable-v5.10.137
+commit c7ce841f48dfeba63695e73a094376c2bb1ac8d8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c7ce841f48dfeba63695e73a094376c2bb1ac8d8
+
+--------------------------------
+
+[ Upstream commit 7d15e0c9a515494af2e3199741cdac7002928a0e ]
+
+According to binding, the compatible shall only contain imx6ul and imx21
+compatibles. Fixes the dt_binding_check warning:
+keypad@20b8000: compatible: 'oneOf' conditional failed, one must be fixed:
+['fsl,imx6ul-kpp', 'fsl,imx6q-kpp', 'fsl,imx21-kpp'] is too long
+Additional items are not allowed ('fsl,imx6q-kpp', 'fsl,imx21-kpp' were
+unexpected)
+Additional items are not allowed ('fsl,imx21-kpp' was unexpected)
+'fsl,imx21-kpp' was expected
+
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm/boot/dts/imx6ul.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/imx6ul.dtsi b/arch/arm/boot/dts/imx6ul.dtsi
+index 02640c19c1ec..1474985b9908 100644
+--- a/arch/arm/boot/dts/imx6ul.dtsi
++++ b/arch/arm/boot/dts/imx6ul.dtsi
+@@ -541,7 +541,7 @@
+ 			};
+ 
+ 			kpp: keypad@20b8000 {
+-				compatible = "fsl,imx6ul-kpp", "fsl,imx6q-kpp", "fsl,imx21-kpp";
++				compatible = "fsl,imx6ul-kpp", "fsl,imx21-kpp";
+ 				reg = <0x020b8000 0x4000>;
+ 				interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+ 				clocks = <&clks IMX6UL_CLK_KPP>;
+-- 
+2.17.1
+

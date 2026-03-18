@@ -1,0 +1,62 @@
+From e9ee897baba924610d068ac79bac9766d9c1685b Mon Sep 17 00:00:00 2001
+From: Ilya Leoshkevich <iii@linux.ibm.com>
+Date: Mon, 23 Jan 2023 22:50:32 +0100
+Subject: [PATCH 699/921] [Backport] s390: discard .interp section
+
+stable inclusion
+from stable-v5.10.173
+commit d43abcf91c5ed55443d26cd8c7721bd8409a7aff
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d43abcf91c5ed55443d26cd8c7721bd8409a7aff
+
+--------------------------------
+
+commit e9c9cb90e76ffaabcc7ca8f275d9e82195fd6367 upstream.
+
+When debugging vmlinux with QEMU + GDB, the following GDB error may
+occur:
+
+    (gdb) c
+    Continuing.
+    Warning:
+    Cannot insert breakpoint -1.
+    Cannot access memory at address 0xffffffffffff95c0
+
+    Command aborted.
+    (gdb)
+
+The reason is that, when .interp section is present, GDB tries to
+locate the file specified in it in memory and put a number of
+breakpoints there (see enable_break() function in gdb/solib-svr4.c).
+Sometimes GDB finds a bogus location that matches its heuristics,
+fails to set a breakpoint and stops. This makes further debugging
+impossible.
+
+The .interp section contains misleading information anyway (vmlinux
+does not need ld.so), so fix by discarding it.
+
+Signed-off-by: Ilya Leoshkevich <iii@linux.ibm.com>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/s390/kernel/vmlinux.lds.S | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/s390/kernel/vmlinux.lds.S b/arch/s390/kernel/vmlinux.lds.S
+index 9505bdb0aa54..d7291eb0d0c0 100644
+--- a/arch/s390/kernel/vmlinux.lds.S
++++ b/arch/s390/kernel/vmlinux.lds.S
+@@ -188,5 +188,6 @@ SECTIONS
+ 	DISCARDS
+ 	/DISCARD/ : {
+ 		*(.eh_frame)
++		*(.interp)
+ 	}
+ }
+-- 
+2.17.1
+

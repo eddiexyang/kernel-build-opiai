@@ -1,0 +1,46 @@
+From c6a99e70b580e9a61d1ad6604e745dc97d324a77 Mon Sep 17 00:00:00 2001
+From: Guo Xuenan <guoxuenan@huawei.com>
+Date: Fri, 31 Mar 2023 09:13:57 +0800
+Subject: [PATCH 1635/1646] [Huawei] Revert "[Huawei] xfs: fix uaf when leaf
+ dir bestcount not match with dir data blocks"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187526
+
+--------------------------------
+
+This reverts commit 601fc5225d3ffb5bf0590d58019b27cd603bf74a.
+
+Signed-off-by: Guo Xuenan <guoxuenan@huawei.com>
+---
+ fs/xfs/libxfs/xfs_dir2_leaf.c | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_dir2_leaf.c b/fs/xfs/libxfs/xfs_dir2_leaf.c
+index 69f37dcbdc12..4abf24c3aa94 100644
+--- a/fs/xfs/libxfs/xfs_dir2_leaf.c
++++ b/fs/xfs/libxfs/xfs_dir2_leaf.c
+@@ -815,18 +815,6 @@ xfs_dir2_leaf_addname(
+ 		 */
+ 		else
+ 			xfs_dir3_leaf_log_bests(args, lbp, use_block, use_block);
+-		/*
+-		 * An abnormal corner case, bestfree count less than data
+-		 * blocks, add a condition to avoid UAF or slab-out-of bound.
+-		 */
+-		if ((char *)(&bestsp[use_block]) >= (char *)ltp) {
+-			xfs_trans_brelse(tp, lbp);
+-			if (tp->t_flags & XFS_TRANS_DIRTY)
+-				xfs_force_shutdown(tp->t_mountp,
+-						SHUTDOWN_CORRUPT_INCORE);
+-			return -EFSCORRUPTED;
+-		}
+-
+ 		hdr = dbp->b_addr;
+ 		bf = xfs_dir2_data_bestfree_p(dp->i_mount, hdr);
+ 		bestsp[use_block] = bf[0].length;
+-- 
+2.17.1
+

@@ -1,0 +1,114 @@
+From 3eb05651977c82118d1ae50cb0d3e6476cc8960e Mon Sep 17 00:00:00 2001
+From: Zheng Yejian <zhengyejian1@huawei.com>
+Date: Wed, 12 Oct 2022 15:01:59 +0000
+Subject: [PATCH 0592/1076] [Huawei] livepatch: Reduce duplicate definition of
+ 'struct walk_stackframe_args'
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187321
+
+--------------------------------
+
+Definition of 'struct walk_stackframe_args' are the same in
+arm/arm64/powerpc32/powerpc64, so move it into
+include/linux/livepatch.h.
+
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ arch/arm/kernel/livepatch.c        | 6 ------
+ arch/arm64/kernel/livepatch.c      | 6 ------
+ arch/powerpc/kernel/livepatch_32.c | 6 ------
+ arch/powerpc/kernel/livepatch_64.c | 6 ------
+ include/linux/livepatch.h          | 6 ++++++
+ 5 files changed, 6 insertions(+), 24 deletions(-)
+
+diff --git a/arch/arm/kernel/livepatch.c b/arch/arm/kernel/livepatch.c
+index a5f4c770990f..f37cc04b4cae 100644
+--- a/arch/arm/kernel/livepatch.c
++++ b/arch/arm/kernel/livepatch.c
+@@ -63,12 +63,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct walk_stackframe_args {
+-	void *data;
+-	int ret;
+-	bool (*check_func)(void *data, int *ret, unsigned long pc);
+-};
+-
+ bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+diff --git a/arch/arm64/kernel/livepatch.c b/arch/arm64/kernel/livepatch.c
+index 258f1dcda945..363fb8e41c49 100644
+--- a/arch/arm64/kernel/livepatch.c
++++ b/arch/arm64/kernel/livepatch.c
+@@ -56,12 +56,6 @@ static inline bool offset_in_range(unsigned long pc, unsigned long addr,
+ 		((le32_to_cpu(insn) & 0xfc000000) == 0x94000000) || \
+ 		((le32_to_cpu(insn) & 0xfefff800) == 0xd63f0800))
+ 
+-struct walk_stackframe_args {
+-	void *data;
+-	int ret;
+-	bool (*check_func)(void *data, int *ret, unsigned long pc);
+-};
+-
+ bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+diff --git a/arch/powerpc/kernel/livepatch_32.c b/arch/powerpc/kernel/livepatch_32.c
+index 02c28c40024f..fdebfa995eca 100644
+--- a/arch/powerpc/kernel/livepatch_32.c
++++ b/arch/powerpc/kernel/livepatch_32.c
+@@ -53,12 +53,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct walk_stackframe_args {
+-	void *data;
+-	int ret;
+-	bool (*check_func)(void *data, int *ret, unsigned long pc);
+-};
+-
+ bool arch_check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+diff --git a/arch/powerpc/kernel/livepatch_64.c b/arch/powerpc/kernel/livepatch_64.c
+index 43f8999aaf4b..315c1db23c7e 100644
+--- a/arch/powerpc/kernel/livepatch_64.c
++++ b/arch/powerpc/kernel/livepatch_64.c
+@@ -58,12 +58,6 @@ static bool is_jump_insn(u32 insn)
+ 	return false;
+ }
+ 
+-struct walk_stackframe_args {
+-	void *data;
+-	int ret;
+-	bool (*check_func)(void *data, int *ret, unsigned long pc);
+-};
+-
+ static bool check_jump_insn(unsigned long func_addr)
+ {
+ 	unsigned long i;
+diff --git a/include/linux/livepatch.h b/include/linux/livepatch.h
+index b11d4afed635..a5ef153bae8d 100644
+--- a/include/linux/livepatch.h
++++ b/include/linux/livepatch.h
+@@ -260,6 +260,12 @@ typedef int (*klp_add_func_t)(struct list_head *func_list,
+ 			       unsigned long func_addr, unsigned long func_size,
+ 			       const char *func_name, int force);
+ 
++struct walk_stackframe_args {
++	void *data;
++	int ret;
++	bool (*check_func)(void *data, int *ret, unsigned long pc);
++};
++
+ #endif
+ 
+ int klp_apply_section_relocs(struct module *pmod, Elf_Shdr *sechdrs,
+-- 
+2.17.1
+

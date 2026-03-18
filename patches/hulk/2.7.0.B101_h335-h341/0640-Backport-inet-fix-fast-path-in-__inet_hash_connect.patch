@@ -1,0 +1,66 @@
+From 7e56a034a6b513817c91a0026cd726b1714575d2 Mon Sep 17 00:00:00 2001
+From: Pietro Borrello <borrello@diag.uniroma1.it>
+Date: Sat, 14 Jan 2023 13:11:41 +0000
+Subject: [PATCH 640/921] [Backport] inet: fix fast path in
+ __inet_hash_connect()
+
+stable inclusion
+from stable-v5.10.173
+commit b33091fc28963deed329ccfce0d53f5323acf663
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b33091fc28963deed329ccfce0d53f5323acf663
+
+--------------------------------
+
+[ Upstream commit 21cbd90a6fab7123905386985e3e4a80236b8714 ]
+
+__inet_hash_connect() has a fast path taken if sk_head(&tb->owners) is
+equal to the sk parameter.
+sk_head() returns the hlist_entry() with respect to the sk_node field.
+However entries in the tb->owners list are inserted with respect to the
+sk_bind_node field with sk_add_bind_node().
+Thus the check would never pass and the fast path never execute.
+
+This fast path has never been executed or tested as this bug seems
+to be present since commit 1da177e4c3f4 ("Linux-2.6.12-rc2"), thus
+remove it to reduce code complexity.
+
+Signed-off-by: Pietro Borrello <borrello@diag.uniroma1.it>
+Reviewed-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Link: https://lore.kernel.org/r/20230112-inet_hash_connect_bind_head-v3-1-b591fd212b93@diag.uniroma1.it
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv4/inet_hashtables.c | 12 +-----------
+ 1 file changed, 1 insertion(+), 11 deletions(-)
+
+diff --git a/net/ipv4/inet_hashtables.c b/net/ipv4/inet_hashtables.c
+index 8f4765e19c34..43059d04d016 100644
+--- a/net/ipv4/inet_hashtables.c
++++ b/net/ipv4/inet_hashtables.c
+@@ -760,17 +760,7 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
+ 	u32 index;
+ 
+ 	if (port) {
+-		head = &hinfo->bhash[inet_bhashfn(net, port,
+-						  hinfo->bhash_size)];
+-		tb = inet_csk(sk)->icsk_bind_hash;
+-		spin_lock_bh(&head->lock);
+-		if (sk_head(&tb->owners) == sk && !sk->sk_bind_node.next) {
+-			inet_ehash_nolisten(sk, NULL, NULL);
+-			spin_unlock_bh(&head->lock);
+-			return 0;
+-		}
+-		spin_unlock(&head->lock);
+-		/* No definite answer... Walk to established hash table */
++		local_bh_disable();
+ 		ret = check_established(death_row, sk, port, NULL);
+ 		local_bh_enable();
+ 		return ret;
+-- 
+2.17.1
+

@@ -1,0 +1,38 @@
+From ef9f8e520bcd45348a9e1ef128716dbae9963724 Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Tue, 16 May 2023 19:42:28 +0800
+Subject: [PATCH 019/263] [Huawei] userswap: add user mode check for swap-out
+ VA
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Add user mode check for swap-out VA to make sure that swap-out VA is
+user mode address.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/userswap.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mm/userswap.c b/mm/userswap.c
+index dcc608e0d8fe..2d47f6ed9f91 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -367,7 +367,8 @@ unsigned long uswap_mremap(unsigned long old_addr, unsigned long old_len,
+ 	    offset_in_page(new_addr) || (len % PAGE_SIZE))
+ 		return ret;
+ 
+-	if (new_len > TASK_SIZE || new_addr > TASK_SIZE - new_len)
++	if (new_len > TASK_SIZE || new_addr > TASK_SIZE - new_len ||
++	    old_addr > TASK_SIZE - old_len)
+ 		return ret;
+ 
+ 	/* Ensure the old/new locations do not overlap */
+-- 
+2.17.1
+

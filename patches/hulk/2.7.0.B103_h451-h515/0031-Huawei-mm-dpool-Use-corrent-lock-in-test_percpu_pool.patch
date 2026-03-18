@@ -1,0 +1,47 @@
+From 7894032e5f1864596b4ce4a2d7d61084429ca6ee Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Thu, 11 May 2023 19:31:21 +0800
+Subject: [PATCH 031/263] [Huawei] mm/dpool: Use corrent lock in
+ test_percpu_pool_empty
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Lock hugetlb_lock shouled be unlocked and locked in
+test_percpu_pool_empty rather than hugetlb_lock.
+Replace it with the right one.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ mm/dynamic_hugetlb.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 72ff716f96c5..ca682a121485 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -1349,7 +1349,7 @@ static int test_percpu_pool_empty(struct dhugetlb_pool *hpool)
+ 	lockdep_assert_held(&hpool->lock);
+ 
+ 	/* unlock first */
+-	spin_unlock(&hugetlb_lock);
++	spin_unlock(&hpool->lock);
+ 
+ 	for (i = 0; i < NR_PERCPU_POOL; i++)
+ 		spin_lock(&hpool->percpu_pool[i].lock);
+@@ -1363,7 +1363,7 @@ static int test_percpu_pool_empty(struct dhugetlb_pool *hpool)
+ 		spin_unlock(&hpool->percpu_pool[i].lock);
+ 
+ 	/* lock again */
+-	spin_lock(&hugetlb_lock);
++	spin_lock(&hpool->lock);
+ 
+ 	return (nr_used_pages - hpool->nr_poisoned_pages) == 0 ? 0 : -ENOMEM;
+ }
+-- 
+2.17.1
+

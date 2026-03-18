@@ -1,0 +1,44 @@
+From a9cbc09bd5ae682d10a7b4dd0f1573888345054a Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Tue, 15 Mar 2022 20:36:42 +0100
+Subject: [PATCH 0163/1646] [Backport] cpuidle: intel_idle: Drop redundant
+ backslash at line end
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 03eb65224e5711e7a2f34b500d44866b322a249a
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECY
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=03eb65224e5711e7a2f34b500d44866b322a249a
+
+--------------------------------
+
+Drop a redundant backslash character at the end of a line in the
+spr_cstates[] definition.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Acked-by: Artem Bityutskiy <artem.bityutskiy@linux.intel.com>
+Signed-off-by: yingbao jia <yingbao.jia@intel.com>
+Signed-off-by: Jun Tian <jun.j.tian@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/idle/intel_idle.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/idle/intel_idle.c b/drivers/idle/intel_idle.c
+index 9d30609384b6..6c1b2dada2ba 100644
+--- a/drivers/idle/intel_idle.c
++++ b/drivers/idle/intel_idle.c
+@@ -807,7 +807,7 @@ static struct cpuidle_state spr_cstates[] __initdata = {
+ 	{
+ 		.name = "C1E",
+ 		.desc = "MWAIT 0x01",
+-		.flags = MWAIT2flg(0x01) | CPUIDLE_FLAG_ALWAYS_ENABLE | \
++		.flags = MWAIT2flg(0x01) | CPUIDLE_FLAG_ALWAYS_ENABLE |
+ 					   CPUIDLE_FLAG_UNUSABLE,
+ 		.exit_latency = 2,
+ 		.target_residency = 4,
+-- 
+2.17.1
+

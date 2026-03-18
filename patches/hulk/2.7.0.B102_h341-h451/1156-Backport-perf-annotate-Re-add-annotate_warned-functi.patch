@@ -1,0 +1,74 @@
+From d9ea1fd76e57dacef9ac4f5b283c2463adcbc89b Mon Sep 17 00:00:00 2001
+From: James Clark <james.clark@arm.com>
+Date: Fri, 25 Nov 2022 17:50:30 +0800
+Subject: [PATCH 1156/1646] [Backport] perf annotate: Re-add annotate_warned
+ functionality
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 3d8b92472ae7ba91d759cadb4670bd492ef97d04
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I636PS
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3d8b92472ae7ba91d759cadb4670bd492ef97d04
+
+--------------------------------
+
+Setting annotate_warned to true on errors was removed in
+commit ee51d851392e ("perf annotate: Introduce strerror for handling
+symbol__disassemble() errors") which means when 'perf annotate
+--skip-missing' is used warnings are shown multiple times for the same
+DSO.
+
+Setting this again restores the original behavior of only one warning
+each.
+
+Signed-off-by: James Clark <james.clark@arm.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Jiri Olsa <jolsa@redhat.com>
+Cc: John Garry <john.garry@huawei.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Suzuki Poulouse <suzuki.poulose@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: coresight@lists.linaro.org
+Cc: linux-arm-kernel@lists.infradead.org
+Link: http://lore.kernel.org/lkml/20210729155805.2830-3-james.clark@arm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Signed-off-by: Junhao He <hejunhao3@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ tools/perf/ui/browsers/annotate.c | 1 +
+ tools/perf/ui/gtk/annotate.c      | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/tools/perf/ui/browsers/annotate.c b/tools/perf/ui/browsers/annotate.c
+index bd77825fd5a1..79649b2aed5d 100644
+--- a/tools/perf/ui/browsers/annotate.c
++++ b/tools/perf/ui/browsers/annotate.c
+@@ -919,6 +919,7 @@ int symbol__tui_annotate(struct map_symbol *ms, struct evsel *evsel,
+ 	err = symbol__annotate2(ms, evsel, opts, &browser.arch);
+ 	if (err) {
+ 		char msg[BUFSIZ];
++		ms->map->dso->annotate_warned = true;
+ 		symbol__strerror_disassemble(ms, err, msg, sizeof(msg));
+ 		ui__error("Couldn't annotate %s:\n%s", sym->name, msg);
+ 		goto out_free_offsets;
+diff --git a/tools/perf/ui/gtk/annotate.c b/tools/perf/ui/gtk/annotate.c
+index a7dff77f2018..5a1d30d14c1c 100644
+--- a/tools/perf/ui/gtk/annotate.c
++++ b/tools/perf/ui/gtk/annotate.c
+@@ -177,6 +177,7 @@ static int symbol__gtk_annotate(struct map_symbol *ms, struct evsel *evsel,
+ 	err = symbol__annotate(ms, evsel, &annotation__default_options, NULL);
+ 	if (err) {
+ 		char msg[BUFSIZ];
++		ms->map->dso->annotate_warned = true;
+ 		symbol__strerror_disassemble(ms, err, msg, sizeof(msg));
+ 		ui__error("Couldn't annotate %s: %s\n", sym->name, msg);
+ 		return -1;
+-- 
+2.17.1
+

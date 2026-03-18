@@ -1,0 +1,76 @@
+From 183e1c527703096ce0e0a74e64c6086a42e7d502 Mon Sep 17 00:00:00 2001
+From: Zhong Jinghua <zhongjinghua@huaweicloud.com>
+Date: Tue, 23 May 2023 20:41:05 +0800
+Subject: [PATCH 212/263] [Huawei] nbd: get config_lock before sock_shutdown
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188799
+
+----------------------------------------
+
+Config->socks in sock_shutdown may trigger a UAF problem.
+The reason is that sock_shutdown does not hold the config_lock,
+so that nbd_ioctl can release config->socks at this time.
+
+T0: NBD_SET_SOCK
+T1: NBD_DO_IT
+
+T0						T1
+
+nbd_ioctl
+  mutex_lock(&nbd->config_lock)
+  // get lock
+  __nbd_ioctl
+	nbd_start_device_ioctl
+	  nbd_start_device
+	  mutex_unlock(&nbd->config_lock)
+	  // relase lock
+	  wait_event_interruptible
+	  (kill, enter sock_shutdown)
+	  sock_shutdown
+					nbd_ioctl
+					  mutex_lock(&nbd->config_lock)
+					  // get lock
+					  __nbd_ioctl
+					    nbd_add_socket
+					      krealloc
+						kfree(p)
+					        //config->socks is NULL
+	    nbd_sock *nsock = config->socks // error
+
+Fix it by moving config_lock up before sock_shutdown.
+
+Signed-off-by: Zhong Jinghua <zhongjinghua@huaweicloud.com>
+---
+ drivers/block/nbd.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/block/nbd.c b/drivers/block/nbd.c
+index b3f38c1f582c..24b5cda95cbb 100644
+--- a/drivers/block/nbd.c
++++ b/drivers/block/nbd.c
+@@ -1406,13 +1406,18 @@ static int nbd_start_device_ioctl(struct nbd_device *nbd, struct block_device *b
+ 	mutex_unlock(&nbd->config_lock);
+ 	ret = wait_event_interruptible(config->recv_wq,
+ 					 atomic_read(&config->recv_threads) == 0);
++
++	/*
++	 * recv_work in flush_workqueue will not get this lock, because nbd_open
++	 * will hold nbd->config_refs
++	 */
++	mutex_lock(&nbd->config_lock);
+ 	if (ret) {
+ 		sock_shutdown(nbd);
+ 		nbd_clear_que(nbd);
+ 	}
+ 
+ 	flush_workqueue(nbd->recv_workq);
+-	mutex_lock(&nbd->config_lock);
+ 	nbd_bdev_reset(bdev);
+ 	/* user requested, ignore socket errors */
+ 	if (test_bit(NBD_RT_DISCONNECT_REQUESTED, &config->runtime_flags))
+-- 
+2.17.1
+

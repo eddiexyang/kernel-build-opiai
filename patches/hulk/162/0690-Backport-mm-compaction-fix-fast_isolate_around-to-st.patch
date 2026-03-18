@@ -1,0 +1,129 @@
+From 4f5a236776280a8fba37594738e632ee6083fdb5 Mon Sep 17 00:00:00 2001
+From: NARIBAYASHI Akira <a.naribayashi@fujitsu.com>
+Date: Wed, 26 Oct 2022 20:24:38 +0900
+Subject: [PATCH 690/905] [Backport] mm, compaction: fix fast_isolate_around()
+ to stay within boundaries
+
+stable inclusion
+from stable-v5.10.163
+commit 882734bbc5873143b17292cd29504bda9142d565
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=882734bbc5873143b17292cd29504bda9142d565
+
+--------------------------------
+
+commit be21b32afe470c5ae98e27e49201158a47032942 upstream.
+
+Depending on the memory configuration, isolate_freepages_block() may scan
+pages out of the target range and causes panic.
+
+Panic can occur on systems with multiple zones in a single pageblock.
+
+The reason it is rare is that it only happens in special
+configurations.  Depending on how many similar systems there are, it
+may be a good idea to fix this problem for older kernels as well.
+
+The problem is that pfn as argument of fast_isolate_around() could be out
+of the target range.  Therefore we should consider the case where pfn <
+start_pfn, and also the case where end_pfn < pfn.
+
+This problem should have been addressd by the commit 6e2b7044c199 ("mm,
+compaction: make fast_isolate_freepages() stay within zone") but there was
+an oversight.
+
+ Case1: pfn < start_pfn
+
+  <at memory compaction for node Y>
+  |  node X's zone  | node Y's zone
+  +-----------------+------------------------------...
+   pageblock    ^   ^     ^
+  +-----------+-----------+-----------+-----------+...
+                ^   ^     ^
+                ^   ^      end_pfn
+                ^    start_pfn = cc->zone->zone_start_pfn
+                 pfn
+                <---------> scanned range by "Scan After"
+
+ Case2: end_pfn < pfn
+
+  <at memory compaction for node X>
+  |  node X's zone  | node Y's zone
+  +-----------------+------------------------------...
+   pageblock  ^     ^   ^
+  +-----------+-----------+-----------+-----------+...
+              ^     ^   ^
+              ^     ^    pfn
+              ^      end_pfn
+               start_pfn
+              <---------> scanned range by "Scan Before"
+
+It seems that there is no good reason to skip nr_isolated pages just after
+given pfn.  So let perform simple scan from start to end instead of
+dividing the scan into "Before" and "After".
+
+Link: https://lkml.kernel.org/r/20221026112438.236336-1-a.naribayashi@fujitsu.com
+Fixes: 6e2b7044c199 ("mm, compaction: make fast_isolate_freepages() stay within zone").
+Signed-off-by: NARIBAYASHI Akira <a.naribayashi@fujitsu.com>
+Cc: David Rientjes <rientjes@google.com>
+Cc: Mel Gorman <mgorman@techsingularity.net>
+Cc: Vlastimil Babka <vbabka@suse.cz>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ mm/compaction.c | 18 +++++-------------
+ 1 file changed, 5 insertions(+), 13 deletions(-)
+
+diff --git a/mm/compaction.c b/mm/compaction.c
+index 80116210c2e6..0fa07abfae24 100644
+--- a/mm/compaction.c
++++ b/mm/compaction.c
+@@ -1285,7 +1285,7 @@ move_freelist_tail(struct list_head *freelist, struct page *freepage)
+ }
+ 
+ static void
+-fast_isolate_around(struct compact_control *cc, unsigned long pfn, unsigned long nr_isolated)
++fast_isolate_around(struct compact_control *cc, unsigned long pfn)
+ {
+ 	unsigned long start_pfn, end_pfn;
+ 	struct page *page;
+@@ -1306,21 +1306,13 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn, unsigned long
+ 	if (!page)
+ 		return;
+ 
+-	/* Scan before */
+-	if (start_pfn != pfn) {
+-		isolate_freepages_block(cc, &start_pfn, pfn, &cc->freepages, 1, false);
+-		if (cc->nr_freepages >= cc->nr_migratepages)
+-			return;
+-	}
+-
+-	/* Scan after */
+-	start_pfn = pfn + nr_isolated;
+-	if (start_pfn < end_pfn)
+-		isolate_freepages_block(cc, &start_pfn, end_pfn, &cc->freepages, 1, false);
++	isolate_freepages_block(cc, &start_pfn, end_pfn, &cc->freepages, 1, false);
+ 
+ 	/* Skip this pageblock in the future as it's full or nearly full */
+ 	if (cc->nr_freepages < cc->nr_migratepages)
+ 		set_pageblock_skip(page);
++
++	return;
+ }
+ 
+ /* Search orders in round-robin fashion */
+@@ -1496,7 +1488,7 @@ fast_isolate_freepages(struct compact_control *cc)
+ 		return cc->free_pfn;
+ 
+ 	low_pfn = page_to_pfn(page);
+-	fast_isolate_around(cc, low_pfn, nr_isolated);
++	fast_isolate_around(cc, low_pfn);
+ 	return low_pfn;
+ }
+ 
+-- 
+2.17.1
+

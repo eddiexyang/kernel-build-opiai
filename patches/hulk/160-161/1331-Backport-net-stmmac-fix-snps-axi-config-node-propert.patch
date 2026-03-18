@@ -1,0 +1,55 @@
+From 26897f545395c7aab82245e37a8741ef9e3afd99 Mon Sep 17 00:00:00 2001
+From: Jisheng Zhang <jszhang@kernel.org>
+Date: Sat, 3 Dec 2022 00:17:39 +0800
+Subject: [PATCH 1331/1398] [Backport] net: stmmac: fix "snps,axi-config" node
+ property parsing
+
+stable inclusion
+from stable-v5.10.159
+commit 696e34d54ca125e8d97e74401a3323a848b468b5
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68ZEA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=696e34d54ca125e8d97e74401a3323a848b468b5
+
+--------------------------------
+
+[ Upstream commit 61d4f140943c47c1386ed89f7260e00418dfad9d ]
+
+In dt-binding snps,dwmac.yaml, some properties under "snps,axi-config"
+node are named without "axi_" prefix, but the driver expects the
+prefix. Since the dt-binding has been there for a long time, we'd
+better make driver match the binding for compatibility.
+
+Fixes: afea03656add ("stmmac: rework DMA bus setting and introduce new platform AXI structure")
+Signed-off-by: Jisheng Zhang <jszhang@kernel.org>
+Link: https://lore.kernel.org/r/20221202161739.2203-1-jszhang@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
+index f70d8d1ce329..1ed74cfb61fc 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
+@@ -108,10 +108,10 @@ static struct stmmac_axi *stmmac_axi_setup(struct platform_device *pdev)
+ 
+ 	axi->axi_lpi_en = of_property_read_bool(np, "snps,lpi_en");
+ 	axi->axi_xit_frm = of_property_read_bool(np, "snps,xit_frm");
+-	axi->axi_kbbe = of_property_read_bool(np, "snps,axi_kbbe");
+-	axi->axi_fb = of_property_read_bool(np, "snps,axi_fb");
+-	axi->axi_mb = of_property_read_bool(np, "snps,axi_mb");
+-	axi->axi_rb =  of_property_read_bool(np, "snps,axi_rb");
++	axi->axi_kbbe = of_property_read_bool(np, "snps,kbbe");
++	axi->axi_fb = of_property_read_bool(np, "snps,fb");
++	axi->axi_mb = of_property_read_bool(np, "snps,mb");
++	axi->axi_rb =  of_property_read_bool(np, "snps,rb");
+ 
+ 	if (of_property_read_u32(np, "snps,wr_osr_lmt", &axi->axi_wr_osr_lmt))
+ 		axi->axi_wr_osr_lmt = 1;
+-- 
+2.17.1
+

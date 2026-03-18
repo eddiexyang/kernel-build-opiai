@@ -1,0 +1,120 @@
+From a8f8d9bdd8b35ac04fe48784327a07846f9c919d Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Wed, 10 May 2023 11:27:36 +0800
+Subject: [PATCH 232/780] [Huawei] topology: Introduce Hyper-Threading mapping
+ relationship
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188931
+
+--------------------------------
+
+Use benchmark lat_ctx to test the overhead of
+for_each_cpu(i, cpu_smt_mask(cpu)) is high(value = 39.875), therefore
+introduce simple HT mapping. new HT mapping relationship overhead is
+38.885us, reduce 2.5%.
+
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ arch/x86/kernel/smpboot.c    | 13 +++++++++++++
+ drivers/base/arch_topology.c | 13 +++++++++++++
+ include/linux/topology.h     |  7 +++++++
+ kernel/smpboot.c             |  4 ++++
+ 4 files changed, 37 insertions(+)
+
+diff --git a/arch/x86/kernel/smpboot.c b/arch/x86/kernel/smpboot.c
+index 750cc430760e..1785059791a2 100644
+--- a/arch/x86/kernel/smpboot.c
++++ b/arch/x86/kernel/smpboot.c
+@@ -601,6 +601,13 @@ void set_cpu_sibling_map(int cpu)
+ 
+ 		if ((i == cpu) || (has_mp && match_die(c, o)))
+ 			link_mask(topology_die_cpumask, cpu, i);
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++		if (i != cpu && has_smt && match_smt(c, o)) {
++			per_cpu(cpu_sibling, cpu) = i;
++			per_cpu(cpu_sibling, i) = cpu;
++		}
++#endif
+ 	}
+ 
+ 	threads = cpumask_weight(topology_sibling_cpumask(cpu));
+@@ -1563,6 +1570,12 @@ static void remove_siblinginfo(int cpu)
+ 	c->booted_cores = 0;
+ 	cpumask_clear_cpu(cpu, cpu_sibling_setup_mask);
+ 	recompute_smt_state();
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	sibling = cpu_sibling_cpuid(cpu);
++	if (sibling != -1)
++		per_cpu(cpu_sibling, sibling) = -1;
++#endif
+ }
+ 
+ static void remove_cpu_from_maps(int cpu)
+diff --git a/drivers/base/arch_topology.c b/drivers/base/arch_topology.c
+index 802077cd1ab9..80a90108b4b0 100644
+--- a/drivers/base/arch_topology.c
++++ b/drivers/base/arch_topology.c
+@@ -542,6 +542,13 @@ void update_siblings_masks(unsigned int cpuid)
+ 
+ 		cpumask_set_cpu(cpuid, &cpu_topo->thread_sibling);
+ 		cpumask_set_cpu(cpu, &cpuid_topo->thread_sibling);
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++		if (cpu != cpuid) {
++			per_cpu(cpu_sibling, cpu) = cpuid;
++			per_cpu(cpu_sibling, cpuid) = cpu;
++		}
++#endif
+ 	}
+ }
+ 
+@@ -592,6 +599,12 @@ void remove_cpu_topology(unsigned int cpu)
+ 		cpumask_clear_cpu(cpu, topology_llc_cpumask(sibling));
+ 
+ 	clear_cpu_topology(cpu);
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++	sibling = cpu_sibling_cpuid(cpu);
++	if (sibling != -1)
++		per_cpu(cpu_sibling, sibling) = -1;
++#endif
+ }
+ 
+ __weak int __init parse_acpi_topology(void)
+diff --git a/include/linux/topology.h b/include/linux/topology.h
+index 0b3704ad13c8..3c0609ad84f4 100644
+--- a/include/linux/topology.h
++++ b/include/linux/topology.h
+@@ -224,5 +224,12 @@ static inline const struct cpumask *cpu_cpu_mask(int cpu)
+ 	return cpumask_of_node(cpu_to_node(cpu));
+ }
+ 
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++DECLARE_PER_CPU_READ_MOSTLY(int, cpu_sibling);
++static inline int cpu_sibling_cpuid(int cpu)
++{
++	return per_cpu(cpu_sibling, cpu);
++}
++#endif
+ 
+ #endif /* _LINUX_TOPOLOGY_H */
+diff --git a/kernel/smpboot.c b/kernel/smpboot.c
+index e4163042c4d6..848658b499ba 100644
+--- a/kernel/smpboot.c
++++ b/kernel/smpboot.c
+@@ -480,3 +480,7 @@ bool cpu_report_death(void)
+ }
+ 
+ #endif /* #ifdef CONFIG_HOTPLUG_CPU */
++
++#ifdef CONFIG_QOS_NORMALIZE_UTIL
++DEFINE_PER_CPU_READ_MOSTLY(int, cpu_sibling) = -1;
++#endif
+-- 
+2.17.1
+

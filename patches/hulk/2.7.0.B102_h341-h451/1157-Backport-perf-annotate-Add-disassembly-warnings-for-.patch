@@ -1,0 +1,87 @@
+From 2747f80833f7bcb919a111bbea9c0321f56c5f5f Mon Sep 17 00:00:00 2001
+From: James Clark <james.clark@arm.com>
+Date: Fri, 25 Nov 2022 17:50:31 +0800
+Subject: [PATCH 1157/1646] [Backport] perf annotate: Add disassembly warnings
+ for annotate --stdio
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 243c3a3eb4e03201dec36f2edfc4fe604d8b9078
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I636PS
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=243c3a3eb4e03201dec36f2edfc4fe604d8b9078
+
+--------------------------------
+
+Currently 'perf annotate --stdio' (and --stdio2) will exit without
+printing anything if there are disassembly errors. Apply the same error
+handler that's used for TUI and GTK modes. This makes comparing
+disassembly across the different modes more consistent.
+
+Signed-off-by: James Clark <james.clark@arm.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Jiri Olsa <jolsa@redhat.com>
+Cc: John Garry <john.garry@huawei.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Suzuki Poulouse <suzuki.poulose@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: coresight@lists.linaro.org
+Cc: linux-arm-kernel@lists.infradead.org
+Link: http://lore.kernel.org/lkml/20210729155805.2830-4-james.clark@arm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Signed-off-by: Junhao He <hejunhao3@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ tools/perf/util/annotate.c | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/tools/perf/util/annotate.c b/tools/perf/util/annotate.c
+index e8f188c2de8b..264e5223ac40 100644
+--- a/tools/perf/util/annotate.c
++++ b/tools/perf/util/annotate.c
+@@ -2778,9 +2778,17 @@ int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel,
+ 	struct rb_root source_line = RB_ROOT;
+ 	struct hists *hists = evsel__hists(evsel);
+ 	char buf[1024];
++	int err;
++
++	err = symbol__annotate2(ms, evsel, opts, NULL);
++	if (err) {
++		char msg[BUFSIZ];
+ 
+-	if (symbol__annotate2(ms, evsel, opts, NULL) < 0)
++		dso->annotate_warned = true;
++		symbol__strerror_disassemble(ms, err, msg, sizeof(msg));
++		ui__error("Couldn't annotate %s:\n%s", sym->name, msg);
+ 		return -1;
++	}
+ 
+ 	if (opts->print_lines) {
+ 		srcline_full_filename = opts->full_path;
+@@ -2804,9 +2812,17 @@ int symbol__tty_annotate(struct map_symbol *ms, struct evsel *evsel,
+ 	struct dso *dso = ms->map->dso;
+ 	struct symbol *sym = ms->sym;
+ 	struct rb_root source_line = RB_ROOT;
++	int err;
++
++	err = symbol__annotate(ms, evsel, opts, NULL);
++	if (err) {
++		char msg[BUFSIZ];
+ 
+-	if (symbol__annotate(ms, evsel, opts, NULL) < 0)
++		dso->annotate_warned = true;
++		symbol__strerror_disassemble(ms, err, msg, sizeof(msg));
++		ui__error("Couldn't annotate %s:\n%s", sym->name, msg);
+ 		return -1;
++	}
+ 
+ 	symbol__calc_percent(sym, evsel);
+ 
+-- 
+2.17.1
+

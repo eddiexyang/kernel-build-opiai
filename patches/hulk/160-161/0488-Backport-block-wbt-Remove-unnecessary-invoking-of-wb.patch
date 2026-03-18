@@ -1,0 +1,45 @@
+From 79a9df98566a9c91dcf8095119e445ce647d7109 Mon Sep 17 00:00:00 2001
+From: Lei Chen <lennychen@tencent.com>
+Date: Mon, 30 Nov 2020 10:20:52 +0800
+Subject: [PATCH 0488/1398] [Backport] block: wbt: Remove unnecessary invoking
+ of wbt_update_limits in wbt_init
+
+stable inclusion
+from stable-v5.10.152
+commit 392536023da18086d57565e716ed50193869b8e7
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64L17
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=392536023da18086d57565e716ed50193869b8e7
+
+--------------------------------
+
+commit 5a20d073ec54a72d9a732fa44bfe14954eb6332f upstream.
+
+It's unnecessary to call wbt_update_limits explicitly within wbt_init,
+because it will be called in the following function wbt_queue_depth_changed.
+
+Signed-off-by: Lei Chen <lennychen@tencent.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ block/blk-wbt.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/block/blk-wbt.c b/block/blk-wbt.c
+index 22d647bbdfde..bafdb8098893 100644
+--- a/block/blk-wbt.c
++++ b/block/blk-wbt.c
+@@ -840,7 +840,6 @@ int wbt_init(struct request_queue *q)
+ 	rwb->enable_state = WBT_STATE_ON_DEFAULT;
+ 	rwb->wc = 1;
+ 	rwb->rq_depth.default_depth = RWB_DEF_DEPTH;
+-	wbt_update_limits(rwb);
+ 	rwb->min_lat_nsec = wbt_default_latency_nsec(q);
+ 
+ 	wbt_queue_depth_changed(&rwb->rqos);
+-- 
+2.17.1
+

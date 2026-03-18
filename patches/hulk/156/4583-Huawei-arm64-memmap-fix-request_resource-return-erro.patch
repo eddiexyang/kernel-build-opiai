@@ -1,0 +1,164 @@
+From cc5af1959f6c543dff2f7aa0140e02d756871d79 Mon Sep 17 00:00:00 2001
+From: Kefeng Wang <wangkefeng.wang@huawei.com>
+Date: Fri, 12 Aug 2022 06:23:10 +0000
+Subject: [PATCH 4583/4585] [Huawei] arm64: memmap: fix request_resource return
+ error
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187483
+
+--------------------------------
+
+When support memmap=nn[KMG]$ss[KMG], it will request resource to show
+reserved memory in iomem, but with memblock_setclr_flag() called
+memblock_mark_memmap() leads to split memblock region and then
+request_resource() could return -EBUSY when passed unaligned address.
+
+Let's directly use memblock_reserve() and drop membloc_setclr_flag()
+and show error if request_resource() in request_memmap_resource()
+return error code.
+
+Signed-off-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ arch/arm64/kernel/setup.c | 34 +++++++++++++++++++++++-----------
+ arch/arm64/mm/init.c      | 30 +++++++++++++++---------------
+ arch/arm64/mm/internal.h  |  4 ++++
+ 3 files changed, 42 insertions(+), 26 deletions(-)
+
+diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
+index ddca8d27fca6..bdb30011a426 100644
+--- a/arch/arm64/kernel/setup.c
++++ b/arch/arm64/kernel/setup.c
+@@ -219,17 +219,29 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
+ static void __init request_memmap_resources(struct resource *res)
+ {
+ 	struct resource *memmap_res;
++	phys_addr_t base, size;
++	int i;
+ 
+-	memmap_res = memblock_alloc(sizeof(*memmap_res), SMP_CACHE_BYTES);
+-	if (!memmap_res)
+-		panic("%s: Failed to allocate memmap_res\n", __func__);
+-
+-	memmap_res->name = "memmap reserved";
+-	memmap_res->flags = IORESOURCE_MEM;
+-	memmap_res->start = res->start;
+-	memmap_res->end = res->end;
++	for (i = 0; i < MAX_RES_REGIONS; i++) {
++		base = mbk_memmap_regions[i].base;
++		size = mbk_memmap_regions[i].size;
++		if (!size)
++			continue;
+ 
+-	request_resource(res, memmap_res);
++		memmap_res = memblock_alloc(sizeof(*memmap_res), SMP_CACHE_BYTES);
++		if (!memmap_res)
++			panic("%s: Failed to allocate memmap_res\n", __func__);
++
++		memmap_res->name = "memmap reserved";
++		memmap_res->flags = IORESOURCE_MEM;
++		memmap_res->start = base;
++		memmap_res->end = base + size - 1;
++		if (memmap_res->start >= res->start && memmap_res->end <= res->end) {
++			if (request_resource(res, memmap_res))
++				pr_warn("memmap reserve: [%llx, %llx] request resource fail\n",
++					memmap_res->start, memmap_res->end);
++		}
++	}
+ }
+ 
+ static void __init request_standard_resources(void)
+@@ -270,8 +282,8 @@ static void __init request_standard_resources(void)
+ 		if (kernel_data.start >= res->start &&
+ 		    kernel_data.end <= res->end)
+ 			request_resource(res, &kernel_data);
+-		if (memblock_is_memmap(region))
+-			request_memmap_resources(res);
++
++		request_memmap_resources(res);
+ 
+ #ifdef CONFIG_KEXEC_CORE
+ 		/* Userspace will find "Crash kernel" region in /proc/iomem. */
+diff --git a/arch/arm64/mm/init.c b/arch/arm64/mm/init.c
+index d2c663465d09..3d5aa07fcfbd 100644
+--- a/arch/arm64/mm/init.c
++++ b/arch/arm64/mm/init.c
+@@ -347,10 +347,8 @@ static int __init reserve_park_mem(void)
+ }
+ #endif
+ 
+-#define MAX_RES_REGIONS 32
+-
+-static struct memblock_region mbk_memmap_regions[MAX_RES_REGIONS] __initdata_memblock;
+-static int mbk_memmap_cnt __initdata;
++struct memblock_region mbk_memmap_regions[MAX_RES_REGIONS] __initdata_memblock;
++int mbk_memmap_cnt __initdata;
+ 
+ static void __init setup_mbk_memmap_regions(phys_addr_t base, phys_addr_t size)
+ {
+@@ -367,6 +365,7 @@ static void __init setup_mbk_memmap_regions(phys_addr_t base, phys_addr_t size)
+ static void __init reserve_memmap_regions(void)
+ {
+ 	phys_addr_t base, size;
++	const char *str;
+ 	int i;
+ 
+ 	for (i = 0; i < mbk_memmap_cnt; i++) {
+@@ -374,26 +373,27 @@ static void __init reserve_memmap_regions(void)
+ 		size = mbk_memmap_regions[i].size;
+ 
+ 		if (!memblock_is_region_memory(base, size)) {
+-			pr_warn("memmap reserve: 0x%08llx - 0x%08llx is not a memory region - ignore\n",
+-				base, base + size);
+-			continue;
++			str = "is not a memory region - ignore";
++			goto err;
+ 		}
+ 
+ 		if (memblock_is_region_reserved(base, size)) {
+-			pr_warn("memmap reserve: 0x%08llx - 0x%08llx overlaps in-use memory region - ignore\n",
+-				base, base + size);
+-			continue;
++			str = "overlaps in-use memory region - ignore";
++			goto err;
+ 		}
+ 
+ 		if (memblock_reserve(base, size)) {
+-			pr_warn("memmap reserve: 0x%08llx - 0x%08llx failed\n",
+-				base, base + size);
+-			continue;
++			str = "failed";
++			goto err;
+ 		}
+ 
+ 		pr_info("memmap reserved: 0x%08llx - 0x%08llx (%lld MB)",
+-			base, base + size, size >> 20);
+-		memblock_mark_memmap(base, size);
++			base, base + size - 1, size >> 20);
++		continue;
++err:
++		mbk_memmap_regions[i].size = 0;
++		pr_warn("memmap reserve: 0x%08llx - 0x%08llx %s\n",
++			base, base + size - 1, str);
+ 	}
+ }
+ 
+diff --git a/arch/arm64/mm/internal.h b/arch/arm64/mm/internal.h
+index e1c6fc36b3b5..428e8b1ade75 100644
+--- a/arch/arm64/mm/internal.h
++++ b/arch/arm64/mm/internal.h
+@@ -22,4 +22,8 @@ static inline void __init reserve_quick_kexec(void) {}
+ static inline void __init request_quick_kexec_res(struct resource *res) {}
+ #endif
+ 
++#define MAX_RES_REGIONS 32
++extern struct memblock_region mbk_memmap_regions[MAX_RES_REGIONS];
++extern int mbk_memmap_cnt;
++
+ #endif /* ifndef _ARM64_MM_INTERNAL_H */
+-- 
+2.17.1
+

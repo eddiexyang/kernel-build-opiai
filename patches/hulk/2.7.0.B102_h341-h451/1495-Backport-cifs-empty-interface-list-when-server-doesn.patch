@@ -1,0 +1,48 @@
+From ef215de920833b79a2e89a3f4cbf7a02f62cdbb1 Mon Sep 17 00:00:00 2001
+From: Shyam Prasad N <sprasad@microsoft.com>
+Date: Thu, 9 Mar 2023 13:23:29 +0000
+Subject: [PATCH 1495/1646] [Backport] cifs: empty interface list when server
+ doesn't support query interfaces
+
+stable inclusion
+from stable-v5.10.177
+commit f7a4ce3514262777f1a43b793d5a7daf24d517bc
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=f7a4ce3514262777f1a43b793d5a7daf24d517bc
+
+--------------------------------
+
+commit 896cd316b841053f6df95ab77b5f1322c16a8e18 upstream.
+
+When querying server interfaces returns -EOPNOTSUPP,
+clear the list of interfaces. Assumption is that multichannel
+would be disabled too.
+
+Signed-off-by: Shyam Prasad N <sprasad@microsoft.com>
+Reviewed-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/cifs/smb2ops.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/cifs/smb2ops.c b/fs/cifs/smb2ops.c
+index 8fdd34ff20ef..120c7cb11b02 100644
+--- a/fs/cifs/smb2ops.c
++++ b/fs/cifs/smb2ops.c
+@@ -593,7 +593,7 @@ SMB3_request_interfaces(const unsigned int xid, struct cifs_tcon *tcon)
+ 	if (rc == -EOPNOTSUPP) {
+ 		cifs_dbg(FYI,
+ 			 "server does not support query network interfaces\n");
+-		goto out;
++		ret_data_len = 0;
+ 	} else if (rc != 0) {
+ 		cifs_tcon_dbg(VFS, "error %d on ioctl to get interface list\n", rc);
+ 		goto out;
+-- 
+2.17.1
+

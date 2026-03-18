@@ -1,0 +1,46 @@
+From 6963173f41b0194e93495a01a8f4b39e695b23ca Mon Sep 17 00:00:00 2001
+From: Zheng Wang <zyytlz.wz@163.com>
+Date: Thu, 9 Mar 2023 00:45:01 +0800
+Subject: [PATCH 0049/1646] [Backport] Bluetooth: btsdio: fix use after free
+ bug in btsdio_remove due to race condition
+
+mainline inclusion
+from mainline-v6.3-rc7
+commit 73f7b171b7c09139eb3c6a5677c200dc1be5f318
+category: bugfix
+bugzilla: https://gitee.com/src-openeuler/kernel/issues/I6UW68
+CVE: CVE-2023-1989
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=73f7b171b7c09139eb3c6a5677c200dc1be5f318
+
+---------------------------
+
+In btsdio_probe, the data->work is bound with btsdio_work. It will be
+started in btsdio_send_frame.
+
+If the btsdio_remove runs with a unfinished work, there may be a race
+condition that hdev is freed but used in btsdio_work. Fix it by
+canceling the work before do cleanup in btsdio_remove.
+
+Signed-off-by: Zheng Wang <zyytlz.wz@163.com>
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Signed-off-by: Liu Jian <liujian56@huawei.com>
+---
+ drivers/bluetooth/btsdio.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/bluetooth/btsdio.c b/drivers/bluetooth/btsdio.c
+index 199e8f7d426d..2e4ac39dd975 100644
+--- a/drivers/bluetooth/btsdio.c
++++ b/drivers/bluetooth/btsdio.c
+@@ -355,6 +355,7 @@ static void btsdio_remove(struct sdio_func *func)
+ 	if (!data)
+ 		return;
+ 
++	cancel_work_sync(&data->work);
+ 	hdev = data->hdev;
+ 
+ 	sdio_set_drvdata(func, NULL);
+-- 
+2.17.1
+

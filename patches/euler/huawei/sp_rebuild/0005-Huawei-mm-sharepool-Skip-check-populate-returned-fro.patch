@@ -1,0 +1,87 @@
+From 1c92f344e3631650bb875bb98ffef836f002578a Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 27 Mar 2023 03:40:39 +0000
+Subject: [PATCH 05/53] [Huawei] mm/sharepool: Skip check populate returned
+ from sp_mmap
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+The populate parameter returned from sp_mmap() shall never be zero and
+we don't need to check it.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 37 ++++++++++++-------------------------
+ 1 file changed, 12 insertions(+), 25 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index a74e09f98fd5..61526892b2af 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -1540,20 +1540,18 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		}
+ 		up_write(&mm->mmap_lock);
+ 
+-		if (populate) {
+-			ret = do_mm_populate(mm, spa->va_start, populate, 0);
+-			if (ret) {
+-				if (unlikely(fatal_signal_pending(current)))
+-					pr_warn_ratelimited("add group failed, current thread is killed\n");
+-				else
+-					pr_warn_ratelimited("add group failed, mm populate failed (potential no enough memory when -12): %d, spa type is %d\n",
+-					ret, spa->type);
+-				down_write(&mm->mmap_lock);
+-				sp_munmap_task_areas(mm, spg, spa->link.next);
+-				up_write(&mm->mmap_lock);
+-				spin_lock(&sp_area_lock);
+-				break;
+-			}
++		ret = do_mm_populate(mm, spa->va_start, populate, 0);
++		if (ret) {
++			if (unlikely(fatal_signal_pending(current)))
++				pr_warn_ratelimited("add group failed, current thread is killed\n");
++			else
++				pr_warn_ratelimited("add group failed, mm populate failed (potential no enough memory when -12): %d, spa type is %d\n",
++						ret, spa->type);
++			down_write(&mm->mmap_lock);
++			sp_munmap_task_areas(mm, spg, spa->link.next);
++			up_write(&mm->mmap_lock);
++			spin_lock(&sp_area_lock);
++			break;
+ 		}
+ 
+ 		spin_lock(&sp_area_lock);
+@@ -2269,14 +2267,7 @@ static int sp_alloc_mmap(struct mm_struct *mm, struct sp_area *spa,
+ 		return PTR_ERR((void *)mmap_addr);
+ 	}
+ 
+-	if (unlikely(populate == 0)) {
+-		up_write(&mm->mmap_lock);
+-		pr_err("allocation sp mmap populate failed\n");
+-		ret = -EFAULT;
+-		goto unmap;
+-	}
+ 	ac->populate = populate;
+-
+ 	if (ac->sp_flags & SP_PROT_RO)
+ 		vma->vm_flags &= ~VM_MAYWRITE;
+ 
+@@ -2286,10 +2277,6 @@ static int sp_alloc_mmap(struct mm_struct *mm, struct sp_area *spa,
+ 	up_write(&mm->mmap_lock);
+ 
+ 	return ret;
+-
+-unmap:
+-	sp_alloc_unmap(list_next_entry(spg_node, proc_node)->master->mm, spa, spg_node);
+-	return ret;
+ }
+ 
+ static void sp_alloc_fallback(struct sp_area *spa, struct sp_alloc_context *ac)
+-- 
+2.17.1
+

@@ -1,0 +1,45 @@
+From 8fa1082ea9ccdf45666d7bc1629fa1bd5870badf Mon Sep 17 00:00:00 2001
+From: Paolo Bonzini <pbonzini@redhat.com>
+Date: Wed, 15 Feb 2023 07:11:32 -0500
+Subject: [PATCH 103/500] [Backport] Documentation/hw-vuln: Fix rST warning
+
+mainline inclusion
+from mainline-v6.2
+commit 971cecb9591a7b8ceae658252bf15240d7078a45
+category: bugfix
+bugzilla: 188458
+CVE: CVE-2022-27672
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=971cecb9591a7b8ceae658252bf15240d7078a45
+
+--------------------------------
+
+The following warning:
+
+   Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst:92: ERROR: Unexpected indentation.
+
+was introduced by commit 493a2c2d23ca.  Fix it by placing everything in
+the same paragraph and also use a monospace font.
+
+Fixes: 493a2c2d23ca ("Documentation/hw-vuln: Add documentation for Cross-Thread Return Predictions")
+Reported-by: Stephen Rothwell <sfr@canb@auug.org.au>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst b/Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst
+index ec6e9f5bcf9e..875616d675fe 100644
+--- a/Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst
++++ b/Documentation/admin-guide/hw-vuln/cross-thread-rsb.rst
+@@ -88,5 +88,4 @@ capability to override those interceptions, but since this is not common, the
+ mitigation that covers this path is not enabled by default.
+ 
+ The mitigation for the KVM_CAP_X86_DISABLE_EXITS capability can be turned on
+-using the boolean module parameter mitigate_smt_rsb, e.g.:
+-        kvm.mitigate_smt_rsb=1
++using the boolean module parameter mitigate_smt_rsb, e.g. ``kvm.mitigate_smt_rsb=1``.
+-- 
+2.17.1
+

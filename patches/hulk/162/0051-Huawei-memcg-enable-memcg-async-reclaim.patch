@@ -1,0 +1,149 @@
+From 51b1635de1e7b2e51a37e2f3314ae271bdf79533 Mon Sep 17 00:00:00 2001
+From: Lu Jialin <lujialin4@huawei.com>
+Date: Tue, 9 Aug 2022 23:06:54 +0800
+Subject: [PATCH 051/905] [Huawei] memcg: enable memcg async reclaim
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188244
+
+-------------------------------
+
+Introduce two memcg watermarks: warning watermark and safe watermark.
+warning watermark = memory.high * memory.high_async_ratio / 100;
+safe watermark = memory.high * (memory.high_async_ratio - 10) / 100;
+Start memcg async reclaim when memcg usage is larger than warning watermark
+but smaller than memory.high; the aim reclaim pages is the diff of memcg
+usage and safe watermark. The default memory.high_async_ratio is 100; when
+memory.high_async_ratio is 100, memcg async reclaim is disabled;
+
+Signed-off-by: Lu Jialin <lujialin4@huawei.com>
+---
+ include/linux/memcontrol.h |  4 +++
+ mm/memcontrol.c            | 69 ++++++++++++++++++++++++++++++++++++--
+ 2 files changed, 70 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
+index a6cf95204d2d..3c086d363172 100644
+--- a/include/linux/memcontrol.h
++++ b/include/linux/memcontrol.h
+@@ -386,7 +386,11 @@ struct mem_cgroup {
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ #endif
++#ifdef CONFIG_MEMCG_V1_THRESHOLD_QOS
++	KABI_USE2(4, int high_async_ratio, bool high_async_reclaim)
++#else
+ 	KABI_RESERVE(4)
++#endif
+ 	KABI_RESERVE(5)
+ 	KABI_RESERVE(6)
+ 	KABI_RESERVE(7)
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 9b459793b3da..6a8439dc36ff 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -106,6 +106,18 @@ static bool do_memsw_account(void)
+ #define THRESHOLDS_EVENTS_TARGET 128
+ #define SOFTLIMIT_EVENTS_TARGET 1024
+ 
++/*
++ * memcg warning watermark = memory.high * memcg->high_async_ratio /
++ * HIGH_ASYNC_RATIO_BASE.
++ * when memcg usage is larger than warning watermark, but smaller than
++ * memory.high, start memcg async reclaim;
++ * when memcg->high_async_ratio is HIGH_ASYNC_RATIO_BASE, memcg async
++ * relcaim is disabled;
++ */
++
++#define HIGH_ASYNC_RATIO_BASE			100
++#define HIGH_ASYNC_RATIO_GAP			10
++
+ /*
+  * Cgroups above their limits are maintained in a RB-Tree, independent of
+  * their hierarchy representation
+@@ -2361,12 +2373,52 @@ static unsigned long reclaim_high(struct mem_cgroup *memcg,
+ 	return nr_reclaimed;
+ }
+ 
++#ifdef CONFIG_MEMCG_V1_THRESHOLD_QOS
++static bool is_high_async_reclaim(struct mem_cgroup *memcg)
++{
++	int ratio = READ_ONCE(memcg->high_async_ratio);
++	unsigned long memcg_high = READ_ONCE(memcg->memory.high);
++
++	if (ratio == HIGH_ASYNC_RATIO_BASE || memcg_high == PAGE_COUNTER_MAX)
++		return false;
++
++	return page_counter_read(&memcg->memory) >
++	       memcg_high * ratio / HIGH_ASYNC_RATIO_BASE;
++}
++
++static void async_reclaim_high(struct mem_cgroup *memcg)
++{
++	unsigned long nr_pages, pflags;
++	unsigned long memcg_high = READ_ONCE(memcg->memory.high);
++	unsigned long memcg_usage = page_counter_read(&memcg->memory);
++	int ratio = READ_ONCE(memcg->high_async_ratio) - HIGH_ASYNC_RATIO_GAP;
++	unsigned long safe_pages = memcg_high * ratio / HIGH_ASYNC_RATIO_BASE;
++
++	if (!is_high_async_reclaim(memcg)) {
++		WRITE_ONCE(memcg->high_async_reclaim, false);
++		return;
++	}
++
++	psi_memstall_enter(&pflags);
++	nr_pages = memcg_usage > safe_pages ? memcg_usage - safe_pages :
++		   MEMCG_CHARGE_BATCH;
++	try_to_free_mem_cgroup_pages(memcg, nr_pages, GFP_KERNEL, true);
++	psi_memstall_leave(&pflags);
++	WRITE_ONCE(memcg->high_async_reclaim, false);
++}
++#endif
++
+ static void high_work_func(struct work_struct *work)
+ {
+-	struct mem_cgroup *memcg;
++	struct mem_cgroup *memcg = container_of(work, struct mem_cgroup,
++						high_work);
+ 
+-	memcg = container_of(work, struct mem_cgroup, high_work);
+-	reclaim_high(memcg, MEMCG_CHARGE_BATCH, GFP_KERNEL);
++#ifdef CONFIG_MEMCG_V1_THRESHOLD_QOS
++	if (READ_ONCE(memcg->high_async_reclaim))
++		async_reclaim_high(memcg);
++	else
++#endif
++		reclaim_high(memcg, MEMCG_CHARGE_BATCH, GFP_KERNEL);
+ }
+ 
+ /*
+@@ -2753,6 +2805,14 @@ static int try_charge(struct mem_cgroup *memcg, gfp_t gfp_mask,
+ 			continue;
+ 		}
+ 
++#ifdef CONFIG_MEMCG_V1_THRESHOLD_QOS
++		if (is_high_async_reclaim(memcg) && !mem_high) {
++			WRITE_ONCE(memcg->high_async_reclaim, true);
++			schedule_work(&memcg->high_work);
++			break;
++		}
++#endif
++
+ 		if (mem_high || swap_high) {
+ 			/*
+ 			 * The allocating tasks in this cgroup will need to do
+@@ -5682,6 +5742,9 @@ mem_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
+ 
+ 	page_counter_set_high(&memcg->memory, PAGE_COUNTER_MAX);
+ 	memcg->soft_limit = PAGE_COUNTER_MAX;
++#ifdef CONFIG_MEMCG_V1_THRESHOLD_QOS
++	memcg->high_async_ratio = HIGH_ASYNC_RATIO_BASE;
++#endif
+ 	page_counter_set_high(&memcg->swap, PAGE_COUNTER_MAX);
+ 	if (parent) {
+ 		memcg->swappiness = mem_cgroup_swappiness(parent);
+-- 
+2.17.1
+

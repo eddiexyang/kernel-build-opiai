@@ -1,0 +1,63 @@
+From e4d3df6550f7913fa61fddb4f8a3421e9340d5fa Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 18 Oct 2022 02:25:24 -0700
+Subject: [PATCH 609/905] [Backport] igb: Do not free q_vector unless new one
+ was allocated
+
+stable inclusion
+from stable-v5.10.163
+commit 3cb18dea11196fb4a06f78294cec5e61985e1aff
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3cb18dea11196fb4a06f78294cec5e61985e1aff
+
+--------------------------------
+
+[ Upstream commit 0668716506ca66f90d395f36ccdaebc3e0e84801 ]
+
+Avoid potential use-after-free condition under memory pressure. If the
+kzalloc() fails, q_vector will be freed but left in the original
+adapter->q_vector[v_idx] array position.
+
+Cc: Jesse Brandeburg <jesse.brandeburg@intel.com>
+Cc: Tony Nguyen <anthony.l.nguyen@intel.com>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: Eric Dumazet <edumazet@google.com>
+Cc: Jakub Kicinski <kuba@kernel.org>
+Cc: Paolo Abeni <pabeni@redhat.com>
+Cc: intel-wired-lan@lists.osuosl.org
+Cc: netdev@vger.kernel.org
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Reviewed-by: Michael J. Ruhl <michael.j.ruhl@intel.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Tested-by: Gurucharan <gurucharanx.g@intel.com> (A Contingent worker at Intel)
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/intel/igb/igb_main.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/igb/igb_main.c b/drivers/net/ethernet/intel/igb/igb_main.c
+index 1890fba83c52..9711035ee01f 100644
+--- a/drivers/net/ethernet/intel/igb/igb_main.c
++++ b/drivers/net/ethernet/intel/igb/igb_main.c
+@@ -1205,8 +1205,12 @@ static int igb_alloc_q_vector(struct igb_adapter *adapter,
+ 	if (!q_vector) {
+ 		q_vector = kzalloc(size, GFP_KERNEL);
+ 	} else if (size > ksize(q_vector)) {
+-		kfree_rcu(q_vector, rcu);
+-		q_vector = kzalloc(size, GFP_KERNEL);
++		struct igb_q_vector *new_q_vector;
++
++		new_q_vector = kzalloc(size, GFP_KERNEL);
++		if (new_q_vector)
++			kfree_rcu(q_vector, rcu);
++		q_vector = new_q_vector;
+ 	} else {
+ 		memset(q_vector, 0, size);
+ 	}
+-- 
+2.17.1
+

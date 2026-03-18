@@ -1,0 +1,45 @@
+From 3c150a094164b5f5fbfa9455963013da4f65508a Mon Sep 17 00:00:00 2001
+From: Andrii Nakryiko <andrii@kernel.org>
+Date: Tue, 28 Sep 2021 09:19:37 -0700
+Subject: [PATCH 883/921] [Backport] libbpf: Add "tc" SEC_DEF which is a better
+ name for "classifier"
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 9673268f03ba72efcc00fa95f3fe3744fcae0dd0
+category: bugfix
+bugzilla: 188604
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9673268f03ba72efcc00fa95f3fe3744fcae0dd0
+
+--------------------------------
+
+As argued in [0], add "tc" ELF section definition for SCHED_CLS BPF
+program type. "classifier" is a misleading terminology and should be
+migrated away from.
+
+  [0] https://lore.kernel.org/bpf/270e27b1-e5be-5b1c-b343-51bd644d0747@iogearbox.net/
+
+Signed-off-by: Andrii Nakryiko <andrii@kernel.org>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Link: https://lore.kernel.org/bpf/20210928161946.2512801-2-andrii@kernel.org
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ tools/lib/bpf/libbpf.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/lib/bpf/libbpf.c b/tools/lib/bpf/libbpf.c
+index deeb18e0a42e..a91611ee3e98 100644
+--- a/tools/lib/bpf/libbpf.c
++++ b/tools/lib/bpf/libbpf.c
+@@ -8511,6 +8511,7 @@ static const struct bpf_sec_def section_defs[] = {
+ 		.attach_fn = attach_kprobe),
+ 	BPF_PROG_SEC("uretprobe/",		BPF_PROG_TYPE_KPROBE),
+ 	BPF_PROG_SEC("classifier",		BPF_PROG_TYPE_SCHED_CLS),
++	BPF_PROG_SEC("tc",			BPF_PROG_TYPE_SCHED_CLS),
+ 	BPF_PROG_SEC("action",			BPF_PROG_TYPE_SCHED_ACT),
+ 	SEC_DEF("tracepoint/", TRACEPOINT,
+ 		.attach_fn = attach_tp),
+-- 
+2.17.1
+

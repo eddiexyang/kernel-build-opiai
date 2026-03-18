@@ -1,0 +1,166 @@
+From 3842194d6a7f305b5f490325854fc7fda081b80c Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 24 Apr 2023 10:29:37 +0800
+Subject: [PATCH 1629/1646] [Huawei] mm/dpool: Show dynamic pool meminfo in
+ /proc/meminfo
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Show meminfo of dynamic pool in /proc/meminfo.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ fs/proc/meminfo.c               |  2 +
+ include/linux/dynamic_hugetlb.h |  2 +
+ mm/dynamic_hugetlb.c            | 72 ++++++++++++++++++++++++---------
+ 3 files changed, 57 insertions(+), 19 deletions(-)
+
+diff --git a/fs/proc/meminfo.c b/fs/proc/meminfo.c
+index e03212ddaddf..34c315923ca1 100644
+--- a/fs/proc/meminfo.c
++++ b/fs/proc/meminfo.c
+@@ -152,6 +152,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
+ 
+ 	reliable_report_meminfo(m);
+ 
++	dpool_report_meminfo(m);
++
+ 	return 0;
+ }
+ 
+diff --git a/include/linux/dynamic_hugetlb.h b/include/linux/dynamic_hugetlb.h
+index b2ee43536308..48b8bd3821bd 100644
+--- a/include/linux/dynamic_hugetlb.h
++++ b/include/linux/dynamic_hugetlb.h
+@@ -135,6 +135,7 @@ void free_huge_page_to_dhugetlb_pool(struct page *page, bool restore_reserve);
+ bool page_belong_to_dynamic_hugetlb(struct page *page);
+ 
+ int dpool_init(struct dpool_info *arg);
++void dpool_report_meminfo(struct seq_file *m);
+ 
+ #else
+ 
+@@ -211,6 +212,7 @@ bool page_belong_to_dynamic_hugetlb(struct page *page)
+ 
+ struct dpool_info {};
+ static inline int dpool_init(struct dpool_info *arg) { return 0; }
++static inline void dpool_report_meminfo(struct seq_file *m) {}
+ 
+ #endif /* CONFIG_DYNAMIC_HUGETLB */
+ #endif /* __LINUX_DYNAMIC_HUGETLB_H */
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index 56c4e8c1d196..5e9ae0f45019 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -1170,35 +1170,55 @@ ssize_t write_hugepage_to_hpool(struct kernfs_open_file *of,
+ 	return ret ? : nbytes;
+ }
+ 
+-int hugetlb_pool_info_show(struct seq_file *m, void *v)
++/*
++ * try to get free and used pages of the normal 4K pages.
++ */
++static inline void hugetlb_sum_normal_pages(struct dhugetlb_pool *hpool,
++					    unsigned long *free_pages,
++					    unsigned long *used_pages)
+ {
+-	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
+-	struct dhugetlb_pool *hpool = memcg ? memcg->hpool : NULL;
+-	unsigned long free_pages;
+-	long used_pages = 0;
+ 	int i;
+ 
+-	if (!dhugetlb_enabled)
+-		return 0;
++	if (!hpool)
++		return;
+ 
+-	if (!hpool) {
+-		seq_printf(m, "Current hierarchial have not memory pool.\n");
+-		return 0;
+-	}
++	*used_pages = 0;
+ 
+ 	if (!get_hpool_unless_zero(hpool))
+-		return 0;
++		return;
+ 
+ 	for (i = 0; i < NR_PERCPU_POOL; i++)
+ 		spin_lock(&hpool->percpu_pool[i].lock);
+ 	spin_lock(&hpool->lock);
+ 
+-	free_pages = hpool->hpages_pool[HUGE_PAGES_POOL_4K].free_normal_pages;
++	*free_pages = hpool->hpages_pool[HUGE_PAGES_POOL_4K].free_normal_pages;
+ 	for (i = 0; i < NR_PERCPU_POOL; i++) {
+-		free_pages += hpool->percpu_pool[i].free_pages;
+-		used_pages += hpool->percpu_pool[i].used_pages;
++		*free_pages += hpool->percpu_pool[i].free_pages;
++		*used_pages += hpool->percpu_pool[i].used_pages;
++	}
++
++	spin_unlock(&hpool->lock);
++	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
++		spin_unlock(&hpool->percpu_pool[i].lock);
++	put_hpool(hpool);
++}
++
++int hugetlb_pool_info_show(struct seq_file *m, void *v)
++{
++	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
++	struct dhugetlb_pool *hpool = memcg ? memcg->hpool : NULL;
++	unsigned long free_pages, used_pages;
++
++	if (!dhugetlb_enabled)
++		return 0;
++
++	if (!hpool) {
++		seq_puts(m, "Current hierarchial have not memory pool.\n");
++		return 0;
+ 	}
+ 
++	hugetlb_sum_normal_pages(hpool, &free_pages, &used_pages);
++
+ 	seq_printf(m,
+ 		   "dhugetlb_total_pages %ld\n"
+ 		   "1G_total_reserved_pages %ld\n"
+@@ -1227,10 +1247,6 @@ int hugetlb_pool_info_show(struct seq_file *m, void *v)
+ 		   free_pages,
+ 		   used_pages);
+ 
+-	spin_unlock(&hpool->lock);
+-	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
+-		spin_unlock(&hpool->percpu_pool[i].lock);
+-	put_hpool(hpool);
+ 	return 0;
+ }
+ 
+@@ -1422,3 +1438,21 @@ int dpool_init(struct dpool_info *arg)
+ 
+ 	return ret;
+ }
++
++void dpool_report_meminfo(struct seq_file *m)
++{
++	unsigned long free_pages = 0, used_pages = 0;
++	struct dhugetlb_pool *hpool = dpool_global_hpool;
++
++	if (!dpool_enabled)
++		return;
++
++	if (hpool)
++		hugetlb_sum_normal_pages(hpool, &free_pages, &used_pages);
++
++	seq_printf(m,
++		   "DPoolTotal:     %8lu kB\n"
++		   "DPoolFree:      %8lu kB\n",
++		   (free_pages + used_pages) << (PAGE_SHIFT - 10),
++		   free_pages << (PAGE_SHIFT - 10));
++}
+-- 
+2.17.1
+

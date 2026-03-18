@@ -1,0 +1,45 @@
+From 95a5bae4befb4568a39f40c48e74c99b457e6332 Mon Sep 17 00:00:00 2001
+From: z00512904 <z00512904@huawei.com>
+Date: Fri, 17 Mar 2023 03:14:48 +0000
+Subject: [PATCH] [Huawei] ascend: Bugfix for mmap failed when alloc HBM using
+ mmap
+
+Offering:ascend
+Reference:NA
+Type:Bugfix
+reason:Bugfix for mmap failed when alloc HBM's hugepage using mmap. The mmap
+parameter is as follow(and using set_mempolicy make the process bind to HBM node):
+	mmap(NULL, 500000, PROT_READ | PROT_WRITE,
+		MAP_SHARED | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0)
+the reason is that when do_mmap, kernel will use allowed_mems_nr() to judge if
+there is enough hugepage to alloc. And in allowed_mems_nr() it will only return
+the hugepage number of intersection of cpuset's nodes and mempolicy's nodes. If
+the hbm node is not in cpuset's nodes, the hugepage number will return 0, which
+will cause mmap fail.
+---
+ mm/hugetlb.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index dca737654..7a41482dd 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -3879,6 +3879,15 @@ static unsigned int allowed_mems_nr(struct hstate *h)
+ 			nr += array[node];
+ 	}
+ 
++#ifdef CONFIG_COHERENT_DEVICE
++	if (mpol_allowed) {
++		for_each_node_mask(node, *mpol_allowed) {
++			if (is_cdm_node(node) && !node_isset(node, cpuset_current_mems_allowed))
++				nr += array[node];
++		}
++	}
++#endif
++
+ 	return nr;
+ }
+ 
+-- 
+2.17.1
+

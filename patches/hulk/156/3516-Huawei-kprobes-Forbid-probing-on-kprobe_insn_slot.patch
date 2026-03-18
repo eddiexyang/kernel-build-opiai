@@ -1,0 +1,47 @@
+From 66c1b4b24bbbf5a14accc44b5e6b5a08b69c939f Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Thu, 21 Jul 2022 16:47:26 +0800
+Subject: [PATCH 3516/4585] [Huawei] kprobes: Forbid probing on
+ kprobe_insn_slot
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187271
+
+--------------------------------
+
+kprobe will replace instruciton with a break and store the origin one
+on kprobe_insn_slot. However this slot is not in .kprobes.text and can
+be probed.
+
+Probing these slots will triggers kprobe handler inside single step
+process and for some architectures such as arm64 this will causes a
+bug().
+
+Add kprobe_insn_slot check when register_kprobe to forbid probing on
+these slots.
+
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ kernel/kprobes.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/kprobes.c b/kernel/kprobes.c
+index f7695a6eb724..21503331b604 100644
+--- a/kernel/kprobes.c
++++ b/kernel/kprobes.c
+@@ -1642,7 +1642,9 @@ static int check_kprobe_address_safe(struct kprobe *p,
+ 	/* Ensure it is not in reserved area nor out of text */
+ 	if (!kernel_text_address((unsigned long) p->addr) ||
+ 	    within_kprobe_blacklist((unsigned long) p->addr) ||
+-	    jump_label_text_reserved(p->addr, p->addr) ||
++		is_kprobe_insn_slot((unsigned long) p->addr) ||
++	    is_kprobe_optinsn_slot((unsigned long) p->addr) ||
++		jump_label_text_reserved(p->addr, p->addr) ||
+ 	    static_call_text_reserved(p->addr, p->addr) ||
+ 	    find_bug((unsigned long)p->addr)) {
+ 		ret = -EINVAL;
+-- 
+2.17.1
+

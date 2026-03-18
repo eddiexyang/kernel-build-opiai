@@ -1,0 +1,135 @@
+From 33af9f49cbae6f023f08ba179d062376dc2a5c24 Mon Sep 17 00:00:00 2001
+From: Long Li <leo.lilong@huawei.com>
+Date: Wed, 3 May 2023 14:29:27 +0800
+Subject: [PATCH 022/263] [Huawei] xfs: fix hung when transaction commit fail
+ in xfs_inactive_ifree
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187953
+
+--------------------------------
+
+After running unplug disk test and unmount filesystem, the umount thread
+hung all the time.
+
+ crash> dmesg
+ sd 0:0:0:0: rejecting I/O to offline device
+ XFS (sda): log I/O error -5
+ XFS (sda): Corruption of in-memory data (0x8) detected at
+ xfs_defer_finish_noroll+0x12e0/0x1cf0 (fs/xfs/libxfs/xfs_defer.c:504).
+	Shutting down filesystem.
+ XFS (sda): Please unmount the filesystem and rectify the problem(s)
+ XFS (sda): xfs_inactive_ifree: xfs_trans_commit returned error -5
+ XFS (sda): Unmounting Filesystem
+
+ crash> bt 3368
+ PID: 3368   TASK: ffff88801bcd8040  CPU: 3   COMMAND: "umount"
+  #0 [ffffc900086a7ae0] __schedule at ffffffff83d3fd25
+  #1 [ffffc900086a7be8] schedule at ffffffff83d414dd
+  #2 [ffffc900086a7c10] xfs_ail_push_all_sync at ffffffff8256db24
+  #3 [ffffc900086a7d18] xfs_unmount_flush_inodes at ffffffff824ee7e2
+  #4 [ffffc900086a7d28] xfs_unmountfs at ffffffff824f2eff
+  #5 [ffffc900086a7da8] xfs_fs_put_super at ffffffff82503e69
+  #6 [ffffc900086a7de8] generic_shutdown_super at ffffffff81aeb8cd
+  #7 [ffffc900086a7e10] kill_block_super at ffffffff81aefcfa
+  #8 [ffffc900086a7e30] deactivate_locked_super at ffffffff81aeb2da
+  #9 [ffffc900086a7e48] deactivate_super at ffffffff81aeb639
+ #10 [ffffc900086a7e68] cleanup_mnt at ffffffff81b6ddd5
+ #11 [ffffc900086a7ea0] __cleanup_mnt at ffffffff81b6dfdf
+ #12 [ffffc900086a7eb0] task_work_run at ffffffff8126e5cf
+ #13 [ffffc900086a7ef8] exit_to_user_mode_prepare at ffffffff813fa136
+ #14 [ffffc900086a7f28] syscall_exit_to_user_mode at ffffffff83d25dbb
+ #15 [ffffc900086a7f40] do_syscall_64 at ffffffff83d1f8d9
+ #16 [ffffc900086a7f50] entry_SYSCALL_64_after_hwframe at ffffffff83e00085
+
+When we free a cluster buffer from xfs_ifree_cluster, all the inodes in
+cache are marked XFS_ISTALE. On journal commit dirty stale inodes as are
+handled by both buffer and inode log items, inodes marked as XFS_ISTALE
+in AIL will be removed from the AIL because the buffer log item will clean
+it. If the transaction commit fails in the xfs_inactive_ifree(), inodes
+marked as XFS_ISTALE will be left in AIL due to buf log item is not
+committed, this will cause the unmount thread above to be blocked all the
+time. Set inode item abort associated with the buffer that is stale after
+buf item release, let ail clean up these items, that prevent inode item
+left in AIL and can not being pushed.
+
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_buf_item.c   | 20 ++++++++++++++++++++
+ fs/xfs/xfs_inode.c      |  3 ++-
+ fs/xfs/xfs_inode_item.c |  3 ++-
+ 3 files changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/fs/xfs/xfs_buf_item.c b/fs/xfs/xfs_buf_item.c
+index c905cf6804d7..3a9e006b7220 100644
+--- a/fs/xfs/xfs_buf_item.c
++++ b/fs/xfs/xfs_buf_item.c
+@@ -564,8 +564,12 @@ xfs_buf_item_put(
+ 	struct xfs_buf_log_item	*bip)
+ {
+ 	struct xfs_log_item	*lip = &bip->bli_item;
++	struct xfs_buf		*bp = bip->bli_buf;
++	struct xfs_log_item	*lp, *n;
++	struct xfs_inode_log_item *iip;
+ 	bool			aborted;
+ 	bool			dirty;
++	bool			stale = bip->bli_flags & XFS_BLI_STALE_INODE;
+ 
+ 	/* drop the bli ref and return if it wasn't the last one */
+ 	if (!atomic_dec_and_test(&bip->bli_refcount))
+@@ -592,6 +596,22 @@ xfs_buf_item_put(
+ 	if (aborted)
+ 		xfs_trans_ail_delete(lip, 0);
+ 	xfs_buf_item_relse(bip->bli_buf);
++
++	/*
++	 * If it is an inode buffer and item marked as stale, abort flushing
++	 * inodes associated with the buf, prevent inode item left in AIL.
++	 */
++	if (aborted && stale) {
++		list_for_each_entry_safe(lp, n, &bp->b_li_list, li_bio_list) {
++			iip = container_of(lp, struct xfs_inode_log_item,
++					ili_item);
++			if (xfs_iflags_test(iip->ili_inode, XFS_ISTALE)) {
++				set_bit(XFS_LI_ABORTED, &lp->li_flags);
++				xfs_iflags_clear(iip->ili_inode, XFS_IFLUSHING);
++			}
++		}
++	}
++
+ 	return true;
+ }
+ 
+diff --git a/fs/xfs/xfs_inode.c b/fs/xfs/xfs_inode.c
+index ea360c9c223d..7b777540a44c 100644
+--- a/fs/xfs/xfs_inode.c
++++ b/fs/xfs/xfs_inode.c
+@@ -3758,7 +3758,8 @@ xfs_iflush_cluster(
+ 		 * once we drop the i_flags_lock.
+ 		 */
+ 		spin_lock(&ip->i_flags_lock);
+-		ASSERT(!__xfs_iflags_test(ip, XFS_ISTALE));
++		ASSERT(!__xfs_iflags_test(ip, XFS_ISTALE) ||
++				test_bit(XFS_LI_ABORTED, &lip->li_flags));
+ 		if (__xfs_iflags_test(ip, XFS_IRECLAIM | XFS_IFLUSHING)) {
+ 			spin_unlock(&ip->i_flags_lock);
+ 			continue;
+diff --git a/fs/xfs/xfs_inode_item.c b/fs/xfs/xfs_inode_item.c
+index e160a83e7e52..7586b19b322b 100644
+--- a/fs/xfs/xfs_inode_item.c
++++ b/fs/xfs/xfs_inode_item.c
+@@ -518,7 +518,8 @@ xfs_inode_item_push(
+ 	uint			rval = XFS_ITEM_SUCCESS;
+ 	int			error;
+ 
+-	if (!bp || (ip->i_flags & XFS_ISTALE)) {
++	if (!bp || ((ip->i_flags & XFS_ISTALE) &&
++		   !(lip->li_flags & XFS_LI_ABORTED))) {
+ 		/*
+ 		 * Inode item/buffer is being being aborted due to cluster
+ 		 * buffer deletion. Trigger a log force to have that operation
+-- 
+2.17.1
+

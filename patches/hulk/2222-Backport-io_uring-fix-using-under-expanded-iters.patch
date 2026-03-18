@@ -1,0 +1,91 @@
+From 63ed1a6e2106d1dd2c6ebaea15b7b08b00df5618 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Fri, 3 Jun 2022 13:17:05 +0100
+Subject: [PATCH 2222/2592] [Backport] io_uring: fix using under-expanded iters
+
+stable inclusion
+from stable-v5.10.119
+commit 8adb751d294ed3b668f1c7e41bd7ebe49002a744
+category: bugfix
+bugzilla: 186671
+CVE: CVE-2022-1508
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8adb751d294ed3b668f1c7e41bd7ebe49002a744
+
+--------------------------------
+
+[ upstream commit cd65869512ab5668a5d16f789bc4da1319c435c4 ]
+
+The issue was first described and addressed in
+89c2b3b7491820 ("io_uring: reexpand under-reexpanded iters"), but
+shortly after reimplemented as.
+cd65869512ab56 ("io_uring: use iov_iter state save/restore helpers").
+
+Here we follow the approach from the second patch but without in-callback
+resubmissions, fixups for not yet supported in 5.10 short read retries
+and replacing iov_iter_state with iter copies to not pull even more
+dependencies, and because it's just much simpler.
+
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ fs/io_uring.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index e33a52f8943b..a1c2c04b8ca0 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -3385,6 +3385,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
+ 	struct iovec inline_vecs[UIO_FASTIOV], *iovec = inline_vecs;
+ 	struct kiocb *kiocb = &req->rw.kiocb;
+ 	struct iov_iter __iter, *iter = &__iter;
++	struct iov_iter iter_cp;
+ 	struct io_async_rw *rw = req->async_data;
+ 	ssize_t io_size, ret, ret2;
+ 	bool no_async;
+@@ -3395,6 +3396,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
+ 	ret = io_import_iovec(READ, req, &iovec, iter, !force_nonblock);
+ 	if (ret < 0)
+ 		return ret;
++	iter_cp = *iter;
+ 	io_size = iov_iter_count(iter);
+ 	req->result = io_size;
+ 	ret = 0;
+@@ -3430,7 +3432,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
+ 		if (req->file->f_flags & O_NONBLOCK)
+ 			goto done;
+ 		/* some cases will consume bytes even on error returns */
+-		iov_iter_revert(iter, io_size - iov_iter_count(iter));
++		*iter = iter_cp;
+ 		ret = 0;
+ 		goto copy_iov;
+ 	} else if (ret < 0) {
+@@ -3513,6 +3515,7 @@ static int io_write(struct io_kiocb *req, bool force_nonblock,
+ 	struct iovec inline_vecs[UIO_FASTIOV], *iovec = inline_vecs;
+ 	struct kiocb *kiocb = &req->rw.kiocb;
+ 	struct iov_iter __iter, *iter = &__iter;
++	struct iov_iter iter_cp;
+ 	struct io_async_rw *rw = req->async_data;
+ 	ssize_t ret, ret2, io_size;
+ 
+@@ -3522,6 +3525,7 @@ static int io_write(struct io_kiocb *req, bool force_nonblock,
+ 	ret = io_import_iovec(WRITE, req, &iovec, iter, !force_nonblock);
+ 	if (ret < 0)
+ 		return ret;
++	iter_cp = *iter;
+ 	io_size = iov_iter_count(iter);
+ 	req->result = io_size;
+ 
+@@ -3583,7 +3587,7 @@ static int io_write(struct io_kiocb *req, bool force_nonblock,
+ 	} else {
+ copy_iov:
+ 		/* some cases will consume bytes even on error returns */
+-		iov_iter_revert(iter, io_size - iov_iter_count(iter));
++		*iter = iter_cp;
+ 		ret = io_setup_async_rw(req, iovec, inline_vecs, iter, false);
+ 		if (!ret)
+ 			return -EAGAIN;
+-- 
+2.17.1
+

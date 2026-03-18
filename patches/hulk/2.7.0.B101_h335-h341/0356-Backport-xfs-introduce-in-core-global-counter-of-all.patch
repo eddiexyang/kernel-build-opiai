@@ -1,0 +1,110 @@
+From a8904d995c47a7a572196569fc922a87274516bb Mon Sep 17 00:00:00 2001
+From: Brian Foster <bfoster@redhat.com>
+Date: Wed, 28 Apr 2021 15:05:50 -0700
+Subject: [PATCH 356/921] [Backport] xfs: introduce in-core global counter of
+ allocbt blocks
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit 16eaab839a9273ed156ebfccbd40c15d1e72f3d8
+category: bugfix
+bugzilla: 188575
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=16eaab839a9273ed156ebfccbd40c15d1e72f3d8
+
+--------------------------------
+
+Introduce an in-core counter to track the sum of all allocbt blocks
+used by the filesystem. This value is currently tracked per-ag via
+the ->agf_btreeblks field in the AGF, which also happens to include
+rmapbt blocks. A global, in-core count of allocbt blocks is required
+to identify the subset of global ->m_fdblocks that consists of
+unavailable blocks currently used for allocation btrees. To support
+this calculation at block reservation time, construct a similar
+global counter for allocbt blocks, populate it on first read of each
+AGF and update it as allocbt blocks are used and released.
+
+Signed-off-by: Brian Foster <bfoster@redhat.com>
+Reviewed-by: Chandan Babu R <chandanrlinux@gmail.com>
+Reviewed-by: Allison Henderson <allison.henderson@oracle.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/xfs/libxfs/xfs_alloc.c       | 14 ++++++++++++++
+ fs/xfs/libxfs/xfs_alloc_btree.c |  2 ++
+ fs/xfs/xfs_mount.h              |  6 ++++++
+ 3 files changed, 22 insertions(+)
+
+diff --git a/fs/xfs/libxfs/xfs_alloc.c b/fs/xfs/libxfs/xfs_alloc.c
+index 6f54f639913f..e18f3c089eea 100644
+--- a/fs/xfs/libxfs/xfs_alloc.c
++++ b/fs/xfs/libxfs/xfs_alloc.c
+@@ -2983,6 +2983,7 @@ xfs_alloc_read_agf(
+ 	struct xfs_agf		*agf;		/* ag freelist header */
+ 	struct xfs_perag	*pag;		/* per allocation group data */
+ 	int			error;
++	int			allocbt_blks;
+ 
+ 	trace_xfs_alloc_read_agf(mp, agno);
+ 
+@@ -3013,6 +3014,19 @@ xfs_alloc_read_agf(
+ 		pag->pagf_refcount_level = be32_to_cpu(agf->agf_refcount_level);
+ 		pag->pagf_init = 1;
+ 		pag->pagf_agflreset = xfs_agfl_needs_reset(mp, agf);
++
++		/*
++		 * Update the in-core allocbt counter. Filter out the rmapbt
++		 * subset of the btreeblks counter because the rmapbt is managed
++		 * by perag reservation. Subtract one for the rmapbt root block
++		 * because the rmap counter includes it while the btreeblks
++		 * counter only tracks non-root blocks.
++		 */
++		allocbt_blks = pag->pagf_btreeblks;
++		if (xfs_sb_version_hasrmapbt(&mp->m_sb))
++			allocbt_blks -= be32_to_cpu(agf->agf_rmap_blocks) - 1;
++		if (allocbt_blks > 0)
++			atomic64_add(allocbt_blks, &mp->m_allocbt_blks);
+ 	}
+ #ifdef DEBUG
+ 	else if (!XFS_FORCED_SHUTDOWN(mp)) {
+diff --git a/fs/xfs/libxfs/xfs_alloc_btree.c b/fs/xfs/libxfs/xfs_alloc_btree.c
+index 8a529becd35d..ef2b8ee87b8d 100644
+--- a/fs/xfs/libxfs/xfs_alloc_btree.c
++++ b/fs/xfs/libxfs/xfs_alloc_btree.c
+@@ -71,6 +71,7 @@ xfs_allocbt_alloc_block(
+ 		return 0;
+ 	}
+ 
++	atomic64_inc(&cur->bc_mp->m_allocbt_blks);
+ 	xfs_extent_busy_reuse(cur->bc_mp, cur->bc_ag.agno, bno, 1, false);
+ 
+ 	new->s = cpu_to_be32(bno);
+@@ -94,6 +95,7 @@ xfs_allocbt_free_block(
+ 	if (error)
+ 		return error;
+ 
++	atomic64_dec(&cur->bc_mp->m_allocbt_blks);
+ 	xfs_extent_busy_insert(cur->bc_tp, be32_to_cpu(agf->agf_seqno), bno, 1,
+ 			      XFS_EXTENT_BUSY_SKIP_DISCARD);
+ 	return 0;
+diff --git a/fs/xfs/xfs_mount.h b/fs/xfs/xfs_mount.h
+index abea479ff6d4..aeeeb83255e6 100644
+--- a/fs/xfs/xfs_mount.h
++++ b/fs/xfs/xfs_mount.h
+@@ -187,6 +187,12 @@ typedef struct xfs_mount {
+ 	 * extents or anything related to the rt device.
+ 	 */
+ 	struct percpu_counter	m_delalloc_blks;
++	/*
++	 * Global count of allocation btree blocks in use across all AGs. Only
++	 * used when perag reservation is enabled. Helps prevent block
++	 * reservation from attempting to reserve allocation btree blocks.
++	 */
++	atomic64_t		m_allocbt_blks;
+ 
+ 	struct radix_tree_root	m_perag_tree;	/* per-ag accounting info */
+ 	spinlock_t		m_perag_lock;	/* lock for m_perag_tree */
+-- 
+2.17.1
+

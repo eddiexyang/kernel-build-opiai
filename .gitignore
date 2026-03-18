@@ -1,0 +1,40 @@
+# Top-level build outputs
+/output/
+/workspace/
+
+# Generated driver wiring and outputs
+/driver/abl
+/driver/libc_sec
+/driver/kernel/
+/driver/out/
+/driver/config/feature_config/
+
+# DTB temporary workspace
+/dtb/dtbtool/tmp/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Common kernel/module build byproducts produced in-tree under driver sources
+/driver/**/*.o
+/driver/**/*.o.cmd
+/driver/**/*.ko
+/driver/**/*.cmd
+/driver/**/*.mod
+/driver/**/*.mod.c
+/driver/**/.tmp_versions/
+/driver/**/Module.symvers
+/driver/**/modules.order
+/driver/**/.cache.mk
+/driver/**/.tmp_*.o
+
+# Kbuild leftovers if they appear outside the dedicated workspace
+*.order.cmd
+*.symtypes
+*.a.cmd
+*.so.cmd
+*.lst
+
+# Packaging outputs
+*.deb

@@ -1,0 +1,144 @@
+From f1ff1bceaaf857027873783b404b4a1a157cc6ed Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 14 Nov 2022 16:31:11 +0800
+Subject: [PATCH 0022/1398] [Huawei] hugetlb: Introduce
+ CONFIG_HUGETLB_ALLOC_LIMIT to make full isolation
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187982
+
+--------------------------------
+
+Introduce CONFIG_HUGETLB_ALLOC_LIMIT to make full isolation.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ Documentation/admin-guide/kernel-parameters.txt |  2 ++
+ arch/arm64/configs/openeuler_defconfig          |  1 +
+ arch/x86/configs/openeuler_defconfig            |  1 +
+ fs/Kconfig                                      | 11 +++++++++++
+ mm/hugetlb.c                                    |  8 ++++++++
+ 5 files changed, 23 insertions(+)
+
+diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
+index 1d2c05044189..8592cf17ebea 100644
+--- a/Documentation/admin-guide/kernel-parameters.txt
++++ b/Documentation/admin-guide/kernel-parameters.txt
+@@ -1575,6 +1575,8 @@
+ 			part of physical memory is broken, admin users can
+ 			adjust this according to typical environment.
+ 
++			Reguires CONFIG_HUGETLB_ALLOC_LIMIT
++
+ 	hugepages=	[HW] Number of HugeTLB pages to allocate at boot.
+ 			If this follows hugepagesz (below), it specifies
+ 			the number of pages of hugepagesz to be allocated.
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index dc54e71f326a..fdcecc7b68c8 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -6287,6 +6287,7 @@ CONFIG_HUGETLBFS=y
+ CONFIG_HUGETLB_PAGE=y
+ CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP=y
+ # CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON is not set
++CONFIG_HUGETLB_ALLOC_LIMIT=y
+ CONFIG_MEMFD_CREATE=y
+ CONFIG_ARCH_HAS_GIGANTIC_PAGE=y
+ CONFIG_CONFIGFS_FS=y
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 9c6bf774bba0..db64ad678f77 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -7381,6 +7381,7 @@ CONFIG_HUGETLB_PAGE=y
+ CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP=y
+ # CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON is not set
+ CONFIG_DYNAMIC_HUGETLB=y
++CONFIG_HUGETLB_ALLOC_LIMIT=y
+ CONFIG_MEMFD_CREATE=y
+ CONFIG_ARCH_HAS_GIGANTIC_PAGE=y
+ CONFIG_CONFIGFS_FS=y
+diff --git a/fs/Kconfig b/fs/Kconfig
+index aa097ca64ef6..94fa8c0f879b 100644
+--- a/fs/Kconfig
++++ b/fs/Kconfig
+@@ -270,6 +270,17 @@ config DYNAMIC_HUGETLB
+ 	  pages automatically. The tasks in the memcg prefer to alloc dynamic
+ 	  hugepage.
+ 
++config HUGETLB_ALLOC_LIMIT
++	bool "Limit hugeTLB pages allocation"
++	depends on HUGETLBFS
++	default n
++	help
++	  HugeTLB pages should not alloc when the rest of
++	  the normal pages less than hugepage_prohibit_sz. This
++	  setting is to make sure a system can start even when
++	  part of physical memory is broken, admin users can
++	  adjust this according to typical environment.
++
+ config MEMFD_CREATE
+ 	def_bool TMPFS || HUGETLBFS
+ 
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index 9b0896a1e27d..94718654417f 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -1786,6 +1786,7 @@ pgoff_t hugetlb_basepage_index(struct page *page)
+ 	return (index << compound_order(page_head)) + compound_idx;
+ }
+ 
++#ifdef CONFIG_HUGETLB_ALLOC_LIMIT
+ #define HUGE_PAGE_BOOTMEM_ALLOC		0
+ #define HUGE_PAGE_FRESH_ALLOC		1
+ 
+@@ -1812,6 +1813,7 @@ static int __init early_normal_page_reserve(char *p)
+ 	return 0;
+ }
+ early_param("hugepage_prohibit_sz", early_normal_page_reserve);
++#endif
+ 
+ static struct page *alloc_buddy_huge_page(struct hstate *h,
+ 		gfp_t gfp_mask, int nid, nodemask_t *nmask,
+@@ -1860,6 +1862,7 @@ static struct page *alloc_buddy_huge_page(struct hstate *h,
+ 	return page;
+ }
+ 
++#ifdef CONFIG_HUGETLB_ALLOC_LIMIT
+ static bool __ref huge_page_limit_check(int type, size_t hsize, int nid)
+ {
+ 	u64 mem_usable = 0;
+@@ -1898,6 +1901,7 @@ static bool __ref huge_page_limit_check(int type, size_t hsize, int nid)
+ 
+ 	return false;
+ }
++#endif
+ 
+ /*
+  * Common helper to allocate a fresh hugetlb page. All specific allocators
+@@ -1911,8 +1915,10 @@ static struct page *alloc_fresh_huge_page(struct hstate *h,
+ 	bool retry = false;
+ 
+ retry:
++#ifdef CONFIG_HUGETLB_ALLOC_LIMIT
+ 	if (!huge_page_limit_check(HUGE_PAGE_FRESH_ALLOC, huge_page_size(h), nid))
+ 		return NULL;
++#endif
+ 
+ 	if (hstate_is_gigantic(h))
+ 		page = alloc_gigantic_page(h, gfp_mask, nid, nmask);
+@@ -2738,8 +2744,10 @@ int __alloc_bootmem_huge_page(struct hstate *h, int nid)
+ 	if (nid != NUMA_NO_NODE && nid >= nr_online_nodes)
+ 		return 0;
+ 
++#ifdef CONFIG_HUGETLB_ALLOC_LIMIT
+ 	if (!huge_page_limit_check(HUGE_PAGE_BOOTMEM_ALLOC, huge_page_size(h), nid))
+ 		return 0;
++#endif
+ 
+ 	/* do node specific alloc */
+ 	if (nid != NUMA_NO_NODE) {
+-- 
+2.17.1
+

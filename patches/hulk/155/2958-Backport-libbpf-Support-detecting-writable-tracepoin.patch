@@ -1,0 +1,50 @@
+From 7204d08d85041599abe493a17e9fc31e3da65691 Mon Sep 17 00:00:00 2001
+From: Hou Tao <houtao1@huawei.com>
+Date: Mon, 23 May 2022 21:18:17 +0800
+Subject: [PATCH 2958/4585] [Backport] libbpf: Support detecting writable
+ tracepoint program
+
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I53R0H
+
+Reference: https://gitee.com/openeuler/kernel/commit/b7aa3a00c115ec1d78226d1f39e5bb78ed06fbe8
+
+--------------------------------
+
+Identify writable tracepoint program by section prefix
+raw_tracepoint.w/.
+
+The correct way is back-porting from commit ccaf12d6215a
+("libbpf: Support detecting and attaching of writable tracepoint program"),
+but the refactoring of libbpf makes it hard, so using the same section
+prefix as ccaf12d6215a and post a home-made patch instead.
+
+Signed-off-by: Hou Tao <houtao1@huawei.com>
+Reviewed-by: Kuohai Xu <xukuohai@huawei.com>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+Reviewed-by: Kuohai Xu <xukuohai@huawei.com>
+Reviewed-by: Kuohai Xu <xukuohai@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ tools/lib/bpf/libbpf.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/lib/bpf/libbpf.c b/tools/lib/bpf/libbpf.c
+index 61df26f048d9..c9f5eef6d3d8 100644
+--- a/tools/lib/bpf/libbpf.c
++++ b/tools/lib/bpf/libbpf.c
+@@ -8320,6 +8320,7 @@ static const struct bpf_sec_def section_defs[] = {
+ 		.attach_fn = attach_tp),
+ 	SEC_DEF("raw_tracepoint/", RAW_TRACEPOINT,
+ 		.attach_fn = attach_raw_tp),
++	BPF_PROG_SEC("raw_tracepoint.w/", BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE),
+ 	SEC_DEF("raw_tp/", RAW_TRACEPOINT,
+ 		.attach_fn = attach_raw_tp),
+ 	SEC_DEF("tp_btf/", TRACING,
+-- 
+2.17.1
+

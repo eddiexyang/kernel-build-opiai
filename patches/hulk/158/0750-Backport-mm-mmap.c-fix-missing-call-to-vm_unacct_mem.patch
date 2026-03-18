@@ -1,0 +1,50 @@
+From 996d9e525ffb0d6506f35a2f52f070a6878a159a Mon Sep 17 00:00:00 2001
+From: Miaohe Lin <linmiaohe@huawei.com>
+Date: Sat, 18 Jun 2022 16:20:27 +0800
+Subject: [PATCH 0750/1076] [Backport] mm/mmap.c: fix missing call to
+ vm_unacct_memory in mmap_region
+
+stable inclusion
+from stable-v5.10.137
+commit 4ffa6cecb53d46af8f869cc7a5a376341ebef79f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4ffa6cecb53d46af8f869cc7a5a376341ebef79f
+
+--------------------------------
+
+[ Upstream commit 7f82f922319ede486540e8746769865b9508d2c2 ]
+
+Since the beginning, charged is set to 0 to avoid calling vm_unacct_memory
+twice because vm_unacct_memory will be called by above unmap_region.  But
+since commit 4f74d2c8e827 ("vm: remove 'nr_accounted' calculations from
+the unmap_vmas() interfaces"), unmap_region doesn't call vm_unacct_memory
+anymore.  So charged shouldn't be set to 0 now otherwise the calling to
+paired vm_unacct_memory will be missed and leads to imbalanced account.
+
+Link: https://lkml.kernel.org/r/20220618082027.43391-1-linmiaohe@huawei.com
+Fixes: 4f74d2c8e827 ("vm: remove 'nr_accounted' calculations from the unmap_vmas() interfaces")
+Signed-off-by: Miaohe Lin <linmiaohe@huawei.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ mm/mmap.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 624586bef419..07824ada1949 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -2160,7 +2160,6 @@ static unsigned long __mmap_region(struct mm_struct *mm, struct file *file,
+ 
+ 	/* Undo any partial mapping done by a device driver. */
+ 	unmap_region(mm, vma, prev, vma->vm_start, vma->vm_end);
+-	charged = 0;
+ 	if (vm_flags & VM_SHARED)
+ 		mapping_unmap_writable(file->f_mapping);
+ allow_write_and_free_vma:
+-- 
+2.17.1
+

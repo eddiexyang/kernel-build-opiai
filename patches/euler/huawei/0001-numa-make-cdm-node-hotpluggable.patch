@@ -1,0 +1,112 @@
+From f0ddc077923f7eac96d2001305e4c208e615a295 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Sat, 23 Sep 2023 17:05:58 +0800
+Subject: [PATCH] numa: make cdm node hotpluggable
+
+Introduce feature to allow mark cdm node reported from bootargs
+hotpluggable.
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ arch/arm64/Kconfig       | 11 +++++++++++
+ arch/arm64/mm/numa.c     | 24 ++++++++++++++++++++++++
+ drivers/acpi/numa/srat.c |  5 +++++
+ include/linux/nodemask.h |  9 +++++++++
+ 4 files changed, 49 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 8756ddf1c..dfe929c0a 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1618,6 +1618,17 @@ config ASCEND_ISOLATE_NON_NORMAL_NODE
+ 	  memory allocations on normal nodes will never fallback to non normal nodes
+ 	  and allocations on non normal nodes are not charged by any cgroup.
+ 
++config ASCEND_CDM_TO_HOTPLUG
++	bool "make cdm nodes hotpluggable"
++	default n
++	depends on !COHERENT_DEVICE
++	depends on MEMORY_HOTPLUG && ARM64 && ACPI_NUMA
++	depends on ASCEND_ISOLATE_NON_NORMAL_NODE
++	help
++	  This option makes cdm nodes reported from bootargs hotpluggable.
++	  Depends on ASCEND_ISOLATE_NON_NORMAL_NODE to allow policy_node reuse
++	  is_cdm_node.
++
+ config ASCEND_SMMU_QUEUE_SIZE
+     bool "Enable support for changing smmu queue size"
+     default n
+diff --git a/arch/arm64/mm/numa.c b/arch/arm64/mm/numa.c
+index 480fcfb1b..f6e01f4cf 100644
+--- a/arch/arm64/mm/numa.c
++++ b/arch/arm64/mm/numa.c
+@@ -198,6 +198,30 @@ static int __init cdm_nodes_setup(char *s)
+ early_param("cdm-nodes", cdm_nodes_setup);
+ #endif
+ 
++#ifdef CONFIG_ASCEND_CDM_TO_HOTPLUG
++nodemask_t __cacheline_aligned hotpluggable_mask;
++static int __init hotpluggable_nodes_setup(char *s)
++{
++	int nid;
++	unsigned long tmpmask;
++	int err;
++
++	err = kstrtoul(s, 0, &tmpmask);
++	if (err)
++		return err;
++
++	for (nid = 0; nid < MAX_NUMNODES; nid++) {
++		if ((tmpmask >> nid) & 1)
++			node_set(nid, hotpluggable_mask);
++	}
++
++	movable_node_enabled = true;
++
++	return 0;
++}
++early_param("cdm-nodes", hotpluggable_nodes_setup);
++#endif
++
+ static __init int numa_parse_early_param(char *opt)
+ {
+ 	if (!opt)
+diff --git a/drivers/acpi/numa/srat.c b/drivers/acpi/numa/srat.c
+index c9aca749e..441819910 100644
+--- a/drivers/acpi/numa/srat.c
++++ b/drivers/acpi/numa/srat.c
+@@ -284,6 +284,11 @@ acpi_numa_memory_affinity_init(struct acpi_srat_mem_affinity *ma)
+ 	else
+ 		set_node_type(node, NODE_TYPE_DRAM);
+ 
++#ifdef CONFIG_ASCEND_CDM_TO_HOTPLUG
++	if (is_cdm_hotpluggable_node(node))
++		hotpluggable = true;
++#endif
++
+ 	pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
+ 		node, pxm,
+ 		(unsigned long long) start, (unsigned long long) end - 1,
+diff --git a/include/linux/nodemask.h b/include/linux/nodemask.h
+index a4905829f..3acb91d9d 100644
+--- a/include/linux/nodemask.h
++++ b/include/linux/nodemask.h
+@@ -601,6 +601,15 @@ static inline bool is_non_normal_node(int node)
+ }
+ #endif
+ 
++#ifdef CONFIG_ASCEND_CDM_TO_HOTPLUG
++extern nodemask_t hotpluggable_mask;
++
++static inline bool is_cdm_hotpluggable_node(int node)
++{
++	return node_isset(node, hotpluggable_mask);
++}
++#endif
++
+ #define node_online_map 	node_states[N_ONLINE]
+ #define node_possible_map 	node_states[N_POSSIBLE]
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,96 @@
+From 34608c2498ad36e796a43d7eb989fc5466efde29 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Thu, 9 Feb 2023 19:20:09 +0000
+Subject: [PATCH 185/921] [Backport] mm/damon/dbgfs: print DAMON debugfs
+ interface deprecation message
+
+mainline inclusion
+from mainline-v6.3-rc1
+commit 620932cd285208ef3009ac338b1eeed13ccd1753
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=620932cd285208ef3009ac338b1eeed13ccd1753
+
+--------------------------------
+
+DAMON debugfs interface has announced to be deprecated after >v5.15 LTS
+kernel is released.  And, v6.1.y has announced to be an LTS[1].
+
+Though the announcement was there for a while, some people might not
+noticed that so far.  Also, some users could depend on it and have
+problems at  movng to the alternative (DAMON sysfs interface).
+
+For such cases, warn DAMON debugfs interface deprecation with contacts
+to ask helps when any DAMON debugfs interface file is opened.
+
+[1] https://git.kernel.org/pub/scm/docs/kernel/website.git/commit/?id=332e9121320bc7461b2d3a79665caf153e51732c
+
+[sj@kernel.org: split DAMON debugfs file open warning message, per Randy]
+  Link: https://lkml.kernel.org/r/20230209192009.7885-4-sj@kernel.org
+  Link: https://lkml.kernel.org/r/20230210044838.63723-4-sj@kernel.org
+Link: https://lkml.kernel.org/r/20230209192009.7885-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/dbgfs.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/mm/damon/dbgfs.c b/mm/damon/dbgfs.c
+index b3f454a5c682..124f0f8c97b7 100644
+--- a/mm/damon/dbgfs.c
++++ b/mm/damon/dbgfs.c
+@@ -20,6 +20,14 @@ static int dbgfs_nr_ctxs;
+ static struct dentry **dbgfs_dirs;
+ static DEFINE_MUTEX(damon_dbgfs_lock);
+ 
++static void damon_dbgfs_warn_deprecation(void)
++{
++	pr_warn_once("DAMON debugfs interface is deprecated, "
++		     "so users should move to DAMON_SYSFS. If you cannot, "
++		     "please report your usecase to damon@lists.linux.dev and "
++		     "linux-mm@kvack.org.\n");
++}
++
+ /*
+  * Returns non-empty string on success, negative error code otherwise.
+  */
+@@ -711,6 +719,8 @@ static ssize_t dbgfs_kdamond_pid_read(struct file *file,
+ 
+ static int damon_dbgfs_open(struct inode *inode, struct file *file)
+ {
++	damon_dbgfs_warn_deprecation();
++
+ 	file->private_data = inode->i_private;
+ 
+ 	return nonseekable_open(inode, file);
+@@ -1039,15 +1049,24 @@ static ssize_t dbgfs_monitor_on_write(struct file *file,
+ 	return ret;
+ }
+ 
++static int damon_dbgfs_static_file_open(struct inode *inode, struct file *file)
++{
++	damon_dbgfs_warn_deprecation();
++	return nonseekable_open(inode, file);
++}
++
+ static const struct file_operations mk_contexts_fops = {
++	.open = damon_dbgfs_static_file_open,
+ 	.write = dbgfs_mk_context_write,
+ };
+ 
+ static const struct file_operations rm_contexts_fops = {
++	.open = damon_dbgfs_static_file_open,
+ 	.write = dbgfs_rm_context_write,
+ };
+ 
+ static const struct file_operations monitor_on_fops = {
++	.open = damon_dbgfs_static_file_open,
+ 	.read = dbgfs_monitor_on_read,
+ 	.write = dbgfs_monitor_on_write,
+ };
+-- 
+2.17.1
+

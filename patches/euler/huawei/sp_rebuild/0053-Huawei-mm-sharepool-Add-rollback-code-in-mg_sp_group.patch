@@ -1,0 +1,255 @@
+From 6472622b2fbfba1a326bea6508073126da59ee45 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Thu, 24 Aug 2023 09:53:33 +0800
+Subject: [PATCH 53/53] [Huawei] mm/sharepool: Add rollback code in
+ mg_sp_group_add_task()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+When we map the old spa into the new task and get failed. We delete the
+new task from the group instead of ignoring the error.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 115 ++++++++++++++++++++++++++----------------------
+ 1 file changed, 62 insertions(+), 53 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 293a7120d7e2..ada21988ff52 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -480,10 +480,9 @@ static int sp_group_setup_mapping_normal(struct mm_struct *mm, struct sp_group *
+ 	return 0;
+ }
+ 
+-static int sp_group_setup_mapping_local(struct mm_struct *mm, struct sp_group *spg)
++static int sp_group_setup_mapping_local(struct mm_struct *mm, struct sp_group *local)
+ {
+ 	struct sp_mapping *spm;
+-	struct sp_group *local = mm->sp_group_master->local;
+ 
+ 	spm = sp_mapping_create(SP_MAPPING_DVPP);
+ 	if (!spm)
+@@ -510,9 +509,9 @@ static int sp_group_setup_mapping(struct mm_struct *mm, struct sp_group *spg)
+ }
+ 
+ static struct sp_group *sp_group_create(int spg_id);
+-static void free_sp_group_locked(struct sp_group *spg);
++static void sp_group_put_locked(struct sp_group *spg);
+ static int sp_group_link_task(struct mm_struct *mm, struct sp_group *spg,
+-			      unsigned long prot);
++			      unsigned long prot, struct sp_group_node **pnode);
+ static int init_local_group(struct mm_struct *mm)
+ {
+ 	int ret;
+@@ -523,18 +522,11 @@ static int init_local_group(struct mm_struct *mm)
+ 	if (IS_ERR(spg))
+ 		return PTR_ERR(spg);
+ 
+-	master->local = spg;
+-	ret = sp_group_link_task(mm, spg, PROT_READ | PROT_WRITE);
+-	if (ret)
+-		/* The spm would be released while destroying the spg */
+-		goto free_spg;
+-
+-	return 0;
++	ret = sp_group_link_task(mm, spg, PROT_READ | PROT_WRITE, NULL);
++	sp_group_put_locked(spg);
++	if (!ret)
++		master->local = spg;
+ 
+-free_spg:
+-	/* spg_id is freed in free_sp_group_locked */
+-	free_sp_group_locked(spg);
+-	master->local = NULL;
+ 	return ret;
+ }
+ 
+@@ -1197,7 +1189,7 @@ static struct sp_group_node *spg_node_alloc(struct mm_struct *mm,
+  * the caller must hold sp_global_sem.
+  */
+ static int sp_group_link_task(struct mm_struct *mm, struct sp_group *spg,
+-			      unsigned long prot)
++			      unsigned long prot, struct sp_group_node **pnode)
+ {
+ 	int ret;
+ 	struct sp_group_node *node;
+@@ -1208,25 +1200,20 @@ static int sp_group_link_task(struct mm_struct *mm, struct sp_group *spg,
+ 		return -ENOSPC;
+ 	}
+ 
+-	down_write(&spg->rw_lock);
+ 	if (is_process_in_group(spg, mm)) {
+ 		pr_err("task already in target group(%d)\n", spg->id);
+-		ret = -EEXIST;
+-		goto out_unlock;
+-	}
+-
+-	node = spg_node_alloc(mm, prot, spg);
+-	if (!node) {
+-		ret = -ENOMEM;
+-		goto out_unlock;
++		return -EEXIST;
+ 	}
+ 
+ 	if (spg->proc_num + 1 == MAX_PROC_PER_GROUP) {
+ 		pr_err("add group: group(%d) reaches max process num\n", spg->id);
+-		ret = -ENOSPC;
+-		goto out_kfree;
++		return -ENOSPC;
+ 	}
+ 
++	node = spg_node_alloc(mm, prot, spg);
++	if (!node)
++		return -ENOMEM;
++
+ 	ret = sp_group_setup_mapping(mm, spg);
+ 	if (ret)
+ 		goto out_kfree;
+@@ -1239,21 +1226,35 @@ static int sp_group_link_task(struct mm_struct *mm, struct sp_group *spg,
+ 	mmgrab(mm);
+ 	master->group_num++;
+ 	list_add_tail(&node->group_node, &master->group_head);
+-
++	atomic_inc(&spg->use_count);
+ 	spg->proc_num++;
+ 	list_add_tail(&node->proc_node, &spg->proc_head);
++	if (pnode)
++		*pnode = node;
+ 
+-	up_write(&spg->rw_lock);
+ 	return 0;
+ 
+ out_kfree:
+ 	kfree(node);
+-out_unlock:
+-	up_write(&spg->rw_lock);
+ 
+ 	return ret;
+ }
+ 
++static void sp_group_unlink_task(struct sp_group_node *spg_node)
++{
++	struct sp_group *spg = spg_node->spg;
++	struct sp_group_master *master = spg_node->master;
++
++	list_del(&spg_node->proc_node);
++	spg->proc_num--;
++	list_del(&spg_node->group_node);
++	master->group_num--;
++
++	mmdrop(master->mm);
++	sp_group_put_locked(spg);
++	kfree(spg_node);
++}
++
+ /*
+  * Find and initialize the mm of the task specified by @tgid.
+  * We increace the usercount for the mm on success.
+@@ -1313,6 +1314,7 @@ static int mm_add_group_init(pid_t tgid, struct mm_struct **pmm)
+ }
+ 
+ static void sp_area_put_locked(struct sp_area *spa);
++static void sp_munmap(struct mm_struct *mm, unsigned long addr, unsigned long size);
+ /**
+  * mg_sp_group_add_task() - Add a process to an share group (sp_group).
+  * @tgid: the tgid of the task to be added.
+@@ -1341,11 +1343,12 @@ static void sp_area_put_locked(struct sp_area *spa);
+  */
+ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ {
+-	struct rb_node *p, *n;
+-	struct mm_struct *mm;
+-	struct sp_group *spg;
+ 	int ret = 0;
+ 	struct sp_area *spa;
++	struct mm_struct *mm;
++	struct sp_group *spg;
++	struct rb_node *p, *n;
++	struct sp_group_node *spg_node;
+ 
+ 	if (!sp_is_enabled())
+ 		return -EOPNOTSUPP;
+@@ -1370,30 +1373,21 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	down_write(&sp_global_sem);
+ 	spg = sp_group_get_or_alloc(spg_id);
+ 	if (IS_ERR(spg)) {
+-		up_write(&sp_global_sem);
+-		mmput(mm);
+-		return PTR_ERR(spg);
++		ret = PTR_ERR(spg);
++		goto out_unlock;
+ 	}
+ 	/* save spg_id before we release sp_global_sem, or UAF may occur */
+ 	spg_id = spg->id;
+ 
+-	ret = sp_group_link_task(mm, spg, prot);
+-	up_write(&sp_global_sem);
+-	if (ret < 0) {
+-		sp_group_put(spg);
+-		mmput(mm);
+-		return ret;
+-	}
++	down_write(&spg->rw_lock);
++	ret = sp_group_link_task(mm, spg, prot, &spg_node);
++	if (ret < 0)
++		goto put_spg;
+ 
+ 	/*
+ 	 * create mappings of existing shared memory segments into this
+ 	 * new process' page table.
+-	 *
+-	 * Someone else may get the write lock before the following read lock, and
+-	 * the spa in the spg may have changed. The newly created spa has been mapped
+-	 * into the new task and we could get an errno of -EEXIST. Just ignore it.
+ 	 */
+-	down_write(&spg->rw_lock);
+ 	for (p = rb_first(&spg->spa_root); p; p = n) {
+ 		n = rb_next(p);
+ 		spa = container_of(p, struct sp_area, spg_link);
+@@ -1405,18 +1399,33 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		}
+ 
+ 		ret = sp_map_spa_to_mm(mm, spa, prot, NULL, "add_task");
++		sp_area_put_locked(spa);
+ 		if (ret) {
+ 			pr_warn("mmap old spa to new task failed, %d\n", ret);
+-			ret = 0;
++			/* it makes no scene to skip error for coredump here */
++			ret = ret < 0 ? ret : -EFAULT;
++
++			for (p = rb_prev(p); p; p = n) {
++				n = rb_prev(p);
++				spa = container_of(p, struct sp_area, spg_link);
++				if (!atomic_inc_not_zero(&spa->use_count))
++					continue;
++				sp_munmap(mm, spa->va_start, spa_size(spa));
++				sp_area_put_locked(spa);
++			}
++			sp_group_unlink_task(spg_node);
++			break;
+ 		}
+-
+-		sp_area_put_locked(spa);
+ 	}
++put_spg:
+ 	up_write(&spg->rw_lock);
++	sp_group_put_locked(spg);
++out_unlock:
++	up_write(&sp_global_sem);
+ 	/* We put the mm_struct later to protect the mm from exiting while sp_mmap */
+ 	mmput(mm);
+ 
+-	return spg_id;
++	return ret < 0 ? ret : spg_id;
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_group_add_task);
+ 
+-- 
+2.17.1
+

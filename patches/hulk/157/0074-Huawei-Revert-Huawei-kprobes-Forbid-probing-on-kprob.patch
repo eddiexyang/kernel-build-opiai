@@ -1,0 +1,40 @@
+From 70edc110ffb0a8b69e34cad5ad355024a85c8b65 Mon Sep 17 00:00:00 2001
+From: Chen Zhongjin <chenzhongjin@huawei.com>
+Date: Mon, 5 Sep 2022 15:11:47 +0800
+Subject: [PATCH 074/261] [Huawei] Revert "[Huawei] kprobes: Forbid probing on
+ kprobe_insn_slot"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187271
+
+--------------------------------
+
+This reverts commit 66c1b4b24bbbf5a14accc44b5e6b5a08b69c939f.
+This commit is a temporary solution and now it differs from mainline.
+Revert it and backport mainline version.
+
+Signed-off-by: Chen Zhongjin <chenzhongjin@huawei.com>
+---
+ kernel/kprobes.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/kernel/kprobes.c b/kernel/kprobes.c
+index ff54280a3191..9db84949fc91 100644
+--- a/kernel/kprobes.c
++++ b/kernel/kprobes.c
+@@ -1642,9 +1642,7 @@ static int check_kprobe_address_safe(struct kprobe *p,
+ 	/* Ensure it is not in reserved area nor out of text */
+ 	if (!kernel_text_address((unsigned long) p->addr) ||
+ 	    within_kprobe_blacklist((unsigned long) p->addr) ||
+-		is_kprobe_insn_slot((unsigned long) p->addr) ||
+-	    is_kprobe_optinsn_slot((unsigned long) p->addr) ||
+-		jump_label_text_reserved(p->addr, p->addr) ||
++	    jump_label_text_reserved(p->addr, p->addr) ||
+ 	    static_call_text_reserved(p->addr, p->addr) ||
+ 	    find_bug((unsigned long)p->addr)) {
+ 		ret = -EINVAL;
+-- 
+2.17.1
+

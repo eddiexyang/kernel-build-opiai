@@ -1,0 +1,94 @@
+From 97a469164919b124ab888fa7a986b051cc6705fd Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Fri, 21 Jan 2022 17:36:52 +0800
+Subject: [PATCH 1495/2065] [Huawei] selinux: genfscon ns: Add policy rule
+ syntax
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186697
+
+----------------------------------------
+
+Enhance the policy rule to support the following genfscon statement for
+the namespace feature:
+
+  # original statement
+  genfscon proc / system_u:object_r:proc_t:s0
+  # label within namespace "aosp"
+  genfscon aosp.proc / system_u:object_r:aosp_proc_t:s0
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c | 27 ++++++++++++++++++++++-----
+ 1 file changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index df059d576531..d230b377e6c5 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -1467,15 +1467,29 @@ static inline u16 socket_type_to_security_class(int family, int type, int protoc
+ static int selinux_genfs_get_sid(struct dentry *dentry,
+ 				 u16 tclass,
+ 				 u16 flags,
+-				 u32 *sid)
++				 u32 *sid,
++				 struct inode_security_struct *isec)
+ {
+ 	int rc;
+ 	struct super_block *sb = dentry->d_sb;
+ 	char *buffer, *path;
++	const char *genfs_name;
+ 
++	if (isec->ns == &init_selinux_ns)
++		genfs_name = kstrdup(sb->s_type->name, GFP_KERNEL);
++	else
++		genfs_name = kasprintf(GFP_NOFS, "%s.%s", isec->ns->name,
++				sb->s_type->name);
++
++	if (!genfs_name) {
++		rc = -ENOMEM;
++		goto out;
++	}
+ 	buffer = (char *)__get_free_page(GFP_KERNEL);
+-	if (!buffer)
+-		return -ENOMEM;
++	if (!buffer) {
++		rc = -ENOMEM;
++		goto free_genfs;
++	}
+ 
+ 	path = dentry_path_raw(dentry, buffer, PAGE_SIZE);
+ 	if (IS_ERR(path))
+@@ -1490,7 +1504,7 @@ static int selinux_genfs_get_sid(struct dentry *dentry,
+ 				path++;
+ 			}
+ 		}
+-		rc = security_genfs_sid(&selinux_state, sb->s_type->name,
++		rc = security_genfs_sid(&selinux_state, genfs_name,
+ 					path, tclass, sid);
+ 		if (rc == -ENOENT) {
+ 			/* No match in policy, mark as unlabeled. */
+@@ -1499,6 +1513,9 @@ static int selinux_genfs_get_sid(struct dentry *dentry,
+ 		}
+ 	}
+ 	free_page((unsigned long)buffer);
++free_genfs:
++	kfree(genfs_name);
++out:
+ 	return rc;
+ }
+ 
+@@ -1694,7 +1711,7 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
+ 			if (!dentry)
+ 				goto out_invalid;
+ 			rc = selinux_genfs_get_sid(dentry, sclass,
+-						   sbsec->flags, &sid);
++						   sbsec->flags, &sid, isec);
+ 			if (rc) {
+ 				dput(dentry);
+ 				goto out;
+-- 
+2.17.1
+

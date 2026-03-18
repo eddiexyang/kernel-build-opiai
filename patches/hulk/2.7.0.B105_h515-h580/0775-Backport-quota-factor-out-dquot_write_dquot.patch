@@ -1,0 +1,94 @@
+From d02c56c99b90595829ed0375a9237ddd33b833a5 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Mon, 26 Jun 2023 15:25:32 +0800
+Subject: [PATCH 775/780] [Backport] quota: factor out dquot_write_dquot()
+
+maillist inclusion
+category: bugfix
+bugzilla: 188812
+
+Reference: https://www.spinics.net/lists/kernel/msg4844759.html
+
+----------------------------------------
+
+Refactor out dquot_write_dquot() to reduce duplicate code.
+
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/quota/dquot.c | 39 ++++++++++++++++-----------------------
+ 1 file changed, 16 insertions(+), 23 deletions(-)
+
+diff --git a/fs/quota/dquot.c b/fs/quota/dquot.c
+index ad255f8ab5c5..0274b1188726 100644
+--- a/fs/quota/dquot.c
++++ b/fs/quota/dquot.c
+@@ -630,6 +630,18 @@ int dquot_scan_active(struct super_block *sb,
+ }
+ EXPORT_SYMBOL(dquot_scan_active);
+ 
++static inline int dquot_write_dquot(struct dquot *dquot)
++{
++	int ret = dquot->dq_sb->dq_op->write_dquot(dquot);
++	if (ret < 0) {
++		quota_error(dquot->dq_sb, "Can't write quota structure "
++			    "(error %d). Quota may get out of sync!", ret);
++		/* Clear dirty bit anyway to avoid infinite loop. */
++		clear_dquot_dirty(dquot);
++	}
++	return ret;
++}
++
+ /* Write all dquot structures to quota files */
+ int dquot_writeback_dquots(struct super_block *sb, int type)
+ {
+@@ -660,16 +672,9 @@ int dquot_writeback_dquots(struct super_block *sb, int type)
+ 			 * use count */
+ 			dqgrab(dquot);
+ 			spin_unlock(&dq_list_lock);
+-			err = sb->dq_op->write_dquot(dquot);
+-			if (err) {
+-				/*
+-				 * Clear dirty bit anyway to avoid infinite
+-				 * loop here.
+-				 */
+-				clear_dquot_dirty(dquot);
+-				if (!ret)
+-					ret = err;
+-			}
++			err = dquot_write_dquot(dquot);
++			if (err && !ret)
++				ret = err;
+ 			dqput(dquot);
+ 			spin_lock(&dq_list_lock);
+ 		}
+@@ -767,8 +772,6 @@ static struct shrinker dqcache_shrinker = {
+  */
+ void dqput(struct dquot *dquot)
+ {
+-	int ret;
+-
+ 	if (!dquot)
+ 		return;
+ #ifdef CONFIG_QUOTA_DEBUG
+@@ -796,17 +799,7 @@ void dqput(struct dquot *dquot)
+ 	if (dquot_dirty(dquot)) {
+ 		spin_unlock(&dq_list_lock);
+ 		/* Commit dquot before releasing */
+-		ret = dquot->dq_sb->dq_op->write_dquot(dquot);
+-		if (ret < 0) {
+-			quota_error(dquot->dq_sb, "Can't write quota structure"
+-				    " (error %d). Quota may get out of sync!",
+-				    ret);
+-			/*
+-			 * We clear dirty bit anyway, so that we avoid
+-			 * infinite loop here
+-			 */
+-			clear_dquot_dirty(dquot);
+-		}
++		dquot_write_dquot(dquot);
+ 		goto we_slept;
+ 	}
+ 	if (test_bit(DQ_ACTIVE_B, &dquot->dq_flags)) {
+-- 
+2.17.1
+

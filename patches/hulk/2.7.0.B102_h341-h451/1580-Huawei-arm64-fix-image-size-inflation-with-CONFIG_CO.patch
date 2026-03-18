@@ -1,0 +1,48 @@
+From 235b6974ec52822979b595cdeb9511692ce8aa2d Mon Sep 17 00:00:00 2001
+From: Chen Jiahao <chenjiahao16@huawei.com>
+Date: Wed, 26 Apr 2023 17:43:51 +0800
+Subject: [PATCH 1580/1646] [Huawei] arm64: fix image size inflation with
+ CONFIG_COMPAT_TASK_SIZE
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188646
+
+-------------------------------
+
+Previous patch 605330751290 ("[Huawei] arm64: set 32-bit compatible
+TASK_SIZE_MAX to fix U32 libc_write_01 error") has fixed libc_write_01
+testcase failed in U32 mode.
+
+However above patch introduced image size inflation when CONFIG_ARM64_ILP32
+and CONFIG_AARCH32_EL0 both set. Here fix the problem by testing
+current_thread_info()->flags with (_TIF_32BIT | _TIF_32BIT_AARCH64),
+rather than calling test_thread_flag() twice.
+
+Fixes: 605330751290 ("[Huawei] arm64: set 32-bit compatible TASK_SIZE_MAX to fix U32 libc_write_01 error")
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/arm64/include/asm/is_compat.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm64/include/asm/is_compat.h b/arch/arm64/include/asm/is_compat.h
+index 2c2d1f4c26bd..3b870e4bb2fb 100644
+--- a/arch/arm64/include/asm/is_compat.h
++++ b/arch/arm64/include/asm/is_compat.h
+@@ -63,7 +63,12 @@ static inline int is_ilp32_compat_thread(struct thread_info *thread)
+ 
+ static inline int is_compat_task(void)
+ {
++#if defined(CONFIG_ARM64_ILP32) && defined(CONFIG_AARCH32_EL0)
++	return READ_ONCE(current_thread_info()->flags) &
++		(_TIF_32BIT | _TIF_32BIT_AARCH64);
++#else
+ 	return is_a32_compat_task() || is_ilp32_compat_task();
++#endif
+ }
+ 
+ #endif /* CONFIG_COMPAT */
+-- 
+2.17.1
+

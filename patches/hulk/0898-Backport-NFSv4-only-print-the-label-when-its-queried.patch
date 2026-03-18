@@ -1,0 +1,51 @@
+From 64266bf4361b23aca41f315e374b84a0eb80f2b4 Mon Sep 17 00:00:00 2001
+From: Olga Kornievskaia <kolga@netapp.com>
+Date: Mon, 29 Nov 2021 15:33:56 -0500
+Subject: [PATCH 0898/2065] [Backport] NFSv4 only print the label when its
+ queried
+
+stable inclusion
+from stable-v5.10.101
+commit db053bdece3aa812d4da8c3aa2f15560618b9cc4
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5669Z
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=db053bdece3aa812d4da8c3aa2f15560618b9cc4
+
+--------------------------------
+
+[ Upstream commit 2c52c8376db7160a1dd8a681c61c9258405ef143 ]
+
+When the bitmask of the attributes doesn't include the security label,
+don't bother printing it. Since the label might not be null terminated,
+adjust the printing format accordingly.
+
+Signed-off-by: Olga Kornievskaia <kolga@netapp.com>
+Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ fs/nfs/nfs4xdr.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/fs/nfs/nfs4xdr.c b/fs/nfs/nfs4xdr.c
+index c16b93df1bc1..9f8bd45379e7 100644
+--- a/fs/nfs/nfs4xdr.c
++++ b/fs/nfs/nfs4xdr.c
+@@ -4184,10 +4184,11 @@ static int decode_attr_security_label(struct xdr_stream *xdr, uint32_t *bitmap,
+ 		} else
+ 			printk(KERN_WARNING "%s: label too long (%u)!\n",
+ 					__func__, len);
++		if (label && label->label)
++			dprintk("%s: label=%.*s, len=%d, PI=%d, LFS=%d\n",
++				__func__, label->len, (char *)label->label,
++				label->len, label->pi, label->lfs);
+ 	}
+-	if (label && label->label)
+-		dprintk("%s: label=%s, len=%d, PI=%d, LFS=%d\n", __func__,
+-			(char *)label->label, label->len, label->pi, label->lfs);
+ 	return status;
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,70 @@
+From 8df59b83c6e826b850a7fa196f68a5c837ce503c Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Wed, 17 Aug 2022 15:37:50 +0800
+Subject: [PATCH 003/261] [Huawei] mm/zswap: remove _init in the initialization
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187468
+
+--------------------------------
+
+As zswap can be init after system startup, the __init label should be
+removed.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ mm/zswap.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/mm/zswap.c b/mm/zswap.c
+index a2d108b0e0a8..d8e8d0084a22 100644
+--- a/mm/zswap.c
++++ b/mm/zswap.c
+@@ -266,13 +266,13 @@ static void zswap_update_total_size(void)
+ **********************************/
+ static struct kmem_cache *zswap_entry_cache;
+ 
+-static int __init zswap_entry_cache_create(void)
++static int zswap_entry_cache_create(void)
+ {
+ 	zswap_entry_cache = KMEM_CACHE(zswap_entry, 0);
+ 	return zswap_entry_cache == NULL;
+ }
+ 
+-static void __init zswap_entry_cache_destroy(void)
++static void zswap_entry_cache_destroy(void)
+ {
+ 	kmem_cache_destroy(zswap_entry_cache);
+ }
+@@ -653,7 +653,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
+ 	return NULL;
+ }
+ 
+-static __init struct zswap_pool *__zswap_pool_create_fallback(void)
++static struct zswap_pool *__zswap_pool_create_fallback(void)
+ {
+ 	bool has_comp, has_zpool;
+ 
+@@ -1409,7 +1409,7 @@ static struct frontswap_ops zswap_frontswap_ops = {
+ 
+ static struct dentry *zswap_debugfs_root;
+ 
+-static int __init zswap_debugfs_init(void)
++static int zswap_debugfs_init(void)
+ {
+ 	if (!debugfs_initialized())
+ 		return -ENODEV;
+@@ -1445,7 +1445,7 @@ static void __exit zswap_debugfs_exit(void)
+ 	debugfs_remove_recursive(zswap_debugfs_root);
+ }
+ #else
+-static int __init zswap_debugfs_init(void)
++static int zswap_debugfs_init(void)
+ {
+ 	return 0;
+ }
+-- 
+2.17.1
+

@@ -1,0 +1,116 @@
+From 30f60d69f6d2d7467e2030b068abda13ac436753 Mon Sep 17 00:00:00 2001
+From: David Hildenbrand <david@redhat.com>
+Date: Thu, 24 Mar 2022 18:13:34 -0700
+Subject: [PATCH 014/921] [Backport] mm: optimize do_wp_page() for fresh pages
+ in local LRU pagevecs
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit d4c470970d45c863fafc757521a82be2f80b1232
+category: bugfix
+bugzilla: https://gitee.com/src-openeuler/kernel/issues/I6NK0S
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d4c470970d45c863fafc757521a82be2f80b1232
+
+--------------------------------
+
+For example, if a page just got swapped in via a read fault, the LRU
+pagevecs might still hold a reference to the page.  If we trigger a write
+fault on such a page, the additional reference from the LRU pagevecs will
+prohibit reusing the page.
+
+Let's conditionally drain the local LRU pagevecs when we stumble over a
+!PageLRU() page.  We cannot easily drain remote LRU pagevecs and it might
+not be desirable performance-wise.  Consequently, this will only avoid
+copying in some cases.
+
+Add a simple "page_count(page) > 3" check first but keep the
+"page_count(page) > 1 + PageSwapCache(page)" check in place, as we want to
+minimize cases where we remove a page from the swapcache but won't be able
+to reuse it, for example, because another process has it mapped R/O, to
+not affect reclaim.
+
+We cannot easily handle the following cases and we will always have to
+copy:
+
+(1) The page is referenced in the LRU pagevecs of other CPUs. We really
+    would have to drain the LRU pagevecs of all CPUs -- most probably
+    copying is much cheaper.
+
+(2) The page is already PageLRU() but is getting moved between LRU
+    lists, for example, for activation (e.g., mark_page_accessed()),
+    deactivation (MADV_COLD), or lazyfree (MADV_FREE). We'd have to
+    drain mostly unconditionally, which might be bad performance-wise.
+    Most probably this won't happen too often in practice.
+
+Note that there are other reasons why an anon page might temporarily not
+be PageLRU(): for example, compaction and migration have to isolate LRU
+pages from the LRU lists first (isolate_lru_page()), moving them to
+temporary local lists and clearing PageLRU() and holding an additional
+reference on the page.  In that case, we'll always copy.
+
+This change seems to be fairly effective with the reproducer [1] shared by
+Nadav, as long as writeback is done synchronously, for example, using
+zram.  However, with asynchronous writeback, we'll usually fail to free
+the swapcache because the page is still under writeback: something we
+cannot easily optimize for, and maybe it's not really relevant in
+practice.
+
+[1] https://lkml.kernel.org/r/0480D692-D9B2-429A-9A88-9BBA1331AC3A@gmail.com
+
+Link: https://lkml.kernel.org/r/20220131162940.210846-3-david@redhat.com
+Signed-off-by: David Hildenbrand <david@redhat.com>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Cc: Andrea Arcangeli <aarcange@redhat.com>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: David Rientjes <rientjes@google.com>
+Cc: Don Dutile <ddutile@redhat.com>
+Cc: Hugh Dickins <hughd@google.com>
+Cc: Jan Kara <jack@suse.cz>
+Cc: Jann Horn <jannh@google.com>
+Cc: Jason Gunthorpe <jgg@nvidia.com>
+Cc: John Hubbard <jhubbard@nvidia.com>
+Cc: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
+Cc: Liang Zhang <zhangliang5@huawei.com>
+Cc: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: Michal Hocko <mhocko@kernel.org>
+Cc: Mike Kravetz <mike.kravetz@oracle.com>
+Cc: Mike Rapoport <rppt@linux.ibm.com>
+Cc: Nadav Amit <nadav.amit@gmail.com>
+Cc: Oleg Nesterov <oleg@redhat.com>
+Cc: Peter Xu <peterx@redhat.com>
+Cc: Rik van Riel <riel@surriel.com>
+Cc: Roman Gushchin <roman.gushchin@linux.dev>
+Cc: Shakeel Butt <shakeelb@google.com>
+Cc: Yang Shi <shy828301@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/memory.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/mm/memory.c b/mm/memory.c
+index 073342146e61..667e7b547133 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -3205,7 +3205,15 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
+ 		 *
+ 		 * PageKsm() doesn't necessarily raise the page refcount.
+ 		 */
+-		if (PageKsm(page) || page_count(page) > 1 + PageSwapCache(page))
++		if (PageKsm(page) || page_count(page) > 3)
++			goto copy;
++		if (!PageLRU(page))
++			/*
++			 * Note: We cannot easily detect+handle references from
++			 * remote LRU pagevecs or references to PageLRU() pages.
++			 */
++			lru_add_drain();
++		if (page_count(page) > 1 + PageSwapCache(page))
+ 			goto copy;
+ 		if (!trylock_page(page))
+ 			goto copy;
+-- 
+2.17.1
+

@@ -1,0 +1,61 @@
+From a610f1d937e4b1e4d9761b8833fc08a9975573af Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Tue, 25 Oct 2022 11:12:07 +0000
+Subject: [PATCH 3/4] driver/smmuv3: Support config geometry
+
+------------------------------------------
+
+In scenarios where ttb1 is enabled, there are some devices whose
+expected address ranges are fixed in a specific range.
+
+Therefore, the function of configuring domain geometry is added,
+and strict check is performed on the address range.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c | 22 +++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+index ca837bfb7..cd19ffe32 100644
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+@@ -3395,6 +3395,25 @@ static struct iommu_group *arm_smmu_device_group(struct device *dev)
+ 	return group;
+ }
+ 
++static int arm_smmu_config_geometry(struct iommu_domain *domain, void *data)
++{
++	struct iommu_domain_geometry *geometry = data;
++	struct arm_smmu_domain *smmu_domain = to_smmu_domain(domain);
++	dma_addr_t size;
++
++	if (smmu_domain->smmu || !smmu_domain->ttb1_enabled)
++		return -EPERM;
++
++	size = geometry->aperture_end - geometry->aperture_start + 1;
++	if (size & (size - 1) || size < PAGE_SIZE ||
++	    geometry->aperture_start & (size - 1))
++		return -EINVAL;
++
++	domain->geometry = *geometry;
++
++	return 0;
++}
++
+ static int arm_smmu_domain_get_attr(struct iommu_domain *domain,
+ 				    enum iommu_attr attr, void *data)
+ {
+@@ -3449,6 +3468,9 @@ static int arm_smmu_domain_set_attr(struct iommu_domain *domain,
+ 		case DOMAIN_ATTR_TTB1:
+ 			smmu_domain->ttb1_enabled = *(int *)data;
+ 			break;
++		case DOMAIN_ATTR_GEOMETRY:
++			ret = arm_smmu_config_geometry(domain, data);
++			break;
+ 		default:
+ 			ret = -ENODEV;
+ 		}
+-- 
+2.17.1
+

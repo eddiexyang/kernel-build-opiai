@@ -1,0 +1,151 @@
+From e0f3ddf352c0b9ca240be8d61e84c576b25aab0a Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Tue, 23 Aug 2022 14:28:04 +0800
+Subject: [PATCH 030/261] [Huawei] selinux: genfscon: fix a UAF problem of
+ isech's rcu on preemptive kernel
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187509
+
+--------------------------------
+
+The following problem was found by an in-house test:
+
+==================================================================
+BUG: KASAN: use-after-free in rcu_cblist_dequeue+0x2e/0x60
+Read of size 8 at addr ffff888104887400 by task swapper/1/0
+
+Allocated by task 230:
+nr_entries:13
+ kasan_save_stack+0x1b/0x40
+ __kasan_kmalloc.constprop.0+0xc9/0xd0
+ kmem_cache_alloc+0x1dc/0x910
+ security_inode_alloc+0x24/0xb0
+ inode_init_always+0x200/0x4a0
+ alloc_inode+0x48/0x110
+ new_inode+0x1b/0x120
+ shmem_get_inode+0xe2/0x5c0
+ shmem_mknod+0x3e/0x120
+ vfs_mknod+0x19b/0x290
+ do_mknodat.part.0+0x153/0x2d0
+ do_syscall_64+0x33/0x40
+ entry_SYSCALL_64_after_hwframe+0x61/0xc6
+
+Freed by task 230:
+nr_entries:7
+ kasan_save_stack+0x1b/0x40
+ kasan_set_track+0x1c/0x30
+ kasan_set_free_info+0x1b/0x30
+ __kasan_slab_free+0x121/0x1a0
+ kmem_cache_free+0xcb/0x800
+ rcu_core+0x4f6/0x1330
+ __do_softirq+0x1ba/0x643
+
+Last call_rcu():
+nr_entries:19
+ kasan_save_stack+0x1b/0x40
+ kasan_record_aux_stack+0xa8/0xf0
+ call_rcu+0x66/0x5c0
+ __destroy_inode+0x23/0x180
+ destroy_inode+0x49/0xc0
+ __dentry_kill+0x189/0x290
+ shrink_dentry_list+0x8f/0x250
+ shrink_dcache_parent+0x167/0x270
+ shrink_dcache_for_umount+0x4b/0x190
+ generic_shutdown_super+0x3c/0x190
+ kill_litter_super+0x35/0x50
+ deactivate_locked_super+0x55/0xc0
+ cleanup_mnt+0x1f4/0x260
+ task_work_run+0x8b/0xe0
+ do_exit+0x6d9/0x1370
+ do_group_exit+0x6f/0x130
+ __x64_sys_exit_group+0x28/0x30
+ do_syscall_64+0x33/0x40
+ entry_SYSCALL_64_after_hwframe+0x61/0xc6
+
+Second to last call_rcu():
+nr_entries:20
+ kasan_save_stack+0x1b/0x40
+ kasan_record_aux_stack+0xa8/0xf0
+ call_rcu+0x66/0x5c0
+ security_inode_free+0x30/0x70
+ __destroy_inode+0x23/0x180
+ destroy_inode+0x49/0xc0
+ __dentry_kill+0x189/0x290
+ shrink_dentry_list+0x8f/0x250
+ shrink_dcache_parent+0x167/0x270
+ shrink_dcache_for_umount+0x4b/0x190
+ generic_shutdown_super+0x3c/0x190
+ kill_litter_super+0x35/0x50
+ deactivate_locked_super+0x55/0xc0
+ cleanup_mnt+0x1f4/0x260
+ task_work_run+0x8b/0xe0
+ do_exit+0x6d9/0x1370
+ do_group_exit+0x6f/0x130
+ __x64_sys_exit_group+0x28/0x30
+ do_syscall_64+0x33/0x40
+ entry_SYSCALL_64_after_hwframe+0x61/0xc6
+
+The buggy address belongs to the object at ffff888104887398
+ which belongs to the cache lsm_inode_cache of size 120
+The buggy address is located 104 bytes inside of
+ 120-byte region [ffff888104887398, ffff888104887410)
+The buggy address belongs to the page:
+
+Memory state around the buggy address:
+ ffff888104887300: fb fb fb fb fb fb fb fb fb fb fb fc fc fc fc fc
+ ffff888104887380: fc fc fc fa fb fb fb fb fb fb fb fb fb fb fb fb
+>ffff888104887400: fb fb fc fc fc fc fc fc fc fc fa fb fb fb fb fb
+                   ^
+ ffff888104887480: fb fb fb fb fb fb fb fb fb fc fc fc fc fc fc fc
+ ffff888104887500: fc fa fb fb fb fb fb fb fb fb fb fb fb fb fb fb
+==================================================================
+
+It was found that in this environment (which sets CONFIG_PREEMPT=y),
+the call_rcu() in security_inode_free() could be called back earlier
+than another call_rcu() in selinux_inode_free_security(), in the
+opposite order of how they are placed in code. That would free the
+struct rcu needed by the callback of selinux's call_rcu() and cause
+the above UAF.
+
+Fix this problem by wrapping these two call_rcu() by disabling
+preemption, making their callbacks enqueued on the same per-CPU list,
+so that the order of their callbacks won't be reversed.
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/security.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/security/security.c b/security/security.c
+index 926e035f9978..3c26d412acd2 100644
+--- a/security/security.c
++++ b/security/security.c
+@@ -1006,6 +1006,14 @@ static void inode_free_by_rcu(struct rcu_head *head)
+ void security_inode_free(struct inode *inode)
+ {
+ 	integrity_inode_free(inode);
++	/*
++	 * The SELinux Genfscon Label Namespace feature involves another
++	 * call_rcu() in selinux_inode_free_security(), which must be called
++	 * back earlier than the call_rcu() in this function. So wrap them by
++	 * disabling preemption to make sure their callbacks will be enqueued on
++	 * the same per-cpu list.
++	 */
++	preempt_disable();
+ 	call_void_hook(inode_free_security, inode);
+ 	/*
+ 	 * The inode may still be referenced in a path walk and
+@@ -1019,6 +1027,7 @@ void security_inode_free(struct inode *inode)
+ 	if (inode->i_security)
+ 		call_rcu((struct rcu_head *)inode->i_security,
+ 				inode_free_by_rcu);
++	preempt_enable();
+ }
+ 
+ int security_dentry_init_security(struct dentry *dentry, int mode,
+-- 
+2.17.1
+

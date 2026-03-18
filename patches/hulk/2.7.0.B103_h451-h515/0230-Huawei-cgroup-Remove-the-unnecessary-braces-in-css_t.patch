@@ -1,0 +1,39 @@
+From e734f8e02494d25b6a68b0e53dc6d4ef2482455e Mon Sep 17 00:00:00 2001
+From: Gaosheng Cui <cuigaosheng1@huawei.com>
+Date: Wed, 31 May 2023 21:28:22 -0400
+Subject: [PATCH 230/263] [Huawei] cgroup: Remove the unnecessary braces in
+ css_task_iter_stop
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188822
+
+--------------------------------
+
+If there is only one statement, braces are not allowed, so remove
+these braces in css_task_iter_stop.
+
+Signed-off-by: Gaosheng Cui <cuigaosheng1@huawei.com>
+---
+ kernel/cgroup/cgroup.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 1991deed8713..bbf3930e4b7d 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -4758,9 +4758,8 @@ static void css_task_iter_stop(struct css_task_iter *it,
+ {
+ 	lockdep_assert_held(&css_set_lock);
+ 
+-	if (it->ss == ss) {
++	if (it->ss == ss)
+ 		it->flags |= CSS_TASK_ITER_STOPPED;
+-	}
+ }
+ 
+ static void css_task_iter_advance(struct css_task_iter *it)
+-- 
+2.17.1
+

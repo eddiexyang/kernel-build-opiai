@@ -1,0 +1,55 @@
+From fb0eb5f749e99bec082e8f6e5a365d1fefb0cad0 Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Thu, 4 May 2023 19:52:58 +0800
+Subject: [PATCH 1601/1646] [Huawei] userswap: fix NULL pointer dereference in
+ uswap_unmap_anon_page()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+If old_pte is NULL, *old_pte will result in a null pointer dereference.
+Fix this by adding a NULL check for old_pte.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/userswap.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 85137803dfb1..9e2d063952ff 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -162,7 +162,7 @@ static void uswap_unmap_anon_page(struct mm_struct *mm,
+ {
+ 	struct mmu_notifier_range range;
+ 	spinlock_t *ptl;
+-	pte_t *pte;
++	pte_t *pte, _old_pte;
+ 
+ 	mmu_notifier_range_init(&range, MMU_NOTIFY_UNMAP, 0, vma,
+ 				vma->vm_mm, addr, addr + PAGE_SIZE);
+@@ -171,7 +171,7 @@ static void uswap_unmap_anon_page(struct mm_struct *mm,
+ 	if (pte_none(*pte))
+ 		goto out_release_unlock;
+ 	flush_cache_page(vma, addr, pte_pfn(*pte));
+-	*old_pte = ptep_clear_flush(vma, addr, pte);
++	_old_pte = ptep_clear_flush(vma, addr, pte);
+ 	if (set_to_swp)
+ 		set_pte_at(mm, addr, pte, swp_entry_to_pte(swp_entry(
+ 			   SWP_USERSWAP_ENTRY, page_to_pfn(page))));
+@@ -184,6 +184,8 @@ static void uswap_unmap_anon_page(struct mm_struct *mm,
+ 	pte_unmap_unlock(pte, ptl);
+ 	mmu_notifier_invalidate_range_end(&range);
+ 	page->mapping = NULL;
++	if (old_pte)
++		*old_pte = _old_pte;
+ }
+ 
+ static void uswap_map_anon_page(struct mm_struct *mm,
+-- 
+2.17.1
+

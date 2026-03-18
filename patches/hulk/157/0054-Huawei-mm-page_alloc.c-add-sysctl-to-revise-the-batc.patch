@@ -1,0 +1,174 @@
+From 97dc1be774d9f5b17d6b98ebb6b5701c4ccc2ed7 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Fri, 12 Aug 2022 16:43:32 +0800
+Subject: [PATCH 054/261] [Huawei] mm/page_alloc.c: add sysctl to revise the
+ batch and high of percpu pageset
+
+Offering: HULK
+hulk inclusion
+category: performance
+bugzilla: 187468
+
+--------------------------------
+
+Patch d8a759b57035 ("mm, page_alloc: double zone's batchsize") change the
+default batchsize. For some machines with large memory, the value seems to
+be too large. Although percpu_pagelist_fraction can be used to revise the
+batchsize but needs to be adjusted based on managed memory.
+So add a new sysctl percpu_max_batchsize to revise the batchsize to adapt
+different scenarios.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ Documentation/admin-guide/sysctl/vm.rst | 10 ++++++
+ include/linux/mmzone.h                  |  3 ++
+ kernel/sysctl.c                         |  8 +++++
+ mm/page_alloc.c                         | 42 +++++++++++++++++++++++--
+ 4 files changed, 60 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/admin-guide/sysctl/vm.rst b/Documentation/admin-guide/sysctl/vm.rst
+index a84bef7aa864..b508acfdde2e 100644
+--- a/Documentation/admin-guide/sysctl/vm.rst
++++ b/Documentation/admin-guide/sysctl/vm.rst
+@@ -65,6 +65,7 @@ Currently, these files are in /proc/sys/vm:
+ - page-cluster
+ - panic_on_oom
+ - percpu_pagelist_fraction
++- percpu_max_batchsize
+ - stat_interval
+ - stat_refresh
+ - numa_stat
+@@ -856,6 +857,15 @@ the high water marks for each per cpu page list.  If the user writes '0' to this
+ sysctl, it will revert to this default behavior.
+ 
+ 
++percpu_max_batchsize
++========================
++
++This is used to setup the max batch and high size of percpu in each zone.
++The default value is set to (256 * 1024) / PAGE_SIZE.
++The max value is limited to (512 * 1024) / PAGE_SIZE.
++The min value is limited to (64 * 1024) / PAGE_SIZE.
++
++
+ stat_interval
+ =============
+ 
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index bbd31084ead5..fb313c795daf 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -1009,6 +1009,8 @@ int lowmem_reserve_ratio_sysctl_handler(struct ctl_table *, int, void *,
+ 		size_t *, loff_t *);
+ int percpu_pagelist_fraction_sysctl_handler(struct ctl_table *, int,
+ 		void *, size_t *, loff_t *);
++int percpu_max_batchsize_sysctl_handler(struct ctl_table *, int,
++		void *, size_t *, loff_t *);
+ int sysctl_min_unmapped_ratio_sysctl_handler(struct ctl_table *, int,
+ 		void *, size_t *, loff_t *);
+ int sysctl_min_slab_ratio_sysctl_handler(struct ctl_table *, int,
+@@ -1016,6 +1018,7 @@ int sysctl_min_slab_ratio_sysctl_handler(struct ctl_table *, int,
+ int numa_zonelist_order_handler(struct ctl_table *, int,
+ 		void *, size_t *, loff_t *);
+ extern int percpu_pagelist_fraction;
++extern int percpu_max_batchsize;
+ extern char numa_zonelist_order[];
+ #define NUMA_ZONELIST_ORDER_LEN	16
+ 
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index f6711e167832..9edfc3617e3c 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -3063,6 +3063,14 @@ static struct ctl_table vm_table[] = {
+ 		.proc_handler	= percpu_pagelist_fraction_sysctl_handler,
+ 		.extra1		= SYSCTL_ZERO,
+ 	},
++	{
++		.procname	= "percpu_max_batchsize",
++		.data		= &percpu_max_batchsize,
++		.maxlen		= sizeof(percpu_max_batchsize),
++		.mode		= 0644,
++		.proc_handler	= percpu_max_batchsize_sysctl_handler,
++		.extra1		= SYSCTL_ZERO,
++	},
+ 	{
+ 		.procname	= "page_lock_unfairness",
+ 		.data		= &sysctl_page_lock_unfairness,
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 24116b7828f5..4dee625adb7b 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -112,6 +112,8 @@ typedef int __bitwise fpi_t;
+ /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
+ static DEFINE_MUTEX(pcp_batch_high_lock);
+ #define MIN_PERCPU_PAGELIST_FRACTION	(8)
++#define MAX_PERCPU_MAX_BATCHSIZE	((512 * 1024) / PAGE_SIZE)
++#define MIN_PERCPU_MAX_BATCHSIZE	(MAX_PERCPU_MAX_BATCHSIZE / 8)
+ 
+ #ifdef CONFIG_USE_PERCPU_NUMA_NODE_ID
+ DEFINE_PER_CPU(int, numa_node);
+@@ -167,6 +169,8 @@ unsigned long totalreserve_pages __read_mostly;
+ unsigned long totalcma_pages __read_mostly;
+ 
+ int percpu_pagelist_fraction;
++int percpu_max_batchsize = MAX_PERCPU_MAX_BATCHSIZE / 2;
++
+ gfp_t gfp_allowed_mask __read_mostly = GFP_BOOT_MASK;
+ #ifdef CONFIG_INIT_ON_ALLOC_DEFAULT_ON
+ DEFINE_STATIC_KEY_TRUE(init_on_alloc);
+@@ -6723,10 +6727,9 @@ static int zone_batchsize(struct zone *zone)
+ 	 * size of the zone.
+ 	 */
+ 	batch = zone_managed_pages(zone) / 1024;
+-	/* But no more than a meg. */
+-	if (batch * PAGE_SIZE > 1024 * 1024)
+-		batch = (1024 * 1024) / PAGE_SIZE;
+ 	batch /= 4;		/* We effectively *= 4 below */
++	if (batch > percpu_max_batchsize)
++		batch = percpu_max_batchsize;
+ 	if (batch < 1)
+ 		batch = 1;
+ 
+@@ -8581,6 +8584,39 @@ int percpu_pagelist_fraction_sysctl_handler(struct ctl_table *table, int write,
+ 	return ret;
+ }
+ 
++int percpu_max_batchsize_sysctl_handler(struct ctl_table *table, int write,
++		void *buffer, size_t *length, loff_t *ppos)
++{
++	struct zone *zone;
++	int old_percpu_max_batchsize;
++	int ret;
++
++	mutex_lock(&pcp_batch_high_lock);
++	old_percpu_max_batchsize = percpu_max_batchsize;
++
++	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
++	if (!write || ret < 0)
++		goto out;
++
++	/* Sanity checking to avoid pcp imbalance */
++	if (percpu_max_batchsize > MAX_PERCPU_MAX_BATCHSIZE ||
++	    percpu_max_batchsize < MIN_PERCPU_MAX_BATCHSIZE) {
++		percpu_max_batchsize = old_percpu_max_batchsize;
++		ret = -EINVAL;
++		goto out;
++	}
++
++	/* No change? */
++	if (percpu_max_batchsize == old_percpu_max_batchsize)
++		goto out;
++
++	for_each_populated_zone(zone)
++		zone_set_pageset_high_and_batch(zone);
++out:
++	mutex_unlock(&pcp_batch_high_lock);
++	return ret;
++}
++
+ #ifndef __HAVE_ARCH_RESERVED_KERNEL_PAGES
+ /*
+  * Returns the number of pages that arch has reserved but
+-- 
+2.17.1
+

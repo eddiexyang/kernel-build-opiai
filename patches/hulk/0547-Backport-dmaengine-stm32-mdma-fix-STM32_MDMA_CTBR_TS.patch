@@ -1,0 +1,46 @@
+From 71e624406c34dbfba83f51818e383222fdfae297 Mon Sep 17 00:00:00 2001
+From: Amelie Delaunay <amelie.delaunay@foss.st.com>
+Date: Wed, 27 Apr 2022 11:16:58 +0800
+Subject: [PATCH 0547/2065] [Backport] dmaengine: stm32-mdma: fix
+ STM32_MDMA_CTBR_TSEL_MASK
+
+stable inclusion
+from stable-v5.10.94
+commit 78cf5f63a3a98151ad7fa645103de0fa17c7317c
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=78cf5f63a3a98151ad7fa645103de0fa17c7317c
+
+--------------------------------
+
+commit e7f110889a87307fb0fed408a5dee1707796ca04 upstream.
+
+This patch fixes STM32_MDMA_CTBR_TSEL_MASK, which is [5:0], not [7:0].
+
+Fixes: a4ffb13c8946 ("dmaengine: Add STM32 MDMA driver")
+Signed-off-by: Amelie Delaunay <amelie.delaunay@foss.st.com>
+Link: https://lore.kernel.org/r/20211220165827.1238097-1-amelie.delaunay@foss.st.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/dma/stm32-mdma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/dma/stm32-mdma.c b/drivers/dma/stm32-mdma.c
+index 9d473923712a..fe36738f2dd7 100644
+--- a/drivers/dma/stm32-mdma.c
++++ b/drivers/dma/stm32-mdma.c
+@@ -184,7 +184,7 @@
+ #define STM32_MDMA_CTBR(x)		(0x68 + 0x40 * (x))
+ #define STM32_MDMA_CTBR_DBUS		BIT(17)
+ #define STM32_MDMA_CTBR_SBUS		BIT(16)
+-#define STM32_MDMA_CTBR_TSEL_MASK	GENMASK(7, 0)
++#define STM32_MDMA_CTBR_TSEL_MASK	GENMASK(5, 0)
+ #define STM32_MDMA_CTBR_TSEL(n)		STM32_MDMA_SET(n, \
+ 						      STM32_MDMA_CTBR_TSEL_MASK)
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,102 @@
+From 354ba79cd637c2d7733ab171426570498f05c76f Mon Sep 17 00:00:00 2001
+From: Zhang Yi <yi.zhang@huawei.com>
+Date: Sat, 20 Aug 2022 21:16:05 +0800
+Subject: [PATCH 034/261] [Huawei] mm: migrate: buffer_migrate_folio_norefs()
+ fallback migrate not uptodate pages
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187414
+
+--------------------------------
+
+Recently we notice that ext4 filesystem occasionally fail to read
+metadata from disk and report error message, but the disk and block
+layer looks fine. After analyse, we lockon commit 88dbcbb3a484
+("blkdev: avoid migration stalls for blkdev pages"). It provide a
+migration method for the bdev, we could move page that has buffers
+without extra users now, but it will lock the buffers on the page, which
+breaks a lot of current filesystem's fragile metadata read operations,
+like ll_rw_block() for common usage and ext4_read_bh_lock() for ext4,
+these helpers just trylock the buffer and skip submit IO if it lock
+failed, many callers just wait_on_buffer() and conclude IO error if the
+buffer is not uptodate after buffer unlocked.
+
+This issue could be easily reproduced by add some delay just after
+buffer_migrate_lock_buffers() in __buffer_migrate_folio() and do
+fsstress on ext4 filesystem.
+
+  EXT4-fs error (device pmem1): __ext4_find_entry:1658: inode #73193:
+  comm fsstress: reading directory lblock 0
+  EXT4-fs error (device pmem1): __ext4_find_entry:1658: inode #75334:
+  comm fsstress: reading directory lblock 0
+
+Something like ll_rw_block() should be used carefully and seems could
+only be safely used for the readahead case. So the best way is to fix
+the read operations in filesystem in the long run, but now let us avoid
+this issue first. This patch avoid this issue by fallback to migrate
+pages that are not uotodate like fallback_migrate_folio(), those pages
+that has buffers may probably do read operation soon.
+
+Fixes: 88dbcbb3a484 ("blkdev: avoid migration stalls for blkdev pages")
+Signed-off-by: Zhang Yi <yi.zhang@huawei.com>
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ mm/migrate.c | 35 ++++++++++++++++++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/mm/migrate.c b/mm/migrate.c
+index 8d649dbaae6d..cbb55c387b33 100644
+--- a/mm/migrate.c
++++ b/mm/migrate.c
+@@ -755,12 +755,45 @@ static int __buffer_migrate_page(struct address_space *mapping,
+ 	if (!page_has_buffers(page))
+ 		return migrate_page(mapping, newpage, page, mode);
+ 
++	head = page_buffers(page);
++	/*
++	 * If the mapped buffers on the page are not uptodate and has refcount,
++	 * some others may propably try to lock the buffer and submit read IO
++	 * through ll_rw_block(), but it will not submit IO once it failed to
++	 * lock the buffer, so try to fallback to migrate_page() to prevent
++	 * false positive EIO.
++	 */
++	if (check_refs) {
++		bool uptodate = true;
++		bool invalidate = false;
++
++		bh = head;
++		do {
++			if (buffer_mapped(bh) && !buffer_uptodate(bh)) {
++				uptodate = false;
++				if (atomic_read(&bh->b_count)) {
++					invalidate = true;
++					break;
++				}
++			}
++			bh = bh->b_this_page;
++		} while (bh != head);
++
++		if (!uptodate) {
++			if (invalidate)
++				invalidate_bh_lrus();
++			if (try_to_release_page(page, GFP_KERNEL))
++				return migrate_page(mapping, newpage, page,
++						    mode);
++			return -EAGAIN;
++		}
++	}
++
+ 	/* Check whether page does not have extra refs before we do more work */
+ 	expected_count = expected_page_refs(mapping, page);
+ 	if (page_count(page) != expected_count)
+ 		return -EAGAIN;
+ 
+-	head = page_buffers(page);
+ 	if (!buffer_migrate_lock_buffers(head, mode))
+ 		return -EAGAIN;
+ 
+-- 
+2.17.1
+

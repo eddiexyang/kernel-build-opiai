@@ -1,0 +1,52 @@
+From dba48405425cc4a55bd50202232571ffff3d503b Mon Sep 17 00:00:00 2001
+From: Jiankang Chen <chenjiankang1@huawei.com>
+Date: Sat, 18 May 2019 22:09:59 +0800
+Subject: [PATCH 5/5] iort: Read ACPI configure to get streamid.
+
+hulk inclusion
+category: feature
+bugzilla: 14369
+CVE: NA
+-------------------
+
+read ACPI configure to get streamid.
+
+Signed-off-by: Jiankang Chen <chenjiankang1@huawei.com>
+Signed-off-by: Fang Lijun <fanglijun3@huawei.com>
+Reviewed-by: Hanjun Guo <guohanjun@huawei.com>
+Reviewed-by: Zhen Lei <thunder.leizhen@huawei.com>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+---
+ drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+index f6cf5346d..c3fa8783e 100644
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+@@ -3246,6 +3246,7 @@ static struct iommu_ops arm_smmu_ops;
+ static struct iommu_device *arm_smmu_probe_device(struct device *dev)
+ {
+ 	int ret;
++	u32 sid;
+ 	struct arm_smmu_device *smmu;
+ 	struct arm_smmu_master *master;
+ 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
+@@ -3295,6 +3296,14 @@ static struct iommu_device *arm_smmu_probe_device(struct device *dev)
+ 	    smmu->features & ARM_SMMU_FEAT_STALL_FORCE)
+ 		master->stall_enabled = true;
+ 
++	if (!acpi_dev_prop_read_single(ACPI_COMPANION(dev),
++			"streamid", DEV_PROP_U32, &sid)) {
++		if (iommu_fwspec_add_ids(dev, &sid, 1))
++			dev_info(dev, "failed to add ids\n");
++		master->stall_enabled = true;
++		master->ssid_bits = 0x10;
++	}
++
+ 	arm_smmu_init_pri(master);
+ 
+ 	return &smmu->iommu;
+-- 
+2.17.1
+

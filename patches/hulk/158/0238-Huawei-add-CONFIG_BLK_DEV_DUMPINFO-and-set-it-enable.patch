@@ -1,0 +1,49 @@
+From f328279d454a74194a19af72c794d0e2192b1f24 Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Fri, 23 Sep 2022 11:16:15 +0800
+Subject: [PATCH 0238/1076] [Huawei] add CONFIG_BLK_DEV_DUMPINFO and set it
+ enabled in openeuler_defconfig
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I53Q6M
+
+--------------------------------
+
+EulerOS need detect conflict of opening block device, so
+enable it as default.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ arch/arm64/configs/openeuler_defconfig | 1 +
+ arch/x86/configs/openeuler_defconfig   | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/arch/arm64/configs/openeuler_defconfig b/arch/arm64/configs/openeuler_defconfig
+index 5f824fb45928..45246d705fe0 100644
+--- a/arch/arm64/configs/openeuler_defconfig
++++ b/arch/arm64/configs/openeuler_defconfig
+@@ -905,6 +905,7 @@ CONFIG_BLK_DEBUG_FS=y
+ CONFIG_BLK_DEBUG_FS_ZONED=y
+ # CONFIG_BLK_SED_OPAL is not set
+ # CONFIG_BLK_INLINE_ENCRYPTION is not set
++CONFIG_BLK_DEV_DUMPINFO=y
+ 
+ #
+ # Partition Types
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index 02b0c9da1bb4..2c5219cbadad 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -900,6 +900,7 @@ CONFIG_BLK_DEBUG_FS=y
+ CONFIG_BLK_DEBUG_FS_ZONED=y
+ # CONFIG_BLK_SED_OPAL is not set
+ # CONFIG_BLK_INLINE_ENCRYPTION is not set
++CONFIG_BLK_DEV_DUMPINFO=y
+ 
+ #
+ # Partition Types
+-- 
+2.17.1
+

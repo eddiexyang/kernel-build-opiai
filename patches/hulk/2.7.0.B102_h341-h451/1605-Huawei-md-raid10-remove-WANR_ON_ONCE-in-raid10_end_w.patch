@@ -1,0 +1,50 @@
+From 324ea411a03adc2d76a33377f16a7dfe5b8191ed Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Fri, 28 Apr 2023 17:09:40 +0800
+Subject: [PATCH 1605/1646] [Huawei] md/raid10: remove WANR_ON_ONCE in
+ raid10_end_write_request
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188605
+
+--------------------------------
+
+It might read mirror.redev first and then mirror->replacement because of
+memory reordering in raid10_end_write_request(), WARN_ON occurs if we
+remove disk at the same time.
+
+  T1 remove			T2 io end
+  raid10_remove_disk		raid10_end_write_request
+   p->rdev = NULL
+				 read rdev -> NULL
+   smp_mb
+   p->replacement = NULL
+				 read replacement -> NULL
+
+It is meaningless to compare rdev with mirror->rdev after we get it from
+r10_bio in raid10_end_write_request(). Remove this WANR_ON_ONCE.
+
+Fixes: 2ecf5e6ecbfd ("md/raid10: fix uaf if replacement replaces rdev")
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/raid10.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index 3864187bdaba..522a23d4549e 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -452,8 +452,6 @@ static void raid10_end_write_request(struct bio *bio)
+ 				md_error(rdev->mddev, rdev);
+ 				goto out;
+ 			}
+-		} else {
+-			WARN_ON_ONCE(rdev != conf->mirrors[dev].rdev);
+ 		}
+ 	} else {
+ 		rdev = r10_bio->devs[slot].rdev;
+-- 
+2.17.1
+

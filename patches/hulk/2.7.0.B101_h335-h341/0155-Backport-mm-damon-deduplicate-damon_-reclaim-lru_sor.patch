@@ -1,0 +1,166 @@
+From 5488d55c8660c45e7a90c59782ef7d92d91896a4 Mon Sep 17 00:00:00 2001
+From: Kaixu Xia <kaixuxia@tencent.com>
+Date: Tue, 20 Sep 2022 16:53:22 +0000
+Subject: [PATCH 155/921] [Backport] mm/damon: deduplicate
+ damon_{reclaim,lru_sort}_apply_parameters()
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 233f0b31bd9503ce2be7be0bde69c67287c8a741
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=233f0b31bd9503ce2be7be0bde69c67287c8a741
+
+--------------------------------
+
+The bodies of damon_{reclaim,lru_sort}_apply_parameters() contain
+duplicates.  This commit adds a common function
+damon_set_region_biggest_system_ram_default() to remove the duplicates.
+
+Link: https://lkml.kernel.org/r/6329f00d.a70a0220.9bb29.3678SMTPIN_ADDED_BROKEN@mx.google.com
+Signed-off-by: Kaixu Xia <kaixuxia@tencent.com>
+Suggested-by: SeongJae Park <sj@kernel.org>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ include/linux/damon.h |  3 ++-
+ mm/damon/core.c       | 35 ++++++++++++++++++++++++++++++++++-
+ mm/damon/lru_sort.c   | 13 +++----------
+ mm/damon/reclaim.c    | 13 +++----------
+ 4 files changed, 42 insertions(+), 22 deletions(-)
+
+diff --git a/include/linux/damon.h b/include/linux/damon.h
+index f96f9515a4ee..9af60f357453 100644
+--- a/include/linux/damon.h
++++ b/include/linux/damon.h
+@@ -557,7 +557,8 @@ static inline bool damon_target_has_pid(const struct damon_ctx *ctx)
+ int damon_start(struct damon_ctx **ctxs, int nr_ctxs, bool exclusive);
+ int damon_stop(struct damon_ctx **ctxs, int nr_ctxs);
+ 
+-bool damon_find_biggest_system_ram(unsigned long *start, unsigned long *end);
++int damon_set_region_biggest_system_ram_default(struct damon_target *t,
++				unsigned long *start, unsigned long *end);
+ 
+ #endif	/* CONFIG_DAMON */
+ 
+diff --git a/mm/damon/core.c b/mm/damon/core.c
+index 9c80c6eb00c2..4de8c7c52979 100644
+--- a/mm/damon/core.c
++++ b/mm/damon/core.c
+@@ -1245,7 +1245,8 @@ static int walk_system_ram(struct resource *res, void *arg)
+  * Find biggest 'System RAM' resource and store its start and end address in
+  * @start and @end, respectively.  If no System RAM is found, returns false.
+  */
+-bool damon_find_biggest_system_ram(unsigned long *start, unsigned long *end)
++static bool damon_find_biggest_system_ram(unsigned long *start,
++						unsigned long *end)
+ 
+ {
+ 	struct damon_system_ram_region arg = {};
+@@ -1259,6 +1260,38 @@ bool damon_find_biggest_system_ram(unsigned long *start, unsigned long *end)
+ 	return true;
+ }
+ 
++/**
++ * damon_set_region_biggest_system_ram_default() - Set the region of the given
++ * monitoring target as requested, or biggest 'System RAM'.
++ * @t:		The monitoring target to set the region.
++ * @start:	The pointer to the start address of the region.
++ * @end:	The pointer to the end address of the region.
++ *
++ * This function sets the region of @t as requested by @start and @end.  If the
++ * values of @start and @end are zero, however, this function finds the biggest
++ * 'System RAM' resource and sets the region to cover the resource.  In the
++ * latter case, this function saves the start and end addresses of the resource
++ * in @start and @end, respectively.
++ *
++ * Return: 0 on success, negative error code otherwise.
++ */
++int damon_set_region_biggest_system_ram_default(struct damon_target *t,
++			unsigned long *start, unsigned long *end)
++{
++	struct damon_addr_range addr_range;
++
++	if (*start > *end)
++		return -EINVAL;
++
++	if (!*start && !*end &&
++		!damon_find_biggest_system_ram(start, end))
++		return -EINVAL;
++
++	addr_range.start = *start;
++	addr_range.end = *end;
++	return damon_set_regions(t, &addr_range, 1);
++}
++
+ static int __init damon_init(void)
+ {
+ 	damon_region_cache = KMEM_CACHE(damon_region, 0);
+diff --git a/mm/damon/lru_sort.c b/mm/damon/lru_sort.c
+index d7eb72b41cb6..efbc2bda8b9c 100644
+--- a/mm/damon/lru_sort.c
++++ b/mm/damon/lru_sort.c
+@@ -188,7 +188,6 @@ static struct damos *damon_lru_sort_new_cold_scheme(unsigned int cold_thres)
+ static int damon_lru_sort_apply_parameters(void)
+ {
+ 	struct damos *scheme;
+-	struct damon_addr_range addr_range;
+ 	unsigned int hot_thres, cold_thres;
+ 	int err = 0;
+ 
+@@ -211,15 +210,9 @@ static int damon_lru_sort_apply_parameters(void)
+ 		return -ENOMEM;
+ 	damon_add_scheme(ctx, scheme);
+ 
+-	if (monitor_region_start > monitor_region_end)
+-		return -EINVAL;
+-	if (!monitor_region_start && !monitor_region_end &&
+-	    !damon_find_biggest_system_ram(&monitor_region_start,
+-					   &monitor_region_end))
+-		return -EINVAL;
+-	addr_range.start = monitor_region_start;
+-	addr_range.end = monitor_region_end;
+-	return damon_set_regions(target, &addr_range, 1);
++	return damon_set_region_biggest_system_ram_default(target,
++					&monitor_region_start,
++					&monitor_region_end);
+ }
+ 
+ static int damon_lru_sort_turn(bool on)
+diff --git a/mm/damon/reclaim.c b/mm/damon/reclaim.c
+index 3d59ab11b7b3..162c9b1ca00f 100644
+--- a/mm/damon/reclaim.c
++++ b/mm/damon/reclaim.c
+@@ -144,7 +144,6 @@ static struct damos *damon_reclaim_new_scheme(void)
+ static int damon_reclaim_apply_parameters(void)
+ {
+ 	struct damos *scheme;
+-	struct damon_addr_range addr_range;
+ 	int err = 0;
+ 
+ 	err = damon_set_attrs(ctx, &damon_reclaim_mon_attrs);
+@@ -157,15 +156,9 @@ static int damon_reclaim_apply_parameters(void)
+ 		return -ENOMEM;
+ 	damon_set_schemes(ctx, &scheme, 1);
+ 
+-	if (monitor_region_start > monitor_region_end)
+-		return -EINVAL;
+-	if (!monitor_region_start && !monitor_region_end &&
+-	    !damon_find_biggest_system_ram(&monitor_region_start,
+-					   &monitor_region_end))
+-		return -EINVAL;
+-	addr_range.start = monitor_region_start;
+-	addr_range.end = monitor_region_end;
+-	return damon_set_regions(target, &addr_range, 1);
++	return damon_set_region_biggest_system_ram_default(target,
++					&monitor_region_start,
++					&monitor_region_end);
+ }
+ 
+ static int damon_reclaim_turn(bool on)
+-- 
+2.17.1
+

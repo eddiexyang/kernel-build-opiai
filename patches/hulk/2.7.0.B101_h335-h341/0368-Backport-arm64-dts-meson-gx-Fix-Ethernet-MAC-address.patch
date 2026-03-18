@@ -1,0 +1,49 @@
+From 9f751c777edc2c881e613798ab27b4a20a6973d4 Mon Sep 17 00:00:00 2001
+From: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Date: Wed, 11 Jan 2023 22:13:48 +0100
+Subject: [PATCH 368/921] [Backport] arm64: dts: meson-gx: Fix Ethernet MAC
+ address unit name
+
+stable inclusion
+from stable-v5.10.173
+commit 8303a34fce2ae22381d4a2dae0806bc75b707693
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8303a34fce2ae22381d4a2dae0806bc75b707693
+
+--------------------------------
+
+[ Upstream commit 8ed5310356bfa47cc6bb4221ae6b21258c52e3d1 ]
+
+Unit names should use hyphens instead of underscores to not cause
+warnings.
+
+Fixes: bfe59f92d306 ("ARM64: dts: amlogic: gxbb: Enable NVMEM")
+Suggested-by: Vyacheslav Bocharov <adeep@lexina.in>
+Signed-off-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Link: https://lore.kernel.org/r/20230111211350.1461860-5-martin.blumenstingl@googlemail.com
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm64/boot/dts/amlogic/meson-gx.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+index 88a7db5c55a0..46018df13cc2 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
++++ b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+@@ -226,7 +226,7 @@
+ 			reg = <0x14 0x10>;
+ 		};
+ 
+-		eth_mac: eth_mac@34 {
++		eth_mac: eth-mac@34 {
+ 			reg = <0x34 0x10>;
+ 		};
+ 
+-- 
+2.17.1
+

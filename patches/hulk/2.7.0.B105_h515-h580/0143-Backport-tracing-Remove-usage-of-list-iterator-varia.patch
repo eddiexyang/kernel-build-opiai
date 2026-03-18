@@ -1,0 +1,76 @@
+From 116356a19dbdd660312101d0eec38786dd19cdcb Mon Sep 17 00:00:00 2001
+From: Jakob Koschel <jakobkoschel@gmail.com>
+Date: Wed, 27 Apr 2022 19:07:32 +0200
+Subject: [PATCH 143/780] [Backport] tracing: Remove usage of list iterator
+ variable after the loop
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 99d8ae4ec8a90ecf6c2a6a141bd4db4a3bc5146c
+category: bugfix
+bugzilla: 188758
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=99d8ae4ec8a90ecf6c2a6a141bd4db4a3bc5146c
+
+--------------------------------
+
+In preparation to limit the scope of a list iterator to the list
+traversal loop, use a dedicated pointer to point to the found element
+[1].
+
+Link: https://lore.kernel.org/all/CAHk-=wgRr_D8CB-D9Kg-c=EHreAsk5SqXPwr9Y7k9sA6cWXJ6w@mail.gmail.com/ [1]
+Link: https://lkml.kernel.org/r/20220427170734.819891-3-jakobkoschel@gmail.com
+
+Cc: Ingo Molnar <mingo@redhat.com>
+Signed-off-by: Jakob Koschel <jakobkoschel@gmail.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+Signed-off-by: Zheng Yejian <zhengyejian1@huawei.com>
+---
+ kernel/trace/trace_events.c | 15 +++++++--------
+ 1 file changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/trace/trace_events.c b/kernel/trace/trace_events.c
+index f0dede12b238..ad689d93e19f 100644
+--- a/kernel/trace/trace_events.c
++++ b/kernel/trace/trace_events.c
+@@ -1495,9 +1495,9 @@ static LIST_HEAD(event_subsystems);
+ 
+ static int subsystem_open(struct inode *inode, struct file *filp)
+ {
++	struct trace_subsystem_dir *dir = NULL, *iter_dir;
++	struct trace_array *tr = NULL, *iter_tr;
+ 	struct event_subsystem *system = NULL;
+-	struct trace_subsystem_dir *dir = NULL; /* Initialize for gcc */
+-	struct trace_array *tr;
+ 	int ret;
+ 
+ 	if (tracing_is_disabled())
+@@ -1506,10 +1506,12 @@ static int subsystem_open(struct inode *inode, struct file *filp)
+ 	/* Make sure the system still exists */
+ 	mutex_lock(&event_mutex);
+ 	mutex_lock(&trace_types_lock);
+-	list_for_each_entry(tr, &ftrace_trace_arrays, list) {
+-		list_for_each_entry(dir, &tr->systems, list) {
+-			if (dir == inode->i_private) {
++	list_for_each_entry(iter_tr, &ftrace_trace_arrays, list) {
++		list_for_each_entry(iter_dir, &iter_tr->systems, list) {
++			if (iter_dir == inode->i_private) {
+ 				/* Don't open systems with no events */
++				tr = iter_tr;
++				dir = iter_dir;
+ 				if (dir->nr_events) {
+ 					__get_system_dir(dir);
+ 					system = dir->subsystem;
+@@ -1525,9 +1527,6 @@ static int subsystem_open(struct inode *inode, struct file *filp)
+ 	if (!system)
+ 		return -ENODEV;
+ 
+-	/* Some versions of gcc think dir can be uninitialized here */
+-	WARN_ON(!dir);
+-
+ 	/* Still need to increment the ref count of the system */
+ 	if (trace_array_get(tr) < 0) {
+ 		put_system(dir);
+-- 
+2.17.1
+

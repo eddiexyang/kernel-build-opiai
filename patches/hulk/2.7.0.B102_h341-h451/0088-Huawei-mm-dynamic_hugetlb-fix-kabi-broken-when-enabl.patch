@@ -1,0 +1,50 @@
+From cbd3cded1767235e5df70f722bbbe5c90b5a5b66 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Tue, 18 Apr 2023 17:45:48 +0800
+Subject: [PATCH 0088/1646] [Huawei] mm/dynamic_hugetlb: fix kabi broken when
+ enable CONFIG_DYNAMIC_HUGETLB on arm64
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 46904
+
+--------------------------------
+
+When enable dynamic hugetlb on arm64, the new member struct dhugetlb_pool*
+will be added to mem_cgroup. We need to use a KABI_RESERVE to fix broken
+of kabi. The previous struct dhugetlb_pool* is only used on x86_64.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/memcontrol.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
+index 3c086d363172..ad68c07783de 100644
+--- a/include/linux/memcontrol.h
++++ b/include/linux/memcontrol.h
+@@ -372,7 +372,7 @@ struct mem_cgroup {
+ 	struct deferred_split deferred_split_queue;
+ #endif
+ 
+-#ifdef CONFIG_DYNAMIC_HUGETLB
++#if defined(CONFIG_DYNAMIC_HUGETLB) && defined(CONFIG_X86_64)
+ 	struct dhugetlb_pool *hpool;
+ #endif
+ #ifdef CONFIG_CGROUP_V1_WRITEBACK
+@@ -391,7 +391,11 @@ struct mem_cgroup {
+ #else
+ 	KABI_RESERVE(4)
+ #endif
++#if defined(CONFIG_DYNAMIC_HUGETLB) && defined(CONFIG_ARM64)
++	KABI_USE(5, struct dhugetlb_pool *hpool)
++#else
+ 	KABI_RESERVE(5)
++#endif
+ 	KABI_RESERVE(6)
+ 	KABI_RESERVE(7)
+ 	KABI_RESERVE(8)
+-- 
+2.17.1
+

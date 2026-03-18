@@ -1,0 +1,59 @@
+From 5dcdd26b535bbd358d48de10360019e948bd5f8d Mon Sep 17 00:00:00 2001
+From: Dominik Brodowski <linux@dominikbrodowski.net>
+Date: Tue, 25 Jan 2022 21:14:57 +0100
+Subject: [PATCH 3383/4585] [Backport] random: continually use hwgenerator
+ randomness
+
+stable inclusion
+from stable-v5.10.119
+commit 0b9e36e895bbdfea615e7df713dcea65930e0f4d
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5G2MB
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0b9e36e895bbdfea615e7df713dcea65930e0f4d
+
+--------------------------------
+
+commit c321e907aa4803d562d6e70ebed9444ad082f953 upstream.
+
+The rngd kernel thread may sleep indefinitely if the entropy count is
+kept above random_write_wakeup_bits by other entropy sources. To make
+best use of multiple sources of randomness, mix entropy from hardware
+RNGs into the pool at least once within CRNG_RESEED_INTERVAL.
+
+Cc: Herbert Xu <herbert@gondor.apana.org.au>
+Cc: Jason A. Donenfeld <Jason@zx2c4.com>
+Signed-off-by: Dominik Brodowski <linux@dominikbrodowski.net>
+Signed-off-by: Jason A. Donenfeld <Jason@zx2c4.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/char/random.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/char/random.c b/drivers/char/random.c
+index aa9a6e1e8398..101b679244e6 100644
+--- a/drivers/char/random.c
++++ b/drivers/char/random.c
+@@ -2201,13 +2201,15 @@ void add_hwgenerator_randomness(const char *buffer, size_t count,
+ 			return;
+ 	}
+ 
+-	/* Suspend writing if we're above the trickle threshold.
++	/* Throttle writing if we're above the trickle threshold.
+ 	 * We'll be woken up again once below random_write_wakeup_thresh,
+-	 * or when the calling thread is about to terminate.
++	 * when the calling thread is about to terminate, or once
++	 * CRNG_RESEED_INTERVAL has lapsed.
+ 	 */
+-	wait_event_interruptible(random_write_wait,
++	wait_event_interruptible_timeout(random_write_wait,
+ 			!system_wq || kthread_should_stop() ||
+-			POOL_ENTROPY_BITS() <= random_write_wakeup_bits);
++			POOL_ENTROPY_BITS() <= random_write_wakeup_bits,
++			CRNG_RESEED_INTERVAL);
+ 	mix_pool_bytes(buffer, count);
+ 	credit_entropy_bits(entropy);
+ }
+-- 
+2.17.1
+

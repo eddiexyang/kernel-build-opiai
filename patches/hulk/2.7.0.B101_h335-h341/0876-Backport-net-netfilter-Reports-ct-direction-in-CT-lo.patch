@@ -1,0 +1,112 @@
+From 747996b3120dd60708121473fd476edbaff6c70d Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sat, 2 Apr 2022 16:19:14 +0200
+Subject: [PATCH 876/921] [Backport] net: netfilter: Reports ct direction in CT
+ lookup helpers for XDP and TC-BPF
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 1963c740dc2b52f45ba3d3748a50a0ab35db098a
+category: bugfix
+bugzilla: 188604
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1963c740dc2b52f45ba3d3748a50a0ab35db098a
+
+--------------------------------
+
+Report connection tracking tuple direction in
+bpf_skb_ct_lookup/bpf_xdp_ct_lookup helpers. Direction will be used to
+implement snat/dnat through xdp ebpf program.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Link: https://lore.kernel.org/bpf/aa1aaac89191cfc64078ecef36c0a48c302321b9.1648908601.git.lorenzo@kernel.org
+Signed-off-by: Baisong Zhong <zhongbaisong@huawei.com>
+---
+ net/netfilter/nf_conntrack_bpf.c | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_bpf.c b/net/netfilter/nf_conntrack_bpf.c
+index 40fd2b54b108..d7086c37b3b1 100644
+--- a/net/netfilter/nf_conntrack_bpf.c
++++ b/net/netfilter/nf_conntrack_bpf.c
+@@ -37,6 +37,7 @@
+  * @l4proto    - Layer 4 protocol
+  *		 Values:
+  *		   IPPROTO_TCP, IPPROTO_UDP
++ * @dir:       - connection tracking tuple direction.
+  * @reserved   - Reserved member, will be reused for more options in future
+  *		 Values:
+  *		   0
+@@ -45,7 +46,8 @@ struct bpf_ct_opts {
+ 	s32 netns_id;
+ 	s32 error;
+ 	u8 l4proto;
+-	u8 reserved[3];
++	u8 dir;
++	u8 reserved[2];
+ };
+ 
+ enum {
+@@ -55,10 +57,11 @@ enum {
+ static struct nf_conn *__bpf_nf_ct_lookup(struct net *net,
+ 					  struct bpf_sock_tuple *bpf_tuple,
+ 					  u32 tuple_len, u8 protonum,
+-					  s32 netns_id)
++					  s32 netns_id, u8 *dir)
+ {
+ 	struct nf_conntrack_tuple_hash *hash;
+ 	struct nf_conntrack_tuple tuple;
++	struct nf_conn *ct;
+ 
+ 	if (unlikely(protonum != IPPROTO_TCP && protonum != IPPROTO_UDP))
+ 		return ERR_PTR(-EPROTO);
+@@ -98,7 +101,12 @@ static struct nf_conn *__bpf_nf_ct_lookup(struct net *net,
+ 		put_net(net);
+ 	if (!hash)
+ 		return ERR_PTR(-ENOENT);
+-	return nf_ct_tuplehash_to_ctrack(hash);
++
++	ct = nf_ct_tuplehash_to_ctrack(hash);
++	if (dir)
++		*dir = NF_CT_DIRECTION(hash);
++
++	return ct;
+ }
+ 
+ __diag_push();
+@@ -134,13 +142,13 @@ bpf_xdp_ct_lookup(struct xdp_md *xdp_ctx, struct bpf_sock_tuple *bpf_tuple,
+ 	if (!opts)
+ 		return NULL;
+ 	if (!bpf_tuple || opts->reserved[0] || opts->reserved[1] ||
+-	    opts->reserved[2] || opts__sz != NF_BPF_CT_OPTS_SZ) {
++	    opts__sz != NF_BPF_CT_OPTS_SZ) {
+ 		opts->error = -EINVAL;
+ 		return NULL;
+ 	}
+ 	caller_net = dev_net(ctx->rxq->dev);
+ 	nfct = __bpf_nf_ct_lookup(caller_net, bpf_tuple, tuple__sz, opts->l4proto,
+-				  opts->netns_id);
++				  opts->netns_id, &opts->dir);
+ 	if (IS_ERR(nfct)) {
+ 		opts->error = PTR_ERR(nfct);
+ 		return NULL;
+@@ -177,13 +185,13 @@ bpf_skb_ct_lookup(struct __sk_buff *skb_ctx, struct bpf_sock_tuple *bpf_tuple,
+ 	if (!opts)
+ 		return NULL;
+ 	if (!bpf_tuple || opts->reserved[0] || opts->reserved[1] ||
+-	    opts->reserved[2] || opts__sz != NF_BPF_CT_OPTS_SZ) {
++	    opts__sz != NF_BPF_CT_OPTS_SZ) {
+ 		opts->error = -EINVAL;
+ 		return NULL;
+ 	}
+ 	caller_net = skb->dev ? dev_net(skb->dev) : sock_net(skb->sk);
+ 	nfct = __bpf_nf_ct_lookup(caller_net, bpf_tuple, tuple__sz, opts->l4proto,
+-				  opts->netns_id);
++				  opts->netns_id, &opts->dir);
+ 	if (IS_ERR(nfct)) {
+ 		opts->error = PTR_ERR(nfct);
+ 		return NULL;
+-- 
+2.17.1
+

@@ -1,0 +1,52 @@
+From 41a3214ac3d393c9465c9842ac08adcd71716924 Mon Sep 17 00:00:00 2001
+From: Li Nan <linan122@huawei.com>
+Date: Thu, 20 Apr 2023 19:58:19 +0800
+Subject: [PATCH 0329/1646] [Huawei] md: fix io loss when remove rdev fail
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188628
+
+--------------------------------
+
+We first set rdev to WantRemove, and check if there is any io
+pending, if so, we will clear flag and return busy in
+raid10_remove_disk(). io will loss as below:
+
+  raid10_remove_disk
+   set WantRemove
+			write rdev
+			 if WantRemove
+			  do not submit io
+   if rdev->nr_pending
+    clear WantRemove
+    return BUSY
+					read rdev
+					 get error data
+
+Fix it by md_error the rdev which io pending while removing. When the code
+reaches this point, it means this rdev will be removed later, so setting
+it as faulty has little impact.
+
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/raid10.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/md/raid10.c b/drivers/md/raid10.c
+index e39fa21815d9..3864187bdaba 100644
+--- a/drivers/md/raid10.c
++++ b/drivers/md/raid10.c
+@@ -1860,7 +1860,7 @@ static int raid10_remove_disk(struct mddev *mddev, struct md_rdev *rdev)
+ 		if (atomic_read(&rdev->nr_pending)) {
+ 			/* lost the race, try later */
+ 			err = -EBUSY;
+-			clear_bit(WantRemove, &rdev->flags);
++			md_error(rdev->mddev, rdev);
+ 			goto abort;
+ 		}
+ 	}
+-- 
+2.17.1
+

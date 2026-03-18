@@ -1,0 +1,71 @@
+From 5576623aa7841c8166aaeece3e527a95f8325657 Mon Sep 17 00:00:00 2001
+From: Yanteng Si <siyanteng01@gmail.com>
+Date: Fri, 3 Dec 2021 16:03:22 +0800
+Subject: [PATCH 3555/4585] [Backport] docs/scheduler: fix typo and warning in
+ sched-bwc
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit ce881fc06dc87e73928ced4c37b6ac6b32ef5fb6
+category: feature
+bugzilla: 187300
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ce881fc06dc87e73928ced4c37b6ac6b32ef5fb6
+
+--------------------------------
+
+docs/scheduler: fix typo and warning in sched-bwc
+
+a) since d73df887b6b8 ("sched/fair: Add document for burstable CFS bandwidth")
+[cpu.cfs_quota_us: the total available run-time within a period (in] shoud be removed,
+let's delete it.
+
+b) Add a period.
+
+c) fix a build warning:
+
+   linux-next/Documentation/scheduler/sched-bwc.rst:243: WARNING: Inline emphasis
+   start-string without end-string.
+
+Signed-off-by: Yanteng Si <siyanteng@loongson.cn>
+Reviewed-by: Alex Shi <alexs@kernel.org>
+Link: https://lore.kernel.org/r/163a4dde20b8c4b68d668977a668e281d18fcf92.1638517064.git.siyanteng@loongson.cn
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Zhao Wenhui <zhaowenhui8@huawei.com>
+---
+ Documentation/scheduler/sched-bwc.rst | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/scheduler/sched-bwc.rst b/Documentation/scheduler/sched-bwc.rst
+index c19b4e26a439..b329f5c3f50a 100644
+--- a/Documentation/scheduler/sched-bwc.rst
++++ b/Documentation/scheduler/sched-bwc.rst
+@@ -73,7 +73,6 @@ Quota, period and burst are managed within the cpu subsystem via cgroupfs.
+    to cgroup v1. For cgroup v2, see
+    :ref:`Documentation/admin-guide/cgroup-v2.rst <cgroup-v2-cpu>`.
+ 
+-- cpu.cfs_quota_us: the total available run-time within a period (in
+ - cpu.cfs_quota_us: run-time replenished within a period (in microseconds)
+ - cpu.cfs_period_us: the length of a period (in microseconds)
+ - cpu.stat: exports throttling statistics [explained further below]
+@@ -134,7 +133,7 @@ cpu.stat:
+   of the group have been throttled.
+ - nr_bursts: Number of periods burst occurs.
+ - burst_time: Cumulative wall-time (in nanoseconds) that any CPUs has used
+-  above quota in respective periods
++  above quota in respective periods.
+ 
+ This interface is read-only.
+ 
+@@ -237,7 +236,7 @@ Examples
+    additionally, in case accumulation has been done.
+ 
+    With 50ms period, 20ms quota will be equivalent to 40% of 1 CPU.
+-   And 10ms burst will be equivalent to 20% of 1 CPU.
++   And 10ms burst will be equivalent to 20% of 1 CPU::
+ 
+ 	# echo 20000 > cpu.cfs_quota_us /* quota = 20ms */
+ 	# echo 50000 > cpu.cfs_period_us /* period = 50ms */
+-- 
+2.17.1
+

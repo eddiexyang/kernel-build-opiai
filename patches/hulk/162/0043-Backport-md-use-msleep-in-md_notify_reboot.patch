@@ -1,0 +1,44 @@
+From 039a384b8a28d46b77ddb94aafa4e697973ec7ed Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Thu, 3 Mar 2022 15:19:33 -0800
+Subject: [PATCH 043/905] [Backport] md: use msleep() in md_notify_reboot()
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 7d959f6e978cbbca90e26a192cc39480e977182f
+category: bugfix
+bugzilla: 188015
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git/commit/?id=7d959f6e978cbbca90e26a192cc39480e977182f
+
+--------------------------------
+
+Calling mdelay(1000) from process context, even while a reboot
+is in progress, does not make sense.
+
+Using msleep() allows other threads to make progress.
+
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Cc: linux-raid@vger.kernel.org
+Signed-off-by: Song Liu <song@kernel.org>
+Signed-off-by: Li Nan <linan122@huawei.com>
+---
+ drivers/md/md.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index 713958e6dd67..bd255dcc6e37 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -9562,7 +9562,7 @@ static int md_notify_reboot(struct notifier_block *this,
+ 	 * driver, we do want to have a safe RAID driver ...
+ 	 */
+ 	if (need_delay)
+-		mdelay(1000*1);
++		msleep(1000);
+ 
+ 	return NOTIFY_DONE;
+ }
+-- 
+2.17.1
+

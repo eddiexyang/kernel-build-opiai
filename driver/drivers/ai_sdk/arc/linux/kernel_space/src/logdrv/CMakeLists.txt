@@ -1,0 +1,33 @@
+if(AOSCORE_LLVM_MUSL)
+    add_subdirectory(log_agent)
+else()
+
+if( ${PRODUCT} STREQUAL ascend310p)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc hsm_firmware_update hsm_flash hsm_heartbeat drv_icm drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL ascend910)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL ascend310Besl)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL ascend310Brc)
+    set(drv_log_depends drv_devdrv drv_devmng drv_icm drv_platform)
+elseif (${PRODUCT} STREQUAL as31xm1)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL ascend310Brcesl)
+    set(drv_log_depends drv_devdrv drv_devmng drv_icm drv_platform)
+elseif (${PRODUCT} STREQUAL ascend910B)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL ascend610)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+elseif ((${PRODUCT} STREQUAL ascend610Liteesl) OR (${PRODUCT} STREQUAL ascend610Lite))
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+elseif (${PRODUCT} STREQUAL bs9sx1a)
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc drv_icm drv_pcie drv_platform)
+else ()
+    set(drv_log_depends drv_devdrv drv_devmng drv_pcie_hdc)
+endif ()
+add_device_ko(LOCAL_MODULE drv_log
+              KO_SRC_FOLDER ${CMAKE_CURRENT_SOURCE_DIR}
+              MAKE_ARGS ${MAKE_ARGS}
+              TARGETE_DPENDS "${drv_log_depends}")
+
+endif()

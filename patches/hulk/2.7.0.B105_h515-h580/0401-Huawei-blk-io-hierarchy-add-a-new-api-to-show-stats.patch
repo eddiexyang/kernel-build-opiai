@@ -1,0 +1,74 @@
+From 298d25c5f54ec243458c2dbe08a2d8cd9679636e Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Fri, 2 Jun 2023 17:02:45 +0800
+Subject: [PATCH 401/780] [Huawei] blk-io-hierarchy: add a new api to show
+ stats
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188826
+
+--------------------------------
+
+This api will be used later to show recorded information through
+debugfs.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-io-hierarchy/stats.c | 28 ++++++++++++++++++++++++++++
+ block/blk-io-hierarchy/stats.h |  2 ++
+ 2 files changed, 30 insertions(+)
+
+diff --git a/block/blk-io-hierarchy/stats.c b/block/blk-io-hierarchy/stats.c
+index 0ebed8cd179b..f63fd675eec1 100644
+--- a/block/blk-io-hierarchy/stats.c
++++ b/block/blk-io-hierarchy/stats.c
+@@ -147,3 +147,31 @@ void bio_list_hierarchy_end_io_acct(struct bio_list *list,
+ 	bio_list_for_each(bio, list)
+ 		bio_hierarchy_end_io_acct(bio, stage, time);
+ }
++
++void blk_io_hierarchy_stats_show(struct blk_io_hierarchy_stats *stats,
++				 struct seq_file *m, enum stage_group stage)
++{
++	int cpu;
++	u64 dispatched[NR_STAT_GROUPS] = {0};
++	u64 completed[NR_STAT_GROUPS] = {0};
++	u64 latency[NR_STAT_GROUPS] = {0};
++
++	for_each_possible_cpu(cpu) {
++		int i;
++		struct hierarchy_stats *stat = per_cpu_ptr(stats->stats, cpu);
++
++		for (i = 0; i < NR_STAT_GROUPS; ++i) {
++			dispatched[i] += stat->dispatched[stage][i];
++			completed[i] += stat->completed[stage][i];
++			latency[i] += stat->nsecs[stage][i];
++		}
++	}
++
++	seq_printf(m, "%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu\n",
++		   dispatched[STAT_READ], completed[STAT_READ],
++		   latency[STAT_READ], dispatched[STAT_WRITE],
++		   completed[STAT_WRITE], latency[STAT_WRITE],
++		   dispatched[STAT_DISCARD], completed[STAT_DISCARD],
++		   latency[STAT_DISCARD], dispatched[STAT_FLUSH],
++		   completed[STAT_FLUSH], latency[STAT_FLUSH]);
++}
+diff --git a/block/blk-io-hierarchy/stats.h b/block/blk-io-hierarchy/stats.h
+index 1210a0b12b57..f59b86b24f18 100644
+--- a/block/blk-io-hierarchy/stats.h
++++ b/block/blk-io-hierarchy/stats.h
+@@ -39,6 +39,8 @@ void bio_hierarchy_end_io_acct(struct bio *bio, enum stage_group stage,
+ 			       u64 time);
+ void bio_list_hierarchy_end_io_acct(struct bio_list *list,
+ 				    enum stage_group stage);
++void blk_io_hierarchy_stats_show(struct blk_io_hierarchy_stats *stats,
++				 struct seq_file *m, enum stage_group stage);
+ 
+ #else /* CONFIG_BLK_IO_HIERARCHY_STATS */
+ 
+-- 
+2.17.1
+

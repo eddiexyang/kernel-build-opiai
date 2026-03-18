@@ -1,0 +1,46 @@
+From ec4c052c244bfff5f24be423aab16ec6da274d44 Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Mon, 9 May 2022 17:41:05 +0800
+Subject: [PATCH 0882/2065] [Huawei] block: fix kabi change since add
+ bd_write_openers and bd_part_write_openers
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I53Q6M
+
+---------------------------
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ include/linux/blk_types.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index 8a921961782c..bbb62ff84601 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -27,8 +27,6 @@ struct block_device {
+ 	struct inode *		bd_inode;	/* will die */
+ 	struct super_block *	bd_super;
+ 	struct mutex		bd_mutex;	/* open/close mutex */
+-	int			bd_write_openers;
+-	int			bd_part_write_openers;
+ 	void *			bd_claiming;
+ 	void *			bd_holder;
+ 	int			bd_holders;
+@@ -50,7 +48,11 @@ struct block_device {
+ 	int			bd_fsfreeze_count;
+ 	/* Mutex for freeze */
+ 	struct mutex		bd_fsfreeze_mutex;
++#ifndef __GENKSYMS__
++	KABI_USE2(1, int bd_write_openers, int bd_part_write_openers);
++#else
+ 	KABI_RESERVE(1)
++#endif
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+-- 
+2.17.1
+

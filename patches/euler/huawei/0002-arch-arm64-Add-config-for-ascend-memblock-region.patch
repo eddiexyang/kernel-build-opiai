@@ -1,0 +1,43 @@
+From 67178c86409b690c9e15604dab962ee47d00de61 Mon Sep 17 00:00:00 2001
+From: Guo Mengqi <guomengqi3@huawei.com>
+Date: Sat, 26 Aug 2023 11:22:16 +0800
+Subject: [PATCH 2/2] arch: arm64: Add config for ascend memblock region
+
+Offering: HULK
+ascend inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7VD6D
+
+--------------------------------
+
+Previous commit 899e31aad2a7 ("[Huawei] mm: Modify memblock number on
+ascend platform") adds memblock number for ascend.
+
+Now add relevant config to Kconfig file.
+
+Signed-off-by: Guo Mengqi <guomengqi3@huawei.com>
+---
+ arch/arm64/Kconfig | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index abe2972..68a54e8 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -2202,6 +2202,13 @@ config ASCEND_SMMU_QUEUE_SIZE
+     help
+       This option enables user to customize smmu queue size via a module param.
+ 
++config ASCEND_NR_MEMBLOCK
++    bool "Use ascend memblock region limit"
++    default n
++    help
++      Certain ascend platforms need more memblock regions at initialization.
++      This option will change default number of memblock regions to a larger value.
++
+ endif
+ 
+ endmenu
+-- 
+2.17.1
+

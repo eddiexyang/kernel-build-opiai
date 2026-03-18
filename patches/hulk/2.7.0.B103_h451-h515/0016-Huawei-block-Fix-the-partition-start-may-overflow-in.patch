@@ -1,0 +1,102 @@
+From f82f59563f366834d63e42626f42d0e04d58e549 Mon Sep 17 00:00:00 2001
+From: Zhong Jinghua <zhongjinghua@huawei.com>
+Date: Sat, 13 May 2023 20:27:09 +0800
+Subject: [PATCH 016/263] [Huawei] block: Fix the partition start may overflow
+ in add_partition()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187268
+
+----------------------------------------
+
+In the block_ioctl, we can pass in the unsigned number 0x8000000000000000
+as an input parameter, like below:
+
+block_ioctl
+  blkdev_ioctl
+    blkpg_ioctl
+      blkpg_do_ioctl
+        copy_from_user
+        bdev_add_partition
+          add_partition
+            p->start_sect = start; // start = 0x8000000000000000
+
+Then, there was an warning when submit bio:
+
+WARNING: CPU: 0 PID: 382 at fs/iomap/apply.c:54
+Call trace:
+ iomap_apply+0x644/0x6e0
+ __iomap_dio_rw+0x5cc/0xa24
+ iomap_dio_rw+0x4c/0xcc
+ ext4_dio_read_iter
+ ext4_file_read_iter
+ ext4_file_read_iter+0x318/0x39c
+ call_read_iter
+ lo_rw_aio.isra.0+0x748/0x75c
+ do_req_filebacked+0x2d4/0x370
+ loop_handle_cmd
+ loop_queue_work+0x94/0x23c
+ kthread_worker_fn+0x160/0x6bc
+ loop_kthread_worker_fn+0x3c/0x50
+ kthread+0x20c/0x25c
+ ret_from_fork+0x10/0x18
+
+Stack:
+
+submit_bio_noacct
+  submit_bio_checks
+    blk_partition_remap
+      bio->bi_iter.bi_sector += p->start_sect
+      // bio->bi_iter.bi_sector = 0xffc0000000000000 + 65408
+..
+loop_queue_work
+ loop_handle_cmd
+  do_req_filebacked
+   pos = ((loff_t) blk_rq_pos(rq) << 9) + lo->lo_offset // pos < 0
+   lo_rw_aio
+     call_read_iter
+      ext4_dio_read_iter
+       __iomap_dio_rw
+        iomap_apply
+         ext4_iomap_begin
+           map.m_lblk = offset >> blkbits
+             ext4_set_iomap
+             iomap->offset = (u64) map->m_lblk << blkbits
+             // iomap->offset = 64512
+         WARN_ON(iomap.offset > pos) // iomap.offset = 64512 and pos < 0
+
+This is unreasonable for start + length > disk->part0.nr_sects. There is
+already a similar check in blk_add_partition().
+Fix it by adding a check in bdev_add_partition().
+
+Signed-off-by: Zhong Jinghua <zhongjinghua@huawei.com>
+---
+ block/ioctl.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/block/ioctl.c b/block/ioctl.c
+index e3c5a27c23b1..f2a3524ed0ac 100644
+--- a/block/ioctl.c
++++ b/block/ioctl.c
+@@ -32,9 +32,16 @@ static int blkpg_do_ioctl(struct block_device *bdev,
+ 	if (op == BLKPG_DEL_PARTITION)
+ 		return bdev_del_partition(bdev, p.pno);
+ 
++	if (p.start < 0 || p.length <= 0 || p.start + p.length < 0)
++		return -EINVAL;
++
+ 	start = p.start >> SECTOR_SHIFT;
+ 	length = p.length >> SECTOR_SHIFT;
+ 
++	/* length may be equal to 0 after right shift */
++	if (!length || start + length > get_capacity(bdev->bd_disk))
++		return -EINVAL;
++
+ 	/* check for fit in a hd_struct */
+ 	if (sizeof(sector_t) < sizeof(long long)) {
+ 		long pstart = start, plength = length;
+-- 
+2.17.1
+

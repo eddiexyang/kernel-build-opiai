@@ -1,0 +1,37 @@
+From 7f715dc9844652eaa6fd0fafd178ffe435789a0f Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 27 Aug 2021 03:51:03 +0000
+Subject: [ascend-5.10 7/9] char/sdma: Add deffer probe feature
+
+The sdma devices depends on SMMU to work, so deffer the probe process if
+SMMU is currently unavailable.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ drivers/char/sdma.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/char/sdma.c b/drivers/char/sdma.c
+index 7076d65bd..469efb02d 100644
+--- a/drivers/char/sdma.c
++++ b/drivers/char/sdma.c
+@@ -493,6 +493,16 @@ static int sdma_device_probe(struct platform_device *pdev)
+ 	struct sdma_hardware_info info;
+ 	struct sdma_device *psdma_dev;
+ 
++	if (!pdev->dev.bus) {
++		pr_debug("the sdma dev bus is NULL\n");
++		return -EPROBE_DEFER;
++	}
++
++	if (!pdev->dev.bus->iommu_ops) {
++		pr_debug("defer probe sdma device\n");
++		return -EPROBE_DEFER;
++	}
++
+ 	psdma_dev = kzalloc(sizeof(*psdma_dev), GFP_KERNEL);
+ 	if (!psdma_dev) {
+ 		pr_err("alloc sdma_device failed\n");
+-- 
+2.17.1
+

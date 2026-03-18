@@ -1,0 +1,79 @@
+From 8c446221c174749dac808a07e30d2694d6e5ca84 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Wed, 26 Oct 2022 10:12:03 +0800
+Subject: [PATCH 067/595] [Huawei] ext4: add EXT4_IGET_BAD flag to prevent
+ unexpected bad inode
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187821
+
+--------------------------------
+
+There are many places that will get unhappy (and crash) when ext4_iget()
+returns a bad inode. However, if iget the boot loader inode, allows a bad
+inode to be returned, because the inode may not be initialized. This
+mechanism can be used to bypass some checks and cause panic. To solve this
+problem, we add a special iget flag EXT4_IGET_BAD. Only with this flag
+we'd be returning bad inode from ext4_iget(), otherwise we always return
+the error code if the inode is bad inode.(suggested by Jan Kara)
+
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/ext4.h  | 3 ++-
+ fs/ext4/inode.c | 8 +++++++-
+ fs/ext4/ioctl.c | 3 ++-
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index 2373b4348f03..13cdc97651de 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -2879,7 +2879,8 @@ int do_journal_get_write_access(handle_t *handle,
+ typedef enum {
+ 	EXT4_IGET_NORMAL =	0,
+ 	EXT4_IGET_SPECIAL =	0x0001, /* OK to iget a system inode */
+-	EXT4_IGET_HANDLE = 	0x0002	/* Inode # is from a handle */
++	EXT4_IGET_HANDLE = 	0x0002,	/* Inode # is from a handle */
++	EXT4_IGET_BAD =		0x0004  /* Allow to iget a bad inode */
+ } ext4_iget_flags;
+ 
+ extern struct inode *__ext4_iget(struct super_block *sb, unsigned long ino,
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index 8c5c758033d5..e7eb5a5c5876 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -5034,8 +5034,14 @@ struct inode *__ext4_iget(struct super_block *sb, unsigned long ino,
+ 	if (IS_CASEFOLDED(inode) && !ext4_has_feature_casefold(inode->i_sb))
+ 		ext4_error_inode(inode, function, line, 0,
+ 				 "casefold flag without casefold feature");
+-	brelse(iloc.bh);
++	if (is_bad_inode(inode) && !(flags & EXT4_IGET_BAD)) {
++		ext4_error_inode(inode, function, line, 0,
++				 "bad inode without EXT4_IGET_BAD flag");
++		ret = -EUCLEAN;
++		goto bad_inode;
++	}
+ 
++	brelse(iloc.bh);
+ 	unlock_new_inode(inode);
+ 	return inode;
+ 
+diff --git a/fs/ext4/ioctl.c b/fs/ext4/ioctl.c
+index 6764777b1494..9a3d893cd390 100644
+--- a/fs/ext4/ioctl.c
++++ b/fs/ext4/ioctl.c
+@@ -121,7 +121,8 @@ static long swap_inode_boot_loader(struct super_block *sb,
+ 	blkcnt_t blocks;
+ 	unsigned short bytes;
+ 
+-	inode_bl = ext4_iget(sb, EXT4_BOOT_LOADER_INO, EXT4_IGET_SPECIAL);
++	inode_bl = ext4_iget(sb, EXT4_BOOT_LOADER_INO,
++			EXT4_IGET_SPECIAL | EXT4_IGET_BAD);
+ 	if (IS_ERR(inode_bl))
+ 		return PTR_ERR(inode_bl);
+ 	ei_bl = EXT4_I(inode_bl);
+-- 
+2.17.1
+

@@ -1,0 +1,189 @@
+From fa1347ce5c4718ad199151fc2f728fee4447ac99 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Wed, 15 Mar 2023 17:31:02 -0700
+Subject: [PATCH 0032/1646] [Backport] cpumask: introduce for_each_cpu_or
+
+mainline inclusion
+from mainline-v6.3-rc4
+commit 1470afefc3c42df5d1662f87d079b46651bdc95b
+category: bugfix
+bugzilla: 188271
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1470afefc3c42df5d1662f87d079b46651bdc95b
+
+--------------------------------
+
+Equivalent of for_each_cpu_and, except it ORs the two masks together
+so it iterates all the CPUs present in either mask.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Zeng Heng <zengheng4@huawei.com>
+---
+ include/asm-generic/bitops/find.h | 38 ++++++++++++++++++++++
+ include/linux/cpumask.h           | 52 +++++++++++++++++++++++++++++++
+ lib/find_bit.c                    | 37 ++++++++++++++++++++++
+ 3 files changed, 127 insertions(+)
+
+diff --git a/include/asm-generic/bitops/find.h b/include/asm-generic/bitops/find.h
+index 9fdf21302fdf..39ef8d3c54dc 100644
+--- a/include/asm-generic/bitops/find.h
++++ b/include/asm-generic/bitops/find.h
+@@ -97,4 +97,42 @@ extern unsigned long find_next_clump8(unsigned long *clump,
+ #define find_first_clump8(clump, bits, size) \
+ 	find_next_clump8((clump), (bits), (size), 0)
+ 
++unsigned long _find_next_or_bit(const unsigned long *addr1, const unsigned long *addr2,
++					unsigned long nbits, unsigned long start);
++
++#ifndef find_next_or_bit
++/**
++ * find_next_or_bit - find the next set bit in either memory regions
++ * @addr1: The first address to base the search on
++ * @addr2: The second address to base the search on
++ * @size: The bitmap size in bits
++ * @offset: The bitnumber to start searching at
++ *
++ * Returns the bit number for the next set bit
++ * If no bits are set, returns @size.
++ */
++static inline
++unsigned long find_next_or_bit(const unsigned long *addr1,
++		const unsigned long *addr2, unsigned long size,
++		unsigned long offset)
++{
++	if (small_const_nbits(size)) {
++		unsigned long val;
++
++		if (unlikely(offset >= size))
++			return size;
++
++		val = (*addr1 | *addr2) & GENMASK(size - 1, offset);
++		return val ? __ffs(val) : size;
++	}
++
++	return _find_next_or_bit(addr1, addr2, size, offset);
++}
++#endif
++
++#define for_each_or_bit(bit, addr1, addr2, size) \
++	for ((bit) = 0;									\
++	     (bit) = find_next_or_bit((addr1), (addr2), (size), (bit)), (bit) < (size);\
++	     (bit)++)
++
+ #endif /*_ASM_GENERIC_BITOPS_FIND_H_ */
+diff --git a/include/linux/cpumask.h b/include/linux/cpumask.h
+index 92d5ecad8de6..7cdec529b1d9 100644
+--- a/include/linux/cpumask.h
++++ b/include/linux/cpumask.h
+@@ -325,6 +325,58 @@ extern int cpumask_next_wrap(int n, const struct cpumask *mask, int start, bool
+ 		(cpu) < nr_cpu_ids;)
+ #endif /* SMP */
+ 
++/*
++ * We have several different "preferred sizes" for the cpumask
++ * operations, depending on operation.
++ *
++ * For example, the bitmap scanning and operating operations have
++ * optimized routines that work for the single-word case, but only when
++ * the size is constant. So if NR_CPUS fits in one single word, we are
++ * better off using that small constant, in order to trigger the
++ * optimized bit finding. That is 'small_cpumask_size'.
++ *
++ * The clearing and copying operations will similarly perform better
++ * with a constant size, but we limit that size arbitrarily to four
++ * words. We call this 'large_cpumask_size'.
++ *
++ * Finally, some operations just want the exact limit, either because
++ * they set bits or just don't have any faster fixed-sized versions. We
++ * call this just 'nr_cpumask_bits'.
++ *
++ * Note that these optional constants are always guaranteed to be at
++ * least as big as 'nr_cpu_ids' itself is, and all our cpumask
++ * allocations are at least that size (see cpumask_size()). The
++ * optimization comes from being able to potentially use a compile-time
++ * constant instead of a run-time generated exact number of CPUs.
++ */
++#if NR_CPUS <= BITS_PER_LONG
++  #define small_cpumask_bits ((unsigned int)NR_CPUS)
++  #define large_cpumask_bits ((unsigned int)NR_CPUS)
++#elif NR_CPUS <= 4*BITS_PER_LONG
++  #define small_cpumask_bits nr_cpu_ids
++  #define large_cpumask_bits ((unsigned int)NR_CPUS)
++#else
++  #define small_cpumask_bits nr_cpu_ids
++  #define large_cpumask_bits nr_cpu_ids
++#endif
++
++/**
++ * for_each_cpu_or - iterate over every cpu present in either mask
++ * @cpu: the (optionally unsigned) integer iterator
++ * @mask1: the first cpumask pointer
++ * @mask2: the second cpumask pointer
++ *
++ * This saves a temporary CPU mask in many places.  It is equivalent to:
++ *	struct cpumask tmp;
++ *	cpumask_or(&tmp, &mask1, &mask2);
++ *	for_each_cpu(cpu, &tmp)
++ *		...
++ *
++ * After the loop, cpu is >= nr_cpu_ids.
++ */
++#define for_each_cpu_or(cpu, mask1, mask2)				\
++	for_each_or_bit(cpu, cpumask_bits(mask1), cpumask_bits(mask2), small_cpumask_bits)
++
+ #define CPU_BITS_NONE						\
+ {								\
+ 	[0 ... BITS_TO_LONGS(NR_CPUS)-1] = 0UL			\
+diff --git a/lib/find_bit.c b/lib/find_bit.c
+index 4a8751010d59..d9aef1da9929 100644
+--- a/lib/find_bit.c
++++ b/lib/find_bit.c
+@@ -81,6 +81,43 @@ unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
+ EXPORT_SYMBOL(find_next_bit);
+ #endif
+ 
++/*
++ * Common helper for find_next_bit() function family
++ * @FETCH: The expression that fetches and pre-processes each word of bitmap(s)
++ * @MUNGE: The expression that post-processes a word containing found bit (may be empty)
++ * @size: The bitmap size in bits
++ * @start: The bitnumber to start searching at
++ */
++#define FIND_NEXT_BIT(FETCH, MUNGE, size, start)				\
++({										\
++	unsigned long mask, idx, tmp, sz = (size), __start = (start);		\
++										\
++	if (unlikely(__start >= sz))						\
++		goto out;							\
++										\
++	mask = MUNGE(BITMAP_FIRST_WORD_MASK(__start));				\
++	idx = __start / BITS_PER_LONG;						\
++										\
++	for (tmp = (FETCH) & mask; !tmp; tmp = (FETCH)) {			\
++		if ((idx + 1) * BITS_PER_LONG >= sz)				\
++			goto out;						\
++		idx++;								\
++	}									\
++										\
++	sz = min(idx * BITS_PER_LONG + __ffs(MUNGE(tmp)), sz);			\
++out:										\
++	sz;									\
++})
++
++#ifndef find_next_or_bit
++unsigned long _find_next_or_bit(const unsigned long *addr1, const unsigned long *addr2,
++					unsigned long nbits, unsigned long start)
++{
++	return FIND_NEXT_BIT(addr1[idx] | addr2[idx], /* nop */, nbits, start);
++}
++EXPORT_SYMBOL(_find_next_or_bit);
++#endif
++
+ #ifndef find_next_zero_bit
+ unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long size,
+ 				 unsigned long offset)
+-- 
+2.17.1
+

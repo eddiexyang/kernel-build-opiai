@@ -1,0 +1,189 @@
+From d132ef878f19e7e05d59f580709559eb11c99d36 Mon Sep 17 00:00:00 2001
+From: Qi Zheng <zhengqi.arch@bytedance.com>
+Date: Thu, 19 May 2022 14:08:55 -0700
+Subject: [PATCH 080/261] [Backport] mm: fix missing handler for __GFP_NOWARN
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit 3f913fc5f9745613088d3c569778c9813ab9c129
+category: bugfix
+bugzilla: 187502
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3f913fc5f9745613088d3c569778c9813ab9c129
+
+--------------------------------
+
+We expect no warnings to be issued when we specify __GFP_NOWARN, but
+currently in paths like alloc_pages() and kmalloc(), there are still some
+warnings printed, fix it.
+
+But for some warnings that report usage problems, we don't deal with them.
+If such warnings are printed, then we should fix the usage problems.
+Such as the following case:
+
+	WARN_ON_ONCE((gfp_flags & __GFP_NOFAIL) && (order > 1));
+
+[zhengqi.arch@bytedance.com: v2]
+ Link: https://lkml.kernel.org/r/20220511061951.1114-1-zhengqi.arch@bytedance.com
+Link: https://lkml.kernel.org/r/20220510113809.80626-1-zhengqi.arch@bytedance.com
+Signed-off-by: Qi Zheng <zhengqi.arch@bytedance.com>
+Cc: Akinobu Mita <akinobu.mita@gmail.com>
+Cc: Vlastimil Babka <vbabka@suse.cz>
+Cc: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Cc: Jiri Slaby <jirislaby@kernel.org>
+Cc: Steven Rostedt (Google) <rostedt@goodmis.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+
+Conflict:
+	mm/internal.h
+	mm/page_alloc.c
+
+Signed-off-by: Ye Weihua <yeweihua4@huawei.com>
+---
+ include/linux/fault-inject.h |  2 ++
+ lib/fault-inject.c           |  3 +++
+ mm/failslab.c                |  3 +++
+ mm/internal.h                | 15 +++++++++++++++
+ mm/page_alloc.c              | 16 +++++++++-------
+ 5 files changed, 32 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/fault-inject.h b/include/linux/fault-inject.h
+index e525f6957c49..d506ee960ffd 100644
+--- a/include/linux/fault-inject.h
++++ b/include/linux/fault-inject.h
+@@ -20,6 +20,7 @@ struct fault_attr {
+ 	atomic_t space;
+ 	unsigned long verbose;
+ 	bool task_filter;
++	bool no_warn;
+ 	unsigned long stacktrace_depth;
+ 	unsigned long require_start;
+ 	unsigned long require_end;
+@@ -39,6 +40,7 @@ struct fault_attr {
+ 		.ratelimit_state = RATELIMIT_STATE_INIT_DISABLED,	\
+ 		.verbose = 2,						\
+ 		.dname = NULL,						\
++		.no_warn = false,					\
+ 	}
+ 
+ #define DECLARE_FAULT_ATTR(name) struct fault_attr name = FAULT_ATTR_INITIALIZER
+diff --git a/lib/fault-inject.c b/lib/fault-inject.c
+index ce12621b4275..423784d9c058 100644
+--- a/lib/fault-inject.c
++++ b/lib/fault-inject.c
+@@ -41,6 +41,9 @@ EXPORT_SYMBOL_GPL(setup_fault_attr);
+ 
+ static void fail_dump(struct fault_attr *attr)
+ {
++	if (attr->no_warn)
++		return;
++
+ 	if (attr->verbose > 0 && __ratelimit(&attr->ratelimit_state)) {
+ 		printk(KERN_NOTICE "FAULT_INJECTION: forcing a failure.\n"
+ 		       "name %pd, interval %lu, probability %lu, "
+diff --git a/mm/failslab.c b/mm/failslab.c
+index f92fed91ac23..58df9789f1d2 100644
+--- a/mm/failslab.c
++++ b/mm/failslab.c
+@@ -30,6 +30,9 @@ bool __should_failslab(struct kmem_cache *s, gfp_t gfpflags)
+ 	if (failslab.cache_filter && !(s->flags & SLAB_FAILSLAB))
+ 		return false;
+ 
++	if (gfpflags & __GFP_NOWARN)
++		failslab.attr.no_warn = true;
++
+ 	return should_fail(&failslab.attr, s->object_size);
+ }
+ 
+diff --git a/mm/internal.h b/mm/internal.h
+index 8ef8cdd929fa..13f78c5cd961 100644
+--- a/mm/internal.h
++++ b/mm/internal.h
+@@ -32,6 +32,21 @@
+ /* Do not use these with a slab allocator */
+ #define GFP_SLAB_BUG_MASK (__GFP_DMA32|__GFP_HIGHMEM|~__GFP_BITS_MASK)
+ 
++/*
++ * Different from WARN_ON_ONCE(), no warning will be issued
++ * when we specify __GFP_NOWARN.
++ */
++#define WARN_ON_ONCE_GFP(cond, gfp)	({				\
++	static bool __section(".data.once") __warned;			\
++	int __ret_warn_once = !!(cond);					\
++									\
++	if (unlikely(!(gfp & __GFP_NOWARN) && __ret_warn_once && !__warned)) { \
++		__warned = true;					\
++		WARN_ON(1);						\
++	}								\
++	unlikely(__ret_warn_once);					\
++})
++
+ void page_writeback_init(void);
+ 
+ vm_fault_t do_swap_page(struct vm_fault *vmf);
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 6a08bc7e01ff..b605ce2ebea7 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -3559,6 +3559,9 @@ static bool __should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
+ 			(gfp_mask & __GFP_DIRECT_RECLAIM))
+ 		return false;
+ 
++	if (gfp_mask & __GFP_NOWARN)
++		fail_page_alloc.attr.no_warn = true;
++
+ 	return should_fail(&fail_page_alloc.attr, 1 << order);
+ }
+ 
+@@ -4130,7 +4133,8 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
+ 	 */
+ 
+ 	/* Exhausted what can be done so it's blame time */
+-	if (out_of_memory(&oc) || WARN_ON_ONCE(gfp_mask & __GFP_NOFAIL)) {
++	if (out_of_memory(&oc) ||
++	    WARN_ON_ONCE_GFP(gfp_mask & __GFP_NOFAIL, gfp_mask)) {
+ 		*did_some_progress = 1;
+ 
+ 		/*
+@@ -4940,7 +4944,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 		 * All existing users of the __GFP_NOFAIL are blockable, so warn
+ 		 * of any new users that actually require GFP_NOWAIT
+ 		 */
+-		if (WARN_ON_ONCE(!can_direct_reclaim))
++		if (WARN_ON_ONCE_GFP(!can_direct_reclaim, gfp_mask))
+ 			goto fail;
+ 
+ 		/*
+@@ -4948,7 +4952,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 		 * because we cannot reclaim anything and only can loop waiting
+ 		 * for somebody to do a work for us
+ 		 */
+-		WARN_ON_ONCE(current->flags & PF_MEMALLOC);
++		WARN_ON_ONCE_GFP(current->flags & PF_MEMALLOC, gfp_mask);
+ 
+ 		/*
+ 		 * non failing costly orders are a hard requirement which we
+@@ -4956,7 +4960,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 		 * so that we can identify them and convert them to something
+ 		 * else.
+ 		 */
+-		WARN_ON_ONCE(order > PAGE_ALLOC_COSTLY_ORDER);
++		WARN_ON_ONCE_GFP(order > PAGE_ALLOC_COSTLY_ORDER, gfp_mask);
+ 
+ 		/*
+ 		 * Help non-failing allocations by giving them access to memory
+@@ -5321,10 +5325,8 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
+ 	 * There are several places where we assume that the order value is sane
+ 	 * so bail out early if the request is out of bound.
+ 	 */
+-	if (unlikely(order >= MAX_ORDER)) {
+-		WARN_ON_ONCE(!(gfp & __GFP_NOWARN));
++	if (WARN_ON_ONCE_GFP(order >= MAX_ORDER, gfp))
+ 		return NULL;
+-	}
+ 
+ 	gfp &= gfp_allowed_mask;
+ 
+-- 
+2.17.1
+

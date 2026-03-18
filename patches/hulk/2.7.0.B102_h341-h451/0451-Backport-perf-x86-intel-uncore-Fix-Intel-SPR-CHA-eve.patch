@@ -1,0 +1,46 @@
+From e776c00a90dfe3c4bdb4a0599082cdf6f20f7f36 Mon Sep 17 00:00:00 2001
+From: Kan Liang <kan.liang@linux.intel.com>
+Date: Thu, 26 Aug 2021 08:32:40 -0700
+Subject: [PATCH 0451/1646] [Backport] perf/x86/intel/uncore: Fix Intel SPR CHA
+ event constraints
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit 9d756e408e080d40e7916484b00c802026e6d1ad
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9d756e408e080d40e7916484b00c802026e6d1ad
+
+--------------------------------
+
+SPR CHA events have the exact same event constraints as SKX, so add the
+constraints.
+
+Fixes: 949b11381f81 ("perf/x86/intel/uncore: Add Sapphire Rapids server CHA support")
+Reported-by: Stephane Eranian <eranian@google.com>
+Signed-off-by: Kan Liang <kan.liang@linux.intel.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/1629991963-102621-5-git-send-email-kan.liang@linux.intel.com
+Signed-off-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/events/intel/uncore_snbep.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/events/intel/uncore_snbep.c b/arch/x86/events/intel/uncore_snbep.c
+index 22c0c25ca5bd..00a49a5c2937 100644
+--- a/arch/x86/events/intel/uncore_snbep.c
++++ b/arch/x86/events/intel/uncore_snbep.c
+@@ -5514,6 +5514,7 @@ static struct intel_uncore_type spr_uncore_chabox = {
+ 	.event_mask		= SPR_CHA_PMON_EVENT_MASK,
+ 	.event_mask_ext		= SPR_RAW_EVENT_MASK_EXT,
+ 	.num_shared_regs	= 1,
++	.constraints		= skx_uncore_chabox_constraints,
+ 	.ops			= &spr_uncore_chabox_ops,
+ 	.format_group		= &spr_uncore_chabox_format_group,
+ 	.attr_update		= uncore_alias_groups,
+-- 
+2.17.1
+

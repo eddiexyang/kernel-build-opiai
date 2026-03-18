@@ -1,0 +1,103 @@
+From 26d3a3fbc64f390d5f66573d150e7f7f77dd84b6 Mon Sep 17 00:00:00 2001
+From: Ray Zhang <sgzhang@google.com>
+Date: Mon, 10 Oct 2022 04:55:48 +0000
+Subject: [PATCH 853/905] [Backport] mtd: mtdoops: add mtdoops_erase function
+ and move mtdoops_inc_counter to after it
+
+mainline inclusion
+from mainline-v6.2-rc1
+commit 340193e079a899f5527cddccff2b5de2c98bc31b
+category: bugfix
+bugzilla: 188253
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=340193e079a899f5527cddccff2b5de2c98bc31b
+
+--------------------------------
+
+Preparing for next patch with minimal code difference, add mtdoops_erase
+function and move mtdoops_inc_counter to after it, with no functional
+change.
+
+Signed-off-by: Ray Zhang <sgzhang@google.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20221010045549.2221965-3-sgzhang@google.com
+
+conflicts:
+	drivers/mtd/mtdoops.c
+
+Signed-off-by: Yi Yang <yiyang13@huawei.com>
+---
+ drivers/mtd/mtdoops.c | 49 ++++++++++++++++++++++++-------------------
+ 1 file changed, 27 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/mtd/mtdoops.c b/drivers/mtd/mtdoops.c
+index 774970bfcf85..c6842a73bc83 100644
+--- a/drivers/mtd/mtdoops.c
++++ b/drivers/mtd/mtdoops.c
+@@ -98,29 +98,8 @@ static int mtdoops_erase_block(struct mtdoops_context *cxt, int offset)
+ 	return 0;
+ }
+ 
+-static void mtdoops_inc_counter(struct mtdoops_context *cxt)
++static void mtdoops_erase(struct mtdoops_context *cxt)
+ {
+-	cxt->nextpage++;
+-	if (cxt->nextpage >= cxt->oops_pages)
+-		cxt->nextpage = 0;
+-	cxt->nextcount++;
+-	if (cxt->nextcount == 0xffffffff)
+-		cxt->nextcount = 0;
+-
+-	if (page_is_used(cxt, cxt->nextpage)) {
+-		schedule_work(&cxt->work_erase);
+-		return;
+-	}
+-
+-	printk(KERN_DEBUG "mtdoops: ready %d, %d (no erase)\n",
+-	       cxt->nextpage, cxt->nextcount);
+-}
+-
+-/* Scheduled work - when we can't proceed without erasing a block */
+-static void mtdoops_workfunc_erase(struct work_struct *work)
+-{
+-	struct mtdoops_context *cxt =
+-			container_of(work, struct mtdoops_context, work_erase);
+ 	struct mtd_info *mtd = cxt->mtd;
+ 	int i = 0, j, ret, mod;
+ 
+@@ -173,6 +152,32 @@ static void mtdoops_workfunc_erase(struct work_struct *work)
+ 	goto badblock;
+ }
+ 
++/* Scheduled work - when we can't proceed without erasing a block */
++static void mtdoops_workfunc_erase(struct work_struct *work)
++{
++	struct mtdoops_context *cxt =
++			container_of(work, struct mtdoops_context, work_erase);
++	mtdoops_erase(cxt);
++}
++
++static void mtdoops_inc_counter(struct mtdoops_context *cxt)
++{
++	cxt->nextpage++;
++	if (cxt->nextpage >= cxt->oops_pages)
++		cxt->nextpage = 0;
++	cxt->nextcount++;
++	if (cxt->nextcount == 0xffffffff)
++		cxt->nextcount = 0;
++
++	if (page_is_used(cxt, cxt->nextpage)) {
++		schedule_work(&cxt->work_erase);
++		return;
++	}
++
++	printk(KERN_DEBUG "mtdoops: ready %d, %d (no erase)\n",
++			cxt->nextpage, cxt->nextcount);
++}
++
+ static void mtdoops_write(struct mtdoops_context *cxt, int panic)
+ {
+ 	struct mtd_info *mtd = cxt->mtd;
+-- 
+2.17.1
+

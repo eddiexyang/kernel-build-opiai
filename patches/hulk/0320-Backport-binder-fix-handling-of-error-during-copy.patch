@@ -1,0 +1,57 @@
+From f611a09917cca2d861a9abb192b367dedba59dac Mon Sep 17 00:00:00 2001
+From: Todd Kjos <tkjos@google.com>
+Date: Wed, 27 Apr 2022 11:13:10 +0800
+Subject: [PATCH 0320/2065] [Backport] binder: fix handling of error during
+ copy
+
+stable inclusion
+from stable-v5.10.94
+commit 551a785c26f6ff41cccd527e7bd9f032f91332c2
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=551a785c26f6ff41cccd527e7bd9f032f91332c2
+
+--------------------------------
+
+[ Upstream commit fe6b1869243f23a485a106c214bcfdc7aa0ed593 ]
+
+If a memory copy function fails to copy the whole buffer,
+a positive integar with the remaining bytes is returned.
+In binder_translate_fd_array() this can result in an fd being
+skipped due to the failed copy, but the loop continues
+processing fds since the early return condition expects a
+negative integer on error.
+
+Fix by returning "ret > 0 ? -EINVAL : ret" to handle this case.
+
+Fixes: bb4a2e48d510 ("binder: return errors from buffer copy functions")
+Suggested-by: Dan Carpenter <dan.carpenter@oracle.com>
+Acked-by: Christian Brauner <christian.brauner@ubuntu.com>
+Signed-off-by: Todd Kjos <tkjos@google.com>
+Link: https://lore.kernel.org/r/20211130185152.437403-2-tkjos@google.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/android/binder.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/android/binder.c b/drivers/android/binder.c
+index 80e2bbb36422..366b12405708 100644
+--- a/drivers/android/binder.c
++++ b/drivers/android/binder.c
+@@ -2657,8 +2657,8 @@ static int binder_translate_fd_array(struct binder_fd_array_object *fda,
+ 		if (!ret)
+ 			ret = binder_translate_fd(fd, offset, t, thread,
+ 						  in_reply_to);
+-		if (ret < 0)
+-			return ret;
++		if (ret)
++			return ret > 0 ? -EINVAL : ret;
+ 	}
+ 	return 0;
+ }
+-- 
+2.17.1
+

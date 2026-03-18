@@ -1,0 +1,73 @@
+From a2d65b9cefd79bec4e1272f113783a083b6d2d3f Mon Sep 17 00:00:00 2001
+From: Corey Minyard <cminyard@mvista.com>
+Date: Tue, 5 Jul 2022 17:56:24 +0800
+Subject: [PATCH 4394/4585] [Backport] ipmi:watchdog: Set panic count to proper
+ value on a panic
+
+mainline inclusion
+from mainline-v5.16-rc1
+commit db05ddf7f321634c5659a0cf7ea56594e22365f7
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5DVR9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=db05ddf7f321634c5659a0cf7ea56594e22365f7
+
+--------------------------------
+
+You will get two decrements when the messages on a panic are sent, not
+one, since commit 2033f6858970 ("ipmi: Free receive messages when in an
+oops") was added, but the watchdog code had a bug where it didn't set
+the value properly.
+
+Reported-by: Anton Lundin <glance@acc.umu.se>
+Cc: <Stable@vger.kernel.org> # v5.4+
+Fixes: 2033f6858970 ("ipmi: Free receive messages when in an oops")
+Signed-off-by: Corey Minyard <cminyard@mvista.com>
+Signed-off-by: Miaohe Lin <linmiaohe@huawei.com>
+Reviewed-by: Li JinLin <lijinlin3@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ drivers/char/ipmi/ipmi_watchdog.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/char/ipmi/ipmi_watchdog.c b/drivers/char/ipmi/ipmi_watchdog.c
+index 7f71471c7a46..883b4a341012 100644
+--- a/drivers/char/ipmi/ipmi_watchdog.c
++++ b/drivers/char/ipmi/ipmi_watchdog.c
+@@ -503,7 +503,7 @@ static void panic_halt_ipmi_heartbeat(void)
+ 	msg.cmd = IPMI_WDOG_RESET_TIMER;
+ 	msg.data = NULL;
+ 	msg.data_len = 0;
+-	atomic_inc(&panic_done_count);
++	atomic_add(2, &panic_done_count);
+ 	rv = ipmi_request_supply_msgs(watchdog_user,
+ 				      (struct ipmi_addr *) &addr,
+ 				      0,
+@@ -513,7 +513,7 @@ static void panic_halt_ipmi_heartbeat(void)
+ 				      &panic_halt_heartbeat_recv_msg,
+ 				      1);
+ 	if (rv)
+-		atomic_dec(&panic_done_count);
++		atomic_sub(2, &panic_done_count);
+ }
+ 
+ static struct ipmi_smi_msg panic_halt_smi_msg = {
+@@ -537,12 +537,12 @@ static void panic_halt_ipmi_set_timeout(void)
+ 	/* Wait for the messages to be free. */
+ 	while (atomic_read(&panic_done_count) != 0)
+ 		ipmi_poll_interface(watchdog_user);
+-	atomic_inc(&panic_done_count);
++	atomic_add(2, &panic_done_count);
+ 	rv = __ipmi_set_timeout(&panic_halt_smi_msg,
+ 				&panic_halt_recv_msg,
+ 				&send_heartbeat_now);
+ 	if (rv) {
+-		atomic_dec(&panic_done_count);
++		atomic_sub(2, &panic_done_count);
+ 		pr_warn("Unable to extend the watchdog timeout\n");
+ 	} else {
+ 		if (send_heartbeat_now)
+-- 
+2.17.1
+

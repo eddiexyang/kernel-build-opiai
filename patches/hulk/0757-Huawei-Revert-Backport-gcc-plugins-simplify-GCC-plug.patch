@@ -1,0 +1,67 @@
+From a3d33fcb09b913036d299fa5b2383491a823ebb1 Mon Sep 17 00:00:00 2001
+From: Chen Jun <chenjun102@huawei.com>
+Date: Sat, 15 Jan 2022 11:25:11 +0000
+Subject: [PATCH 0757/2065] [Huawei] Revert "[Backport] gcc-plugins: simplify
+ GCC plugin-dev capability test"
+
+Offering: HULK
+hulk inclusion
+bugzilla: 186095
+
+--------------------------------
+
+This reverts commit 5eb5d13ea79579c8a21226f84d5f16944edea909.
+
+There are some errors when building with special gcc provided
+gcc-pluging.
+
+Try to build and test the result before using gcc-pluging.
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+---
+ scripts/gcc-plugin.sh       | 19 +++++++++++++++++++
+ scripts/gcc-plugins/Kconfig |  2 +-
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+ create mode 100755 scripts/gcc-plugin.sh
+
+diff --git a/scripts/gcc-plugin.sh b/scripts/gcc-plugin.sh
+new file mode 100755
+index 000000000000..b79fd0bea838
+--- /dev/null
++++ b/scripts/gcc-plugin.sh
+@@ -0,0 +1,19 @@
++#!/bin/sh
++# SPDX-License-Identifier: GPL-2.0
++
++set -e
++
++srctree=$(dirname "$0")
++
++gccplugins_dir=$($* -print-file-name=plugin)
++
++# we need a c++ compiler that supports the designated initializer GNU extension
++$HOSTCC -c -x c++ -std=gnu++98 - -fsyntax-only -I $srctree/gcc-plugins -I $gccplugins_dir/include 2>/dev/null <<EOF
++#include "gcc-common.h"
++class test {
++public:
++	int test;
++} test = {
++	.test = 1
++};
++EOF
+diff --git a/scripts/gcc-plugins/Kconfig b/scripts/gcc-plugins/Kconfig
+index ab9eb4cbe33a..ae19fb0243b9 100644
+--- a/scripts/gcc-plugins/Kconfig
++++ b/scripts/gcc-plugins/Kconfig
+@@ -9,7 +9,7 @@ menuconfig GCC_PLUGINS
+ 	bool "GCC plugins"
+ 	depends on HAVE_GCC_PLUGINS
+ 	depends on CC_IS_GCC
+-	depends on $(success,test -e $(shell,$(CC) -print-file-name=plugin)/include/plugin-version.h)
++	depends on $(success,$(srctree)/scripts/gcc-plugin.sh $(CC))
+ 	default y
+ 	help
+ 	  GCC plugins are loadable modules that provide extra features to the
+-- 
+2.17.1
+

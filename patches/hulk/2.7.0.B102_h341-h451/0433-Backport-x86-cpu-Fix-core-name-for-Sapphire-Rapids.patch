@@ -1,0 +1,46 @@
+From c7db1269320a24361a8a89c935be4231c80789af Mon Sep 17 00:00:00 2001
+From: Andi Kleen <ak@linux.intel.com>
+Date: Thu, 13 May 2021 09:39:04 -0700
+Subject: [PATCH 0433/1646] [Backport] x86/cpu: Fix core name for Sapphire
+ Rapids
+
+mainline inclusion
+from mainline-v5.14-rc1
+commit 28188cc461f6cf8b7d28de4f6df52014cc1d5e39
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECO
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=28188cc461f6cf8b7d28de4f6df52014cc1d5e39
+
+--------------------------------
+
+Sapphire Rapids uses Golden Cove, not Willow Cove.
+
+Fixes: 53375a5a218e ("x86/cpu: Resort and comment Intel models")
+Signed-off-by: Andi Kleen <ak@linux.intel.com>
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Link: https://lkml.kernel.org/r/20210513163904.3083274-1-ak@linux.intel.com
+Signed-off-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/include/asm/intel-family.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/include/asm/intel-family.h b/arch/x86/include/asm/intel-family.h
+index b15262f1f645..f56af54256c8 100644
+--- a/arch/x86/include/asm/intel-family.h
++++ b/arch/x86/include/asm/intel-family.h
+@@ -100,7 +100,8 @@
+ 
+ #define INTEL_FAM6_TIGERLAKE_L		0x8C	/* Willow Cove */
+ #define INTEL_FAM6_TIGERLAKE		0x8D	/* Willow Cove */
+-#define INTEL_FAM6_SAPPHIRERAPIDS_X	0x8F	/* Willow Cove */
++
++#define INTEL_FAM6_SAPPHIRERAPIDS_X	0x8F	/* Golden Cove */
+ 
+ #define INTEL_FAM6_ALDERLAKE		0x97	/* Golden Cove / Gracemont */
+ #define INTEL_FAM6_ALDERLAKE_L		0x9A	/* Golden Cove / Gracemont */
+-- 
+2.17.1
+

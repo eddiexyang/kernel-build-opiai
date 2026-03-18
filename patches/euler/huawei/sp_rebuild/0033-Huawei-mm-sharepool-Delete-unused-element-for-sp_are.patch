@@ -1,0 +1,95 @@
+From 4975bec4286a5df72aee55430076c322281886ab Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Wed, 12 Apr 2023 06:21:40 +0000
+Subject: [PATCH 33/53] [Huawei] mm/sharepool: Delete unused element for
+ sp_area structure
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+1. mm and device_id elements for sp_area are not used anymore,
+   delete them.
+2. is_dead is introduced in f2abc4ad0b5f ("share_pool: Fix memleak
+   of concurrent sp_free and sp_group_add_task") to protect a sp_area
+   from being mapped into a new task after it has been freed. Now
+   we use the rw_lock of sp_group to protect those process and the
+   data race would not happen so is dead is not needed anymore.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 21 +--------------------
+ 1 file changed, 1 insertion(+), 20 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 81d71c051bf3..ffef24559107 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -704,17 +704,14 @@ struct sp_area {
+ 	unsigned long region_vstart;	/* belong to normal region or DVPP region */
+ 	unsigned long flags;
+ 	bool is_hugepage;
+-	bool is_dead;
+ 	atomic_t use_count;		/* How many vmas use this VA region */
+ 	struct rb_node rb_node;		/* address sorted rbtree */
+ 	struct rb_node spg_link;	/* link to the spg->rb_root */
+ 	struct sp_group *spg;
+ 	enum spa_type type;		/* where spa born from */
+-	struct mm_struct *mm;		/* owner of k2u(task) */
+ 	unsigned long kva;		/* shared kva */
+ 	pid_t applier;			/* the original applier process */
+-	int preferred_node_id;			/* memory node */
+-	int device_id;
++	int preferred_node_id;		/* memory node */
+ };
+ 
+ static unsigned long spa_size(struct sp_area *spa)
+@@ -1478,9 +1475,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	for (p = rb_first(&spg->spa_root); p; p = rb_next(p)) {
+ 		spa = container_of(p, struct sp_area, spg_link);
+ 
+-		if (spa->is_dead == true)
+-			continue;
+-
+ 		ret = sp_map_spa_to_mm(mm, spa, prot, NULL, "add_task");
+ 		if (ret) {
+ 			pr_warn("mmap old spa to new task failed, %d\n", ret);
+@@ -1727,15 +1721,12 @@ static struct sp_area *sp_area_alloc(unsigned long size, unsigned long flags,
+ 	spa->region_vstart = vstart;
+ 	spa->flags = flags;
+ 	spa->is_hugepage = (flags & SP_HUGEPAGE);
+-	spa->is_dead = false;
+ 	spa->spg = spg;
+ 	atomic_set(&spa->use_count, 1);
+ 	spa->type = type;
+-	spa->mm = NULL;
+ 	spa->kva = 0;   /* NULL pointer */
+ 	spa->applier = applier;
+ 	spa->preferred_node_id = node_id;
+-	spa->device_id = device_id;
+ 
+ 	/* the link location could be saved before, to be optimized */
+ 	spm_insert_area(mapping, spa);
+@@ -1988,16 +1979,6 @@ static int sp_free_inner(unsigned long addr, int spg_id, bool is_sp_free)
+ 		/* we must return success(0) in this situation */
+ 	}
+ 
+-	/* the life cycle of spa has a direct relation with sp group */
+-	if (unlikely(spa->is_dead)) {
+-		up_write(&spg->rw_lock);
+-		pr_err_ratelimited("%s, unexpected double sp free\n", str);
+-		dump_stack();
+-		ret = -EINVAL;
+-		goto drop_spa;
+-	}
+-	spa->is_dead = true;
+-
+ 	__sp_free(spa, NULL);
+ 	if (spa->type == SPA_TYPE_ALLOC) {
+ 		sp_fallocate(spa);
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From 2cf7800ab606141e1cfb3b0b9f51b8a806bf7186 Mon Sep 17 00:00:00 2001
+From: Daniel Wagner <dwagner@suse.de>
+Date: Fri, 12 Feb 2021 10:30:15 +0100
+Subject: [PATCH 0506/1398] [Backport] nvme-hwmon: Return error code when
+ registration fails
+
+stable inclusion
+from stable-v5.10.152
+commit 67106ac27243313beb58097449555f92ea5947ec
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I64L17
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=67106ac27243313beb58097449555f92ea5947ec
+
+--------------------------------
+
+[ Upstream commit 78570f8873c8cd44c12714c7fa7db2601ec5617d ]
+
+The hwmon pointer wont be NULL if the registration fails. Though the
+exit code path will assign it to ctrl->hwmon_device. Later
+nvme_hwmon_exit() will try to free the invalid pointer. Avoid this by
+returning the error code from hwmon_device_register_with_info().
+
+Fixes: ed7770f66286 ("nvme/hwmon: rework to avoid devm allocation")
+Signed-off-by: Daniel Wagner <dwagner@suse.de>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Stable-dep-of: c94b7f9bab22 ("nvme-hwmon: kmalloc the NVME SMART log buffer")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ drivers/nvme/host/hwmon.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/nvme/host/hwmon.c b/drivers/nvme/host/hwmon.c
+index 8f9e96986780..0a586d712920 100644
+--- a/drivers/nvme/host/hwmon.c
++++ b/drivers/nvme/host/hwmon.c
+@@ -248,6 +248,7 @@ int nvme_hwmon_init(struct nvme_ctrl *ctrl)
+ 	if (IS_ERR(hwmon)) {
+ 		dev_warn(dev, "Failed to instantiate hwmon device\n");
+ 		kfree(data);
++		return PTR_ERR(hwmon);
+ 	}
+ 	ctrl->hwmon_device = hwmon;
+ 	return 0;
+-- 
+2.17.1
+

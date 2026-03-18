@@ -1,0 +1,150 @@
+From 280b45aea7b78b241d1dd7d7cf8ef52c8b2b357b Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Sat, 7 May 2022 10:20:51 +0800
+Subject: [PATCH 0879/2065] [Huawei] block: add info when opening a write opend
+ block device exclusively
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I53Q6M
+
+---------------------------
+
+Currently, we don't have an easy way to figure out a corrupted file
+system which has been writen data through the raw block device.
+It is risky to open a block device exclusively which has been
+opened for write by some other processes since this may lead to
+potential data corruption. This patch record the exclusive openers
+and give a hint if that happens.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/block_dev.c            | 68 +++++++++++++++++++++++++++++++++++++--
+ include/linux/blk_types.h |  2 ++
+ 2 files changed, 67 insertions(+), 3 deletions(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 46801789f2dc..71aea6a9fa67 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -1172,7 +1172,6 @@ static void bd_clear_claiming(struct block_device *whole, void *holder)
+ static void bd_finish_claiming(struct block_device *bdev,
+ 		struct block_device *whole, void *holder)
+ {
+-	spin_lock(&bdev_lock);
+ 	BUG_ON(!bd_may_claim(bdev, whole, holder));
+ 	/*
+ 	 * Note that for a whole device bd_holders will be incremented twice,
+@@ -1183,7 +1182,6 @@ static void bd_finish_claiming(struct block_device *bdev,
+ 	bdev->bd_holders++;
+ 	bdev->bd_holder = holder;
+ 	bd_clear_claiming(whole, holder);
+-	spin_unlock(&bdev_lock);
+ }
+ 
+ /**
+@@ -1481,6 +1479,41 @@ int bdev_disk_changed(struct block_device *bdev, bool invalidate)
+  */
+ EXPORT_SYMBOL_GPL(bdev_disk_changed);
+ 
++static void blkdev_dump_conflict_opener(struct block_device *bdev, char *msg)
++{
++	char name[BDEVNAME_SIZE];
++	struct task_struct *p = NULL;
++	char comm_buf[TASK_COMM_LEN];
++	pid_t p_pid;
++
++	rcu_read_lock();
++	p = rcu_dereference(current->real_parent);
++	task_lock(p);
++	strncpy(comm_buf, p->comm, TASK_COMM_LEN);
++	p_pid = p->pid;
++	task_unlock(p);
++	rcu_read_unlock();
++
++	pr_info_ratelimited("%s %s. current [%d %s]. parent [%d %s]\n",
++			    msg, bdevname(bdev, name),
++			    current->pid, current->comm, p_pid, comm_buf);
++}
++
++static bool is_conflict_excl_open(struct block_device *bdev,
++		struct block_device *whole, fmode_t mode)
++{
++	if (bdev->bd_holders)
++		return false;
++
++	if (bdev->bd_write_openers > ((mode & FMODE_WRITE) ? 1 : 0))
++		return true;
++
++	if (bdev == whole)
++		return !!bdev->bd_part_write_openers;
++
++	return !!whole->bd_write_openers;
++}
++
+ /*
+  * bd_mutex locking:
+  *
+@@ -1599,8 +1632,29 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, void *holder,
+ 	bdev->bd_openers++;
+ 	if (for_part)
+ 		bdev->bd_part_count++;
+-	if (claiming)
++
++	if (!for_part && (mode & FMODE_WRITE)) {
++		spin_lock(&bdev_lock);
++		bdev->bd_write_openers++;
++		if (bdev->bd_contains != bdev)
++			bdev->bd_contains->bd_part_write_openers++;
++		spin_unlock(&bdev_lock);
++	}
++
++	if (claiming) {
++		spin_lock(&bdev_lock);
++		/*
++		 * Open an write opened block device exclusively, the
++		 * writing process may probability corrupt the device,
++		 * such as a mounted file system, give a hint here.
++		 */
++		if (is_conflict_excl_open(bdev, claiming, mode))
++			blkdev_dump_conflict_opener(bdev,
++					"VFS: Open an write opened block device exclusively");
++
+ 		bd_finish_claiming(bdev, claiming, holder);
++		spin_unlock(&bdev_lock);
++	}
+ 
+ 	/*
+ 	 * Block event polling for write claims if requested.  Any write holder
+@@ -1818,6 +1872,14 @@ static void __blkdev_put(struct block_device *bdev, fmode_t mode, int for_part)
+ 	if (for_part)
+ 		bdev->bd_part_count--;
+ 
++	if (!for_part && (mode & FMODE_WRITE)) {
++		spin_lock(&bdev_lock);
++		bdev->bd_write_openers--;
++		if (bdev->bd_contains != bdev)
++			bdev->bd_contains->bd_part_write_openers--;
++		spin_unlock(&bdev_lock);
++	}
++
+ 	if (!--bdev->bd_openers) {
+ 		WARN_ON_ONCE(bdev->bd_holders);
+ 		sync_blockdev(bdev);
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index 11b9505b14c6..8a921961782c 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -27,6 +27,8 @@ struct block_device {
+ 	struct inode *		bd_inode;	/* will die */
+ 	struct super_block *	bd_super;
+ 	struct mutex		bd_mutex;	/* open/close mutex */
++	int			bd_write_openers;
++	int			bd_part_write_openers;
+ 	void *			bd_claiming;
+ 	void *			bd_holder;
+ 	int			bd_holders;
+-- 
+2.17.1
+

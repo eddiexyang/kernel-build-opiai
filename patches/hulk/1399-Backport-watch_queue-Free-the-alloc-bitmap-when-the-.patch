@@ -1,0 +1,45 @@
+From fe5725264d407b30d4b8c493b6723cc808618add Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Fri, 11 Mar 2022 13:24:29 +0000
+Subject: [PATCH 1399/2065] [Backport] watch_queue: Free the alloc bitmap when
+ the watch_queue is torn down
+
+stable inclusion
+from stable-v5.10.106
+commit 06ab8444392acdbffb57869d6220fb6654a8c95e
+bugzilla: https://gitee.com/openeuler/kernel/issues/I573US
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=06ab8444392acdbffb57869d6220fb6654a8c95e
+
+--------------------------------
+
+commit 7ea1a0124b6da246b5bc8c66cddaafd36acf3ecb upstream.
+
+Free the watch_queue note allocation bitmap when the watch_queue is
+destroyed.
+
+Fixes: c73be61cede5 ("pipe: Add general notification queue support")
+Reported-by: Jann Horn <jannh@google.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ kernel/watch_queue.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/kernel/watch_queue.c b/kernel/watch_queue.c
+index 258fa4ca4db4..77c804d8ef7b 100644
+--- a/kernel/watch_queue.c
++++ b/kernel/watch_queue.c
+@@ -373,6 +373,7 @@ static void __put_watch_queue(struct kref *kref)
+ 
+ 	for (i = 0; i < wqueue->nr_pages; i++)
+ 		__free_page(wqueue->notes[i]);
++	bitmap_free(wqueue->notes_bitmap);
+ 
+ 	wfilter = rcu_access_pointer(wqueue->filter);
+ 	if (wfilter)
+-- 
+2.17.1
+

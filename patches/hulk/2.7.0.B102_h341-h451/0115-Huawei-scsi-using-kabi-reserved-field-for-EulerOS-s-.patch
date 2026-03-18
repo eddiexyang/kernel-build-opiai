@@ -1,0 +1,38 @@
+From 385c7641ac6af0fe1a063649fdb08f973ebfeb2b Mon Sep 17 00:00:00 2001
+From: Wenchao Hao <haowenchao2@huawei.com>
+Date: Thu, 20 Apr 2023 19:21:39 +0800
+Subject: [PATCH 0115/1646] [Huawei] scsi: using kabi reserved field for
+ EulerOS's feature
+
+Offering: HULK
+euleros inclusion
+category: bugfix
+bugzilla: 188541
+
+--------------------------------
+
+EulerOS developed a feature which need to use scsi_device's kabi field,
+which could not be changed once released. So this field is declared here
+to be used by downstream to avoid conflict in future.
+
+Signed-off-by: Wenchao Hao <haowenchao2@huawei.com>
+---
+ include/scsi/scsi_device.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/scsi/scsi_device.h b/include/scsi/scsi_device.h
+index 216aa54172fd..63d3bc7fea40 100644
+--- a/include/scsi/scsi_device.h
++++ b/include/scsi/scsi_device.h
+@@ -245,7 +245,7 @@ struct scsi_device {
+ 	 * SCSI single LUN error handler feature
+ 	 */
+ 	KABI_USE(1, void *eh)
+-	KABI_RESERVE(2)
++	KABI_RESERVE_VENDOR(2) /* Used by VENDOR */
+ 	KABI_RESERVE(3)
+ 	KABI_RESERVE(4)
+ 	KABI_RESERVE(5)
+-- 
+2.17.1
+

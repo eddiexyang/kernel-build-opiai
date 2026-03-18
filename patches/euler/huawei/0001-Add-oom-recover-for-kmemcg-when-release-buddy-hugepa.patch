@@ -1,0 +1,38 @@
+From 72954dc632ca63ffd2afba4669224aca8264c3e2 Mon Sep 17 00:00:00 2001
+From: Jian Zhang <zhangjian210@huawei.com>
+Date: Tue, 20 Sep 2022 14:26:32 +0000
+Subject: [PATCH] Add oom recover for kmemcg when release buddy hugepage
+
+Signed-off-by: Jian Zhang <zhangjian210@huawei.com>
+---
+ mm/memcontrol.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index fda321322..279b2a1fc 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3072,6 +3072,7 @@ int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order)
+ void __memcg_kmem_uncharge_page(struct page *page, int order)
+ {
+ 	struct obj_cgroup *objcg;
++	struct mem_cgroup *memcg;
+ 	unsigned int nr_pages = 1 << order;
+ 
+ 	if (!PageMemcgKmem(page))
+@@ -3079,6 +3080,12 @@ void __memcg_kmem_uncharge_page(struct page *page, int order)
+ 
+ 	objcg = __page_objcg(page);
+ 	obj_cgroup_uncharge_pages(objcg, nr_pages);
++
++	memcg = get_mem_cgroup_from_objcg(objcg);
++	if (!mem_cgroup_is_root(memcg))
++		memcg_oom_recover(memcg);
++	css_put(&memcg->css);
++
+ 	page->memcg_data = 0;
+ 	obj_cgroup_put(objcg);
+ }
+-- 
+2.17.1
+

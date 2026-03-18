@@ -1,0 +1,75 @@
+From 8c1d2dc8b7bcda8be591db12bc9a8735dc65b0b2 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Fri, 9 Sep 2022 20:28:57 +0000
+Subject: [PATCH 115/921] [Backport] mm/damon/core-test: test damon_set_regions
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit 62f409560eb235ad9c2c9dbe1a3a57801431da5a
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=62f409560eb235ad9c2c9dbe1a3a57801431da5a
+
+--------------------------------
+
+Preceding commit fixes a bug in 'damon_set_regions()', which allows holes
+in the new monitoring target ranges.  This commit adds a kunit test case
+for the problem to avoid any regression.
+
+Link: https://lkml.kernel.org/r/20220909202901.57977-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Brendan Higgins <brendanhiggins@google.com>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: Shuah Khan <shuah@kernel.org>
+Cc: Yun Levi <ppbuk5246@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/core-test.h | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/mm/damon/core-test.h b/mm/damon/core-test.h
+index 45db79d28fdc..3db9b7368756 100644
+--- a/mm/damon/core-test.h
++++ b/mm/damon/core-test.h
+@@ -267,6 +267,28 @@ static void damon_test_ops_registration(struct kunit *test)
+ 	KUNIT_EXPECT_EQ(test, damon_register_ops(&ops), -EINVAL);
+ }
+ 
++static void damon_test_set_regions(struct kunit *test)
++{
++	struct damon_target *t = damon_new_target();
++	struct damon_region *r1 = damon_new_region(4, 16);
++	struct damon_region *r2 = damon_new_region(24, 32);
++	struct damon_addr_range range = {.start = 8, .end = 28};
++	unsigned long expects[] = {8, 16, 16, 24, 24, 28};
++	int expect_idx = 0;
++	struct damon_region *r;
++
++	damon_add_region(r1, t);
++	damon_add_region(r2, t);
++	damon_set_regions(t, &range, 1);
++
++	KUNIT_EXPECT_EQ(test, damon_nr_regions(t), 3);
++	damon_for_each_region(r, t) {
++		KUNIT_EXPECT_EQ(test, r->ar.start, expects[expect_idx++]);
++		KUNIT_EXPECT_EQ(test, r->ar.end, expects[expect_idx++]);
++	}
++	damon_destroy_target(t);
++}
++
+ static struct kunit_case damon_test_cases[] = {
+ 	KUNIT_CASE(damon_test_target),
+ 	KUNIT_CASE(damon_test_regions),
+@@ -276,6 +298,7 @@ static struct kunit_case damon_test_cases[] = {
+ 	KUNIT_CASE(damon_test_merge_regions_of),
+ 	KUNIT_CASE(damon_test_split_regions_of),
+ 	KUNIT_CASE(damon_test_ops_registration),
++	KUNIT_CASE(damon_test_set_regions),
+ 	{},
+ };
+ 
+-- 
+2.17.1
+

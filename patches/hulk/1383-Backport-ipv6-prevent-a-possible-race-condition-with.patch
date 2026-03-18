@@ -1,0 +1,56 @@
+From 911cd4a5ca2df449e737680820b42518bffff6ff Mon Sep 17 00:00:00 2001
+From: Niels Dossche <dossche.niels@gmail.com>
+Date: Wed, 23 Feb 2022 14:19:56 +0100
+Subject: [PATCH 1383/2065] [Backport] ipv6: prevent a possible race condition
+ with lifetimes
+
+stable inclusion
+from stable-v5.10.106
+commit ae7597b47dda2cd9294b8d26443ea7a5abd33880
+bugzilla: https://gitee.com/openeuler/kernel/issues/I573US
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=ae7597b47dda2cd9294b8d26443ea7a5abd33880
+
+--------------------------------
+
+[ Upstream commit 6c0d8833a605e195ae219b5042577ce52bf71fff ]
+
+valid_lft, prefered_lft and tstamp are always accessed under the lock
+"lock" in other places. Reading these without taking the lock may result
+in inconsistencies regarding the calculation of the valid and preferred
+variables since decisions are taken on these fields for those variables.
+
+Signed-off-by: Niels Dossche <dossche.niels@gmail.com>
+Reviewed-by: David Ahern <dsahern@kernel.org>
+Signed-off-by: Niels Dossche <niels.dossche@ugent.be>
+Link: https://lore.kernel.org/r/20220223131954.6570-1-niels.dossche@ugent.be
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ net/ipv6/addrconf.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv6/addrconf.c b/net/ipv6/addrconf.c
+index 809f16b3093d..1064edea8841 100644
+--- a/net/ipv6/addrconf.c
++++ b/net/ipv6/addrconf.c
+@@ -4983,6 +4983,7 @@ static int inet6_fill_ifaddr(struct sk_buff *skb, struct inet6_ifaddr *ifa,
+ 	    nla_put_s32(skb, IFA_TARGET_NETNSID, args->netnsid))
+ 		goto error;
+ 
++	spin_lock_bh(&ifa->lock);
+ 	if (!((ifa->flags&IFA_F_PERMANENT) &&
+ 	      (ifa->prefered_lft == INFINITY_LIFE_TIME))) {
+ 		preferred = ifa->prefered_lft;
+@@ -5004,6 +5005,7 @@ static int inet6_fill_ifaddr(struct sk_buff *skb, struct inet6_ifaddr *ifa,
+ 		preferred = INFINITY_LIFE_TIME;
+ 		valid = INFINITY_LIFE_TIME;
+ 	}
++	spin_unlock_bh(&ifa->lock);
+ 
+ 	if (!ipv6_addr_any(&ifa->peer_addr)) {
+ 		if (nla_put_in6_addr(skb, IFA_LOCAL, &ifa->addr) < 0 ||
+-- 
+2.17.1
+

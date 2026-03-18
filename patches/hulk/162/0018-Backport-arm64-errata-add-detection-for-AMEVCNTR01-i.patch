@@ -1,0 +1,216 @@
+From fd11df65e6e854bbfa803a6cc71e06b50cd4b3c4 Mon Sep 17 00:00:00 2001
+From: Ionela Voinescu <ionela.voinescu@arm.com>
+Date: Fri, 19 Aug 2022 11:30:50 +0100
+Subject: [PATCH 018/905] [Backport] arm64: errata: add detection for
+ AMEVCNTR01 incrementing incorrectly
+
+mainline inclusion
+from mainline-v6.0-rc3
+commit e89d120c4b720e232cc6a94f0fcbd59c15d41489
+category: bugfix
+bugzilla: 188217
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit?id=e89d120c4b720e232cc6a94f0fcbd59c15d41489
+
+--------------------------------
+
+The AMU counter AMEVCNTR01 (constant counter) should increment at the same
+rate as the system counter. On affected Cortex-A510 cores, AMEVCNTR01
+increments incorrectly giving a significantly higher output value. This
+results in inaccurate task scheduler utilization tracking and incorrect
+feedback on CPU frequency.
+
+Work around this problem by returning 0 when reading the affected counter
+in key locations that results in disabling all users of this counter from
+using it either for frequency invariance or as FFH reference counter. This
+effect is the same to firmware disabling affected counters.
+
+Details on how the two features are affected by this erratum:
+
+ - AMU counters will not be used for frequency invariance for affected
+   CPUs and CPUs in the same cpufreq policy. AMUs can still be used for
+   frequency invariance for unaffected CPUs in the system. Although
+   unlikely, if no alternative method can be found to support frequency
+   invariance for affected CPUs (cpufreq based or solution based on
+   platform counters) frequency invariance will be disabled. Please check
+   the chapter on frequency invariance at
+   Documentation/scheduler/sched-capacity.rst for details of its effect.
+
+ - Given that FFH can be used to fetch either the core or constant counter
+   values, restrictions are lifted regarding any of these counters
+   returning a valid (!0) value. Therefore FFH is considered supported
+   if there is a least one CPU that support AMUs, independent of any
+   counters being disabled or affected by this erratum. Clarifying
+   comments are now added to the cpc_ffh_supported(), cpu_read_constcnt()
+   and cpu_read_corecnt() functions.
+
+The above is achieved through adding a new erratum: ARM64_ERRATUM_2457168.
+
+Signed-off-by: Ionela Voinescu <ionela.voinescu@arm.com>
+Reviewed-by: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: James Morse <james.morse@arm.com>
+Link: https://lore.kernel.org/r/20220819103050.24211-1-ionela.voinescu@arm.com
+Signed-off-by: Will Deacon <will@kernel.org>
+
+conflicts:
+	arch/arm64/include/asm/cpucaps.h
+
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ Documentation/arm64/silicon-errata.rst |  2 ++
+ arch/arm64/Kconfig                     | 17 ++++++++++++++
+ arch/arm64/include/asm/cpucaps.h       |  1 +
+ arch/arm64/kernel/cpu_errata.c         |  9 ++++++++
+ arch/arm64/kernel/cpufeature.c         |  5 +++-
+ arch/arm64/kernel/topology.c           | 32 ++++++++++++++++++++++++--
+ 6 files changed, 63 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/arm64/silicon-errata.rst b/Documentation/arm64/silicon-errata.rst
+index 427091fcfcf1..f20a6a54941a 100644
+--- a/Documentation/arm64/silicon-errata.rst
++++ b/Documentation/arm64/silicon-errata.rst
+@@ -92,6 +92,8 @@ stable kernels.
+ +----------------+-----------------+-----------------+-----------------------------+
+ | ARM            | Cortex-A77      | #1508412        | ARM64_ERRATUM_1508412       |
+ +----------------+-----------------+-----------------+-----------------------------+
++| ARM            | Cortex-A510     | #2457168        | ARM64_ERRATUM_2457168       |
+++----------------+-----------------+-----------------+-----------------------------+
+ | ARM            | Neoverse-N1     | #1188873,1418040| ARM64_ERRATUM_1418040       |
+ +----------------+-----------------+-----------------+-----------------------------+
+ | ARM            | Neoverse-N1     | #1349291        | N/A                         |
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index d9a9ab58c707..a1eaf3cb908c 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -672,6 +672,23 @@ config ARM64_ERRATUM_1508412
+ 
+ 	  If unsure, say Y.
+ 
++config ARM64_ERRATUM_2457168
++	bool "Cortex-A510: 2457168: workaround for AMEVCNTR01 incrementing incorrectly"
++	depends on ARM64_AMU_EXTN
++	default y
++	help
++	  This option adds the workaround for ARM Cortex-A510 erratum 2457168.
++
++	  The AMU counter AMEVCNTR01 (constant counter) should increment at the same rate
++	  as the system counter. On affected Cortex-A510 cores AMEVCNTR01 increments
++	  incorrectly giving a significantly higher output value.
++
++	  Work around this problem by returning 0 when reading the affected counter in
++	  key locations that results in disabling all users of this counter. This effect
++	  is the same to firmware disabling affected counters.
++
++	  If unsure, say Y.
++
+ config CAVIUM_ERRATUM_22375
+ 	bool "Cavium erratum 22375, 24313"
+ 	default y
+diff --git a/arch/arm64/include/asm/cpucaps.h b/arch/arm64/include/asm/cpucaps.h
+index f718e6491a98..59845ca51de9 100644
+--- a/arch/arm64/include/asm/cpucaps.h
++++ b/arch/arm64/include/asm/cpucaps.h
+@@ -72,6 +72,7 @@
+ #define ARM64_HAS_ECV				64
+ #define ARM64_HAS_EPAN				65
+ #define ARM64_SPECTRE_BHB		66
++#define ARM64_WORKAROUND_2457168                67
+ 
+ #define ARM64_NCAPS				80
+ 
+diff --git a/arch/arm64/kernel/cpu_errata.c b/arch/arm64/kernel/cpu_errata.c
+index cc30f82cf994..139020944729 100644
+--- a/arch/arm64/kernel/cpu_errata.c
++++ b/arch/arm64/kernel/cpu_errata.c
+@@ -626,6 +626,15 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
+ 				  1, 0),
+ 	},
+ #endif
++#ifdef CONFIG_ARM64_ERRATUM_2457168
++	{
++		.desc = "ARM erratum 2457168",
++		.capability = ARM64_WORKAROUND_2457168,
++		.type = ARM64_CPUCAP_WEAK_LOCAL_CPU_FEATURE,
++		/* Cortex-A510 r0p0-r1p1 */
++		CAP_MIDR_RANGE(MIDR_CORTEX_A510, 0, 0, 1, 1)
++	},
++#endif
+ #ifdef CONFIG_HISILICON_ERRATUM_HIP08_RU_PREFETCH
+ 	{
+ 		.desc = "HiSilicon HIP08 Cache Readunique Prefetch Disable",
+diff --git a/arch/arm64/kernel/cpufeature.c b/arch/arm64/kernel/cpufeature.c
+index 8401e1e0fe04..f6391ad9c74a 100644
+--- a/arch/arm64/kernel/cpufeature.c
++++ b/arch/arm64/kernel/cpufeature.c
+@@ -1598,7 +1598,10 @@ static void cpu_amu_enable(struct arm64_cpu_capabilities const *cap)
+ 		pr_info("detected CPU%d: Activity Monitors Unit (AMU)\n",
+ 			smp_processor_id());
+ 		cpumask_set_cpu(smp_processor_id(), &amu_cpus);
+-		update_freq_counters_refs();
++
++		/* 0 reference values signal broken/disabled counters */
++		if (!this_cpu_has_cap(ARM64_WORKAROUND_2457168))
++			update_freq_counters_refs();
+ 	}
+ }
+ 
+diff --git a/arch/arm64/kernel/topology.c b/arch/arm64/kernel/topology.c
+index 3084a81250fe..7d2fe0acf5b1 100644
+--- a/arch/arm64/kernel/topology.c
++++ b/arch/arm64/kernel/topology.c
+@@ -345,12 +345,25 @@ void topology_scale_freq_tick(void)
+ 
+ static void cpu_read_corecnt(void *val)
+ {
++	/*
++	 * A value of 0 can be returned if the current CPU does not support AMUs
++	 * or if the counter is disabled for this CPU. A return value of 0 at
++	 * counter read is properly handled as an error case by the users of the
++	 * counter.
++	 */
+ 	*(u64 *)val = read_corecnt();
+ }
+ 
+ static void cpu_read_constcnt(void *val)
+ {
+-	*(u64 *)val = read_constcnt();
++	/*
++	 * Return 0 if the current CPU is affected by erratum 2457168. A value
++	 * of 0 is also returned if the current CPU does not support AMUs or if
++	 * the counter is disabled. A return value of 0 at counter read is
++	 * properly handled as an error case by the users of the counter.
++	 */
++	*(u64 *)val = this_cpu_has_cap(ARM64_WORKAROUND_2457168) ?
++		      0UL : read_constcnt();
+ }
+ 
+ static inline
+@@ -377,7 +390,22 @@ int counters_read_on_cpu(int cpu, smp_call_func_t func, u64 *val)
+  */
+ bool cpc_ffh_supported(void)
+ {
+-	return freq_counters_valid(get_cpu_with_amu_feat());
++	int cpu = get_cpu_with_amu_feat();
++
++	/*
++	 * FFH is considered supported if there is at least one present CPU that
++	 * supports AMUs. Using FFH to read core and reference counters for CPUs
++	 * that do not support AMUs, have counters disabled or that are affected
++	 * by errata, will result in a return value of 0.
++	 *
++	 * This is done to allow any enabled and valid counters to be read
++	 * through FFH, knowing that potentially returning 0 as counter value is
++	 * properly handled by the users of these counters.
++	 */
++	if ((cpu >= nr_cpu_ids) || !cpumask_test_cpu(cpu, cpu_present_mask))
++		return false;
++
++	return true;
+ }
+ 
+ int cpc_read_ffh(int cpu, struct cpc_reg *reg, u64 *val)
+-- 
+2.17.1
+

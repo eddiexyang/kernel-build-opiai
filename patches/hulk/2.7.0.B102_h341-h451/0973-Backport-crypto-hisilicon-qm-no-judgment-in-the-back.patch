@@ -1,0 +1,51 @@
+From a3fce2268e4af9d251c97558bd2805893eb317b6 Mon Sep 17 00:00:00 2001
+From: Kai Ye <yekai13@huawei.com>
+Date: Wed, 19 Oct 2022 12:27:25 +0800
+Subject: [PATCH 0973/1646] [Backport] crypto: hisilicon/qm - no judgment in
+ the back process
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit d03e89b3eba46121e8cbf2753b02be407810991b
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5T7AD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d03e89b3eba46121e8cbf2753b02be407810991b
+
+--------------------------------
+
+Judgment should not be added in the back process. So clean it.
+
+Signed-off-by: Kai Ye <yekai13@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 8596aa3172f9..c773f3cfd6b7 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -1354,11 +1354,9 @@ static int qm_set_sqc_cqc_vft(struct hisi_qm *qm, u32 fun_num, u32 base,
+ 
+ 	return 0;
+ back_sqc_cqc:
+-	for (i = SQC_VFT; i <= CQC_VFT; i++) {
+-		ret = qm_set_vft_common(qm, i, fun_num, 0, 0);
+-		if (ret)
+-			return ret;
+-	}
++	for (i = SQC_VFT; i <= CQC_VFT; i++)
++		qm_set_vft_common(qm, i, fun_num, 0, 0);
++
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,162 @@
+From fe9e7c5650f39b69831a8376123e6e9114f7d519 Mon Sep 17 00:00:00 2001
+From: Marco Elver <elver@google.com>
+Date: Wed, 25 Nov 2020 23:48:40 +0100
+Subject: [PATCH 554/905] [Backport] net: switch to storing KCOV handle
+ directly in sk_buff
+
+stable inclusion
+from stable-v5.10.163
+commit 67349025f00d0749e36386cfcfc32c2887f47fdb
+category: bugfix
+bugzilla: 188328
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=67349025f00d0749e36386cfcfc32c2887f47fdb
+
+--------------------------------
+
+[ Upstream commit fa69ee5aa48b5b52e8028c2eb486906e9998d081 ]
+
+It turns out that usage of skb extensions can cause memory leaks. Ido
+Schimmel reported: "[...] there are instances that blindly overwrite
+'skb->extensions' by invoking skb_copy_header() after __alloc_skb()."
+
+Therefore, give up on using skb extensions for KCOV handle, and instead
+directly store kcov_handle in sk_buff.
+
+Fixes: 6370cc3bbd8a ("net: add kcov handle to skb extensions")
+Fixes: 85ce50d337d1 ("net: kcov: don't select SKB_EXTENSIONS when there is no NET")
+Fixes: 97f53a08cba1 ("net: linux/skbuff.h: combine SKB_EXTENSIONS + KCOV handling")
+Link: https://lore.kernel.org/linux-wireless/20201121160941.GA485907@shredder.lan/
+Reported-by: Ido Schimmel <idosch@idosch.org>
+Signed-off-by: Marco Elver <elver@google.com>
+Link: https://lore.kernel.org/r/20201125224840.2014773-1-elver@google.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Stable-dep-of: db0b124f02ba ("igc: Enhance Qbv scheduling by using first flag bit")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+
+Conflicts:
+	include/linux/skbuff.h
+
+Signed-off-by: Zhengchao Shao <shaozhengchao@huawei.com>
+---
+ include/linux/skbuff.h | 37 +++++++++++++------------------------
+ lib/Kconfig.debug      |  1 -
+ net/core/skbuff.c      |  6 ------
+ 3 files changed, 13 insertions(+), 31 deletions(-)
+
+diff --git a/include/linux/skbuff.h b/include/linux/skbuff.h
+index 26c431883c69..d16c8bd085f3 100644
+--- a/include/linux/skbuff.h
++++ b/include/linux/skbuff.h
+@@ -706,6 +706,7 @@ typedef unsigned char *sk_buff_data_t;
+  *	@transport_header: Transport layer header
+  *	@network_header: Network layer header
+  *	@mac_header: Link layer header
++ *	@kcov_handle: KCOV remote handle for remote coverage collection
+  *	@scm_io_uring: SKB holds io_uring registered files
+  *	@tail: Tail pointer
+  *	@end: End pointer
+@@ -913,6 +914,10 @@ struct sk_buff {
+ 	__u16			network_header;
+ 	__u16			mac_header;
+ 
++#ifdef CONFIG_KCOV
++	u64			kcov_handle;
++#endif
++
+ 	/* private: */
+ 	__u32			headers_end[0];
+ 	/* public: */
+@@ -4223,9 +4228,6 @@ enum skb_ext_id {
+ #endif
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 	SKB_EXT_MPTCP,
+-#endif
+-#if IS_ENABLED(CONFIG_KCOV)
+-	SKB_EXT_KCOV_HANDLE,
+ #endif
+ 	SKB_EXT_NUM, /* must be last */
+ };
+@@ -4681,35 +4683,22 @@ static inline void skb_reset_redirect(struct sk_buff *skb)
+ #endif
+ }
+ 
+-#if IS_ENABLED(CONFIG_KCOV) && IS_ENABLED(CONFIG_SKB_EXTENSIONS)
+ static inline void skb_set_kcov_handle(struct sk_buff *skb,
+ 				       const u64 kcov_handle)
+ {
+-	/* Do not allocate skb extensions only to set kcov_handle to zero
+-	 * (as it is zero by default). However, if the extensions are
+-	 * already allocated, update kcov_handle anyway since
+-	 * skb_set_kcov_handle can be called to zero a previously set
+-	 * value.
+-	 */
+-	if (skb_has_extensions(skb) || kcov_handle) {
+-		u64 *kcov_handle_ptr = skb_ext_add(skb, SKB_EXT_KCOV_HANDLE);
+-
+-		if (kcov_handle_ptr)
+-			*kcov_handle_ptr = kcov_handle;
+-	}
++#ifdef CONFIG_KCOV
++	skb->kcov_handle = kcov_handle;
++#endif
+ }
+ 
+ static inline u64 skb_get_kcov_handle(struct sk_buff *skb)
+ {
+-	u64 *kcov_handle = skb_ext_find(skb, SKB_EXT_KCOV_HANDLE);
+-
+-	return kcov_handle ? *kcov_handle : 0;
+-}
++#ifdef CONFIG_KCOV
++	return skb->kcov_handle;
+ #else
+-static inline void skb_set_kcov_handle(struct sk_buff *skb,
+-				       const u64 kcov_handle) { }
+-static inline u64 skb_get_kcov_handle(struct sk_buff *skb) { return 0; }
+-#endif /* CONFIG_KCOV && CONFIG_SKB_EXTENSIONS */
++	return 0;
++#endif
++}
+ 
+ static inline bool skb_csum_is_sctp(struct sk_buff *skb)
+ {
+diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
+index e1be8dfd4b1b..1cd63a6d0adc 100644
+--- a/lib/Kconfig.debug
++++ b/lib/Kconfig.debug
+@@ -1948,7 +1948,6 @@ config KCOV
+ 	depends on CC_HAS_SANCOV_TRACE_PC || GCC_PLUGINS
+ 	select DEBUG_FS
+ 	select GCC_PLUGIN_SANCOV if !CC_HAS_SANCOV_TRACE_PC
+-	select SKB_EXTENSIONS if NET
+ 	help
+ 	  KCOV exposes kernel code coverage information in a form suitable
+ 	  for coverage-guided fuzzing (randomized testing).
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index f8189a8192b2..3ef15ee31646 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -4335,9 +4335,6 @@ static const u8 skb_ext_type_len[] = {
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 	[SKB_EXT_MPTCP] = SKB_EXT_CHUNKSIZEOF(struct mptcp_ext),
+ #endif
+-#if IS_ENABLED(CONFIG_KCOV)
+-	[SKB_EXT_KCOV_HANDLE] = SKB_EXT_CHUNKSIZEOF(u64),
+-#endif
+ };
+ 
+ static __always_inline unsigned int skb_ext_total_length(void)
+@@ -4354,9 +4351,6 @@ static __always_inline unsigned int skb_ext_total_length(void)
+ #endif
+ #if IS_ENABLED(CONFIG_MPTCP)
+ 		skb_ext_type_len[SKB_EXT_MPTCP] +
+-#endif
+-#if IS_ENABLED(CONFIG_KCOV)
+-		skb_ext_type_len[SKB_EXT_KCOV_HANDLE] +
+ #endif
+ 		0;
+ }
+-- 
+2.17.1
+

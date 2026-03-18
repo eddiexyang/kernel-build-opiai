@@ -1,0 +1,25 @@
+From 55cf96e30563f8320b3f721f3ec29e15eee99025 Mon Sep 17 00:00:00 2001
+From: Bixuan Cui <cuibixuan@huawei.com>
+Date: Tue, 17 Mar 2020 12:42:27 -0400
+Subject: [PATCH] open modules for sig
+
+Signed-off-by: JianKang Chen <chenjiankang@nosend.huawei.com>
+---
+ certs/Makefile | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/certs/Makefile b/certs/Makefile
+index 5d0999b9e21b..df34f455794f 100644
+--- a/certs/Makefile
++++ b/certs/Makefile
+@@ -102,5 +102,6 @@ $(obj)/system_certificates.o: $(obj)/signing_key.x509
+ 
+ targets += signing_key.x509
+ $(obj)/signing_key.x509: scripts/extract-cert $(X509_DEP) FORCE
+-	$(call if_changed,extract_certs,$(MODULE_SIG_KEY_SRCPREFIX)$(CONFIG_MODULE_SIG_KEY))
++	#$(call if_changed,extract_certs,$(MODULE_SIG_KEY_SRCPREFIX)$(CONFIG_MODULE_SIG_KEY))
++	rm -rf $(obj)/signing_key.x509;cp -rf $(srctree)/certs/ELF_Common_RSA4096_CN_20191009_Huawei.der $(obj)/signing_key.x509
+ endif # CONFIG_MODULE_SIG
+-- 
+2.25.0
+

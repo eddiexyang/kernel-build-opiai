@@ -1,0 +1,111 @@
+From c06ba5ac70fbbdd96a0a66e5690fc651da77db9d Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Wed, 16 Nov 2022 10:56:08 +0800
+Subject: [PATCH 0047/1398] [Huawei] Revert "[Backport] vfs: add bare
+ tracepoints for vfs read and release"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 187975
+
+--------------------------------
+
+This reverts commit febbc91704f678fa4544d9070cb39471c81bca1f.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/read_write.c           |  5 -----
+ include/linux/fs.h        | 17 -----------------
+ include/trace/events/fs.h | 33 ---------------------------------
+ 3 files changed, 55 deletions(-)
+ delete mode 100644 include/trace/events/fs.h
+
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 433ca8ab7c91..88f445da7515 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -24,8 +24,6 @@
+ 
+ #include <linux/uaccess.h>
+ #include <asm/unistd.h>
+-#define CREATE_TRACE_POINTS
+-#include <trace/events/fs.h>
+ 
+ const struct file_operations generic_ro_fops = {
+ 	.llseek		= generic_file_llseek,
+@@ -1681,6 +1679,3 @@ int generic_file_rw_checks(struct file *file_in, struct file *file_out)
+ 
+ 	return 0;
+ }
+-
+-EXPORT_TRACEPOINT_SYMBOL_GPL(fs_file_read);
+-EXPORT_TRACEPOINT_SYMBOL_GPL(fs_file_release);
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index faf911fcc313..aac7cdeb6b7c 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -3553,21 +3553,4 @@ static inline int inode_drain_writes(struct inode *inode)
+ 	return filemap_write_and_wait(inode->i_mapping);
+ }
+ 
+-struct fs_file_read_ctx {
+-	const unsigned char *name;
+-	unsigned int f_ctl_mode;
+-	unsigned int rsvd;
+-	/* clear from f_ctl_mode */
+-	unsigned int clr_f_ctl_mode;
+-	/* set into f_ctl_mode */
+-	unsigned int set_f_ctl_mode;
+-	unsigned long key;
+-	/* file size */
+-	long long i_size;
+-	/* previous page index */
+-	long long prev_index;
+-	/* current page index */
+-	long long index;
+-};
+-
+ #endif /* _LINUX_FS_H */
+diff --git a/include/trace/events/fs.h b/include/trace/events/fs.h
+deleted file mode 100644
+index ee82dad9d9da..000000000000
+--- a/include/trace/events/fs.h
++++ /dev/null
+@@ -1,33 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0 */
+-#undef TRACE_SYSTEM
+-#define TRACE_SYSTEM fs
+-
+-#if !defined(_TRACE_FS_H) || defined(TRACE_HEADER_MULTI_READ)
+-#define _TRACE_FS_H
+-
+-#include <linux/types.h>
+-#include <linux/tracepoint.h>
+-#include <linux/fs.h>
+-
+-#undef FS_DECLARE_TRACE
+-#ifdef DECLARE_TRACE_WRITABLE
+-#define FS_DECLARE_TRACE(call, proto, args, size) \
+-	DECLARE_TRACE_WRITABLE(call, PARAMS(proto), PARAMS(args), size)
+-#else
+-#define FS_DECLARE_TRACE(call, proto, args, size) \
+-	DECLARE_TRACE(call, PARAMS(proto), PARAMS(args))
+-#endif
+-
+-FS_DECLARE_TRACE(fs_file_read,
+-	TP_PROTO(struct fs_file_read_ctx *ctx, int version),
+-	TP_ARGS(ctx, version),
+-	sizeof(struct fs_file_read_ctx));
+-
+-DECLARE_TRACE(fs_file_release,
+-	TP_PROTO(struct inode *inode, struct file *filp),
+-	TP_ARGS(inode, filp));
+-
+-#endif /* _TRACE_FS_H */
+-
+-/* This part must be outside protection */
+-#include <trace/define_trace.h>
+-- 
+2.17.1
+

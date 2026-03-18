@@ -1,0 +1,61 @@
+From 240e294ce44f9366467a2a90cb890736267b51a7 Mon Sep 17 00:00:00 2001
+From: lansheng <lansheng@huawei.com>
+Date: Tue, 14 Nov 2023 17:08:21 +0800
+Subject: [PATCH] remove redirect buffer alloc due to reserve in dts
+
+---
+ kernel/printk/redirect_printk.c | 29 +++++++++++++++++------------
+ 1 file changed, 17 insertions(+), 12 deletions(-)
+
+diff --git a/kernel/printk/redirect_printk.c b/kernel/printk/redirect_printk.c
+index 0dcee12b5..39ffd2b8b 100644
+--- a/kernel/printk/redirect_printk.c
++++ b/kernel/printk/redirect_printk.c
+@@ -11,6 +11,7 @@
+ #include <linux/memblock.h>
+ #include <linux/ioport.h>
+ #include <linux/printk.h>
++#include <linux/acpi.h>
+ 
+ #define PRB_AVGBITS 5
+ 
+@@ -183,20 +184,24 @@ static int __init log_redirect_setup(char *str)
+ ***********************/
+ 
+ 	pr_info("replace ring buffer phy start. memory len: 0x%lx.\n", printk_area_size);
+-	printk_area_start_addr = memblock_find_in_range(printk_area_start_addr,
+-							printk_area_start_addr + printk_area_size,
+-							printk_area_size,
+-							PAGE_SIZE);
+-	if (printk_area_start_addr == 0) {
+-		pr_info("alloc printk buffer fail.\n");
+-		return 1;
++	if (!acpi_disabled) {
++		printk_area_start_addr = memblock_find_in_range(printk_area_start_addr,
++								printk_area_start_addr + printk_area_size,
++								printk_area_size,
++								PAGE_SIZE);
++
++		if (printk_area_start_addr == 0) {
++			pr_info("alloc printk buffer fail.\n");
++			return 1;
++		}
++
++		ret = memblock_reserve(printk_area_start_addr, printk_area_size);
++		if (ret != 0) {
++			pr_info("reserve printk buffer fail.\n");
++			return 1;
++		}
+ 	}
+ 
+-	ret = memblock_reserve(printk_area_start_addr, printk_area_size);
+-	if (ret != 0) {
+-		pr_info("reserve printk buffer fail.\n");
+-		return 1;
+-	}
+ 	printk_res.start = printk_area_start_addr;
+ 	printk_res.end = printk_area_start_addr + printk_area_size - 1;
+ 	insert_resource(&iomem_resource, &printk_res);
+-- 
+2.33.0
+

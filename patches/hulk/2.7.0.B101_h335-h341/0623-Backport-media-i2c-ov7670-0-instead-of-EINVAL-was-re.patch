@@ -1,0 +1,51 @@
+From a1517911ddd5eefad9c9d09a0532acdd2010fedf Mon Sep 17 00:00:00 2001
+From: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Date: Thu, 26 Jan 2023 14:03:51 +0100
+Subject: [PATCH 623/921] [Backport] media: i2c: ov7670: 0 instead of -EINVAL
+ was returned
+
+stable inclusion
+from stable-v5.10.173
+commit cc2f9c8eb1ee470e055d6d383027077d072899d8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=cc2f9c8eb1ee470e055d6d383027077d072899d8
+
+--------------------------------
+
+[ Upstream commit 6a4c664539e6de9b32b65ddcf767ec1bcc1d7f8a ]
+
+If the media bus is unsupported, then return -EINVAL. Instead it
+returned 'ret' which happened to be 0.
+
+This fixes a smatch warning:
+
+ov7670.c:1843 ov7670_parse_dt() warn: missing error code? 'ret'
+
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Fixes: 01b8444828fc ("media: v4l2: i2c: ov7670: Implement OF mbus configuration")
+Acked-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/media/i2c/ov7670.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/ov7670.c b/drivers/media/i2c/ov7670.c
+index 154776d0069e..e47800cb6c0f 100644
+--- a/drivers/media/i2c/ov7670.c
++++ b/drivers/media/i2c/ov7670.c
+@@ -1824,7 +1824,7 @@ static int ov7670_parse_dt(struct device *dev,
+ 
+ 	if (bus_cfg.bus_type != V4L2_MBUS_PARALLEL) {
+ 		dev_err(dev, "Unsupported media bus type\n");
+-		return ret;
++		return -EINVAL;
+ 	}
+ 	info->mbus_config = bus_cfg.bus.parallel.flags;
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,44 @@
+From 80d4efa6b15f5c11253b52a2db5da2168c9c0c2b Mon Sep 17 00:00:00 2001
+From: Adam Borowski <kilobyte@angband.pl>
+Date: Mon, 15 Nov 2021 18:32:08 +0100
+Subject: [PATCH 737/780] [Backport] ACPI: thermal: drop an always true check
+
+stable inclusion
+from stable-v5.10.183
+commit c92ea38a779f19f8da4a25b182748d3fbcba23d8
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c92ea38a779f19f8da4a25b182748d3fbcba23d8
+
+--------------------------------
+
+commit e5b5d25444e9ee3ae439720e62769517d331fa39 upstream.
+
+Address of a field inside a struct can't possibly be null; gcc-12 warns
+about this.
+
+Signed-off-by: Adam Borowski <kilobyte@angband.pl>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/acpi/thermal.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/acpi/thermal.c b/drivers/acpi/thermal.c
+index 859b1de31ddc..d62bf6df78f8 100644
+--- a/drivers/acpi/thermal.c
++++ b/drivers/acpi/thermal.c
+@@ -1120,8 +1120,6 @@ static int acpi_thermal_resume(struct device *dev)
+ 		return -EINVAL;
+ 
+ 	for (i = 0; i < ACPI_THERMAL_MAX_ACTIVE; i++) {
+-		if (!(&tz->trips.active[i]))
+-			break;
+ 		if (!tz->trips.active[i].flags.valid)
+ 			break;
+ 		tz->trips.active[i].flags.enabled = 1;
+-- 
+2.17.1
+

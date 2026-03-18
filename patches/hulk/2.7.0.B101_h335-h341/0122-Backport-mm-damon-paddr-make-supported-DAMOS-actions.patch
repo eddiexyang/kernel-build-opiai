@@ -1,0 +1,59 @@
+From 158832dc245fef479ec85616439104f0f1691c51 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Tue, 13 Sep 2022 17:44:28 +0000
+Subject: [PATCH 122/921] [Backport] mm/damon/paddr: make supported DAMOS
+ actions of paddr clear
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit f82e70e26b505cd8a1d5c670dc5038a938708d4a
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=f82e70e26b505cd8a1d5c670dc5038a938708d4a
+
+--------------------------------
+
+Patch series "mm/damon: cleanup code".
+
+DAMON code was not so clean from the beginning, but it has been too much
+nowadays, especially due to the duplicates in DAMON_RECLAIM and
+DAMON_LRU_SORT.  This patchset cleans some of the mess.
+
+This patch (of 22):
+
+The 'switch-case' statement in 'damon_va_apply_scheme()' function provides
+a 'case' for every supported DAMOS action while all not-yet-supported
+DAMOS actions fall through the 'default' case, and comment it so that
+people can easily know which actions are supported.  Its counterpart in
+'paddr', 'damon_pa_apply_scheme()', however, doesn't.  This commit makes
+the 'paddr' side function follows the pattern of 'vaddr' for better
+readability and consistency.
+
+Link: https://lkml.kernel.org/r/20220913174449.50645-1-sj@kernel.org
+Link: https://lkml.kernel.org/r/20220913174449.50645-2-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ mm/damon/paddr.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mm/damon/paddr.c b/mm/damon/paddr.c
+index 8dbac307ad5d..f8f526fdcb4e 100644
+--- a/mm/damon/paddr.c
++++ b/mm/damon/paddr.c
+@@ -279,7 +279,10 @@ static unsigned long damon_pa_apply_scheme(struct damon_ctx *ctx,
+ 		return damon_pa_mark_accessed(r);
+ 	case DAMOS_LRU_DEPRIO:
+ 		return damon_pa_deactivate_pages(r);
++	case DAMOS_STAT:
++		break;
+ 	default:
++		/* DAMOS actions that not yet supported by 'paddr'. */
+ 		break;
+ 	}
+ 	return 0;
+-- 
+2.17.1
+

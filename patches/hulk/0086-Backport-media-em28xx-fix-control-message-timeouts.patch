@@ -1,0 +1,57 @@
+From 51ad99e905e959d3c0276c63761bdd39e67bc034 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan@kernel.org>
+Date: Wed, 27 Apr 2022 11:09:14 +0800
+Subject: [PATCH 0086/2065] [Backport] media: em28xx: fix control-message
+ timeouts
+
+stable inclusion
+from stable-v5.10.94
+commit d90833106c097ce4db5e036a66750a43d92983b4
+bugzilla: https://gitee.com/openeuler/kernel/issues/I531X9
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d90833106c097ce4db5e036a66750a43d92983b4
+
+--------------------------------
+
+commit d9b7e8df3aa9b8c10708aab60e72e79ac08237e4 upstream.
+
+USB control-message timeouts are specified in milliseconds and should
+specifically not vary with CONFIG_HZ.
+
+Fixes: a6c2ba283565 ("[PATCH] v4l: 716: support for em28xx board family")
+Cc: stable@vger.kernel.org      # 2.6.16
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Signed-off-by: Mauro Carvalho Chehab <mchehab+huawei@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+---
+ drivers/media/usb/em28xx/em28xx-core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/usb/em28xx/em28xx-core.c b/drivers/media/usb/em28xx/em28xx-core.c
+index af9216278024..308bc029099d 100644
+--- a/drivers/media/usb/em28xx/em28xx-core.c
++++ b/drivers/media/usb/em28xx/em28xx-core.c
+@@ -89,7 +89,7 @@ int em28xx_read_reg_req_len(struct em28xx *dev, u8 req, u16 reg,
+ 	mutex_lock(&dev->ctrl_urb_lock);
+ 	ret = usb_control_msg(udev, pipe, req,
+ 			      USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
+-			      0x0000, reg, dev->urb_buf, len, HZ);
++			      0x0000, reg, dev->urb_buf, len, 1000);
+ 	if (ret < 0) {
+ 		em28xx_regdbg("(pipe 0x%08x): IN:  %02x %02x %02x %02x %02x %02x %02x %02x  failed with error %i\n",
+ 			      pipe,
+@@ -158,7 +158,7 @@ int em28xx_write_regs_req(struct em28xx *dev, u8 req, u16 reg, char *buf,
+ 	memcpy(dev->urb_buf, buf, len);
+ 	ret = usb_control_msg(udev, pipe, req,
+ 			      USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
+-			      0x0000, reg, dev->urb_buf, len, HZ);
++			      0x0000, reg, dev->urb_buf, len, 1000);
+ 	mutex_unlock(&dev->ctrl_urb_lock);
+ 
+ 	if (ret < 0) {
+-- 
+2.17.1
+

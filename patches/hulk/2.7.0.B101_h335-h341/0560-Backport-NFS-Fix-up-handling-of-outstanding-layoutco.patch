@@ -1,0 +1,50 @@
+From 23354f5c7f818d45ae085f1df67c8a8a56495bc1 Mon Sep 17 00:00:00 2001
+From: Trond Myklebust <trond.myklebust@hammerspace.com>
+Date: Thu, 25 Mar 2021 14:51:36 -0400
+Subject: [PATCH 560/921] [Backport] NFS: Fix up handling of outstanding
+ layoutcommit in nfs_update_inode()
+
+stable inclusion
+from stable-v5.10.173
+commit d601f782824e3541887cc4628c3aa61526bda431
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=d601f782824e3541887cc4628c3aa61526bda431
+
+--------------------------------
+
+[ Upstream commit 709fa5769914b377af87962bbe4ff81ffb019b2d ]
+
+If there is an outstanding layoutcommit, then the list of attributes
+whose values are expected to change is not the full set. So let's
+be explicit about the full list.
+
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+Stable-dep-of: b46d80bd2d6e ("nfs4trace: fix state manager flag printing")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/nfs/inode.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/fs/nfs/inode.c b/fs/nfs/inode.c
+index 1adece1cff3e..36f415278c04 100644
+--- a/fs/nfs/inode.c
++++ b/fs/nfs/inode.c
+@@ -1906,7 +1906,11 @@ static int nfs_update_inode(struct inode *inode, struct nfs_fattr *fattr)
+ 	nfs_wcc_update_inode(inode, fattr);
+ 
+ 	if (pnfs_layoutcommit_outstanding(inode)) {
+-		nfsi->cache_validity |= save_cache_validity & NFS_INO_INVALID_ATTR;
++		nfsi->cache_validity |=
++			save_cache_validity &
++			(NFS_INO_INVALID_CHANGE | NFS_INO_INVALID_CTIME |
++			 NFS_INO_INVALID_MTIME | NFS_INO_INVALID_SIZE |
++			 NFS_INO_REVAL_FORCED);
+ 		cache_revalidated = false;
+ 	}
+ 
+-- 
+2.17.1
+

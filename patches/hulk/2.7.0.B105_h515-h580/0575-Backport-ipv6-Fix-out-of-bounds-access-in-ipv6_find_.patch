@@ -1,0 +1,51 @@
+From b531417cd147d3413ea3a5681b1f679c70ed4e61 Mon Sep 17 00:00:00 2001
+From: Gavrilov Ilia <Ilia.Gavrilov@infotecs.ru>
+Date: Tue, 23 May 2023 08:29:44 +0000
+Subject: [PATCH 575/780] [Backport] ipv6: Fix out-of-bounds access in
+ ipv6_find_tlv()
+
+stable inclusion
+from stable-v5.10.181
+commit e5f82688ae10f5f386952e65e941bb8868ee54dc
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e5f82688ae10f5f386952e65e941bb8868ee54dc
+
+--------------------------------
+
+commit 878ecb0897f4737a4c9401f3523fd49589025671 upstream.
+
+optlen is fetched without checking whether there is more than one byte to parse.
+It can lead to out-of-bounds access.
+
+Found by InfoTeCS on behalf of Linux Verification Center
+(linuxtesting.org) with SVACE.
+
+Fixes: c61a40432509 ("[IPV6]: Find option offset by type.")
+Signed-off-by: Gavrilov Ilia <Ilia.Gavrilov@infotecs.ru>
+Reviewed-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: David Ahern <dsahern@kernel.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/ipv6/exthdrs_core.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv6/exthdrs_core.c b/net/ipv6/exthdrs_core.c
+index da46c4284676..49e31e4ae7b7 100644
+--- a/net/ipv6/exthdrs_core.c
++++ b/net/ipv6/exthdrs_core.c
+@@ -143,6 +143,8 @@ int ipv6_find_tlv(const struct sk_buff *skb, int offset, int type)
+ 			optlen = 1;
+ 			break;
+ 		default:
++			if (len < 2)
++				goto bad;
+ 			optlen = nh[offset + 1] + 2;
+ 			if (optlen > len)
+ 				goto bad;
+-- 
+2.17.1
+

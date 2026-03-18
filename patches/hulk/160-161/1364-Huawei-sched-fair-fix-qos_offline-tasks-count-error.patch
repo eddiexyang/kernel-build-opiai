@@ -1,0 +1,35 @@
+From c21d11aa2db6dee1e66c7657995b40ccd85bfaf9 Mon Sep 17 00:00:00 2001
+From: Guan Jing <guanjing6@huawei.com>
+Date: Mon, 9 Jan 2023 16:43:27 +0800
+Subject: [PATCH 1364/1398] [Huawei] sched/fair: fix qos_offline tasks count
+ error
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188161
+
+-------------------------------
+
+We lost add qos_idle_delta in function unthrottle_qos_cfs_rq.
+
+Signed-off-by: Guan Jing <guanjing6@huawei.com>
+---
+ kernel/sched/fair.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index af6d55ba9ce6..2d780cbf16f5 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7648,6 +7648,7 @@ static void unthrottle_qos_cfs_rq(struct cfs_rq *cfs_rq)
+ 
+ 		cfs_rq->h_nr_running += task_delta;
+ 		cfs_rq->idle_h_nr_running += idle_task_delta;
++		cfs_rq->qos_idle_h_nr_running += qos_idle_delta;
+ 
+ 		/* end evaluation on encountering a throttled cfs_rq */
+ 		if (cfs_rq_throttled(cfs_rq))
+-- 
+2.17.1
+

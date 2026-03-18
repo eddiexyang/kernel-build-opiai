@@ -1,0 +1,48 @@
+From 4ea55da5684a8be40a992e2e95e512d5142a85b2 Mon Sep 17 00:00:00 2001
+From: Jimmy Assarsson <extja@kvaser.com>
+Date: Tue, 16 May 2023 15:43:14 +0200
+Subject: [PATCH 530/780] [Backport] can: kvaser_pciefd: Clear listen-only bit
+ if not explicitly requested
+
+stable inclusion
+from stable-v5.10.181
+commit 65e85232ffa6a15f92ead85df236747b0448c960
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=65e85232ffa6a15f92ead85df236747b0448c960
+
+--------------------------------
+
+commit bf7ac55e991ca177f1ac16be51152f1ef291a4df upstream.
+
+The listen-only bit was never cleared, causing the controller to
+always use listen-only mode, if previously set.
+
+Fixes: 26ad340e582d ("can: kvaser_pciefd: Add driver for Kvaser PCIEcan devices")
+Cc: stable@vger.kernel.org
+Signed-off-by: Jimmy Assarsson <extja@kvaser.com>
+Link: https://lore.kernel.org/r/20230516134318.104279-3-extja@kvaser.com
+Signed-off-by: Marc Kleine-Budde <mkl@pengutronix.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/can/kvaser_pciefd.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/can/kvaser_pciefd.c b/drivers/net/can/kvaser_pciefd.c
+index 6d9a9b66d8d6..f5d0d44c730b 100644
+--- a/drivers/net/can/kvaser_pciefd.c
++++ b/drivers/net/can/kvaser_pciefd.c
+@@ -561,6 +561,8 @@ static void kvaser_pciefd_setup_controller(struct kvaser_pciefd_can *can)
+ 
+ 	if (can->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
+ 		mode |= KVASER_PCIEFD_KCAN_MODE_LOM;
++	else
++		mode &= ~KVASER_PCIEFD_KCAN_MODE_LOM;
+ 
+ 	mode |= KVASER_PCIEFD_KCAN_MODE_EEN;
+ 	mode |= KVASER_PCIEFD_KCAN_MODE_EPEN;
+-- 
+2.17.1
+

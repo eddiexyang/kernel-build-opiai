@@ -1,0 +1,77 @@
+From d07754c82f2ca79848d56ccd509a75fb1baa9ccd Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Sat, 17 Jun 2023 20:21:35 +0800
+Subject: [PATCH 038/780] [Huawei] ext4: Don't increase s_mb_free_pending when
+ freeing blocks in error branch
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188819
+
+--------------------------------
+
+To make 'sbi->s_mb_free_pending' is trusted in ext4_writepages's ENOSPC
+branch, don't increase s_mb_free_pending when freeing blocks happens in
+error branch of blocks allocation process.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/ext4.h    | 1 +
+ fs/ext4/extents.c | 4 +++-
+ fs/ext4/mballoc.c | 5 +++--
+ 3 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index bd01ce5f49a1..42ac16d9ac1f 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -702,6 +702,7 @@ enum {
+ #define EXT4_FREE_BLOCKS_NOFREE_FIRST_CLUSTER	0x0010
+ #define EXT4_FREE_BLOCKS_NOFREE_LAST_CLUSTER	0x0020
+ #define EXT4_FREE_BLOCKS_RERESERVE_CLUSTER      0x0040
++#define EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL      0x0080
+ 
+ /*
+  * ioctl commands
+diff --git a/fs/ext4/extents.c b/fs/ext4/extents.c
+index 8abe6ba585cb..7fbd5ccf68ee 100644
+--- a/fs/ext4/extents.c
++++ b/fs/ext4/extents.c
+@@ -1294,7 +1294,8 @@ static int ext4_ext_split(handle_t *handle, struct inode *inode,
+ 			if (!ablocks[i])
+ 				continue;
+ 			ext4_free_blocks(handle, inode, NULL, ablocks[i], 1,
+-					 EXT4_FREE_BLOCKS_METADATA);
++					 EXT4_FREE_BLOCKS_METADATA |
++					 EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL);
+ 		}
+ 	}
+ 	kfree(ablocks);
+@@ -4329,6 +4330,7 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
+ 			ext4_discard_preallocations(inode, 0);
+ 			if (flags & EXT4_GET_BLOCKS_DELALLOC_RESERVE)
+ 				fb_flags = EXT4_FREE_BLOCKS_NO_QUOT_UPDATE;
++			fb_flags |= EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL;
+ 			ext4_free_blocks(handle, inode, NULL, newblock,
+ 					 EXT4_C2B(sbi, allocated_clusters),
+ 					 fb_flags);
+diff --git a/fs/ext4/mballoc.c b/fs/ext4/mballoc.c
+index 4c10e8b31ea6..0e3d9c69ff37 100644
+--- a/fs/ext4/mballoc.c
++++ b/fs/ext4/mballoc.c
+@@ -5431,8 +5431,9 @@ static void ext4_mb_clear_bb(handle_t *handle, struct inode *inode,
+ 	 * consistency guarantees.
+ 	 */
+ 	if (ext4_handle_valid(handle) &&
+-	    ((flags & EXT4_FREE_BLOCKS_METADATA) ||
+-	     !ext4_should_writeback_data(inode))) {
++	    (((flags & EXT4_FREE_BLOCKS_METADATA) ||
++	     !ext4_should_writeback_data(inode)) &&
++	     !(flags & EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL))) {
+ 		struct ext4_free_data *new_entry;
+ 		/*
+ 		 * We use __GFP_NOFAIL because ext4_free_blocks() is not allowed
+-- 
+2.17.1
+

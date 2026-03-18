@@ -1,0 +1,51 @@
+From a22bcb35675655971d1c60e8b26f0555134374ee Mon Sep 17 00:00:00 2001
+From: Sukadev Bhattiprolu <sukadev@linux.ibm.com>
+Date: Thu, 24 Feb 2022 22:23:54 -0800
+Subject: [PATCH 1298/2065] [Backport] ibmvnic: complete init_done on transport
+ events
+
+stable inclusion
+from stable-v5.10.104
+commit 320980b2496dc781b058e56c5dd244840aa6e83a
+bugzilla: https://gitee.com/openeuler/kernel/issues/I56XAC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=320980b2496dc781b058e56c5dd244840aa6e83a
+
+--------------------------------
+
+[ Upstream commit 36491f2df9ad2501e5a4ec25d3d95d72bafd2781 ]
+
+If we get a transport event, set the error and mark the init as
+complete so the attempt to send crq-init or login fail sooner
+rather than wait for the timeout.
+
+Fixes: bbd669a868bb ("ibmvnic: Fix completion structure initialization")
+Signed-off-by: Sukadev Bhattiprolu <sukadev@linux.ibm.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Yu Liao <liaoyu15@huawei.com>
+---
+ drivers/net/ethernet/ibm/ibmvnic.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/net/ethernet/ibm/ibmvnic.c b/drivers/net/ethernet/ibm/ibmvnic.c
+index 4fe96670bb28..85f4d2418d25 100644
+--- a/drivers/net/ethernet/ibm/ibmvnic.c
++++ b/drivers/net/ethernet/ibm/ibmvnic.c
+@@ -4927,6 +4927,13 @@ static void ibmvnic_handle_crq(union ibmvnic_crq *crq,
+ 			adapter->fw_done_rc = -EIO;
+ 			complete(&adapter->fw_done);
+ 		}
++
++		/* if we got here during crq-init, retry crq-init */
++		if (!completion_done(&adapter->init_done)) {
++			adapter->init_done_rc = -EAGAIN;
++			complete(&adapter->init_done);
++		}
++
+ 		if (!completion_done(&adapter->stats_done))
+ 			complete(&adapter->stats_done);
+ 		if (test_bit(0, &adapter->resetting))
+-- 
+2.17.1
+

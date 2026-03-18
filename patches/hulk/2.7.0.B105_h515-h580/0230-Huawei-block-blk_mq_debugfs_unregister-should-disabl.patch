@@ -1,0 +1,47 @@
+From 85ef1a2770c75ee5e7a26d7d28b9bd8804fa16ee Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Fri, 30 Jun 2023 10:14:16 +0800
+Subject: [PATCH 230/780] [Huawei] block: blk_mq_debugfs_unregister() should
+ disable irq while holding 'queue_lock'
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188941
+
+--------------------------------
+
+Otherwise AA deadlock can be triggered if blk_mq_debugfs_unregister() is
+preempted by irq, and then irq try to grab 'queue_lock' again.
+
+Fixes: a9d65a81eb31 ("[Huawei] block: support enable/disable blk-mq debugfs dynamically")
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/blk-mq-debugfs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/block/blk-mq-debugfs.c b/block/blk-mq-debugfs.c
+index f600ac9677a5..4544bc60a527 100644
+--- a/block/blk-mq-debugfs.c
++++ b/block/blk-mq-debugfs.c
+@@ -916,7 +916,7 @@ void blk_mq_debugfs_unregister(struct request_queue *q)
+ 	struct blk_mq_hw_ctx *hctx;
+ 	unsigned long i;
+ 
+-	spin_lock(&q->queue_lock);
++	spin_lock_irq(&q->queue_lock);
+ 	if (q->rq_qos) {
+ 		struct rq_qos *rqos = q->rq_qos;
+ 
+@@ -925,7 +925,7 @@ void blk_mq_debugfs_unregister(struct request_queue *q)
+ 			rqos = rqos->next;
+ 		}
+ 	}
+-	spin_unlock(&q->queue_lock);
++	spin_unlock_irq(&q->queue_lock);
+ 
+ 	debugfs_remove_recursive(q->rqos_debugfs_dir);
+ 	q->rqos_debugfs_dir = NULL;
+-- 
+2.17.1
+

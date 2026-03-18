@@ -1,0 +1,42 @@
+From a6311ab1f849b7489bbdb847328b54ec9f9eb438 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Thu, 9 Jun 2022 14:46:05 +0800
+Subject: [PATCH 4275/4585] [Huawei] block: fix kabi broken in request_queue
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186917
+
+--------------------------------
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ include/linux/blkdev.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index 219d6038007e..e4bcb11d6202 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -500,8 +500,6 @@ struct request_queue {
+ 
+ 	atomic_t		nr_active_requests_shared_sbitmap;
+ 
+-	struct blk_mq_tags	*shared_sbitmap_tags;
+-
+ 	struct list_head	icq_list;
+ #ifdef CONFIG_BLK_CGROUP
+ 	DECLARE_BITMAP		(blkcg_pols, BLKCG_MAX_POLS);
+@@ -605,6 +603,8 @@ struct request_queue {
+ #define BLK_MAX_WRITE_HINTS	5
+ 	u64			write_hints[BLK_MAX_WRITE_HINTS];
+ 
++	KABI_REPLACE(unsigned long dtag_wait_time,
++		     struct blk_mq_tags *shared_sbitmap_tags)
+ 	KABI_RESERVE(1)
+ 	KABI_RESERVE(2)
+ 	KABI_RESERVE(3)
+-- 
+2.17.1
+

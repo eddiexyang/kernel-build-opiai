@@ -1,0 +1,45 @@
+From 988bb2d5224a4d5b2a3ea95a61ffa9d65f973f40 Mon Sep 17 00:00:00 2001
+From: Baokun Li <libaokun1@huawei.com>
+Date: Fri, 5 May 2023 20:58:55 +0800
+Subject: [PATCH 1598/1646] [Backport] ext4: check iomap type only if
+ ext4_iomap_begin() does not fail
+
+maillist inclusion
+category: bugfix
+bugzilla: 188724
+
+Reference: https://www.spinics.net/lists/kernel/msg4779681.html
+
+----------------------------------------
+
+When ext4_iomap_overwrite_begin() calls ext4_iomap_begin() map blocks may
+fail for some reason (e.g. memory allocation failure, bare disk write), and
+later because "iomap->type ! = IOMAP_MAPPED" triggers WARN_ON(). When ext4
+iomap_begin() returns an error, it is normal that the type of iomap->type
+may not match the expectation. Therefore, we only determine if iomap->type
+is as expected when ext4_iomap_begin() is executed successfully.
+
+Reported-by: syzbot+08106c4b7d60702dbc14@syzkaller.appspotmail.com
+Link: https://lore.kernel.org/all/00000000000015760b05f9b4eee9@google.com
+Reviewed-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Baokun Li <libaokun1@huawei.com>
+---
+ fs/ext4/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index b7110f4e8afd..cafb5ead276a 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -3493,7 +3493,7 @@ static int ext4_iomap_overwrite_begin(struct inode *inode, loff_t offset,
+ 	 */
+ 	flags &= ~IOMAP_WRITE;
+ 	ret = ext4_iomap_begin(inode, offset, length, flags, iomap, srcmap);
+-	WARN_ON_ONCE(iomap->type != IOMAP_MAPPED);
++	WARN_ON_ONCE(!ret && iomap->type != IOMAP_MAPPED);
+ 	return ret;
+ }
+ 
+-- 
+2.17.1
+

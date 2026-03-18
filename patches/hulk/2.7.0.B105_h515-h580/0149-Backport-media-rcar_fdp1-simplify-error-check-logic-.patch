@@ -1,0 +1,72 @@
+From 58a3fd25cfcf2f3fe59999432701debf2c91ae0c Mon Sep 17 00:00:00 2001
+From: Mauro Carvalho Chehab <mchehab+huawei@kernel.org>
+Date: Fri, 23 Apr 2021 16:59:34 +0200
+Subject: [PATCH 149/780] [Backport] media: rcar_fdp1: simplify error check
+ logic at fdp_open()
+
+stable inclusion
+from stable-v5.10.180
+commit 21de9d0daab1a98635bfd2b2afb9abe346691d18
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=21de9d0daab1a98635bfd2b2afb9abe346691d18
+
+--------------------------------
+
+[ Upstream commit fa9f443f7c962d072d150472e2bb77de39817a9a ]
+
+Avoid some code duplication by moving the common error path
+logic at fdp_open().
+
+Signed-off-by: Mauro Carvalho Chehab <mchehab+huawei@kernel.org>
+Stable-dep-of: c766c90faf93 ("media: rcar_fdp1: Fix refcount leak in probe and remove function")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/media/platform/rcar_fdp1.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/media/platform/rcar_fdp1.c b/drivers/media/platform/rcar_fdp1.c
+index c9448de885b6..ac2e7b2c6082 100644
+--- a/drivers/media/platform/rcar_fdp1.c
++++ b/drivers/media/platform/rcar_fdp1.c
+@@ -2121,9 +2121,7 @@ static int fdp1_open(struct file *file)
+ 
+ 	if (ctx->hdl.error) {
+ 		ret = ctx->hdl.error;
+-		v4l2_ctrl_handler_free(&ctx->hdl);
+-		kfree(ctx);
+-		goto done;
++		goto error_ctx;
+ 	}
+ 
+ 	ctx->fh.ctrl_handler = &ctx->hdl;
+@@ -2137,10 +2135,7 @@ static int fdp1_open(struct file *file)
+ 
+ 	if (IS_ERR(ctx->fh.m2m_ctx)) {
+ 		ret = PTR_ERR(ctx->fh.m2m_ctx);
+-
+-		v4l2_ctrl_handler_free(&ctx->hdl);
+-		kfree(ctx);
+-		goto done;
++		goto error_ctx;
+ 	}
+ 
+ 	/* Perform any power management required */
+@@ -2151,6 +2146,12 @@ static int fdp1_open(struct file *file)
+ 	dprintk(fdp1, "Created instance: %p, m2m_ctx: %p\n",
+ 		ctx, ctx->fh.m2m_ctx);
+ 
++	mutex_unlock(&fdp1->dev_mutex);
++	return 0;
++
++error_ctx:
++	v4l2_ctrl_handler_free(&ctx->hdl);
++	kfree(ctx);
+ done:
+ 	mutex_unlock(&fdp1->dev_mutex);
+ 	return ret;
+-- 
+2.17.1
+

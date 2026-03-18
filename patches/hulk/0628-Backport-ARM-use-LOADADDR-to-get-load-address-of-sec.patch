@@ -1,0 +1,76 @@
+From 65b82ae7b19d9e930e2dee44f04ff742b44cec85 Mon Sep 17 00:00:00 2001
+From: "Russell King (Oracle)" <rmk+kernel@armlinux.org.uk>
+Date: Fri, 11 Feb 2022 19:49:50 +0000
+Subject: [PATCH 0628/2065] [Backport] ARM: use LOADADDR() to get load address
+ of sections
+
+stable inclusion
+from stable-v5.10.105
+commit 29d9b56df1e18a8ff2e669b79e511163972a8b65
+category: bugfix
+bugzilla: https://gitee.com/src-openeuler/kernel/issues/I53MHA
+CVE: CVE-2022-23960
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=29d9b56df1e1
+
+--------------------------------
+
+commit 8d9d651ff2270a632e9dc497b142db31e8911315 upstream.
+
+Use the linker's LOADADDR() macro to get the load address of the
+sections, and provide a macro to set the start and end symbols.
+
+Acked-by: Catalin Marinas <catalin.marinas@arm.com>
+Signed-off-by: Russell King (Oracle) <rmk+kernel@armlinux.org.uk>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Chen Jiahao <chenjiahao16@huawei.com>
+---
+ arch/arm/include/asm/vmlinux.lds.h | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm/include/asm/vmlinux.lds.h b/arch/arm/include/asm/vmlinux.lds.h
+index be04f5b5056f..561f6f368162 100644
+--- a/arch/arm/include/asm/vmlinux.lds.h
++++ b/arch/arm/include/asm/vmlinux.lds.h
+@@ -26,6 +26,11 @@
+ #define ARM_MMU_DISCARD(x)	x
+ #endif
+ 
++/* Set start/end symbol names to the LMA for the section */
++#define ARM_LMA(sym, section)						\
++	sym##_start = LOADADDR(section);				\
++	sym##_end = LOADADDR(section) + SIZEOF(section)
++
+ #define PROC_INFO							\
+ 		. = ALIGN(4);						\
+ 		__proc_info_begin = .;					\
+@@ -115,19 +120,19 @@
+  * only thing that matters is their relative offsets
+  */
+ #define ARM_VECTORS							\
+-	__vectors_start = .;						\
++	__vectors_lma = .;						\
+ 	.vectors 0xffff0000 : AT(__vectors_start) {			\
+ 		*(.vectors)						\
+ 	}								\
+-	. = __vectors_start + SIZEOF(.vectors);				\
+-	__vectors_end = .;						\
++	ARM_LMA(__vectors, .vectors);					\
++	. = __vectors_lma + SIZEOF(.vectors);				\
+ 									\
+-	__stubs_start = .;						\
+-	.stubs ADDR(.vectors) + 0x1000 : AT(__stubs_start) {		\
++	__stubs_lma = .;						\
++	.stubs ADDR(.vectors) + 0x1000 : AT(__stubs_lma) {		\
+ 		*(.stubs)						\
+ 	}								\
+-	. = __stubs_start + SIZEOF(.stubs);				\
+-	__stubs_end = .;
++	ARM_LMA(__stubs, .stubs);					\
++	. = __stubs_lma + SIZEOF(.stubs);
+ 									\
+ #define ARM_TCM								\
+ 	__itcm_start = ALIGN(4);					\
+-- 
+2.17.1
+

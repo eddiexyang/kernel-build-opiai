@@ -1,0 +1,54 @@
+From 01f2b3be08f90e23d3a366fc906df9b42083a42f Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Thu, 8 Dec 2022 22:21:45 +0800
+Subject: [PATCH 374/905] [Backport] net: ethernet: dnet: don't call
+ dev_kfree_skb() under spin_lock_irqsave()
+
+stable inclusion
+from stable-v5.10.163
+commit b242358a27a768f56814c4d9136d4662f5405e16
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6AVM6
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b242358a27a768f56814c4d9136d4662f5405e16
+
+--------------------------------
+
+[ Upstream commit f07fadcbee2a5e84caa67c7c445424200bffb60b ]
+
+It is not allowed to call kfree_skb() or consume_skb() from hardware
+interrupt context or with hardware interrupts being disabled.
+
+In this case, the lock is used to protected 'bp', so we can move
+dev_kfree_skb() after the spin_unlock_irqrestore().
+
+Fixes: 4796417417a6 ("dnet: Dave DNET ethernet controller driver (updated)")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/net/ethernet/dnet.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/dnet.c b/drivers/net/ethernet/dnet.c
+index 48c6eb142dcc..05a0cc583f8a 100644
+--- a/drivers/net/ethernet/dnet.c
++++ b/drivers/net/ethernet/dnet.c
+@@ -550,11 +550,11 @@ static netdev_tx_t dnet_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 
+ 	skb_tx_timestamp(skb);
+ 
++	spin_unlock_irqrestore(&bp->lock, flags);
++
+ 	/* free the buffer */
+ 	dev_kfree_skb(skb);
+ 
+-	spin_unlock_irqrestore(&bp->lock, flags);
+-
+ 	return NETDEV_TX_OK;
+ }
+ 
+-- 
+2.17.1
+

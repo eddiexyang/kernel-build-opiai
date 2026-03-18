@@ -1,0 +1,316 @@
+From ff7d732ecbf03f78339eab4aa2e2a4e65ebb4df7 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 17 Apr 2023 06:13:04 +0000
+Subject: [PATCH 36/53] [Huawei] mm/sharepool: Delete sp_group_id_ida
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We can manage the ID for sp_group via sp_group_idr. No need to use
+the extra ida.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ include/linux/share_pool.h |   1 +
+ mm/share_pool.c            | 126 +++++++++++++++++--------------------
+ 2 files changed, 59 insertions(+), 68 deletions(-)
+
+diff --git a/include/linux/share_pool.h b/include/linux/share_pool.h
+index 97c76cc21b1b..9fc59ed9e8a2 100644
+--- a/include/linux/share_pool.h
++++ b/include/linux/share_pool.h
+@@ -49,6 +49,7 @@
+ #define SPG_ID_AUTO     200000  /* generate group id automatically */
+ #define SPG_ID_LOCAL_MIN	200001
+ #define SPG_ID_LOCAL_MAX	299999
++#define SPG_ID_LOCAL		300000 /* generate group id in local range */
+ 
+ #define MAX_DEVID 8	/* the max num of Da-vinci devices */
+ 
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 9233486001fe..f0f864302f26 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -80,8 +80,6 @@ static DEFINE_IDR(sp_group_idr);
+ /* rw semaphore for sp_group_idr and mm->sp_group_master */
+ static DECLARE_RWSEM(sp_global_sem);
+ 
+-static DEFINE_IDA(sp_group_id_ida);
+-
+ /*** Statistical and maintenance tools ***/
+ 
+ /* list of all sp_group_masters */
+@@ -486,31 +484,21 @@ static int sp_mapping_group_setup(struct mm_struct *mm, struct sp_group *spg)
+ 	return 0;
+ }
+ 
+-static struct sp_group *create_spg(int spg_id);
+-static void free_new_spg_id(bool new, int spg_id);
++static struct sp_group *sp_group_create(int spg_id);
+ static void free_sp_group_locked(struct sp_group *spg);
+ static struct sp_group_node *group_add_task(struct mm_struct *mm, struct sp_group *spg,
+ 					    unsigned long prot);
+ static int init_local_group(struct mm_struct *mm)
+ {
+-	int spg_id, ret;
++	int ret;
+ 	struct sp_group *spg;
+ 	struct sp_mapping *spm;
+ 	struct sp_group_node *spg_node;
+ 	struct sp_group_master *master = mm->sp_group_master;
+ 
+-	spg_id = ida_alloc_range(&sp_group_id_ida, SPG_ID_LOCAL_MIN,
+-				 SPG_ID_LOCAL_MAX, GFP_ATOMIC);
+-	if (spg_id < 0) {
+-		pr_err_ratelimited("generate local group id failed %d\n", spg_id);
+-		return spg_id;
+-	}
+-
+-	spg = create_spg(spg_id);
+-	if (IS_ERR(spg)) {
+-		free_new_spg_id(true, spg_id);
++	spg = sp_group_create(SPG_ID_LOCAL);
++	if (IS_ERR(spg))
+ 		return PTR_ERR(spg);
+-	}
+ 
+ 	master->local = spg;
+ 	spm = sp_mapping_create(SP_MAPPING_DVPP);
+@@ -873,20 +861,6 @@ struct sp_k2u_context {
+ 	enum spa_type type;
+ };
+ 
+-static void free_sp_group_id(int spg_id)
+-{
+-	/* ida operation is protected by an internal spin_lock */
+-	if ((spg_id >= SPG_ID_AUTO_MIN && spg_id <= SPG_ID_AUTO_MAX) ||
+-	    (spg_id >= SPG_ID_LOCAL_MIN && spg_id <= SPG_ID_LOCAL_MAX))
+-		ida_free(&sp_group_id_ida, spg_id);
+-}
+-
+-static void free_new_spg_id(bool new, int spg_id)
+-{
+-	if (new)
+-		free_sp_group_id(spg_id);
+-}
+-
+ static void free_sp_group_locked(struct sp_group *spg)
+ {
+ 	int type;
+@@ -894,7 +868,6 @@ static void free_sp_group_locked(struct sp_group *spg)
+ 	fput(spg->file);
+ 	fput(spg->file_hugetlb);
+ 	idr_remove(&sp_group_idr, spg->id);
+-	free_sp_group_id((unsigned int)spg->id);
+ 
+ 	for (type = SP_MAPPING_START; type < SP_MAPPING_END; type++)
+ 		sp_mapping_detach(spg, spg->mapping[type]);
+@@ -1126,30 +1099,66 @@ static void sp_group_init(struct sp_group *spg, int spg_id)
+ 	meminfo_init(&spg->meminfo);
+ }
+ 
+-static struct sp_group *create_spg(int spg_id)
++/*
++ * sp_group_create - create a new sp_group
++ * @spg_id: specify the id for the new sp_group
++ *
++ * valid @spg_id:
++ * SPG_ID_AUTO:
++ *	Allocate a id in range [SPG_ID_AUTO_MIN, APG_ID_AUTO_MAX]
++ * SPG_ID_LOCAL:
++ *	Allocate a id in range [SPG_ID_LOCAL_MIN, APG_ID_LOCAL_MAX]
++ * [SPG_ID_MIN, SPG_ID_MAX]:
++ *	Using the input @spg_id for the new sp_group.
++ *
++ * Return: the newly created sp_group or an errno.
++ * Context: The caller should protect sp_group_idr from being access.
++ */
++static struct sp_group *sp_group_create(int spg_id)
+ {
+-	int ret;
++	int ret, start, end;
+ 	struct sp_group *spg;
+ 	char name[DNAME_INLINE_LEN];
+ 	struct user_struct *user = NULL;
+ 	int hsize_log = MAP_HUGE_2MB >> MAP_HUGE_SHIFT;
+ 
+ 	if (unlikely(system_group_count + 1 == MAX_GROUP_FOR_SYSTEM &&
+-		     !is_local_group(spg_id))) {
++		     spg_id != SPG_ID_LOCAL)) {
+ 		pr_err("reach system max group num\n");
+ 		return ERR_PTR(-ENOSPC);
+ 	}
+ 
++	if (spg_id == SPG_ID_LOCAL) {
++		start = SPG_ID_LOCAL_MIN;
++		end = SPG_ID_LOCAL_MAX + 1;
++	} else if (spg_id == SPG_ID_AUTO) {
++		start = SPG_ID_AUTO_MIN;
++		end = SPG_ID_AUTO_MAX + 1;
++	} else if (spg_id >= SPG_ID_MIN && spg_id <= SPG_ID_MAX) {
++		start = spg_id;
++		end = spg_id + 1;
++	} else {
++		pr_err("invalid input spg_id:%d\n", spg_id);
++		return ERR_PTR(-EINVAL);
++	}
++
+ 	spg = kzalloc(sizeof(*spg), GFP_KERNEL);
+ 	if (spg == NULL)
+ 		return ERR_PTR(-ENOMEM);
+ 
++	ret = idr_alloc(&sp_group_idr, spg, start, end, GFP_KERNEL);
++	if (ret < 0) {
++		pr_err("group %d idr alloc failed %d\n", spg_id, ret);
++		goto out_kfree;
++	}
++	spg_id = ret;
++
+ 	sprintf(name, "sp_group_%d", spg_id);
+ 	spg->file = shmem_kernel_file_setup(name, MAX_LFS_FILESIZE, VM_NORESERVE);
+ 	if (IS_ERR(spg->file)) {
+ 		pr_err("spg file setup failed %ld\n", PTR_ERR(spg->file));
+ 		ret = PTR_ERR(spg->file);
+-		goto out_kfree;
++		goto out_idr_remove;
+ 	}
+ 
+ 	sprintf(name, "sp_group_%d_huge", spg_id);
+@@ -1163,21 +1172,15 @@ static struct sp_group *create_spg(int spg_id)
+ 
+ 	sp_group_init(spg, spg_id);
+ 
+-	ret = idr_alloc(&sp_group_idr, spg, spg_id, spg_id + 1, GFP_KERNEL);
+-	if (ret < 0) {
+-		pr_err("group %d idr alloc failed %d\n", spg_id, ret);
+-		goto out_fput_huge;
+-	}
+-
+ 	if (!is_local_group(spg_id))
+ 		system_group_count++;
+ 
+ 	return spg;
+ 
+-out_fput_huge:
+-	fput(spg->file_hugetlb);
+ out_fput:
+ 	fput(spg->file);
++out_idr_remove:
++	idr_remove(&sp_group_idr, spg_id);
+ out_kfree:
+ 	kfree(spg);
+ 	return ERR_PTR(ret);
+@@ -1191,7 +1194,7 @@ static struct sp_group *find_or_alloc_sp_group(int spg_id)
+ 	spg = sp_group_get_locked(current->tgid, spg_id);
+ 
+ 	if (!spg) {
+-		spg = create_spg(spg_id);
++		spg = sp_group_create(spg_id);
+ 	} else {
+ 		down_read(&spg->rw_lock);
+ 		if (!spg_valid(spg)) {
+@@ -1315,16 +1318,19 @@ static struct sp_group_node *group_add_task(struct mm_struct *mm, struct sp_grou
+  * @tgid: the tgid of the task to be added.
+  * @prot: the prot of task for this spg.
+  * @spg_id: the ID of the sp_group.
+- * @flag: to give some special message.
+- *
+- * A process can't be added to more than one sp_group in single group mode
+- * and can in multiple group mode.
+  *
+  * Return: A postive group number for success, -errno on failure.
+  *
+- * The manually specified ID is between [SPG_ID_MIN, SPG_ID_MAX].
+- * The automatically allocated ID is between [SPG_ID_AUTO_MIN, SPG_ID_AUTO_MAX].
+- * When negative, the return value is -errno.
++ * Valid @spg_id:
++ * [SPG_ID_MIN, SPG_ID_MAX]:
++ * 		the task would be added to the group with @spg_id, if the
++ * 		group doesn't exist, just create it.
++ * [SPG_ID_AUTO_MIN, SPG_ID_AUTO_MAX]:
++ * 		the task would be added to the group with @spg_id, if it
++ * 		doesn't exist ,return failed.
++ * SPG_ID_AUTO:
++ * 		the task would be added into a new group with a new id in range
++ *		[SPG_ID_AUTO_MIN, SPG_ID_AUTO_MAX].
+  */
+ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ {
+@@ -1334,7 +1340,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	struct sp_group *spg;
+ 	struct sp_group_node *node = NULL;
+ 	int ret = 0;
+-	bool id_newly_generated = false;
+ 	struct sp_area *spa;
+ 
+ 	if (!sp_is_enabled())
+@@ -1374,29 +1379,17 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		sp_group_put(spg);
+ 	}
+ 
+-	if (spg_id == SPG_ID_AUTO) {
+-		spg_id = ida_alloc_range(&sp_group_id_ida, SPG_ID_AUTO_MIN,
+-					 SPG_ID_AUTO_MAX, GFP_ATOMIC);
+-		if (spg_id < 0) {
+-			pr_err_ratelimited("add group failed, auto generate group id failed\n");
+-			return spg_id;
+-		}
+-		id_newly_generated = true;
+-	}
+-
+ 	down_write(&sp_global_sem);
+ 
+ 	ret = get_task(tgid, &tsk);
+ 	if (ret) {
+ 		up_write(&sp_global_sem);
+-		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out;
+ 	}
+ 
+ 	if (check_aoscore_process(tsk)) {
+ 		up_write(&sp_global_sem);
+ 		ret = -EACCES;
+-		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_task;
+ 	}
+ 
+@@ -1416,7 +1409,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	if (!mm) {
+ 		up_write(&sp_global_sem);
+ 		ret = -ESRCH;
+-		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_task;
+ 	}
+ 
+@@ -1425,7 +1417,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 		pr_err("add: task(%d) is a vfork child of the original task(%d)\n",
+ 			tgid, mm->sp_group_master->tgid);
+ 		ret = -EINVAL;
+-		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_mm;
+ 	}
+ 
+@@ -1433,7 +1424,6 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 	if (IS_ERR(spg)) {
+ 		up_write(&sp_global_sem);
+ 		ret = PTR_ERR(spg);
+-		free_new_spg_id(id_newly_generated, spg_id);
+ 		goto out_put_mm;
+ 	}
+ 
+@@ -1495,7 +1485,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ out_put_task:
+ 	put_task_struct(tsk);
+ out:
+-	return ret == 0 ? spg_id : ret;
++	return ret == 0 ? spg->id : ret;
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_group_add_task);
+ 
+-- 
+2.17.1
+

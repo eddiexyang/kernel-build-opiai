@@ -1,0 +1,46 @@
+From 9806e4307c4923db808d323aed2956cbbb978268 Mon Sep 17 00:00:00 2001
+From: Guan Jing <guanjing6@huawei.com>
+Date: Sat, 2 Apr 2022 10:51:23 +0800
+Subject: [PATCH 0873/2065] [Huawei] sched: Introduce qos smt expeller for
+ co-location
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 186300
+
+--------------------------------
+
+We introduce the qos smt expeller, which lets
+online tasks to expel offline tasks on the smt sibling cpus,
+and exclusively occupy CPU resources.In this way we are
+able to improve QOS of online tasks in co-location.
+
+Signed-off-by: Guan Jing <guanjing6@huawei.com>
+---
+ init/Kconfig | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/init/Kconfig b/init/Kconfig
+index e89ed78fc816..4eb9e68dc9f4 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -966,6 +966,15 @@ config QOS_SCHED
+ 
+     default n
+ 
++config QOS_SCHED_SMT_EXPELLER
++	bool "Qos smt expeller"
++	depends on SCHED_SMT
++	depends on QOS_SCHED
++	default n
++	help
++	  This feature enable online tasks to expel offline tasks
++	  on the smt sibling cpus, and exclusively occupy CPU resources.
++
+ config FAIR_GROUP_SCHED
+ 	bool "Group scheduling for SCHED_OTHER"
+ 	depends on CGROUP_SCHED
+-- 
+2.17.1
+

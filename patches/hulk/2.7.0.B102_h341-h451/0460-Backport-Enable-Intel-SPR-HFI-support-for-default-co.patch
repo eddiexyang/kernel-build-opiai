@@ -1,0 +1,47 @@
+From c5b00d32679fddbb25a1c05e451013b017eb0216 Mon Sep 17 00:00:00 2001
+From: Jason Zeng <jason.zeng@intel.com>
+Date: Mon, 15 Aug 2022 16:56:25 +0800
+Subject: [PATCH 0460/1646] [Backport] Enable Intel SPR HFI support for default
+ config
+
+Intel inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5MJBR
+
+Reference: https://gitee.com/openeuler/kernel/commit/6fcab88cf9bb0429d961deeac7d4f9c67bb810ea
+
+--------------------------------------------
+
+Enable necessary kernel configs for Intel SPR HFI in openeuler_defconfig.
+
+Signed-off-by: Jason Zeng <jason.zeng@intel.com>
+Signed-off-by: Aichun Shi <aichun.shi@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ arch/x86/configs/openeuler_defconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/configs/openeuler_defconfig b/arch/x86/configs/openeuler_defconfig
+index f6360e181b94..4b65464447ed 100644
+--- a/arch/x86/configs/openeuler_defconfig
++++ b/arch/x86/configs/openeuler_defconfig
+@@ -4090,7 +4090,7 @@ CONFIG_SENSORS_W83627EHF=m
+ CONFIG_SENSORS_ACPI_POWER=m
+ CONFIG_SENSORS_ATK0110=m
+ CONFIG_THERMAL=y
+-# CONFIG_THERMAL_NETLINK is not set
++CONFIG_THERMAL_NETLINK=y
+ # CONFIG_THERMAL_STATISTICS is not set
+ CONFIG_THERMAL_EMERGENCY_POWEROFF_DELAY_MS=0
+ CONFIG_THERMAL_HWMON=y
+@@ -4122,6 +4122,7 @@ CONFIG_PROC_THERMAL_MMIO_RAPL=y
+ # end of ACPI INT340X thermal drivers
+ 
+ CONFIG_INTEL_PCH_THERMAL=m
++CONFIG_INTEL_HFI_THERMAL=y
+ # end of Intel thermal drivers
+ 
+ # CONFIG_GENERIC_ADC_THERMAL is not set
+-- 
+2.17.1
+

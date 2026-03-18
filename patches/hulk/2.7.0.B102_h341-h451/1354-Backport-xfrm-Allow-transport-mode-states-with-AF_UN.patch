@@ -1,0 +1,54 @@
+From 34edb92371ee25e166aa88583d3a9ff2d4250f97 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Tue, 21 Feb 2023 13:54:00 +0800
+Subject: [PATCH 1354/1646] [Backport] xfrm: Allow transport-mode states with
+ AF_UNSPEC selector
+
+stable inclusion
+from stable-v5.10.176
+commit 0da0b816972a88dc82431586cb2c1e85876f9c77
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=0da0b816972a88dc82431586cb2c1e85876f9c77
+
+--------------------------------
+
+[ Upstream commit c276a706ea1f51cf9723ed8484feceaf961b8f89 ]
+
+xfrm state selectors are matched against the inner-most flow
+which can be of any address family.  Therefore middle states
+in nested configurations need to carry a wildcard selector in
+order to work at all.
+
+However, this is currently forbidden for transport-mode states.
+
+Fix this by removing the unnecessary check.
+
+Fixes: 13996378e658 ("[IPSEC]: Rename mode to outer_mode and add inner_mode")
+Reported-by: David George <David.George@sophos.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Steffen Klassert <steffen.klassert@secunet.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/xfrm/xfrm_state.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 555b0b4516fc..be76d743889b 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -2588,9 +2588,6 @@ int __xfrm_init_state(struct xfrm_state *x, bool init_replay, bool offload)
+ 		if (inner_mode == NULL)
+ 			goto error;
+ 
+-		if (!(inner_mode->flags & XFRM_MODE_FLAG_TUNNEL))
+-			goto error;
+-
+ 		x->inner_mode = *inner_mode;
+ 
+ 		if (x->props.family == AF_INET)
+-- 
+2.17.1
+

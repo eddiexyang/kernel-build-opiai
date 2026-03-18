@@ -1,0 +1,54 @@
+From 68dfba50fc5edf86a9a49485fbfb9d968d0b2531 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Thu, 2 Mar 2023 12:08:57 +0000
+Subject: [PATCH] core lockup: Fix false positive of core lockup by clearing
+ status when cpu goes online/offline
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ kernel/watchdog_hld.c | 15 ++-------------
+ 1 file changed, 2 insertions(+), 13 deletions(-)
+
+diff --git a/kernel/watchdog_hld.c b/kernel/watchdog_hld.c
+index 2fdf01620..e09dd8aa1 100644
+--- a/kernel/watchdog_hld.c
++++ b/kernel/watchdog_hld.c
+@@ -97,17 +97,6 @@ static void watchdog_nmi_interrupts(void)
+ 	__this_cpu_inc(nmi_interrupts);
+ }
+ 
+-static void corelockup_status_copy(unsigned int from, unsigned int to)
+-{
+-	per_cpu(nmi_cnt_saved, to) = per_cpu(nmi_cnt_saved, from);
+-	per_cpu(nmi_cnt_missed, to) = per_cpu(nmi_cnt_missed, from);
+-	per_cpu(hrint_saved, to) = per_cpu(hrint_saved, from);
+-	per_cpu(hrint_missed, to) = per_cpu(hrint_missed, from);
+-
+-	/* always update detector cpu at the end */
+-	per_cpu(detector_cpu, to) = per_cpu(detector_cpu, from);
+-}
+-
+ static void corelockup_status_init(unsigned int cpu, unsigned int target)
+ {
+ 	/*
+@@ -201,7 +190,7 @@ void corelockup_detector_online_cpu(unsigned int cpu)
+ 		return;
+ 
+ 	/* cpu->next */
+-	corelockup_status_copy(first, cpu);
++	corelockup_status_init(cpu, per_cpu(detector_cpu, first));
+ 
+ 	/* first->cpu */
+ 	corelockup_status_init(first, cpu);
+@@ -228,7 +217,7 @@ void corelockup_detector_offline_cpu(unsigned int cpu)
+ 		return;
+ 
+ 	/* prev->next */
+-	corelockup_status_copy(cpu, prev);
++	corelockup_status_init(prev, per_cpu(detector_cpu, cpu));
+ }
+ #endif
+ 
+-- 
+2.17.1
+

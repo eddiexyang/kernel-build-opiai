@@ -1,0 +1,45 @@
+From 622a96327cec5c9374da62dc7c9caf2b9c0e0f39 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Sat, 18 Mar 2023 10:33:07 +0800
+Subject: [PATCH 024/921] [Huawei] md: wake up 'resync_wait' at last in
+ md_reap_sync_thread()
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188282
+
+--------------------------------
+
+We just replace md_reap_sync_thread() with wait_event(resync_wait, ...)
+from action_store(), this patch just make sure action_store() will still
+wait for everything to be done in md_reap_sync_thread().
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ drivers/md/md.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/md/md.c b/drivers/md/md.c
+index c51a878ca9e7..d98754d2d9f5 100644
+--- a/drivers/md/md.c
++++ b/drivers/md/md.c
+@@ -9539,7 +9539,6 @@ void md_reap_sync_thread(struct mddev *mddev)
+ 	if (mddev_is_clustered(mddev) && is_reshaped
+ 				      && !test_bit(MD_CLOSING, &mddev->flags))
+ 		md_cluster_ops->update_size(mddev, old_dev_sectors);
+-	wake_up(&resync_wait);
+ 	/* flag recovery needed just to double check */
+ 	set_bit(MD_RECOVERY_NEEDED, &mddev->recovery);
+ 	sysfs_notify_dirent_safe(mddev->sysfs_completed);
+@@ -9547,6 +9546,7 @@ void md_reap_sync_thread(struct mddev *mddev)
+ 	md_new_event(mddev);
+ 	if (mddev->event_work.func)
+ 		queue_work(md_misc_wq, &mddev->event_work);
++	wake_up(&resync_wait);
+ }
+ EXPORT_SYMBOL(md_reap_sync_thread);
+ 
+-- 
+2.17.1
+

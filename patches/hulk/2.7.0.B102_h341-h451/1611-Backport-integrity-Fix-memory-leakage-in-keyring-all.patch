@@ -1,0 +1,61 @@
+From e588734bfbe1e4d2430af9396e33d88a15a7c3a1 Mon Sep 17 00:00:00 2001
+From: GUO Zihua <guozihua@huawei.com>
+Date: Fri, 11 Nov 2022 18:13:17 +0800
+Subject: [PATCH 1611/1646] [Backport] integrity: Fix memory leakage in keyring
+ allocation error path
+
+stable inclusion
+from stable-v5.10.163
+commit 3bd737289c26be3cee4b9afaf61ef784a2af9d6e
+category: bugfix
+bugzilla: 188217
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=3bd737289c26be3cee4b9afaf61ef784a2af9d6e
+
+--------------------------------
+
+[ Upstream commit 39419ef7af0916cc3620ecf1ed42d29659109bf3 ]
+
+Key restriction is allocated in integrity_init_keyring(). However, if
+keyring allocation failed, it is not freed, causing memory leaks.
+
+Fixes: 2b6aa412ff23 ("KEYS: Use structure to capture key restriction function and data")
+Signed-off-by: GUO Zihua <guozihua@huawei.com>
+Signed-off-by: Mimi Zohar <zohar@linux.ibm.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+
+conflicts:
+	security/integrity/digsig.c.rej
+
+Signed-off-by: Cai Xinchen <caixinchen1@huawei.com>
+---
+ security/integrity/digsig.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/security/integrity/digsig.c b/security/integrity/digsig.c
+index 250fb0836156..35163ab9d30a 100644
+--- a/security/integrity/digsig.c
++++ b/security/integrity/digsig.c
+@@ -120,6 +120,7 @@ int __init integrity_init_keyring(const unsigned int id)
+ {
+ 	struct key_restriction *restriction;
+ 	key_perm_t perm;
++	int ret;
+ 
+ 	perm = (KEY_POS_ALL & ~KEY_POS_SETATTR) | KEY_USR_VIEW
+ 		| KEY_USR_READ | KEY_USR_SEARCH;
+@@ -140,7 +141,10 @@ int __init integrity_init_keyring(const unsigned int id)
+ 	perm |= KEY_USR_WRITE;
+ 
+ out:
+-	return __integrity_init_keyring(id, perm, restriction);
++	ret = __integrity_init_keyring(id, perm, restriction);
++	if (ret)
++		kfree(restriction);
++	return ret;
+ }
+ 
+ static int __init integrity_add_key(const unsigned int id, const void *data,
+-- 
+2.17.1
+

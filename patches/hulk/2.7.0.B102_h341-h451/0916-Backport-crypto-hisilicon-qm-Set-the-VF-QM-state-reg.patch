@@ -1,0 +1,65 @@
+From 991c41945192c746a8cf0d829c47db088effd5a3 Mon Sep 17 00:00:00 2001
+From: Longfang Liu <liulongfang@huawei.com>
+Date: Tue, 19 Jul 2022 16:51:34 +0800
+Subject: [PATCH 0916/1646] [Backport] crypto: hisilicon/qm: Set the VF QM
+ state register
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit 1e459b25081d4f939b8a1fb4c71dab0cec8f974a
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1e459b25081d4f939b8a1fb4c71dab0cec8f974a
+
+--------------------------------
+
+We use VF QM state register to record the status of the QM configuration
+state. This will be used in the ACC migration driver to determine whether
+we can safely save and restore the QM data.
+
+Signed-off-by: Longfang Liu <liulongfang@huawei.com>
+Acked-by: Zhou Wang <wangzhou1@hisilicon.com>
+Signed-off-by: Shameer Kolothum <shameerali.kolothum.thodi@huawei.com>
+Link: https://lore.kernel.org/r/20220308184902.2242-8-shameerali.kolothum.thodi@huawei.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+
+ Conflicts:
+	drivers/crypto/hisilicon/qm.c
+
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 034b977c9810..f40237a53286 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -3558,9 +3558,8 @@ void hisi_qm_uninit(struct hisi_qm *qm)
+ 	}
+ 
+ 	hisi_qm_memory_uninit(qm);
+-	up_write(&qm->qps_lock);
+-
+ 	hisi_qm_set_state(qm, VF_NOT_READY);
++	up_write(&qm->qps_lock);
+ 
+ 	qm_irq_unregister(qm);
+ 	hisi_qm_pci_uninit(qm);
+@@ -3578,7 +3577,6 @@ EXPORT_SYMBOL_GPL(hisi_qm_uninit);
+  * @number: The number of queues in vft.
+  *
+  * We can allocate multiple queues to a qm by configuring virtual function
+- * table. We get related configures by this function. Normally, we call this
+  * function in VF driver to get the queue information.
+  *
+  * qm hw v1 does not support this interface.
+-- 
+2.17.1
+

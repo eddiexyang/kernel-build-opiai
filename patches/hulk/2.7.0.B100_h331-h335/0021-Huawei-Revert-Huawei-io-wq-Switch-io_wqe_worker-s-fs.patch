@@ -1,0 +1,42 @@
+From d09d012a4b698853142952b527b82f7c093efced Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Mon, 6 Feb 2023 22:11:33 +0800
+Subject: [PATCH 021/500] [Huawei] Revert "[Huawei] io-wq: Switch
+ io_wqe_worker's fs before releasing request"
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188335
+
+-------------------------------
+
+This reverts commit b0bcafcffe78adfe69a962e528a404d84a856150.
+
+We need to apply patch 788d0824269bef (io_uring: import 5.15-stable
+io_uring) to move io_uring to separate directory and solve
+the problem of CVE-2023-0240.
+Revert this patch and add it again after patch 788d0824269bef to
+reduce conflicts.
+
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+---
+ fs/io-wq.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/fs/io-wq.c b/fs/io-wq.c
+index 56d00f31003b..3d5fc76b92d0 100644
+--- a/fs/io-wq.c
++++ b/fs/io-wq.c
+@@ -578,8 +578,6 @@ static void io_worker_handle_work(struct io_worker *worker)
+ 				linked = NULL;
+ 			}
+ 			io_assign_current_work(worker, work);
+-			if (current->fs != worker->restore_fs)
+-				current->fs = worker->restore_fs;
+ 			wq->free_work(old_work);
+ 
+ 			if (linked)
+-- 
+2.17.1
+

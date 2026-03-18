@@ -1,0 +1,48 @@
+From d3fd5cfbb4d82928ae3e6e570fba2fb0900107d5 Mon Sep 17 00:00:00 2001
+From: Li Huafei <lihuafei1@huawei.com>
+Date: Tue, 21 Mar 2023 11:27:10 +0800
+Subject: [PATCH 216/921] [Huawei] coredump: fix kabi broken in struct
+ coredump_params
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: NA
+CVE: CVE-2023-1249
+
+--------------------------------
+
+The coredump_params structure is only used as parameters for function
+pointer members of some structures, such as linux_binfmt, spufs_calls,
+etc., and the parameters are of pointer type, so adding members of
+coredump_params will not affect the memory layout.
+
+Also coredump_params is used to hold coredump parameters to be passed to
+coredump functions of different types of binfmt, the driver will not use
+the structure.
+
+Signed-off-by: Li Huafei <lihuafei1@huawei.com>
+---
+ include/linux/binfmts.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/binfmts.h b/include/linux/binfmts.h
+index 5a9786e6b554..1716a07a9809 100644
+--- a/include/linux/binfmts.h
++++ b/include/linux/binfmts.h
+@@ -82,9 +82,9 @@ struct coredump_params {
+ 	unsigned long mm_flags;
+ 	loff_t written;
+ 	loff_t pos;
+-	int vma_count;
+-	size_t vma_data_size;
+-	struct core_vma_metadata *vma_meta;
++	KABI_EXTEND(int vma_count)
++	KABI_EXTEND(size_t vma_data_size)
++	KABI_EXTEND(struct core_vma_metadata *vma_meta)
+ };
+ 
+ /*
+-- 
+2.17.1
+

@@ -1,0 +1,50 @@
+From e40ed6e354b50676d8bb563537d25598a4e820e2 Mon Sep 17 00:00:00 2001
+From: Robert Marko <robimarko@gmail.com>
+Date: Fri, 13 Jan 2023 17:44:41 +0100
+Subject: [PATCH 784/921] [Backport] arm64: dts: qcom: ipq8074: fix Gen2 PCIe
+ QMP PHY
+
+stable inclusion
+from stable-v5.10.173
+commit a2a1e3f4ed5bf698b41f0aeddfdb931bb0718168
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a2a1e3f4ed5bf698b41f0aeddfdb931bb0718168
+
+--------------------------------
+
+commit 100d9c94ccf15b02742c326cd04f422ab729153b upstream.
+
+Serdes register space sizes are incorrect, update them to match the
+actual sizes from downstream QCA 5.4 kernel.
+
+Fixes: 942bcd33ed45 ("arm64: dts: qcom: Fix IPQ8074 PCIe PHY nodes")
+Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230113164449.906002-1-robimarko@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/arm64/boot/dts/qcom/ipq8074.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/ipq8074.dtsi b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+index 25f78c71e010..e191a7bc532b 100644
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -213,9 +213,9 @@
+ 			status = "disabled";
+ 
+ 			pcie_phy1: phy@8e200 {
+-				reg = <0x8e200 0x16c>,
++				reg = <0x8e200 0x130>,
+ 				      <0x8e400 0x200>,
+-				      <0x8e800 0x4f4>;
++				      <0x8e800 0x1f8>;
+ 				#phy-cells = <0>;
+ 				#clock-cells = <0>;
+ 				clocks = <&gcc GCC_PCIE1_PIPE_CLK>;
+-- 
+2.17.1
+

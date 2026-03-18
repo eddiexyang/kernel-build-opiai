@@ -1,0 +1,84 @@
+From 4b9094d0e2d558a76d24a8ca991a284dd55e3de4 Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Fri, 10 Nov 2023 14:41:17 +0800
+Subject: [PATCH] mm: Support alloc memory from non normal node not charge in
+ cgroup
+
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+---
+ arch/arm64/Kconfig       |  9 +++++++++
+ include/linux/nodemask.h | 13 +++++++++++++
+ mm/memcontrol.c          |  6 ++++--
+ 3 files changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index dc63ba259..206bd8207 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1618,6 +1618,15 @@ config ASCEND_ISOLATE_NON_NORMAL_NODE
+ 	  memory allocations on normal nodes will never fallback to non normal nodes
+ 	  and allocations on non normal nodes are not charged by any cgroup.
+ 
++config ASCEND_CGROUP_NO_CHARGE
++	bool "not charge non normal node"
++	default n
++	depends on !HIGHMEM
++	depends on !COHERENT_DEVICE
++	depends on MEMORY_HOTPLUG && ARM64 && NUMA
++	help
++	  This option makes allocations on non normal nodes are not charged by any cgroup.
++
+ config ASCEND_CDM_TO_HOTPLUG
+ 	bool "make cdm nodes hotpluggable"
+ 	default n
+diff --git a/include/linux/nodemask.h b/include/linux/nodemask.h
+index 3acb91d9d..d780f329e 100644
+--- a/include/linux/nodemask.h
++++ b/include/linux/nodemask.h
+@@ -601,6 +601,19 @@ static inline bool is_non_normal_node(int node)
+ }
+ #endif
+ 
++#ifdef CONFIG_ASCEND_CGROUP_NO_CHARGE
++static inline bool ascend_cgroup_no_charge(int node)
++{
++	return !node_isset(node, node_states[N_NORMAL_MEMORY])
++	       && node_isset(node, node_states[N_MEMORY]);
++}
++#else
++static inline bool ascend_cgroup_no_charge(int node)
++{
++	return false;
++}
++#endif
++
+ #ifdef CONFIG_ASCEND_CDM_TO_HOTPLUG
+ extern nodemask_t hotpluggable_mask;
+ 
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 5ef64598b..9ddb7222b 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3101,7 +3101,8 @@ int __memcg_kmem_charge_page(struct page *page, gfp_t gfp, int order)
+ 
+ 	objcg = get_obj_cgroup_from_current();
+ 	if (objcg) {
+-		if (!mem_cgroup_is_root(objcg->memcg) && is_non_normal_node(page_to_nid(page))) {
++		if (!mem_cgroup_is_root(objcg->memcg) && (is_non_normal_node(page_to_nid(page))
++		    || ascend_cgroup_no_charge(page_to_nid(page)))) {
+ 			obj_cgroup_put(objcg);
+ 			return 0;
+ 		}
+@@ -7376,7 +7377,8 @@ int mem_cgroup_charge(struct page *page, struct mm_struct *mm, gfp_t gfp_mask)
+ 	if (!memcg)
+ 		memcg = get_mem_cgroup_from_mm(mm);
+ 
+-	if (!mem_cgroup_is_root(memcg) && is_non_normal_node(page_to_nid(page)))
++	if (!mem_cgroup_is_root(memcg) && (is_non_normal_node(page_to_nid(page))
++	    || ascend_cgroup_no_charge(page_to_nid(page))))
+ 		goto out;
+ 
+ 	ret = try_charge(memcg, gfp_mask, nr_pages);
+-- 
+2.17.1
+

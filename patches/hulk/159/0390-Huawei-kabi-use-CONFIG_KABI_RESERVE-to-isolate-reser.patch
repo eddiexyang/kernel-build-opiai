@@ -1,0 +1,58 @@
+From 71dd994e37e6b8a1a1aec659e9213ff37ed7d0c5 Mon Sep 17 00:00:00 2001
+From: Liu Shixin <liushixin2@huawei.com>
+Date: Fri, 4 Nov 2022 17:26:39 +0800
+Subject: [PATCH 390/595] [Huawei] kabi: use CONFIG_KABI_RESERVE to isolate
+ reserve flags
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187936
+
+--------------------------------
+
+Limit PG_reserve_pgflag_0 and PG_reserve_pgflag_1 to compile only on
+CONFIG_KABI_RESERVE.
+
+Signed-off-by: Liu Shixin <liushixin2@huawei.com>
+---
+ include/linux/page-flags.h     | 2 +-
+ include/trace/events/mmflags.h | 6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
+index 26b36cac9307..99a72d7d5cf5 100644
+--- a/include/linux/page-flags.h
++++ b/include/linux/page-flags.h
+@@ -150,7 +150,7 @@ enum pageflags {
+ 	 * flags which backported from kernel upstream, please place them
+ 	 * behind the reserved page flags.
+ 	 */
+-#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
++#ifdef CONFIG_KABI_RESERVE
+ 	PG_reserve_pgflag_0,
+ 	PG_reserve_pgflag_1,
+ #endif
+diff --git a/include/trace/events/mmflags.h b/include/trace/events/mmflags.h
+index 366d972ce735..46a0f7bc8e4c 100644
+--- a/include/trace/events/mmflags.h
++++ b/include/trace/events/mmflags.h
+@@ -89,10 +89,14 @@
+ 
+ #if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
+ #define IF_HAVE_PG_POOL(flag,string) ,{1UL << flag, string}
++#else
++#define IF_HAVE_PG_POOL(flag,string)
++#endif
++
++#ifdef CONFIG_KABI_RESERVE
+ #define IF_HAVE_PG_RESERVE0(flag,string) ,{1UL << flag, string}
+ #define IF_HAVE_PG_RESERVE1(flag,string) ,{1UL << flag, string}
+ #else
+-#define IF_HAVE_PG_POOL(flag,string)
+ #define IF_HAVE_PG_RESERVE0(flag,string)
+ #define IF_HAVE_PG_RESERVE1(flag,string)
+ #endif
+-- 
+2.17.1
+

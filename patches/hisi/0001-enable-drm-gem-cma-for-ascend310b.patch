@@ -1,0 +1,43 @@
+From bdbe768b68e734c99ad2e3f9544ef0f11b73dc22 Mon Sep 17 00:00:00 2001
+From: c00437249 <c00437249@huawei.com>
+Date: Wed, 21 Dec 2022 18:41:27 +0800
+Subject: [PATCH] DTS:DTS2022111615987 Description:enable drm gem for
+ ascend310b
+
+Team:OTHERS
+Feature or Bugfix:Feature
+---
+ drivers/gpu/drm/hisilicon/Kconfig            |  1 +
+ drivers/gpu/drm/hisilicon/ascend310b/Kconfig | 11 +++++++++++
+ 3 files changed, 13 insertions(+)
+ create mode 100644 drivers/gpu/drm/hisilicon/ascend310b/Kconfig
+
+diff --git a/drivers/gpu/drm/hisilicon/Kconfig b/drivers/gpu/drm/hisilicon/Kconfig
+index cc5a244db..422a1e8cf 100644
+--- a/drivers/gpu/drm/hisilicon/Kconfig
++++ b/drivers/gpu/drm/hisilicon/Kconfig
+@@ -5,3 +5,4 @@
+
+ source "drivers/gpu/drm/hisilicon/hibmc/Kconfig"
+ source "drivers/gpu/drm/hisilicon/kirin/Kconfig"
++source "drivers/gpu/drm/hisilicon/ascend310b/Kconfig"
+diff --git a/drivers/gpu/drm/hisilicon/ascend310b/Kconfig b/drivers/gpu/drm/hisilicon/ascend310b/Kconfig
+new file mode 100644
+index 000000000..374014249
+--- /dev/null
++++ b/drivers/gpu/drm/hisilicon/ascend310b/Kconfig
+@@ -0,0 +1,11 @@
++config DRM_HISI_ASCEND310B
++	tristate "DRM Support for Hisilicon Ascend310b SoC Platform"
++	depends on DRM && OF && ARM64
++	select DRM_KMS_HELPER
++	select DRM_GEM_CMA_HELPER
++	select DRM_KMS_CMA_HELPER
++	select DRM_MIPI_DSI
++	help
++	  Choose this option if you have a hisilicon Ascend310b chipset.
++	  If M is selected the module will be called ascend310b-drm.
++
+--
+2.17.1
+

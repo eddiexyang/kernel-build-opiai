@@ -1,0 +1,54 @@
+From d0a6ad243de614b14d1c19671c84bb16a97b3e09 Mon Sep 17 00:00:00 2001
+From: Zhuo Chen <chenzhuo.1@bytedance.com>
+Date: Wed, 19 Oct 2022 12:27:19 +0800
+Subject: [PATCH 0967/1646] [Backport] crypto: hisilicon - Remove
+ pci_aer_clear_nonfatal_status() call
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit 00278564a60e11df8bcca0ececd8b2f55434e406
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5T7AD
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=00278564a60e11df8bcca0ececd8b2f55434e406
+
+--------------------------------
+
+Calls to pci_cleanup_aer_uncorrect_error_status() have already been
+removed after commit 62b36c3ea664 ("PCI/AER: Remove
+pci_cleanup_aer_uncorrect_error_status() calls"). But in commit
+6c6dd5802c2d ("crypto: hisilicon/qm - add controller reset interface")
+pci_aer_clear_nonfatal_status() was used again, so remove it in
+this patch.
+
+note: pci_cleanup_aer_uncorrect_error_status() was renamed to
+pci_aer_clear_nonfatal_status() in commit 894020fdd88c
+("PCI/AER: Rationalize error status register clearing")
+
+Signed-off-by: Zhuo Chen <chenzhuo.1@bytedance.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Xiu Jianfeng <xiujianfeng@huawei.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 1b2e5f0b16bd..b0cdeee5bf91 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -5465,8 +5465,6 @@ pci_ers_result_t hisi_qm_dev_slot_reset(struct pci_dev *pdev)
+ 	if (pdev->is_virtfn)
+ 		return PCI_ERS_RESULT_RECOVERED;
+ 
+-	pci_aer_clear_nonfatal_status(pdev);
+-
+ 	/* reset pcie device controller */
+ 	ret = qm_controller_reset(qm);
+ 	if (ret) {
+-- 
+2.17.1
+

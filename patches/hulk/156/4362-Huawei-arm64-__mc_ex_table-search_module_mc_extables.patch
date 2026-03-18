@@ -1,0 +1,38 @@
+From fdd9c816c17f737baa2862c11db25f43e272b2d5 Mon Sep 17 00:00:00 2001
+From: Tong Tiangen <tongtiangen@huawei.com>
+Date: Wed, 3 Aug 2022 01:52:58 +0000
+Subject: [PATCH 4362/4585] [Huawei] arm64/__mc_ex_table:
+ search_module_mc_extables should not use num_exentries
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187384
+
+--------------------------------
+
+There is an issue of using variable num_exentries incorrectly in
+search_module_mc_extables(), fix it.
+
+Fixes: 7c3d926bb083 ("[Huawei] arm64: extable: add new extable type "__mc_ex_table"")
+Signed-off-by: Tong Tiangen <tongtiangen@huawei.com>
+---
+ kernel/module.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/module.c b/kernel/module.c
+index a469c7489771..cfa3d8c370a8 100644
+--- a/kernel/module.c
++++ b/kernel/module.c
+@@ -4652,7 +4652,7 @@ const struct exception_table_entry *search_module_mc_extables(unsigned long addr
+ 	if (!mod)
+ 		goto out;
+ 
+-	if (!mod->num_exentries)
++	if (!mod->num_mc_exentries)
+ 		goto out;
+ 
+ 	e = search_extable(mod->mc_extable,
+-- 
+2.17.1
+

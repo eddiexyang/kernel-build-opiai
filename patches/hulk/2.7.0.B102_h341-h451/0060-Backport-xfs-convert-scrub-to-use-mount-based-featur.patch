@@ -1,0 +1,99 @@
+From 7c42c6387f2097cc06a581319e4465ab1af5fed0 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Wed, 18 Aug 2021 18:46:54 -0700
+Subject: [PATCH 0060/1646] [Backport] xfs: convert scrub to use mount-based
+ feature checks
+
+mainline inclusion
+from mainline-v5.14-rc4
+commit 55fafb31f9e988a4ba2a38fcfe6f507880394d1f
+category: bugfix
+bugzilla: 188220
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=55fafb31f9e988a4ba2a38fcfe6f507880394d1f
+
+--------------------------------
+
+The scrub feature checks are the last place that the superblock
+feature checks are used. Convert them to mount based feature checks.
+
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/scrub/scrub.c | 12 ++++++------
+ fs/xfs/scrub/scrub.h |  2 +-
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/fs/xfs/scrub/scrub.c b/fs/xfs/scrub/scrub.c
+index fe5d407c2f70..aab8eb475744 100644
+--- a/fs/xfs/scrub/scrub.c
++++ b/fs/xfs/scrub/scrub.c
+@@ -240,21 +240,21 @@ static const struct xchk_meta_ops meta_scrub_ops[] = {
+ 		.type	= ST_PERAG,
+ 		.setup	= xchk_setup_ag_iallocbt,
+ 		.scrub	= xchk_finobt,
+-		.has	= xfs_sb_version_hasfinobt,
++		.has	= xfs_has_finobt,
+ 		.repair	= xrep_notsupported,
+ 	},
+ 	[XFS_SCRUB_TYPE_RMAPBT] = {	/* rmapbt */
+ 		.type	= ST_PERAG,
+ 		.setup	= xchk_setup_ag_rmapbt,
+ 		.scrub	= xchk_rmapbt,
+-		.has	= xfs_sb_version_hasrmapbt,
++		.has	= xfs_has_rmapbt,
+ 		.repair	= xrep_notsupported,
+ 	},
+ 	[XFS_SCRUB_TYPE_REFCNTBT] = {	/* refcountbt */
+ 		.type	= ST_PERAG,
+ 		.setup	= xchk_setup_ag_refcountbt,
+ 		.scrub	= xchk_refcountbt,
+-		.has	= xfs_sb_version_hasreflink,
++		.has	= xfs_has_reflink,
+ 		.repair	= xrep_notsupported,
+ 	},
+ 	[XFS_SCRUB_TYPE_INODE] = {	/* inode record */
+@@ -309,14 +309,14 @@ static const struct xchk_meta_ops meta_scrub_ops[] = {
+ 		.type	= ST_FS,
+ 		.setup	= xchk_setup_rt,
+ 		.scrub	= xchk_rtbitmap,
+-		.has	= xfs_sb_version_hasrealtime,
++		.has	= xfs_has_realtime,
+ 		.repair	= xrep_notsupported,
+ 	},
+ 	[XFS_SCRUB_TYPE_RTSUM] = {	/* realtime summary */
+ 		.type	= ST_FS,
+ 		.setup	= xchk_setup_rt,
+ 		.scrub	= xchk_rtsummary,
+-		.has	= xfs_sb_version_hasrealtime,
++		.has	= xfs_has_realtime,
+ 		.repair	= xrep_notsupported,
+ 	},
+ 	[XFS_SCRUB_TYPE_UQUOTA] = {	/* user quota */
+@@ -384,7 +384,7 @@ xchk_validate_inputs(
+ 	if (ops->setup == NULL || ops->scrub == NULL)
+ 		goto out;
+ 	/* Does this fs even support this type of metadata? */
+-	if (ops->has && !ops->has(&mp->m_sb))
++	if (ops->has && !ops->has(mp))
+ 		goto out;
+ 
+ 	error = -EINVAL;
+diff --git a/fs/xfs/scrub/scrub.h b/fs/xfs/scrub/scrub.h
+index e776ab4ad322..d8794b374261 100644
+--- a/fs/xfs/scrub/scrub.h
++++ b/fs/xfs/scrub/scrub.h
+@@ -28,7 +28,7 @@ struct xchk_meta_ops {
+ 	int		(*repair)(struct xfs_scrub *);
+ 
+ 	/* Decide if we even have this piece of metadata. */
+-	bool		(*has)(struct xfs_sb *);
++	bool		(*has)(struct xfs_mount *);
+ 
+ 	/* type describing required/allowed inputs */
+ 	enum xchk_type	type;
+-- 
+2.17.1
+

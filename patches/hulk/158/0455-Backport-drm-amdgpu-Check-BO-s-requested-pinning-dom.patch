@@ -1,0 +1,64 @@
+From 86e184302ef2bef47649a83131d025947c438f4e Mon Sep 17 00:00:00 2001
+From: Leo Li <sunpeng.li@amd.com>
+Date: Tue, 12 Jul 2022 12:30:29 -0400
+Subject: [PATCH 0455/1076] [Backport] drm/amdgpu: Check BO's requested pinning
+ domains against its preferred_domains
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+stable inclusion
+from stable-v5.10.137
+commit 15d0aeb017856b501870741587d6a75f8b06166a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=15d0aeb017856b501870741587d6a75f8b06166a
+
+--------------------------------
+
+commit f5ba14043621f4afdf3ad5f92ee2d8dbebbe4340 upstream.
+
+When pinning a buffer, we should check to see if there are any
+additional restrictions imposed by bo->preferred_domains. This will
+prevent the BO from being moved to an invalid domain when pinning.
+
+For example, this can happen if the user requests to create a BO in GTT
+domain for display scanout. amdgpu_dm will allow pinning to either VRAM
+or GTT domains, since DCN can scanout from either or. However, in
+amdgpu_bo_pin_restricted(), pinning to VRAM is preferred if there is
+adequate carveout. This can lead to pinning to VRAM despite the user
+requesting GTT placement for the BO.
+
+v2: Allow the kernel to override the domain, which can happen when
+    exporting a BO to a V4L camera (for example).
+
+Signed-off-by: Leo Li <sunpeng.li@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index f615ecc06a22..6937f8134008 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -905,6 +905,10 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 	if (WARN_ON_ONCE(min_offset > max_offset))
+ 		return -EINVAL;
+ 
++	/* Check domain to be pinned to against preferred domains */
++	if (bo->preferred_domains & domain)
++		domain = bo->preferred_domains & domain;
++
+ 	/* A shared bo cannot be migrated to VRAM */
+ 	if (bo->prime_shared_count) {
+ 		if (domain & AMDGPU_GEM_DOMAIN_GTT)
+-- 
+2.17.1
+

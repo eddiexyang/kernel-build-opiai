@@ -1,0 +1,76 @@
+From 23ab03a1fec48b89f491aa456618a7107d77bd2e Mon Sep 17 00:00:00 2001
+From: Mushahid Hussain <mushi.shar@gmail.com>
+Date: Mon, 10 Oct 2022 21:57:20 +0500
+Subject: [PATCH 0977/1398] [Backport] speakup: fix a segfault caused by
+ switching consoles
+
+stable inclusion
+from stable-v5.10.156
+commit eb3af3ea5bcabee193ce31e08fedf55cc3d20b9f
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I67UR2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=eb3af3ea5bcabee193ce31e08fedf55cc3d20b9f
+
+--------------------------------
+
+commit 0fc801f8018000c8e64a275a20cb1da7c54e46df upstream.
+
+This patch fixes a segfault by adding a null check on synth in
+speakup_con_update(). The segfault can be reproduced as follows:
+
+	- Login into a text console
+
+	- Load speakup and speakup_soft modules
+
+	- Remove speakup_soft
+
+	- Switch to a graphics console
+
+This is caused by lack of a null check on `synth` in
+speakup_con_update().
+
+Here's the sequence that causes the segfault:
+
+	- When we remove the speakup_soft, synth_release() sets the synth
+	  to null.
+
+	- After that, when we change the virtual console to graphics
+	  console, vt_notifier_call() is fired, which then calls
+	  speakup_con_update().
+
+	- Inside speakup_con_update() there's no null check on synth,
+	  so it calls synth_printf().
+
+	- Inside synth_printf(), synth_buffer_add() and synth_start(),
+	  both access synth, when it is null and causing a segfault.
+
+Therefore adding a null check on synth solves the issue.
+
+Fixes: 2610df41489f ("staging: speakup: Add pause command used on switching to graphical mode")
+Cc: stable <stable@kernel.org>
+Signed-off-by: Mushahid Hussain <mushi.shar@gmail.com>
+Signed-off-by: Samuel Thibault <samuel.thibault@ens-lyon.org>
+Link: https://lore.kernel.org/r/20221010165720.397042-1-mushi.shar@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/accessibility/speakup/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/accessibility/speakup/main.c b/drivers/accessibility/speakup/main.c
+index 48019660a096..63c5444f0f1a 100644
+--- a/drivers/accessibility/speakup/main.c
++++ b/drivers/accessibility/speakup/main.c
+@@ -1780,7 +1780,7 @@ static void speakup_con_update(struct vc_data *vc)
+ {
+ 	unsigned long flags;
+ 
+-	if (!speakup_console[vc->vc_num] || spk_parked)
++	if (!speakup_console[vc->vc_num] || spk_parked || !synth)
+ 		return;
+ 	if (!spin_trylock_irqsave(&speakup_info.spinlock, flags))
+ 		/* Speakup output, discard */
+-- 
+2.17.1
+

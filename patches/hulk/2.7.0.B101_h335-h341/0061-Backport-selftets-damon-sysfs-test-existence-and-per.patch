@@ -1,0 +1,42 @@
+From de104075e57b9c633767c5ab5a6d42284ea598ea Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Mon, 9 May 2022 18:20:51 -0700
+Subject: [PATCH 061/921] [Backport] selftets/damon/sysfs: test existence and
+ permission of avail_operations
+
+mainline inclusion
+from mainline-v6.2-rc6
+commit f893abbd6997f9a95815acfb84aa865f0c996373
+category: feature
+bugzilla: 188442
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=f893abbd6997f9a95815acfb84aa865f0c996373
+
+--------------------------------
+
+This commit adds a selftest test case for ensuring the existence and the
+permission (read-only) of the 'avail_oprations' DAMON sysfs file.
+
+Link: https://lkml.kernel.org/r/20220426203843.45238-4-sj@kernel.org
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Ze Zuo <zuoze1@huawei.com>
+---
+ tools/testing/selftests/damon/sysfs.sh | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/testing/selftests/damon/sysfs.sh b/tools/testing/selftests/damon/sysfs.sh
+index 2e3ae77cb6db..89592c64462f 100644
+--- a/tools/testing/selftests/damon/sysfs.sh
++++ b/tools/testing/selftests/damon/sysfs.sh
+@@ -231,6 +231,7 @@ test_context()
+ {
+ 	context_dir=$1
+ 	ensure_dir "$context_dir" "exist"
++	ensure_file "$context_dir/avail_operations" "exit" 400
+ 	ensure_file "$context_dir/operations" "exist" 600
+ 	test_monitoring_attrs "$context_dir/monitoring_attrs"
+ 	test_targets "$context_dir/targets"
+-- 
+2.17.1
+

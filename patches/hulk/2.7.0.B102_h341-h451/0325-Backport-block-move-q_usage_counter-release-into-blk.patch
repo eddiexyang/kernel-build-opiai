@@ -1,0 +1,67 @@
+From 1cd6291f4a650ed75a1411367850436f2db05234 Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Tue, 8 Mar 2022 06:51:57 +0100
+Subject: [PATCH 0325/1646] [Backport] block: move q_usage_counter release into
+ blk_queue_release
+
+mainline inclusion
+from mainline-v5.18-rc1
+commit ba3e845665fbbb0252336f27200cd5cf288a3573
+category: bugfix
+bugzilla: 187268
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=ba3e845665fbbb0252336f27200cd5cf288a3573
+
+----------------------------------------
+
+After blk_cleanup_queue() returns, disk may not be released yet, so
+probably bio may still be submitted and ->q_usage_counter may be
+touched, so far this way seems safe, but not good from API's viewpoint.
+
+Move the release q_usage_counter into blk_queue_release().
+
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Reviewed-by: Bart Van Assche <bvanassche@acm.org>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Link: https://lore.kernel.org/r/20220308055200.735835-12-hch@lst.de
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+
+conflicts:
+ block/blk-core.c
+ block/blk-sysfs.c
+
+Signed-off-by: Zhong Jinghua <zhongjinghua@huawei.com>
+---
+ block/blk-core.c  | 2 --
+ block/blk-sysfs.c | 2 ++
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 70c304594faa..96f0bf1ffbdb 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -440,8 +440,6 @@ void blk_cleanup_queue(struct request_queue *q)
+ 		blk_mq_sched_free_rqs(q);
+ 	mutex_unlock(&q->sysfs_lock);
+ 
+-	percpu_ref_exit(&q->q_usage_counter);
+-
+ 	/* @q is and will stay empty, shutdown and put */
+ 	blk_put_queue(q);
+ }
+diff --git a/block/blk-sysfs.c b/block/blk-sysfs.c
+index 6980db916178..9d6b16a49c78 100644
+--- a/block/blk-sysfs.c
++++ b/block/blk-sysfs.c
+@@ -786,6 +786,8 @@ static void blk_release_queue(struct kobject *kobj)
+ 
+ 	rq_qos_exit(q);
+ 
++	percpu_ref_exit(&q->q_usage_counter);
++
+ 	if (test_bit(QUEUE_FLAG_POLL_STATS, &q->queue_flags))
+ 		blk_stat_remove_callback(q, q->poll_cb);
+ 	blk_stat_free_callback(q->poll_cb);
+-- 
+2.17.1
+

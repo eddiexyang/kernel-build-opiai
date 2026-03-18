@@ -1,0 +1,129 @@
+From 31237d03d3b4e590e3769dd73eff7979b1746dc9 Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Thu, 20 Oct 2022 12:16:40 +0800
+Subject: [PATCH 157/595] [Huawei] block: add a switch to enable hungtask check
+ for io
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187848
+
+--------------------------------
+
+Because slow io or io timeout handler can take a long time, hungtask check
+is forbidden in order to prevent false positive warnings. However, this
+also cause kenel to be silence if io really hang.
+
+It's quite complicated to distinguish if io is slow or hanged, this
+patch add a switch to enable hungtask check, the switch is enabled by
+default, and can be turn off by:
+
+1) disable config BLK_IO_HUNG_TASK_CHECK
+2) add blk_core.io_hung_task_check=0 to boot cmd
+3) echo 0 > /sys/module/blk_core/parameters/io_hung_task_check
+
+Noted that user has to be careful to use this with hungtask panic
+enabeld, since there could be false positive hungtask warnings.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/Kconfig    |  9 +++++++++
+ block/bio.c      |  2 +-
+ block/blk-core.c | 13 ++++++++++++-
+ block/blk-exec.c |  2 +-
+ block/blk.h      |  1 +
+ 5 files changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/block/Kconfig b/block/Kconfig
+index e5c965f1ea25..e213002d5e73 100644
+--- a/block/Kconfig
++++ b/block/Kconfig
+@@ -209,6 +209,15 @@ config BLK_DEV_DUMPINFO
+ 	  Dump info when open an write opened block device exclusively
+ 	  or open an exclusive opened device for write
+ 
++config BLK_IO_HUNG_TASK_CHECK
++	bool "Enable io hung task check"
++	depends on DETECT_HUNG_TASK
++	default y
++	help
++	  Enabling this lets the block layer detect hungtask for io, noted
++	  if this is set, hungtask will complain about slow io even if such
++	  io is not hanged. Be careful to enable hungtask panic in this case.
++
+ menu "Partition Types"
+ 
+ source "block/partitions/Kconfig"
+diff --git a/block/bio.c b/block/bio.c
+index 8c64c93e96c8..123b44ba17cb 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -1169,7 +1169,7 @@ int submit_bio_wait(struct bio *bio)
+ 	submit_bio(bio);
+ 
+ 	/* Prevent hang_check timer from firing at us during very long I/O */
+-	hang_check = sysctl_hung_task_timeout_secs;
++	hang_check = sysctl_hung_task_timeout_secs && !io_hung_task_check;
+ 	if (hang_check)
+ 		while (!wait_for_completion_io_timeout(&done,
+ 					hang_check * (HZ/2)))
+diff --git a/block/blk-core.c b/block/blk-core.c
+index a18cfc467d41..4b2d4e994990 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -77,6 +77,17 @@ static int __init precise_iostat_setup(char *str)
+ }
+ __setup("precise_iostat=", precise_iostat_setup);
+ 
++/*
++ * Noted if this is set, hungtask will complain about slow io even if such io is
++ * not hanged. Be careful to enable hungtask panic in this case.
++ */
++#ifdef CONFIG_BLK_IO_HUNG_TASK_CHECK
++bool io_hung_task_check = true;
++#else
++bool io_hung_task_check;
++#endif
++module_param_named(io_hung_task_check, io_hung_task_check, bool, 0644);
++
+ /*
+  * For queue allocation
+  */
+@@ -1824,7 +1835,7 @@ void blk_io_schedule(void)
+ 	/* Prevent hang_check timer from firing at us during very long I/O */
+ 	unsigned long timeout = sysctl_hung_task_timeout_secs * HZ / 2;
+ 
+-	if (timeout)
++	if (timeout && !io_hung_task_check)
+ 		io_schedule_timeout(timeout);
+ 	else
+ 		io_schedule();
+diff --git a/block/blk-exec.c b/block/blk-exec.c
+index b2676de4c6a5..497aa52cd51e 100644
+--- a/block/blk-exec.c
++++ b/block/blk-exec.c
+@@ -87,7 +87,7 @@ blk_status_t blk_execute_rq(struct request_queue *q, struct gendisk *bd_disk,
+ 	blk_execute_rq_nowait(q, bd_disk, rq, at_head, blk_end_sync_rq);
+ 
+ 	/* Prevent hang_check timer from firing at us during very long I/O */
+-	hang_check = sysctl_hung_task_timeout_secs;
++	hang_check = sysctl_hung_task_timeout_secs && !io_hung_task_check;
+ 	if (hang_check)
+ 		while (!wait_for_completion_io_timeout(&wait, hang_check * (HZ/2)));
+ 	else
+diff --git a/block/blk.h b/block/blk.h
+index 5a9fb24c2ed9..189cb40fb8a3 100644
+--- a/block/blk.h
++++ b/block/blk.h
+@@ -15,6 +15,7 @@
+ #define BLK_MAX_TIMEOUT		(5 * HZ)
+ 
+ extern struct dentry *blk_debugfs_root;
++extern bool io_hung_task_check;
+ 
+ struct blk_flush_queue {
+ 	unsigned int		flush_pending_idx:1;
+-- 
+2.17.1
+

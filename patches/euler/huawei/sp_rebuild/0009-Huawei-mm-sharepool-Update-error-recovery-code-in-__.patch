@@ -1,0 +1,77 @@
+From d3ce57be563114ee5fe347d510c753d83cf36b40 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Fri, 21 Jul 2023 11:02:16 +0800
+Subject: [PATCH 09/53] [Huawei] mm/sharepool: Update error recovery code in
+ __sp_alloc_mmap_populate()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+We would release the existing maps later in sp_alloc_mmap_populate.
+We should just unmap the vma created this time via do_unmap().
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index ca6178262d1f..d22cf32857dd 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2276,7 +2276,6 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	mmap_addr = sp_mmap(mm, spa_file(spa), spa, &populate, prot, &vma);
+ 	if (IS_ERR_VALUE(mmap_addr)) {
+ 		up_write(&mm->mmap_lock);
+-		__sp_free(spa->spg, spa->va_start, spa_size(spa), mm);
+ 		pr_err("sp mmap in allocation failed %ld\n", mmap_addr);
+ 		return (int)mmap_addr;
+ 	}
+@@ -2293,6 +2292,9 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 		if (ret < 0) {
+ 			pr_err("cannot bind the memory range to node[%*pbl], err:%d\n",
+ 					nodemask_pr_args(nodemask), ret);
++			down_write(&mm->mmap_lock);
++			do_munmap(mm, mmap_addr, spa_size(spa), NULL);
++			up_write(&mm->mmap_lock);
+ 			return ret;
+ 		}
+ 		ac->have_mbind = true;
+@@ -2306,6 +2308,9 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	 */
+ 	ret = do_mm_populate(mm, spa->va_start, populate, 0);
+ 	if (ret) {
++		down_write(&mm->mmap_lock);
++		do_munmap(mm, mmap_addr, spa_size(spa), NULL);
++		up_write(&mm->mmap_lock);
+ 		if (unlikely(fatal_signal_pending(current)))
+ 			pr_warn_ratelimited("allocation failed, current thread is killed\n");
+ 		else
+@@ -2322,7 +2327,7 @@ static int sp_alloc_mmap_populate(struct sp_area *spa,
+ {
+ 	int ret = -EINVAL;
+ 	int mmap_ret = 0;
+-	struct mm_struct *mm, *end_mm = NULL;
++	struct mm_struct *mm;
+ 	struct sp_group_node *spg_node;
+ 	nodemask_t __nodemask;
+ 
+@@ -2356,10 +2361,7 @@ static int sp_alloc_mmap_populate(struct sp_area *spa,
+ 	return ret;
+ 
+ unmap:
+-	/* use the next mm in proc list as end mark */
+-	if (!list_is_last(&spg_node->proc_node, &spa->spg->proc_head))
+-		end_mm = list_next_entry(spg_node, proc_node)->master->mm;
+-	__sp_free(spa->spg, spa->va_start, spa_size(spa), end_mm);
++	__sp_free(spa->spg, spa->va_start, spa_size(spa), mm);
+ 
+ 	/*
+ 	 * Sometimes do_mm_populate() allocates some memory and then failed to
+-- 
+2.17.1
+

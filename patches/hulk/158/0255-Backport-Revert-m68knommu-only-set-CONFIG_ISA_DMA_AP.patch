@@ -1,0 +1,48 @@
+From 5876b70df3bde6d8d18f6d4aa48c2c2b69fef163 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Sat, 23 Jul 2022 17:06:06 +0200
+Subject: [PATCH 0255/1076] [Backport] Revert "m68knommu: only set
+ CONFIG_ISA_DMA_API for ColdFire sub-arch"
+
+stable inclusion
+from stable-v5.10.134
+commit b07240ce4a09d9771d544e15a3a4ec008cc186ad
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UCZG
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b07240ce4a09d9771d544e15a3a4ec008cc186ad
+
+--------------------------------
+
+This reverts commit 87ae522e467e17a13b796e2cb595f9c3943e4d5e which is
+commit db87db65c1059f3be04506d122f8ec9b2fa3b05e upstream.
+
+It is not needed in 5.10.y and causes problems.
+
+Link: https://lore.kernel.org/r/CAK8P3a0vZrXxNp3YhrxFjFunHgxSZBKD9Y4darSODgeFAukCeQ@mail.gmail.com
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Arnd Bergmann <arnd@arndb.de>
+Cc: Greg Ungerer <gerg@linux-m68k.org>
+Cc: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/m68k/Kconfig.bus | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/m68k/Kconfig.bus b/arch/m68k/Kconfig.bus
+index d1e93a39cd3b..f1be832e2b74 100644
+--- a/arch/m68k/Kconfig.bus
++++ b/arch/m68k/Kconfig.bus
+@@ -63,7 +63,7 @@ source "drivers/zorro/Kconfig"
+ 
+ endif
+ 
+-if COLDFIRE
++if !MMU
+ 
+ config ISA_DMA_API
+ 	def_bool !M5272
+-- 
+2.17.1
+

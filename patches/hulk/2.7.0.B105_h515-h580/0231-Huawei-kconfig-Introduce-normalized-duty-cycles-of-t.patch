@@ -1,0 +1,45 @@
+From 29027b1c18cc30ab6f45c40eb71246fa8e3671f4 Mon Sep 17 00:00:00 2001
+From: Zheng Zucheng <zhengzucheng@huawei.com>
+Date: Wed, 10 May 2023 11:23:17 +0800
+Subject: [PATCH 231/780] [Huawei] kconfig: Introduce normalized duty cycles of
+ task
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188931
+
+-------------------------------
+
+The task utilization is accurately tracked by normalized cpu capacity,
+this feature adds cpuacct.normalize_usage node to the cpuacct subsystem,
+which records task normalized runtime.
+
+Signed-off-by: Zheng Zucheng <zhengzucheng@huawei.com>
+---
+ init/Kconfig | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/init/Kconfig b/init/Kconfig
+index 3d09572a7444..b20908365ebe 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1071,6 +1071,15 @@ config QOS_SCHED_DYNAMIC_AFFINITY
+ 	 of taskgroup is below threshold setted, otherwise make taskgroup to use
+ 	 cpus allowed.
+ 
++config QOS_NORMALIZE_UTIL
++	bool "Normalize util on hyper-threading"
++	depends on X86 || ARM64
++	depends on SCHED_SMT && SMP && CGROUP_CPUACCT
++	default n
++	help
++	 This feature uses the actual computing power to indicate duty cycle
++	 of task in hyper-threading
++
+ config UCLAMP_TASK_GROUP
+ 	bool "Utilization clamping per group of tasks"
+ 	depends on CGROUP_SCHED
+-- 
+2.17.1
+

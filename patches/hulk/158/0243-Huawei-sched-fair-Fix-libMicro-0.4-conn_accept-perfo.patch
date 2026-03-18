@@ -1,0 +1,70 @@
+From a2011f0930816a4c5b46b44d87338e9b04bf2362 Mon Sep 17 00:00:00 2001
+From: Zhang Qiao <zhangqiao22@huawei.com>
+Date: Thu, 29 Sep 2022 08:45:38 +0800
+Subject: [PATCH 0243/1076] [Huawei] sched/fair: Fix libMicro-0.4/conn_accept
+ performance degradation
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186981
+
+--------------------------------
+
+Commit 856e51e0eaa4 ("[Backport] sched/fair: fix case with
+reduced capacity CPU") lead to libMicro-0.4/conn_accept
+testcase performance degradation, so Use sched_feat(LB_BUSY)
+control the patch.
+
+Signed-off-by: Zhang Qiao <zhangqiao22@huawei.com>
+---
+ kernel/sched/fair.c     | 9 ++++++---
+ kernel/sched/features.h | 1 +
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index ca30e11dee3c..b22043cc2677 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -9421,7 +9421,7 @@ static inline void update_sg_lb_stats(struct lb_env *env,
+ 				*sg_status |= SG_OVERLOAD;
+ 			}
+ 		} else if ((env->idle != CPU_NOT_IDLE) &&
+-			   sched_reduced_capacity(rq, env->sd)) {
++			   sched_reduced_capacity(rq, env->sd) && sched_feat(LB_BUSY)) {
+ 			/* Check for a task running on a CPU with reduced capacity */
+ 			if (sgs->group_misfit_task_load < load)
+ 				sgs->group_misfit_task_load = load;
+@@ -9562,7 +9562,7 @@ static bool update_sd_pick_busiest(struct lb_env *env,
+ 	 * throughput. Maximize throughput, power/energy consequences are not
+ 	 * considered.
+ 	 */
+-	if ((env->sd->flags & SD_ASYM_CPUCAPACITY) &&
++	if (((env->sd->flags & SD_ASYM_CPUCAPACITY) || !sched_feat(LB_BUSY)) &&
+ 	    (sgs->group_type <= group_fully_busy) &&
+ 	    (group_smaller_min_cpu_capacity(sds->local, sg)))
+ 		return false;
+@@ -10038,7 +10038,10 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
+ 	busiest = &sds->busiest_stat;
+ 
+ 	if (busiest->group_type == group_misfit_task) {
+-		if (env->sd->flags & SD_ASYM_CPUCAPACITY) {
++		if (!sched_feat(LB_BUSY)) {
++			env->migration_type = migrate_misfit;
++			env->imbalance = 1;
++		} else if (env->sd->flags & SD_ASYM_CPUCAPACITY) {
+ 			/* Set imbalance to allow misfit tasks to be balanced. */
+ 			env->migration_type = migrate_misfit;
+ 			env->imbalance = 1;
+diff --git a/kernel/sched/features.h b/kernel/sched/features.h
+index b358bbcb800b..c7f063ea136b 100644
+--- a/kernel/sched/features.h
++++ b/kernel/sched/features.h
+@@ -107,3 +107,4 @@ SCHED_FEAT(BASE_SLICE, true)
+  */
+ SCHED_FEAT(DA_UTIL_TASKGROUP, true)
+ #endif
++SCHED_FEAT(LB_BUSY, false)
+-- 
+2.17.1
+

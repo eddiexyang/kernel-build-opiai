@@ -1,0 +1,99 @@
+From 2fc71e8781f37a41c5da65c7da64c8e5802a94f0 Mon Sep 17 00:00:00 2001
+From: Jim Mattson <jmattson@google.com>
+Date: Mon, 7 Mar 2022 17:24:52 -0800
+Subject: [PATCH 0879/1076] [Backport] KVM: x86/pmu: Use different raw event
+ masks for AMD and Intel
+
+stable inclusion
+from stable-v5.10.137
+commit 2ba1feb14363fd311f2cc912b58e5bb0b2b73662
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5UYSC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=2ba1feb14363fd311f2cc912b58e5bb0b2b73662
+
+--------------------------------
+
+[ Upstream commit 95b065bf5c431c06c68056a03a5853b660640ecc ]
+
+The third nybble of AMD's event select overlaps with Intel's IN_TX and
+IN_TXCP bits. Therefore, we can't use AMD64_RAW_EVENT_MASK on Intel
+platforms that support TSX.
+
+Declare a raw_event_mask in the kvm_pmu structure, initialize it in
+the vendor-specific pmu_refresh() functions, and use that mask for
+PERF_TYPE_RAW configurations in reprogram_gp_counter().
+
+Fixes: 710c47651431 ("KVM: x86/pmu: Use AMD64_RAW_EVENT_MASK for PERF_TYPE_RAW")
+Signed-off-by: Jim Mattson <jmattson@google.com>
+Message-Id: <20220308012452.3468611-1-jmattson@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ arch/x86/include/asm/kvm_host.h | 1 +
+ arch/x86/kvm/pmu.c              | 3 ++-
+ arch/x86/kvm/svm/pmu.c          | 1 +
+ arch/x86/kvm/vmx/pmu_intel.c    | 1 +
+ 4 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/include/asm/kvm_host.h b/arch/x86/include/asm/kvm_host.h
+index 9edc9673e494..b19d7a277ba4 100644
+--- a/arch/x86/include/asm/kvm_host.h
++++ b/arch/x86/include/asm/kvm_host.h
+@@ -439,6 +439,7 @@ struct kvm_pmu {
+ 	u64 global_ctrl_mask;
+ 	u64 global_ovf_ctrl_mask;
+ 	u64 reserved_bits;
++	u64 raw_event_mask;
+ 	u8 version;
+ 	struct kvm_pmc gp_counters[INTEL_PMC_MAX_GENERIC];
+ 	struct kvm_pmc fixed_counters[INTEL_PMC_MAX_FIXED];
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index e2e5658200c5..4d5adb8dad3c 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -181,6 +181,7 @@ void reprogram_gp_counter(struct kvm_pmc *pmc, u64 eventsel)
+ 	u32 type = PERF_TYPE_RAW;
+ 	struct kvm *kvm = pmc->vcpu->kvm;
+ 	struct kvm_pmu_event_filter *filter;
++	struct kvm_pmu *pmu = vcpu_to_pmu(pmc->vcpu);
+ 	bool allow_event = true;
+ 
+ 	if (eventsel & ARCH_PERFMON_EVENTSEL_PIN_CONTROL)
+@@ -217,7 +218,7 @@ void reprogram_gp_counter(struct kvm_pmc *pmc, u64 eventsel)
+ 	}
+ 
+ 	if (type == PERF_TYPE_RAW)
+-		config = eventsel & AMD64_RAW_EVENT_MASK;
++		config = eventsel & pmu->raw_event_mask;
+ 
+ 	if (pmc->current_config == eventsel && pmc_resume_counter(pmc))
+ 		return;
+diff --git a/arch/x86/kvm/svm/pmu.c b/arch/x86/kvm/svm/pmu.c
+index 49e5be735f14..35da84f63b20 100644
+--- a/arch/x86/kvm/svm/pmu.c
++++ b/arch/x86/kvm/svm/pmu.c
+@@ -295,6 +295,7 @@ static void amd_pmu_refresh(struct kvm_vcpu *vcpu)
+ 
+ 	pmu->counter_bitmask[KVM_PMC_GP] = ((u64)1 << 48) - 1;
+ 	pmu->reserved_bits = 0xfffffff000280000ull;
++	pmu->raw_event_mask = AMD64_RAW_EVENT_MASK;
+ 	pmu->version = 1;
+ 	/* not applicable to AMD; but clean them to prevent any fall out */
+ 	pmu->counter_bitmask[KVM_PMC_FIXED] = 0;
+diff --git a/arch/x86/kvm/vmx/pmu_intel.c b/arch/x86/kvm/vmx/pmu_intel.c
+index 44cd13790810..2fda5b8653cc 100644
+--- a/arch/x86/kvm/vmx/pmu_intel.c
++++ b/arch/x86/kvm/vmx/pmu_intel.c
+@@ -478,6 +478,7 @@ static void intel_pmu_refresh(struct kvm_vcpu *vcpu)
+ 	pmu->counter_bitmask[KVM_PMC_FIXED] = 0;
+ 	pmu->version = 0;
+ 	pmu->reserved_bits = 0xffffffff00200000ull;
++	pmu->raw_event_mask = X86_RAW_EVENT_MASK;
+ 
+ 	entry = kvm_find_cpuid_entry(vcpu, 0xa, 0);
+ 	if (!entry)
+-- 
+2.17.1
+

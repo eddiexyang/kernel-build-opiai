@@ -1,0 +1,43 @@
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c b/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
+index ffc9f48..b0c0d61 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3_enet.c
+@@ -5999,13 +5999,21 @@ EXPORT_SYMBOL(hns3_client_init);
+ 
+ void hns3_client_uninit(struct hnae3_handle *handle, bool reset)
+ {
++	struct hns3_nic_priv *priv;
++	struct net_device *netdev;
++
+ 	if (!handle) {
+ 		pr_err("hns3: %s param error! handle is null.\n", __func__);
+ 		return;
+ 	}
+ 
+-	struct net_device *netdev = handle->kinfo.netdev;
+-	struct hns3_nic_priv *priv = netdev_priv(netdev);
++	netdev = handle->kinfo.netdev;
++	if (!netdev) {
++		pr_err("hns3: %s param error! netdev is null.\n", __func__);
++		return;
++	}
++
++	priv = netdev_priv(netdev);
+ 
+ 	if (netdev->reg_state != NETREG_UNINITIALIZED)
+ 		unregister_netdev(netdev);
+diff --git a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
+index f326d88..b704652 100644
+--- a/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
++++ b/drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c
+@@ -2805,6 +2805,10 @@ static void hclge_report_event(struct hclge_dev *hdev, u8 type_id, u8 dms_err_ty
+ 	}
+ 
+ 	hclge_fault_report_excep(hdev->device_id, ((u32)dms_err_type << RAS_ERROR_TYPE_OFFSET) | (u32)type_id);
++
++	if (hclge_fault_report_excep != NULL) {
++		symbol_put(hclge_fault_report_excep);
++	}
+ }
+ 
+ static void

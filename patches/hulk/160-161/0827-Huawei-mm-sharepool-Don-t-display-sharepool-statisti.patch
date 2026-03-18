@@ -1,0 +1,76 @@
+From 6c9a2a514e8ecb2724fbda0dfde7672ddfebd48f Mon Sep 17 00:00:00 2001
+From: Zhou Guanghui <zhouguanghui1@huawei.com>
+Date: Wed, 7 Dec 2022 09:20:00 +0000
+Subject: [PATCH 0827/1398] [Huawei] mm/sharepool: Don't display sharepool
+ statistics in the container
+
+Offering: HULK
+ascend inclusion
+category: bugfix
+bugzilla: 187906
+
+--------------------------------------------
+
+The sharepool statistics record the sharepool memory information used
+by all containers in the system. We do not expect to query the
+sharepool memory information applied by processes in other containers
+in the container.
+
+Therefore, the sharepool statistics cannot be queried in the container
+to solve this problem.
+
+Signed-off-by: Zhou Guanghui <zhouguanghui1@huawei.com>
+---
+ mm/share_pool.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 850c86193e61..fc0877256559 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -4077,8 +4077,22 @@ void spg_overview_show(struct seq_file *seq)
+ 	SEQ_printf(seq, "\n");
+ }
+ 
++static bool should_show_statistics(void)
++{
++	if (!capable(CAP_SYS_ADMIN))
++		return false;
++
++	if (task_active_pid_ns(current) != &init_pid_ns)
++		return false;
++
++	return true;
++}
++
+ static int spa_stat_show(struct seq_file *seq, void *offset)
+ {
++	if (!should_show_statistics())
++		return -EPERM;
++
+ 	spg_overview_show(seq);
+ 	spa_overview_show(seq);
+ 	/* print the file header */
+@@ -4127,6 +4141,9 @@ static int proc_usage_by_group(int id, void *p, void *data)
+ 
+ static int proc_group_usage_show(struct seq_file *seq, void *offset)
+ {
++	if (!should_show_statistics())
++		return -EPERM;
++
+ 	spg_overview_show(seq);
+ 	spa_overview_show(seq);
+ 
+@@ -4154,6 +4171,9 @@ static int proc_usage_show(struct seq_file *seq, void *offset)
+ 	long sp_res, sp_res_nsize, non_sp_res, non_sp_shm;
+ 	struct sp_proc_stat *proc_stat;
+ 
++	if (!should_show_statistics())
++		return -EPERM;
++
+ 	seq_printf(seq, "%-8s %-16s %-9s %-9s %-9s %-10s %-10s %-8s\n",
+ 			"PID", "COMM", "SP_ALLOC", "SP_K2U", "SP_RES", "Non-SP_RES",
+ 			"Non-SP_Shm", "VIRT");
+-- 
+2.17.1
+

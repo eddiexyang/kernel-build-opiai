@@ -1,0 +1,47 @@
+From ad0baf0b5952ed5af5af7bf89739020d642e2c95 Mon Sep 17 00:00:00 2001
+From: Yi Li <yili@winhong.com>
+Date: Tue, 21 Jun 2022 17:05:32 +0800
+Subject: [PATCH 3080/4585] [Backport] bcache: set pdev_set_uuid before scond
+ loop iteration
+
+mainline inclusion
+from mainline-v5.11-rc3
+commit e80927079fd97b4d5457e3af2400a0087b561564
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I59A5L?from=project-issue
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e80927079fd97b4d5457e3af2400a0087b561564
+
+--------------------------------
+
+There is no need to reassign pdev_set_uuid in the second loop iteration,
+so move it to the place before second loop.
+
+Signed-off-by: Yi Li <yili@winhong.com>
+Signed-off-by: Coly Li <colyli@suse.de>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Reviewed-by: Jason Yan <yanaijie@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/md/bcache/super.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/md/bcache/super.c b/drivers/md/bcache/super.c
+index 1572190c32ec..456e41a81c06 100644
+--- a/drivers/md/bcache/super.c
++++ b/drivers/md/bcache/super.c
+@@ -2697,8 +2697,8 @@ static ssize_t bch_pending_bdevs_cleanup(struct kobject *k,
+ 	}
+ 
+ 	list_for_each_entry_safe(pdev, tpdev, &pending_devs, list) {
++		char *pdev_set_uuid = pdev->dc->sb.set_uuid;
+ 		list_for_each_entry_safe(c, tc, &bch_cache_sets, list) {
+-			char *pdev_set_uuid = pdev->dc->sb.set_uuid;
+ 			char *set_uuid = c->set_uuid;
+ 
+ 			if (!memcmp(pdev_set_uuid, set_uuid, 16)) {
+-- 
+2.17.1
+

@@ -1,0 +1,84 @@
+From 86a99dae77e87299c470e7edaae4c58b76e98ef5 Mon Sep 17 00:00:00 2001
+From: Andreas Gruenbacher <agruenba@redhat.com>
+Date: Sun, 4 Dec 2022 17:00:04 +0100
+Subject: [PATCH 1575/1646] [Backport] gfs2: Always check inode size of inline
+ inodes
+
+stable inclusion
+from stable-v5.10.177
+commit 7c414f6f06e9a3934901b6edc3177ae5a1e07094
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=7c414f6f06e9a3934901b6edc3177ae5a1e07094
+
+--------------------------------
+
+commit 70376c7ff31221f1d21db5611d8209e677781d3a upstream.
+
+Check if the inode size of stuffed (inline) inodes is within the allowed
+range when reading inodes from disk (gfs2_dinode_in()).  This prevents
+us from on-disk corruption.
+
+The two checks in stuffed_readpage() and gfs2_unstuffer_page() that just
+truncate inline data to the maximum allowed size don't actually make
+sense, and they can be removed now as well.
+
+Reported-by: syzbot+7bb81dfa9cda07d9cd9d@syzkaller.appspotmail.com
+Signed-off-by: Andreas Gruenbacher <agruenba@redhat.com>
+[pchelkin@ispras.ru: adjust the inode variable inside gfs2_dinode_in with
+the format used before upstream commit 7db354444ad8 ("gfs2: Cosmetic
+gfs2_dinode_{in,out} cleanup")]
+Signed-off-by: Fedor Pchelkin <pchelkin@ispras.ru>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/gfs2/aops.c  | 2 --
+ fs/gfs2/bmap.c  | 3 ---
+ fs/gfs2/glops.c | 3 +++
+ 3 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/fs/gfs2/aops.c b/fs/gfs2/aops.c
+index 530659554870..a0430da033b3 100644
+--- a/fs/gfs2/aops.c
++++ b/fs/gfs2/aops.c
+@@ -451,8 +451,6 @@ static int stuffed_readpage(struct gfs2_inode *ip, struct page *page)
+ 		return error;
+ 
+ 	kaddr = kmap_atomic(page);
+-	if (dsize > gfs2_max_stuffed_size(ip))
+-		dsize = gfs2_max_stuffed_size(ip);
+ 	memcpy(kaddr, dibh->b_data + sizeof(struct gfs2_dinode), dsize);
+ 	memset(kaddr + dsize, 0, PAGE_SIZE - dsize);
+ 	kunmap_atomic(kaddr);
+diff --git a/fs/gfs2/bmap.c b/fs/gfs2/bmap.c
+index b4fde3a8eeb4..eaee95d2ad14 100644
+--- a/fs/gfs2/bmap.c
++++ b/fs/gfs2/bmap.c
+@@ -69,9 +69,6 @@ static int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
+ 		void *kaddr = kmap(page);
+ 		u64 dsize = i_size_read(inode);
+  
+-		if (dsize > gfs2_max_stuffed_size(ip))
+-			dsize = gfs2_max_stuffed_size(ip);
+-
+ 		memcpy(kaddr, dibh->b_data + sizeof(struct gfs2_dinode), dsize);
+ 		memset(kaddr + dsize, 0, PAGE_SIZE - dsize);
+ 		kunmap(page);
+diff --git a/fs/gfs2/glops.c b/fs/gfs2/glops.c
+index bf539eab92c6..db28c240dae3 100644
+--- a/fs/gfs2/glops.c
++++ b/fs/gfs2/glops.c
+@@ -454,6 +454,9 @@ static int gfs2_dinode_in(struct gfs2_inode *ip, const void *buf)
+ 	ip->i_depth = (u8)depth;
+ 	ip->i_entries = be32_to_cpu(str->di_entries);
+ 
++	if (gfs2_is_stuffed(ip) && ip->i_inode.i_size > gfs2_max_stuffed_size(ip))
++		goto corrupt;
++
+ 	if (S_ISREG(ip->i_inode.i_mode))
+ 		gfs2_set_aops(&ip->i_inode);
+ 
+-- 
+2.17.1
+

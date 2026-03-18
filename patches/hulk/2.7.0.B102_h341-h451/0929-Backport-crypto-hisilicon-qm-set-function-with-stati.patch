@@ -1,0 +1,90 @@
+From f9f6dc96a2070223bc72e6f678ed6c10701cd96f Mon Sep 17 00:00:00 2001
+From: Weili Qian <qianweili@huawei.com>
+Date: Tue, 19 Jul 2022 16:51:47 +0800
+Subject: [PATCH 0929/1646] [Backport] crypto: hisilicon/qm - set function with
+ static
+
+mainline inclusion
+from mainline-v5.19-rc1
+commit fb06eb9727d67eac16e6b6aff35362476389cb88
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5AFY1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=fb06eb9727d67eac16e6b6aff35362476389cb88
+
+--------------------------------
+
+These functions 'hisi_qm_create_qp' and 'hisi_qm_set_vft' are not
+used outside qm.c, so they are marked as static.
+
+Signed-off-by: Weili Qian <qianweili@huawei.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: Jiangshui Yang <yangjiangshui@h-partners.com>
+Reviewed-by: Yang Shen <shenyang39@huawei.com>
+Acked-by: Xie XiuQi <xiexiuqi@huawei.com>
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/crypto/hisilicon/qm.c | 6 ++----
+ include/linux/hisi_acc_qm.h   | 2 --
+ 2 files changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/crypto/hisilicon/qm.c b/drivers/crypto/hisilicon/qm.c
+index 231820205b96..bcd9dc8689a9 100644
+--- a/drivers/crypto/hisilicon/qm.c
++++ b/drivers/crypto/hisilicon/qm.c
+@@ -2848,7 +2848,7 @@ static struct hisi_qp *qm_create_qp_nolock(struct hisi_qm *qm, u8 alg_type)
+  * return created qp, -EBUSY if all qps in qm allocated, -ENOMEM if allocating
+  * qp memory fails.
+  */
+-struct hisi_qp *hisi_qm_create_qp(struct hisi_qm *qm, u8 alg_type)
++static struct hisi_qp *hisi_qm_create_qp(struct hisi_qm *qm, u8 alg_type)
+ {
+ 	struct hisi_qp *qp;
+ 	int ret;
+@@ -2866,7 +2866,6 @@ struct hisi_qp *hisi_qm_create_qp(struct hisi_qm *qm, u8 alg_type)
+ 
+ 	return qp;
+ }
+-EXPORT_SYMBOL_GPL(hisi_qm_create_qp);
+ 
+ /**
+  * hisi_qm_release_qp() - Release a qp back to its qm.
+@@ -3769,7 +3768,7 @@ EXPORT_SYMBOL_GPL(hisi_qm_uninit);
+  *
+  * qm hw v1 does not support this interface.
+  */
+-int hisi_qm_get_vft(struct hisi_qm *qm, u32 *base, u32 *number)
++static int hisi_qm_get_vft(struct hisi_qm *qm, u32 *base, u32 *number)
+ {
+ 	if (!base || !number)
+ 		return -EINVAL;
+@@ -3781,7 +3780,6 @@ int hisi_qm_get_vft(struct hisi_qm *qm, u32 *base, u32 *number)
+ 
+ 	return qm->ops->get_vft(qm, base, number);
+ }
+-EXPORT_SYMBOL_GPL(hisi_qm_get_vft);
+ 
+ /**
+  * hisi_qm_set_vft() - Set vft to a qm.
+diff --git a/include/linux/hisi_acc_qm.h b/include/linux/hisi_acc_qm.h
+index 14c335325b56..632ad69a6d76 100644
+--- a/include/linux/hisi_acc_qm.h
++++ b/include/linux/hisi_acc_qm.h
+@@ -453,13 +453,11 @@ int hisi_qm_init(struct hisi_qm *qm);
+ void hisi_qm_uninit(struct hisi_qm *qm);
+ int hisi_qm_start(struct hisi_qm *qm);
+ int hisi_qm_stop(struct hisi_qm *qm, enum qm_stop_reason r);
+-struct hisi_qp *hisi_qm_create_qp(struct hisi_qm *qm, u8 alg_type);
+ int hisi_qm_start_qp(struct hisi_qp *qp, unsigned long arg);
+ int hisi_qm_stop_qp(struct hisi_qp *qp);
+ void hisi_qm_release_qp(struct hisi_qp *qp);
+ int hisi_qp_send(struct hisi_qp *qp, const void *msg);
+ int hisi_qm_get_free_qp_num(struct hisi_qm *qm);
+-int hisi_qm_get_vft(struct hisi_qm *qm, u32 *base, u32 *number);
+ void hisi_qm_debug_init(struct hisi_qm *qm);
+ void hisi_qm_debug_regs_clear(struct hisi_qm *qm);
+ int hisi_qm_sriov_enable(struct pci_dev *pdev, int max_vfs);
+-- 
+2.17.1
+

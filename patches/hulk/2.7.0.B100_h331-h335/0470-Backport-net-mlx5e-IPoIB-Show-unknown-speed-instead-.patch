@@ -1,0 +1,106 @@
+From 817e28012266b9e75ed6934aca0ea39600940150 Mon Sep 17 00:00:00 2001
+From: Dragos Tatulea <dtatulea@nvidia.com>
+Date: Mon, 23 Jan 2023 16:06:32 +0200
+Subject: [PATCH 470/500] [Backport] net/mlx5e: IPoIB, Show unknown speed
+ instead of error
+
+stable inclusion
+from stable-v5.10.168
+commit 703c3efa4b0b50a9c6a3726026c0f528857db812
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6IXN2
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=703c3efa4b0b50a9c6a3726026c0f528857db812
+
+--------------------------------
+
+[ Upstream commit 8aa5f171d51c1cb69e5e3106df4dd1a446102823 ]
+
+ethtool is returning an error for unknown speeds for the IPoIB interface:
+
+$ ethtool ib0
+netlink error: failed to retrieve link settings
+netlink error: Invalid argument
+netlink error: failed to retrieve link settings
+netlink error: Invalid argument
+Settings for ib0:
+Link detected: no
+
+After this change, ethtool will return success and show "unknown speed":
+
+$ ethtool ib0
+Settings for ib0:
+Supported ports: [  ]
+Supported link modes:   Not reported
+Supported pause frame use: No
+Supports auto-negotiation: No
+Supported FEC modes: Not reported
+Advertised link modes:  Not reported
+Advertised pause frame use: No
+Advertised auto-negotiation: No
+Advertised FEC modes: Not reported
+Speed: Unknown!
+Duplex: Full
+Auto-negotiation: off
+Port: Other
+PHYAD: 0
+Transceiver: internal
+Link detected: no
+
+Fixes: eb234ee9d541 ("net/mlx5e: IPoIB, Add support for get_link_ksettings in ethtool")
+Signed-off-by: Dragos Tatulea <dtatulea@nvidia.com>
+Reviewed-by: Gal Pressman <gal@nvidia.com>
+Reviewed-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ .../net/ethernet/mellanox/mlx5/core/ipoib/ethtool.c | 13 +++++--------
+ 1 file changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/ipoib/ethtool.c b/drivers/net/ethernet/mellanox/mlx5/core/ipoib/ethtool.c
+index 5c7eee2f6697..662507867dd7 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/ipoib/ethtool.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/ipoib/ethtool.c
+@@ -174,16 +174,16 @@ static inline int mlx5_ptys_rate_enum_to_int(enum mlx5_ptys_rate rate)
+ 	}
+ }
+ 
+-static int mlx5i_get_speed_settings(u16 ib_link_width_oper, u16 ib_proto_oper)
++static u32 mlx5i_get_speed_settings(u16 ib_link_width_oper, u16 ib_proto_oper)
+ {
+ 	int rate, width;
+ 
+ 	rate = mlx5_ptys_rate_enum_to_int(ib_proto_oper);
+ 	if (rate < 0)
+-		return -EINVAL;
++		return SPEED_UNKNOWN;
+ 	width = mlx5_ptys_width_enum_to_int(ib_link_width_oper);
+ 	if (width < 0)
+-		return -EINVAL;
++		return SPEED_UNKNOWN;
+ 
+ 	return rate * width;
+ }
+@@ -206,16 +206,13 @@ static int mlx5i_get_link_ksettings(struct net_device *netdev,
+ 	ethtool_link_ksettings_zero_link_mode(link_ksettings, advertising);
+ 
+ 	speed = mlx5i_get_speed_settings(ib_link_width_oper, ib_proto_oper);
+-	if (speed < 0)
+-		return -EINVAL;
++	link_ksettings->base.speed = speed;
++	link_ksettings->base.duplex = speed == SPEED_UNKNOWN ? DUPLEX_UNKNOWN : DUPLEX_FULL;
+ 
+-	link_ksettings->base.duplex = DUPLEX_FULL;
+ 	link_ksettings->base.port = PORT_OTHER;
+ 
+ 	link_ksettings->base.autoneg = AUTONEG_DISABLE;
+ 
+-	link_ksettings->base.speed = speed;
+-
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

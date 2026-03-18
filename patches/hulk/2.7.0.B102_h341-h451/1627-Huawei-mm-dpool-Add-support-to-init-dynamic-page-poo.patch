@@ -1,0 +1,279 @@
+From c17ec1b11287a86cd214cee800c641a6b8ba7e7c Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Mon, 27 Mar 2023 20:06:50 +0800
+Subject: [PATCH 1627/1646] [Huawei] mm/dpool: Add support to init dynamic page
+ pool
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Dynamic hugetlb provides the ability to manage memory independently.
+However it can only get memory from huge page.
+
+With this patch, normal pages can join dynamic hugetlb as page pool
+to use this ability. In order to achieve this, user should provide
+pfn ranges with pre-built page table and struct page.
+
+Introduction
+============
+
+Dpool which is based on dynamic hugetlb introduce independent memory
+management ability under the existence of memory cgroup. It has the
+following features:
+
+ - Bring memory isolation at the memory cgroup granularity
+ - this part of memory can be completely removed if the corresponding
+   memory cgroup is deleted
+
+To enable dpool, "dpool=on" should be added to kerenel parameters.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ include/linux/dynamic_hugetlb.h |  15 ++++
+ mm/dynamic_hugetlb.c            | 153 +++++++++++++++++++++++++++++++-
+ 2 files changed, 167 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/dynamic_hugetlb.h b/include/linux/dynamic_hugetlb.h
+index b3dbf67d4eef..95d5878d4dfa 100644
+--- a/include/linux/dynamic_hugetlb.h
++++ b/include/linux/dynamic_hugetlb.h
+@@ -61,6 +61,12 @@ enum huge_pages_pool_type {
+ 
+ struct dhugetlb_pool_ops;
+ 
++struct dpool_info {
++	struct mem_cgroup *memcg;
++	int range_cnt;
++	struct range pfn_ranges[0];
++};
++
+ /*
+  * Dynamic hugetlb pool data structure. Each Dynamic hugetlb pool is
+  * associated with one memory cgroup and controls the allocation of memory
+@@ -87,6 +93,10 @@ struct dhugetlb_pool {
+ 
+ 	KABI_EXTEND(struct dhugetlb_pool_ops *ops)
+ 
++	/* The following kabi change is used for dynamic pool */
++	KABI_EXTEND(int range_cnt)
++	KABI_EXTEND(struct range *pfn_ranges)
++
+ 	/*
+ 	 * The percpu_pool[] should only be used by dynamic hugetlb core.
+ 	 * External kernel modules should not used it.
+@@ -123,6 +133,8 @@ struct page *alloc_huge_page_from_dhugetlb_pool(struct hstate *h, struct dhugetl
+ void free_huge_page_to_dhugetlb_pool(struct page *page, bool restore_reserve);
+ bool page_belong_to_dynamic_hugetlb(struct page *page);
+ 
++int dpool_init(struct dpool_info *arg);
++
+ #else
+ 
+ #define enable_dhugetlb		0
+@@ -196,5 +208,8 @@ bool page_belong_to_dynamic_hugetlb(struct page *page)
+ }
+ #endif
+ 
++struct dpool_info {};
++static inline int dpool_init(struct dpool_info *arg) { return 0; }
++
+ #endif /* CONFIG_DYNAMIC_HUGETLB */
+ #endif /* __LINUX_DYNAMIC_HUGETLB_H */
+diff --git a/mm/dynamic_hugetlb.c b/mm/dynamic_hugetlb.c
+index cbb025d98a2c..660bf2f1cbe3 100644
+--- a/mm/dynamic_hugetlb.c
++++ b/mm/dynamic_hugetlb.c
+@@ -27,6 +27,8 @@ DEFINE_STATIC_KEY_FALSE(dhugetlb_enabled_key);
+ static bool enable_dpool;
+ DEFINE_STATIC_KEY_FALSE(dpool_enabled_key);
+ #define dpool_enabled (static_branch_unlikely(&dpool_enabled_key))
++/* current only one hpool is supported for dpool, store here */
++static struct dhugetlb_pool *dpool_global_hpool;
+ 
+ #define hugepage_index(pfn)	((pfn) >> (PUD_SHIFT - PAGE_SHIFT))
+ static void add_new_page_to_pool(struct dhugetlb_pool *hpool, struct page *page, int hpages_pool_idx)
+@@ -395,7 +397,9 @@ static void put_hpool(struct dhugetlb_pool *hpool)
+ 		return;
+ 	if (atomic_dec_and_test(&hpool->refcnt)) {
+ 		css_put(&hpool->attach_memcg->css);
++		kfree(hpool->pfn_ranges);
+ 		kfree(hpool);
++		dpool_global_hpool = NULL;
+ 	}
+ }
+ 
+@@ -451,6 +455,9 @@ static struct dhugetlb_pool *find_hpool_by_dhugetlb_pagelist(struct page *page)
+ 	unsigned long idx = hugepage_index(page_to_pfn(page));
+ 	struct dhugetlb_pool *hpool = NULL;
+ 
++	if (dpool_enabled)
++		return dpool_global_hpool;
++
+ 	read_lock(&dhugetlb_pagelist_rwlock);
+ 	if (idx < dhugetlb_pagelist_t->count)
+ 		hpool = dhugetlb_pagelist_t->hpool[idx];
+@@ -959,8 +966,13 @@ int hugetlb_pool_destroy(struct cgroup *cgrp)
+ 		}
+ 	}
+ 
+-	if (hpool->ops->free_pool)
++	if (hpool->ops->free_pool) {
+ 		ret = hpool->ops->free_pool(hpool);
++		if (ret) {
++			spin_unlock(&hpool->lock);
++			return -ENOMEM;
++		}
++	}
+ 	memcg->hpool = NULL;
+ 	spin_unlock(&hpool->lock);
+ 	put_hpool(hpool);
+@@ -1265,3 +1277,142 @@ static int __init dpool_setup(char *s)
+ 	return 0;
+ }
+ early_param("dpool", dpool_setup);
++
++/*
++ * Used for dpool to migrate all used pages to buddy system.
++ *
++ * Return 0 if ok or -ENOMEM for migrate failed.
++ */
++static int migrate_used_pages(struct dhugetlb_pool *hpool)
++{
++	int range_cnt = hpool->range_cnt;
++	int i, ret = 0;
++
++	lockdep_assert_held(&hpool->lock);
++
++	for (i = 0; i < range_cnt; i++) {
++		struct range *range = &hpool->pfn_ranges[i];
++		u64 pfn;
++
++		for (pfn = range->start; pfn <= range->end; pfn++) {
++			struct page *page = pfn_to_page(pfn);
++
++			/* Unlock and try migration. */
++			spin_unlock(&hpool->lock);
++			if (page->mapping != NULL)
++				ret |= do_migrate_range(pfn, pfn+1);
++
++			cond_resched();
++
++			spin_lock(&hpool->lock);
++		}
++	}
++
++	if (ret)
++		pr_err("dynamic_hugetlb: some 4K pages are still in use, delete memcg: %s failed!\n",
++				hpool->attach_memcg->css.cgroup->kn->name);
++
++	return ret ? -ENOMEM : 0;
++}
++
++/*
++ * This is used to check whether used pages in percpu_pool is empty or not.
++ * Return 0 if empty otherwise -EFAULT.
++ */
++static int test_percpu_pool_empty(struct dhugetlb_pool *hpool)
++{
++	long nr_used_pages = 0;
++	int i;
++
++	lockdep_assert_held(&hpool->lock);
++
++	/* unlock first */
++	spin_unlock(&hugetlb_lock);
++
++	for (i = 0; i < NR_PERCPU_POOL; i++)
++		spin_lock(&hpool->percpu_pool[i].lock);
++	spin_lock(&hugetlb_lock);
++
++	for (i = 0; i < NR_PERCPU_POOL; i++)
++		nr_used_pages += hpool->percpu_pool[i].used_pages;
++
++	spin_unlock(&hugetlb_lock);
++	for (i = NR_PERCPU_POOL - 1; i >= 0; i--)
++		spin_unlock(&hpool->percpu_pool[i].lock);
++
++	/* lock again */
++	spin_lock(&hugetlb_lock);
++
++	return nr_used_pages == 0 ? 0 : -ENOMEM;
++}
++
++struct dhugetlb_pool_ops list_pool_ops = {
++	.free_pool = test_percpu_pool_empty,
++	.merge_pages = migrate_used_pages,
++};
++
++int dpool_init(struct dpool_info *arg)
++{
++	struct dhugetlb_pool *hpool;
++	int i, ret, range_cnt;
++
++	if (!dpool_enabled || !arg || !arg->memcg || arg->memcg->hpool ||
++	    dpool_global_hpool)
++		return -EINVAL;
++
++	ret = hugetlb_pool_create(arg->memcg, 0, &list_pool_ops);
++	if (ret)
++		return ret;
++
++	hpool = arg->memcg->hpool;
++	range_cnt = arg->range_cnt;
++
++	if (!get_hpool_unless_zero(hpool))
++		return -EINVAL;
++
++	hpool->range_cnt = range_cnt;
++	hpool->pfn_ranges =
++		kmalloc_array(range_cnt, sizeof(struct range), GFP_KERNEL);
++	if (!hpool->pfn_ranges) {
++		ret = -ENOMEM;
++		goto put_pool;
++	}
++
++	memcpy(hpool->pfn_ranges, arg->pfn_ranges,
++	       sizeof(struct range) * range_cnt);
++
++	mutex_lock(&hpool->reserved_lock);
++	spin_lock(&hpool->lock);
++
++	for (i = 0; i < range_cnt; i++) {
++		struct range *range = &arg->pfn_ranges[i];
++		u64 pfn;
++
++		for (pfn = range->start; pfn <= range->end; pfn++) {
++			struct page *page = pfn_to_page(pfn);
++
++			set_page_count(page, 0);
++			page_mapcount_reset(page);
++
++			if (!free_pages_prepare(page, 0, false)) {
++				ret = -EINVAL;
++				goto out;
++			}
++
++			add_new_page_to_pool(hpool, page, HUGE_PAGES_POOL_4K);
++
++			cond_resched_lock(&hpool->lock);
++		}
++	}
++
++	dpool_global_hpool = hpool;
++out:
++	spin_unlock(&hpool->lock);
++	mutex_unlock(&hpool->reserved_lock);
++put_pool:
++	if (ret)
++		put_hpool(hpool);
++	put_hpool(hpool);
++
++	return ret;
++}
+-- 
+2.17.1
+

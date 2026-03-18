@@ -1,0 +1,65 @@
+From d31816104d563c0a443a7c70bf47de1474a48bd5 Mon Sep 17 00:00:00 2001
+From: Philipp Hortmann <philipp.g.hortmann@gmail.com>
+Date: Wed, 1 Mar 2023 22:54:41 +0100
+Subject: [PATCH 1278/1646] [Backport] staging: rtl8192e: Remove
+ call_usermodehelper starting RadioPower.sh
+
+stable inclusion
+from stable-v5.10.174
+commit c036dae0367852ac08d0810478d7276e47ebc0c6
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c036dae0367852ac08d0810478d7276e47ebc0c6
+
+--------------------------------
+
+commit fe413a074a93d56f89e322c786aad8639afe76b4 upstream.
+
+Remove call_usermodehelper starting /etc/acpi/events/RadioPower.sh that
+is not available. This script is not part of the kernel and it is not
+officially available on the www. The result is that this lines are just
+dead code.
+
+Signed-off-by: Philipp Hortmann <philipp.g.hortmann@gmail.com>
+Cc: stable <stable@kernel.org>
+Link: https://lore.kernel.org/r/20230301215441.GA14049@matrix-ESPRIMO-P710
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/staging/rtl8192e/rtl8192e/rtl_dm.c | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/drivers/staging/rtl8192e/rtl8192e/rtl_dm.c b/drivers/staging/rtl8192e/rtl8192e/rtl_dm.c
+index 9a02330864de..916ff5058ae7 100644
+--- a/drivers/staging/rtl8192e/rtl8192e/rtl_dm.c
++++ b/drivers/staging/rtl8192e/rtl8192e/rtl_dm.c
+@@ -1773,10 +1773,6 @@ static void _rtl92e_dm_check_rf_ctrl_gpio(void *data)
+ 	u8 tmp1byte;
+ 	enum rt_rf_power_state eRfPowerStateToSet;
+ 	bool bActuallySet = false;
+-	char *argv[3];
+-	static char const RadioPowerPath[] = "/etc/acpi/events/RadioPower.sh";
+-	static char *envp[] = {"HOME=/", "TERM=linux", "PATH=/usr/bin:/bin",
+-			       NULL};
+ 
+ 	bActuallySet = false;
+ 
+@@ -1808,14 +1804,6 @@ static void _rtl92e_dm_check_rf_ctrl_gpio(void *data)
+ 		mdelay(1000);
+ 		priv->bHwRfOffAction = 1;
+ 		rtl92e_set_rf_state(dev, eRfPowerStateToSet, RF_CHANGE_BY_HW);
+-		if (priv->bHwRadioOff)
+-			argv[1] = "RFOFF";
+-		else
+-			argv[1] = "RFON";
+-
+-		argv[0] = (char *)RadioPowerPath;
+-		argv[2] = NULL;
+-		call_usermodehelper(RadioPowerPath, argv, envp, UMH_WAIT_PROC);
+ 	}
+ }
+ 
+-- 
+2.17.1
+

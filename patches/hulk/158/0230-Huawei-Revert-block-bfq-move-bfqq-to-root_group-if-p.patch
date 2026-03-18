@@ -1,0 +1,93 @@
+From 6bf9bbb0dea0c7729e9dd753de30f4adacc423cf Mon Sep 17 00:00:00 2001
+From: Yu Kuai <yukuai3@huawei.com>
+Date: Mon, 19 Sep 2022 09:58:05 +0800
+Subject: [PATCH 0230/1076] [Huawei] Revert "block, bfq: move bfqq to
+ root_group if parent group is offlined"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 185863
+
+--------------------------------
+
+This reverts commit eeabdc14ef8231fea94074b744d9648805a4015b. Prepare to
+backport solution from mainline.
+
+Signed-off-by: Yu Kuai <yukuai3@huawei.com>
+---
+ block/bfq-cgroup.c | 16 +++++-----------
+ block/bfq-wf2q.c   |  9 ---------
+ 2 files changed, 5 insertions(+), 20 deletions(-)
+
+diff --git a/block/bfq-cgroup.c b/block/bfq-cgroup.c
+index f84a88b7a09d..abd01025d043 100644
+--- a/block/bfq-cgroup.c
++++ b/block/bfq-cgroup.c
+@@ -643,7 +643,6 @@ void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
+ 		   struct bfq_group *bfqg)
+ {
+ 	struct bfq_entity *entity = &bfqq->entity;
+-	struct bfq_group *old_parent = bfqq_group(bfqq);
+ 
+ 	if (bfqq == &bfqd->oom_bfqq)
+ 		return;
+@@ -667,22 +666,18 @@ void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
+ 		bfq_deactivate_bfqq(bfqd, bfqq, false, false);
+ 	else if (entity->on_st_or_in_serv)
+ 		bfq_put_idle_entity(bfq_entity_service_tree(entity), entity);
++	bfqg_and_blkg_put(bfqq_group(bfqq));
+ 
+ 	entity->parent = bfqg->my_entity;
+ 	entity->sched_data = &bfqg->sched_data;
+ 	/* pin down bfqg and its associated blkg  */
+ 	bfqg_and_blkg_get(bfqg);
+ 
+-	/*
+-	 * Don't leave the bfqq->pos_root to old bfqg, since the ref to old
+-	 * bfqg will be released and the bfqg might be freed.
+-	 */
+-	if (unlikely(!bfqd->nonrot_with_queueing))
+-		bfq_pos_tree_add_move(bfqd, bfqq);
+-	bfqg_and_blkg_put(old_parent);
+-
+-	if (bfq_bfqq_busy(bfqq))
++	if (bfq_bfqq_busy(bfqq)) {
++		if (unlikely(!bfqd->nonrot_with_queueing))
++			bfq_pos_tree_add_move(bfqd, bfqq);
+ 		bfq_activate_bfqq(bfqd, bfqq);
++	}
+ 
+ 	if (!bfqd->in_service_queue && !bfqd->rq_in_driver)
+ 		bfq_schedule_dispatch(bfqd);
+@@ -964,7 +959,6 @@ static void bfq_pd_offline(struct blkg_policy_data *pd)
+ 
+ put_async_queues:
+ 	bfq_put_async_queues(bfqd, bfqg);
+-	pd->plid = BLKCG_MAX_POLS;
+ 
+ 	spin_unlock_irqrestore(&bfqd->lock, flags);
+ 	/*
+diff --git a/block/bfq-wf2q.c b/block/bfq-wf2q.c
+index 5a6cb0513c4f..26776bdbdf36 100644
+--- a/block/bfq-wf2q.c
++++ b/block/bfq-wf2q.c
+@@ -1695,15 +1695,6 @@ void bfq_del_bfqq_busy(struct bfq_data *bfqd, struct bfq_queue *bfqq,
+  */
+ void bfq_add_bfqq_busy(struct bfq_data *bfqd, struct bfq_queue *bfqq)
+ {
+-#ifdef CONFIG_BFQ_GROUP_IOSCHED
+-	/* If parent group is offlined, move the bfqq to root group */
+-	if (bfqq->entity.parent) {
+-		struct bfq_group *bfqg = bfq_bfqq_to_bfqg(bfqq);
+-
+-		if (bfqg->pd.plid >= BLKCG_MAX_POLS)
+-			bfq_bfqq_move(bfqd, bfqq, bfqd->root_group);
+-	}
+-#endif
+ 	bfq_log_bfqq(bfqd, bfqq, "add to busy");
+ 
+ 	bfq_activate_bfqq(bfqd, bfqq);
+-- 
+2.17.1
+

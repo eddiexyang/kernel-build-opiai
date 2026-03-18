@@ -1,0 +1,43 @@
+From abfec8fdbcdbafe5c4873ca38096c0e76e1c7060 Mon Sep 17 00:00:00 2001
+From: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+Date: Fri, 5 Aug 2022 17:30:09 +0800
+Subject: [PATCH 4406/4585] [Huawei] ACPICA: remove return_ACPI_STATUS because
+ ACPI_FUNCTION_TRACE() is not called
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187402
+
+--------------------------------
+
+We apply the following patch using the mainline version rather than
+revert the origin patch in this branch.
+  commit ad981d3c0bf0eafd2aeb6f353019c1b6a63f78cf
+  [Backport] Revert "ACPICA: Interpreter: fix memory leak by using
+  existing buffer"
+But 'ACPI_FUNCTION_TRACE(ns_repair_HID)' is not called in this function.
+Fix it by changing 'return_ACPI_STATUS(AE_NO_MEMORY)' to
+'return(AE_NO_MEMORY)'.
+
+Signed-off-by: Xiongfeng Wang <wangxiongfeng2@huawei.com>
+---
+ drivers/acpi/acpica/nsrepair2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/acpi/acpica/nsrepair2.c b/drivers/acpi/acpica/nsrepair2.c
+index b56bfea123eb..125143c41bb8 100644
+--- a/drivers/acpi/acpica/nsrepair2.c
++++ b/drivers/acpi/acpica/nsrepair2.c
+@@ -518,7 +518,7 @@ acpi_ns_repair_HID(struct acpi_evaluate_info *info,
+ 
+ 	new_string = acpi_ut_create_string_object(return_object->string.length);
+ 	if (!new_string) {
+-		return_ACPI_STATUS(AE_NO_MEMORY);
++		return (AE_NO_MEMORY);
+ 	}
+ 
+ 	/*
+-- 
+2.17.1
+

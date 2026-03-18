@@ -1,0 +1,55 @@
+From ecf6ba6b84b0c63ad4c17e3d86147504741ed2a4 Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Wed, 1 Sep 2021 13:30:28 -0700
+Subject: [PATCH 0851/1646] [Backport] tools: Move x86 syscall number fallbacks
+ to .../uapi/
+
+mainline inclusion
+from mainline-v5.15-rc3
+commit de5f4213dafa8f8b0b52cdaf06bb35ad4cab1681
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=de5f4213dafa8f8b0b52cdaf06bb35ad4cab1681
+
+--------------------------------
+
+Move unistd_{32,64}.h from x86/include/asm to x86/include/uapi/asm so
+that tools/selftests that install kernel headers, e.g. KVM selftests, can
+include non-uapi tools headers, e.g. to get 'struct list_head', without
+effectively overriding the installed non-tool uapi headers.
+
+Swapping KVM's search order, e.g. to search the kernel headers before
+tool headers, is not a viable option as doing results in linux/type.h and
+other core headers getting pulled from the kernel headers, which do not
+have the kernel-internal typedefs that are used through tools, including
+many files outside of selftests/kvm's control.
+
+Prior to commit cec07f53c398 ("perf tools: Move syscall number fallbacks
+from perf-sys.h to tools/arch/x86/include/asm/"), the handcoded numbers
+were actual fallbacks, i.e. overriding unistd_{32,64}.h from the kernel
+headers was unintentional.
+
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+Message-Id: <20210901203030.1292304-4-seanjc@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Lin Wang <lin.x.wang@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ tools/arch/x86/include/{ => uapi}/asm/unistd_32.h | 0
+ tools/arch/x86/include/{ => uapi}/asm/unistd_64.h | 0
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ rename tools/arch/x86/include/{ => uapi}/asm/unistd_32.h (100%)
+ rename tools/arch/x86/include/{ => uapi}/asm/unistd_64.h (100%)
+
+diff --git a/tools/arch/x86/include/asm/unistd_32.h b/tools/arch/x86/include/uapi/asm/unistd_32.h
+similarity index 100%
+rename from tools/arch/x86/include/asm/unistd_32.h
+rename to tools/arch/x86/include/uapi/asm/unistd_32.h
+diff --git a/tools/arch/x86/include/asm/unistd_64.h b/tools/arch/x86/include/uapi/asm/unistd_64.h
+similarity index 100%
+rename from tools/arch/x86/include/asm/unistd_64.h
+rename to tools/arch/x86/include/uapi/asm/unistd_64.h
+-- 
+2.17.1
+

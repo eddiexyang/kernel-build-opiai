@@ -1,0 +1,159 @@
+From 09d9e0c5e17d2146338949944b58904a8db24685 Mon Sep 17 00:00:00 2001
+From: zhangchengceng <zhangchengceng1@huawei.com>
+Date: Mon, 30 Jan 2023 14:21:20 +0800
+Subject: [PATCH 555/905] [Huawei] drivers: hooks: add inet vendor hooks
+
+Offering: HULK
+ont inclusion
+category: feature
+bugzilla: 188338
+
+-------------------------------
+
+Allow vendor modules to attach inet hooks. This patch
+introduce vendor_ip_finish_output hook.
+
+Usage:
+
+static void venfor_foo(void *data, const struct sk_buff *skb, int *df)
+{
+	pr_info("%s\n", __func__);
+}
+
+static int __init vendor_inet_test_init(void)
+{
+	return register_trace_vendor_foo(&vendor_foo, NULL);
+}
+
+static void __exit vendor_inet_test_exit(void)
+{
+	unregister_trace_vendor_foo(&vendor_foo, NULL);
+}
+
+module_init(vendor_inet_test_init);
+module_exit(vendor_inet_test_exit);
+
+Signed-off-by: zhangchengceng <zhangchengceng1@huawei.com>
+---
+ drivers/hooks/Kconfig        |  9 +++++++++
+ drivers/hooks/vendor_hooks.c |  5 +++++
+ include/trace/hooks/inet.h   | 37 ++++++++++++++++++++++++++++++++++++
+ net/ipv4/ip_output.c         |  6 +++++-
+ 4 files changed, 56 insertions(+), 1 deletion(-)
+ create mode 100644 include/trace/hooks/inet.h
+
+diff --git a/drivers/hooks/Kconfig b/drivers/hooks/Kconfig
+index 2ec1ab9af444..95a783871708 100644
+--- a/drivers/hooks/Kconfig
++++ b/drivers/hooks/Kconfig
+@@ -58,4 +58,13 @@ config VENDOR_I40E_HOOKS
+             Allow vendor modules to attach i40e driver hooks defined via
+             DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
+ 
++config VENDOR_INET_HOOKS
++        bool "INET Vendor Hooks"
++        depends on VENDOR_HOOKS && INET
++        default n
++        help
++            Enable inet vendor hooks
++            Allow vendor modules to attach inet hooks defined via
++            DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
++
+ endmenu
+diff --git a/drivers/hooks/vendor_hooks.c b/drivers/hooks/vendor_hooks.c
+index 39c6a3dbad40..7cd27de79a6b 100644
+--- a/drivers/hooks/vendor_hooks.c
++++ b/drivers/hooks/vendor_hooks.c
+@@ -13,6 +13,7 @@
+ #include <trace/hooks/spinor.h>
+ #include <trace/hooks/igb.h>
+ #include <trace/hooks/i40e.h>
++#include <trace/hooks/inet.h>
+ 
+ /*
+  * Export tracepoints that act as a bare tracehook (ie: have no trace event
+@@ -51,3 +52,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_igb_phy_force_speed_duplex_setup);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_i40e_rebuild);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_i40e_netdev_stats);
+ #endif
++
++#ifdef CONFIG_VENDOR_INET_HOOKS
++EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_ip_finish_output);
++#endif
+diff --git a/include/trace/hooks/inet.h b/include/trace/hooks/inet.h
+new file mode 100644
+index 000000000000..c314860956c2
+--- /dev/null
++++ b/include/trace/hooks/inet.h
+@@ -0,0 +1,37 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * IP outpout Vendor Hooks
++ *
++ * Copyright (c) 2023, Huawei Tech. Co., Ltd.
++ */
++
++#ifdef CONFIG_VENDOR_INET_HOOKS
++
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM inet
++
++#define TRACE_INCLUDE_PATH trace/hooks
++#if !defined(_TRACE_HOOK_INET_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_HOOK_INET_H
++#include <linux/tracepoint.h>
++#include <trace/hooks/vendor_hooks.h>
++
++struct sk_buff;
++DECLARE_HOOK(vendor_ip_finish_output,
++	TP_PROTO(const struct sk_buff *skb, int *df),
++	TP_ARGS(skb, df));
++
++#endif
++/* This part must be outside protection */
++#include <trace/define_trace.h>
++
++#else /* !CONFIG_VENDOR_INET_HOOKS */
++
++#include <linux/tracepoint.h>
++
++struct sk_buff;
++DECLARE_EVENT_NOP(vendor_ip_finish_output,
++	TP_PROTO(const struct sk_buff *skb, int *df),
++	TP_ARGS(skb, df));
++
++#endif
+diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
+index 88945b8287d8..db76b8c321a4 100644
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -83,6 +83,8 @@
+ #include <linux/netlink.h>
+ #include <linux/tcp.h>
+ 
++#include <trace/hooks/inet.h>
++
+ static int
+ ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
+ 	    unsigned int mtu,
+@@ -297,6 +299,7 @@ static int ip_finish_output_gso(struct net *net, struct sock *sk,
+ static int __ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *skb)
+ {
+ 	unsigned int mtu;
++	int df = 0;
+ 
+ #if defined(CONFIG_NETFILTER) && defined(CONFIG_XFRM)
+ 	/* Policy lookup after SNAT yielded a new policy */
+@@ -309,7 +312,8 @@ static int __ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *
+ 	if (skb_is_gso(skb))
+ 		return ip_finish_output_gso(net, sk, skb, mtu);
+ 
+-	if (skb->len > mtu || IPCB(skb)->frag_max_size)
++	trace_vendor_ip_finish_output(skb, &df);
++	if (!df && (skb->len > mtu || IPCB(skb)->frag_max_size))
+ 		return ip_fragment(net, sk, skb, mtu, ip_finish_output2);
+ 
+ 	return ip_finish_output2(net, sk, skb);
+-- 
+2.17.1
+

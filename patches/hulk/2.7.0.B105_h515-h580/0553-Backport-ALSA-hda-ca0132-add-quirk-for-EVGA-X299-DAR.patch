@@ -1,0 +1,48 @@
+From 6e83468c3c0f98caf77cd6867ab0806d9b69434c Mon Sep 17 00:00:00 2001
+From: Adam Stylinski <kungfujesus06@gmail.com>
+Date: Sun, 21 May 2023 10:52:23 -0400
+Subject: [PATCH 553/780] [Backport] ALSA: hda/ca0132: add quirk for EVGA X299
+ DARK
+
+stable inclusion
+from stable-v5.10.181
+commit b0d7e62fd15e46860f9c9157d8e1c95f6ea54973
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b0d7e62fd15e46860f9c9157d8e1c95f6ea54973
+
+--------------------------------
+
+commit 7843380d07bbeffd3ce6504e73cf61f840ae76ca upstream.
+
+This quirk is necessary for surround and other DSP effects to work
+with the onboard ca0132 based audio chipset for the EVGA X299 dark
+mainboard.
+
+Signed-off-by: Adam Stylinski <kungfujesus06@gmail.com>
+Cc: <stable@vger.kernel.org>
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=67071
+Link: https://lore.kernel.org/r/ZGopOe19T1QOwizS@eggsbenedict.adamsnet
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/pci/hda/patch_ca0132.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/pci/hda/patch_ca0132.c b/sound/pci/hda/patch_ca0132.c
+index 6057084da4cf..6d67cca4cfa6 100644
+--- a/sound/pci/hda/patch_ca0132.c
++++ b/sound/pci/hda/patch_ca0132.c
+@@ -1272,6 +1272,7 @@ static const struct snd_pci_quirk ca0132_quirks[] = {
+ 	SND_PCI_QUIRK(0x1458, 0xA026, "Gigabyte G1.Sniper Z97", QUIRK_R3DI),
+ 	SND_PCI_QUIRK(0x1458, 0xA036, "Gigabyte GA-Z170X-Gaming 7", QUIRK_R3DI),
+ 	SND_PCI_QUIRK(0x3842, 0x1038, "EVGA X99 Classified", QUIRK_R3DI),
++	SND_PCI_QUIRK(0x3842, 0x104b, "EVGA X299 Dark", QUIRK_R3DI),
+ 	SND_PCI_QUIRK(0x3842, 0x1055, "EVGA Z390 DARK", QUIRK_R3DI),
+ 	SND_PCI_QUIRK(0x1102, 0x0013, "Recon3D", QUIRK_R3D),
+ 	SND_PCI_QUIRK(0x1102, 0x0018, "Recon3D", QUIRK_R3D),
+-- 
+2.17.1
+

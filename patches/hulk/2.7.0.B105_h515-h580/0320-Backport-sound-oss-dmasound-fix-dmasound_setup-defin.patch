@@ -1,0 +1,53 @@
+From 477867d32f44fbb0d5e1dd9de267e89ff8aa40e2 Mon Sep 17 00:00:00 2001
+From: Miles Chen <miles.chen@mediatek.com>
+Date: Thu, 14 Apr 2022 17:19:38 +0800
+Subject: [PATCH 320/780] [Backport] sound/oss/dmasound: fix 'dmasound_setup'
+ defined but not used
+
+stable inclusion
+from stable-v5.10.180
+commit c820c05c5ff6613ad424dce1cddc459ffd2fb96b
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c820c05c5ff6613ad424dce1cddc459ffd2fb96b
+
+--------------------------------
+
+commit 357ad4d898286b94aaae0cb7e3f573459e5b98b9 upstream.
+
+We observed: 'dmasound_setup' defined but not used error with
+COMPILER=gcc ARCH=m68k DEFCONFIG=allmodconfig build.
+
+Fix it by adding __maybe_unused to dmasound_setup.
+
+Error(s):
+sound/oss/dmasound/dmasound_core.c:1431:12: error: 'dmasound_setup' defined but not used [-Werror=unused-function]
+
+Fixes: 9dd7c46346ca ("sound/oss/dmasound: fix build when drivers are mixed =y/=m")
+Signed-off-by: Miles Chen <miles.chen@mediatek.com>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Link: https://lore.kernel.org/r/20220414091940.2216-1-miles.chen@mediatek.com
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ sound/oss/dmasound/dmasound_core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/oss/dmasound/dmasound_core.c b/sound/oss/dmasound/dmasound_core.c
+index 7a8698ff7f54..7454b058dda5 100644
+--- a/sound/oss/dmasound/dmasound_core.c
++++ b/sound/oss/dmasound/dmasound_core.c
+@@ -1442,7 +1442,7 @@ void dmasound_deinit(void)
+ 		unregister_sound_dsp(sq_unit);
+ }
+ 
+-static int dmasound_setup(char *str)
++static int __maybe_unused dmasound_setup(char *str)
+ {
+ 	int ints[6], size;
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,39 @@
+From 6bea2d1c0b2bed2172ca95cc7a3a3405bf1f9112 Mon Sep 17 00:00:00 2001
+From: Zhang Zekun <zhangzekun11@huawei.com>
+Date: Mon, 7 Nov 2022 07:44:06 +0000
+Subject: [PATCH 0001/1398] [Huawei] mm: sharepool: Fix static check warning
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 187808
+
+-----------------------------------------------
+
+Fix the following static check warning.
+Use parentheses to specify the sequence of expressions, instead of using
+the default priority.Should use parenthesis while use bitwise operator.
+
+Fix this by add bracket in the expression.
+
+Signed-off-by: Zhang Zekun <zhangzekun11@huawei.com>
+---
+ mm/share_pool.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index 8e51ca5327b1..8378b89b36d8 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2692,7 +2692,7 @@ static unsigned long sp_remap_kva_to_vma(unsigned long kva, struct sp_area *spa,
+ 	if (prot & PROT_WRITE)
+ 		vma->vm_page_prot = __pgprot(((~PTE_RDONLY) & vma->vm_page_prot.pgprot) | PTE_DIRTY);
+ 
+-	if (kc && kc->sp_flags & SP_PROT_RO)
++	if (kc && (kc->sp_flags & SP_PROT_RO))
+ 		vma->vm_flags &= ~VM_MAYWRITE;
+ 
+ 	if (is_vm_hugetlb_page(vma)) {
+-- 
+2.17.1
+

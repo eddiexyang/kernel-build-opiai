@@ -1,0 +1,63 @@
+From ed92efc834c9bd0553994d4c9901bf071d9d9f7d Mon Sep 17 00:00:00 2001
+From: Dominique Martinet <asmadeus@codewreck.org>
+Date: Fri, 18 Nov 2022 22:44:41 +0900
+Subject: [PATCH 1287/1398] [Backport] 9p/xen: check logical size for buffer
+ size
+
+stable inclusion
+from stable-v5.10.159
+commit a8c5ffb4dffd30ae663497e1cedfcee0a1b65b71
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I68ZEA
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a8c5ffb4dffd30ae663497e1cedfcee0a1b65b71
+
+--------------------------------
+
+[ Upstream commit 391c18cf776eb4569ecda1f7794f360fe0a45a26 ]
+
+trans_xen did not check the data fits into the buffer before copying
+from the xen ring, but we probably should.
+Add a check that just skips the request and return an error to
+userspace if it did not fit
+
+Tested-by: Stefano Stabellini <sstabellini@kernel.org>
+Reviewed-by: Christian Schoenebeck <linux_oss@crudebyte.com>
+Link: https://lkml.kernel.org/r/20221118135542.63400-1-asmadeus@codewreck.org
+Signed-off-by: Dominique Martinet <asmadeus@codewreck.org>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/9p/trans_xen.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/net/9p/trans_xen.c b/net/9p/trans_xen.c
+index 432ac5a16f2e..6c8a33f98f09 100644
+--- a/net/9p/trans_xen.c
++++ b/net/9p/trans_xen.c
+@@ -231,6 +231,14 @@ static void p9_xen_response(struct work_struct *work)
+ 			continue;
+ 		}
+ 
++		if (h.size > req->rc.capacity) {
++			dev_warn(&priv->dev->dev,
++				 "requested packet size too big: %d for tag %d with capacity %zd\n",
++				 h.size, h.tag, req->rc.capacity);
++			req->status = REQ_STATUS_ERROR;
++			goto recv_error;
++		}
++
+ 		memcpy(&req->rc, &h, sizeof(h));
+ 		req->rc.offset = 0;
+ 
+@@ -240,6 +248,7 @@ static void p9_xen_response(struct work_struct *work)
+ 				     masked_prod, &masked_cons,
+ 				     XEN_9PFS_RING_SIZE(ring));
+ 
++recv_error:
+ 		virt_mb();
+ 		cons += h.size;
+ 		ring->intf->in_cons = cons;
+-- 
+2.17.1
+

@@ -1,0 +1,123 @@
+From f07844e3e09fd2c513d89ef0c93e7e9fe5c9b00c Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 14:07:10 +0800
+Subject: [PATCH 18/53] [Huawei] mm/sharepool: Initilize master in
+ sp_k2u_prepare()
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+Move sp_init_group_master_locked() into sp_k2u_prepare(), just like that
+in sp_alloc_prepare().
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 52 +++++++++++++++++++++----------------------------
+ 1 file changed, 22 insertions(+), 30 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index a3d2bb2e41e2..9647ecf1ccd3 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -2546,6 +2546,11 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 	unsigned int page_size = PAGE_SIZE;
+ 	unsigned long kva_aligned, size_aligned;
+ 
++	check_interrupt_context();
++
++	if (!sp_is_enabled())
++		return -EOPNOTSUPP;
++
+ 	if (!size) {
+ 		pr_err_ratelimited("k2u input size is 0.\n");
+ 		return -EINVAL;
+@@ -2573,6 +2578,17 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 		return is_hugepage;
+ 	}
+ 
++	if (spg_id == SPG_ID_DEFAULT) {
++		int ret;
++		down_write(&sp_group_sem);
++		ret = sp_init_group_master_locked(current, current->mm);
++		up_write(&sp_group_sem);
++		if (ret) {
++			pr_err("k2u_task init local mapping failed %d\n", ret);
++			return ret;
++		}
++	}
++
+ 	/* aligned down kva is convenient for caller to start with any valid kva */
+ 	kva_aligned = ALIGN_DOWN(kva, page_size);
+ 	size_aligned = ALIGN(kva + size, page_size) - kva_aligned;
+@@ -2582,20 +2598,11 @@ static int sp_k2u_prepare(unsigned long kva, unsigned long size,
+ 	kc->size         = size;
+ 	kc->size_aligned = size_aligned;
+ 	kc->sp_flags     = sp_flags;
+-	kc->type         = (spg_id == SPG_ID_DEFAULT || spg_id == SPG_ID_NONE)
+-				? SPA_TYPE_K2TASK : SPA_TYPE_K2SPG;
++	kc->type         = (spg_id == SPG_ID_DEFAULT) ? SPA_TYPE_K2TASK : SPA_TYPE_K2SPG;
+ 
+ 	return 0;
+ }
+ 
+-static void *sp_k2u_finish(void *uva, struct sp_k2u_context *kc)
+-{
+-	if (!IS_ERR(uva))
+-		uva = uva + (kc->kva - kc->kva_aligned);
+-
+-	return uva;
+-}
+-
+ /**
+  * mg_sp_make_share_k2u() - Share kernel memory to current process or an sp_group.
+  * @kva: the VA of shared kernel memory.
+@@ -2621,28 +2628,11 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 	struct sp_k2u_context kc;
+ 	struct sp_group *spg;
+ 
+-	if (!sp_is_enabled())
+-		return ERR_PTR(-EOPNOTSUPP);
+-
+-	check_interrupt_context();
+-
++	spg_id = (spg_id == SPG_ID_NONE) ? SPG_ID_DEFAULT : spg_id;
+ 	ret = sp_k2u_prepare(kva, size, sp_flags, spg_id, &kc);
+ 	if (ret)
+ 		return ERR_PTR(ret);
+ 
+-	if (kc.type == SPA_TYPE_K2TASK) {
+-		down_write(&sp_group_sem);
+-		ret = sp_init_group_master_locked(current, current->mm);
+-		up_write(&sp_group_sem);
+-		if (ret) {
+-			pr_err("k2u_task init local mapping failed %d\n", ret);
+-			uva = ERR_PTR(ret);
+-			goto out;
+-		}
+-		/* the caller could use SPG_ID_NONE */
+-		spg_id = SPG_ID_DEFAULT;
+-	}
+-
+ 	spg = sp_group_get_from_mm(current->mm, spg_id);
+ 	if (spg) {
+ 		uva = sp_make_share_kva_to_spg(&kc, spg);
+@@ -2651,8 +2641,10 @@ void *mg_sp_make_share_k2u(unsigned long kva, unsigned long size,
+ 		uva = ERR_PTR(-ENODEV);
+ 	}
+ 
+-out:
+-	return sp_k2u_finish(uva, &kc);
++	if (!IS_ERR(uva))
++		uva = uva + (kc.kva - kc.kva_aligned);
++
++	return uva;
+ }
+ EXPORT_SYMBOL_GPL(mg_sp_make_share_k2u);
+ 
+-- 
+2.17.1
+

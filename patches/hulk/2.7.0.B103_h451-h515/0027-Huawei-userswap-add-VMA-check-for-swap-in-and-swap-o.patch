@@ -1,0 +1,67 @@
+From 1316e06369cbba06666294de3e8500b2e77c281d Mon Sep 17 00:00:00 2001
+From: ZhangPeng <zhangpeng362@huawei.com>
+Date: Fri, 19 May 2023 16:28:33 +0800
+Subject: [PATCH 027/263] [Huawei] userswap: add VMA check for swap-in and
+ swap-out buffer
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6CAIM
+
+--------------------------------
+
+Add VMA check for swap-in and swap-out buffer to make sure that swap-in
+and swap-out buffer is of the same type as swap-out VA.
+
+Signed-off-by: ZhangPeng <zhangpeng362@huawei.com>
+---
+ mm/userswap.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/mm/userswap.c b/mm/userswap.c
+index 7a0c23e5ed59..910bb9dea383 100644
+--- a/mm/userswap.c
++++ b/mm/userswap.c
+@@ -19,9 +19,9 @@ DEFINE_STATIC_KEY_FALSE(userswap_enabled);
+ 
+ static bool vma_uswap_compatible(struct vm_area_struct *vma)
+ {
+-	if (!vma || !(vma->vm_flags & VM_USWAP) || !vma_is_anonymous(vma) ||
+-	    vma->vm_file || vma->vm_flags & (VM_SHARED | VM_LOCKED | VM_STACK |
+-					     VM_IO | VM_PFNMAP))
++	if (!vma || !vma_is_anonymous(vma) || vma->vm_file ||
++	    vma->vm_flags & (VM_SHARED | VM_LOCKED | VM_STACK | VM_IO |
++	    VM_PFNMAP | VM_HUGETLB))
+ 		return false;
+ 	return true;
+ }
+@@ -93,6 +93,7 @@ static unsigned long pages_can_be_swapped(struct mm_struct *mm,
+ 	while (addr < addr_end) {
+ 		vma = find_vma(mm, addr);
+ 		if (!vma || addr < vma->vm_start ||
++		    !(vma->vm_flags & VM_USWAP) ||
+ 		    !vma_uswap_compatible(vma)) {
+ 			ret = -EINVAL;
+ 			goto out_err;
+@@ -309,6 +310,8 @@ static unsigned long do_user_swap(struct mm_struct *mm,
+ 		new_vma = find_vma(mm, new_addr);
+ 		if (!new_vma || new_addr < new_vma->vm_start)
+ 			goto out_recover;
++		if (!vma_uswap_compatible(new_vma))
++			goto out_recover;
+ 
+ 		ret = -EACCES;
+ 		if (!(old_vma->vm_flags & VM_WRITE) &&
+@@ -409,7 +412,7 @@ int mfill_atomic_pte_nocopy(struct mm_struct *mm,
+ 	if (!src_vma || src_addr < src_vma->vm_start)
+ 		return -EINVAL;
+ 
+-	if (src_vma->vm_flags & VM_LOCKED)
++	if (!vma_uswap_compatible(src_vma))
+ 		return -EINVAL;
+ 
+ 	page = follow_page(src_vma, src_addr, FOLL_GET | FOLL_MIGRATION);
+-- 
+2.17.1
+

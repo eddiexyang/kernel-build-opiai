@@ -1,0 +1,106 @@
+From c209afe67ca3a398e1df1596d706d08a7518d603 Mon Sep 17 00:00:00 2001
+From: Li Huafei <lihuafei1@huawei.com>
+Date: Mon, 19 Jun 2023 20:01:33 +0800
+Subject: [PATCH 042/780] [Huawei] x86/kprobes: Fix the error judgment for
+ debug exceptions
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188915
+
+--------------------------------
+
+We get the following crash caused by a null pointer access:
+
+ <SNIP>
+ BUG: kernel NULL pointer dereference, address: 0000000000000000
+ #PF: supervisor read access in kernel mode
+ #PF: error_code(0x0000) - not-present page
+ PGD 0 P4D 0
+ Oops: 0000 [#1] SMP PTI
+ CPU: 54 PID: 2469325 Comm: ftracetest Kdump: loaded Tainted: GFS         OE     5.10.0+ #12
+ Hardware name: Huawei RH2288H V3/BC11HGSA0, BIOS 3.35 10/20/2016
+ RIP: 0010:resume_execution+0x35/0x190
+ Code: 41 54 55 48 89 fd 53 48 89 f3 48 83 ec 08 4c 8b 6f 60 4c 8b b6 98 00 00 00 48 89 14 24 4c 8b 67 28 4d 89       ef eb 04 49 83 c5 01 <41> 0f b6 7d 00 e8 f1 12 57 00 83 e0 0f 8d 48 ff 83 f9 0a 76 e7 83
+ RSP: 0018:fffffe16118acec0 EFLAGS: 00010086
+ RAX: 0000000000000000 RBX: fffffe16118acf58 RCX: 00000000eefdca76
+ RDX: ffff8f8cffd1f400 RSI: fffffe16118acf58 RDI: ffff8f5500d3c000
+ RBP: ffff8f5500d3c000 R08: 0000000000000000 R09: 0000000000000000
+ R10: 0000000000000000 R11: 0000000000000000 R12: ffffffff970e39c0
+ R13: 0000000000000000 R14: ffffb55ba0bd7c60 R15: 0000000000000000
+ FS:  00002aaaaad22740(0000) GS:ffff8f8cffd00000(0000) knlGS:0000000000000000
+ CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+ CR2: 0000000000000000 CR3: 0000003ac202c003 CR4: 00000000003706e0
+ DR0: ffffffff98000160 DR1: 0000000000000000 DR2: 0000000000000000
+ DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+ Call Trace:
+  <#DB>
+  kprobe_debug_handler+0x41/0xd0
+  exc_debug+0xe5/0x1b0
+  asm_exc_debug+0x19/0x30
+ RIP: 0010:copy_from_kernel_nofault.part.0+0x55/0xc0
+ Code: 85 c0 74 e1 65 48 8b 04 25 40 f0 01 00 83 a8 78 14 00 00 01 48 c7 c0 f2 ff ff ff c3 cc cc cc cc 48 83 fa       03 76 16 31 c0 8b 0e <89> 0f 85 c0 75 d4 48 83 c7 04 48 83 c6 04 48 83 ea 04 48 83 fa 0129711 [200374.683072] RSP: 0018:ffffb55ba0bd7c60 EFLAGS: 00000246
+ RAX: 0000000000000000 RBX: 0000000000000000 RCX: 0000000076207325
+ RDX: 0000000000000004 RSI: ffffffff98000160 RDI: ffff8f5500c0902c
+ RBP: ffff8f5500c0902c R08: ffffb55ba0bd7bdc R09: 0000000000000001
+ R10: ffff8f5548a0faf8 R11: 0000000000000000 R12: ffffffff98000160
+ R13: 0000000000000000 R14: ffff8f560da128c0 R15: 0000000000000000
+  </#DB>
+  process_fetch_insn+0xfb/0x720
+  kprobe_trace_func+0x199/0x2c0
+  ? kernel_clone+0x5/0x2f0
+  kprobe_dispatcher+0x3d/0x60
+  aggr_pre_handler+0x40/0x80
+  ? kernel_clone+0x1/0x2f0
+  kprobe_ftrace_handler+0x82/0xf0
+  ? __se_sys_clone+0x65/0x90
+  ftrace_ops_assist_func+0x86/0x110
+  ? rcu_nocb_try_bypass+0x1f3/0x370
+  0xffffffffc07e60c8
+  ? kernel_clone+0x1/0x2f0
+  kernel_clone+0x5/0x2f0
+ <SNIP>
+
+The analysis reveals that kprobe and hardware breakpoints conflict in
+the use of debug exceptions.
+
+If we set a hardware breakpoint on a memory address, and at the same
+time there is a kprobe event that also goes to get the memory of that
+address, then when kprobe triggers, it will go to read the memory and
+trigger hardware breakpoint monitoring, at this time, because kprobe
+handles debug exceptions earlier than hardware breakpoints, it will
+cause kprobe to incorrectly consider this exception as a kprobe trigger.
+
+kprobe by triggering debug exception after single-step execution (int1)
+call ->post_handler, at this time the exception address should be the address
+of the next instruction to slot instruction.
+
+Signed-off-by: Li Huafei <lihuafei1@huawei.com>
+---
+ arch/x86/kernel/kprobes/core.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/kprobes/core.c b/arch/x86/kernel/kprobes/core.c
+index 5de757099186..fd8d7d128807 100644
+--- a/arch/x86/kernel/kprobes/core.c
++++ b/arch/x86/kernel/kprobes/core.c
+@@ -900,7 +900,14 @@ int kprobe_debug_handler(struct pt_regs *regs)
+ 	struct kprobe *cur = kprobe_running();
+ 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();
+ 
+-	if (!cur)
++	if (!cur || !cur->ainsn.insn)
++		return 0;
++
++	/* regs->ip should be the address of next instruction to
++	 * cur->ainsn.insn.
++	 */
++	if (regs->ip < (unsigned long)cur->ainsn.insn ||
++	    regs->ip - (unsigned long)cur->ainsn.insn > MAX_INSN_SIZE)
+ 		return 0;
+ 
+ 	resume_execution(cur, regs, kcb);
+-- 
+2.17.1
+

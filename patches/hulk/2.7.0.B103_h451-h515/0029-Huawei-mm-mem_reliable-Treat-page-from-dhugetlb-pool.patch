@@ -1,0 +1,38 @@
+From 2665fa2e15ee518fd86fe570d3cb6aaf7de4129e Mon Sep 17 00:00:00 2001
+From: Ma Wupeng <mawupeng1@huawei.com>
+Date: Tue, 16 May 2023 11:17:29 +0800
+Subject: [PATCH 029/263] [Huawei] mm/mem_reliable: Treat page from dhugetlb
+ pool as unreliable page
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: 188703
+
+--------------------------------
+
+Memory from dhugetlb pool is lacking reliable attributes.
+Treat them as unreliable pages.
+
+Signed-off-by: Ma Wupeng <mawupeng1@huawei.com>
+---
+ include/linux/mem_reliable.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/linux/mem_reliable.h b/include/linux/mem_reliable.h
+index 0715c24bab5c..437cd5c78db7 100644
+--- a/include/linux/mem_reliable.h
++++ b/include/linux/mem_reliable.h
+@@ -84,6 +84,9 @@ static inline bool page_reliable(struct page *page)
+ 	if (!page)
+ 		return false;
+ 
++	if (PagePool(page))
++		return false;
++
+ 	return page_zonenum(page) < ZONE_MOVABLE;
+ }
+ 
+-- 
+2.17.1
+

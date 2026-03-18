@@ -1,0 +1,62 @@
+From 087dfd523df8125d94f15f037619b9bb20e86600 Mon Sep 17 00:00:00 2001
+From: Minghao Chi <chi.minghao@zte.com.cn>
+Date: Thu, 14 Apr 2022 08:53:42 +0000
+Subject: [PATCH 226/780] [Backport] spi: spi-imx: using
+ pm_runtime_resume_and_get instead of pm_runtime_get_sync
+
+stable inclusion
+from stable-v5.10.180
+commit c3aba912f40e1755a7423ee83017b9a23cefc62a
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I7FF4R
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=c3aba912f40e1755a7423ee83017b9a23cefc62a
+
+--------------------------------
+
+[ Upstream commit 7d34ff58f35c82207698f43af79817a05e1342e5 ]
+
+Using pm_runtime_resume_and_get() to replace pm_runtime_get_sync and
+pm_runtime_put_noidle. This change is just to simplify the code, no
+actual functional changes.
+
+Reported-by: Zeal Robot <zealci@zte.com.cn>
+Signed-off-by: Minghao Chi <chi.minghao@zte.com.cn>
+Link: https://lore.kernel.org/r/20220414085343.2541608-1-chi.minghao@zte.com.cn
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Stable-dep-of: 11951c9e3f36 ("spi: imx: Don't skip cleanup in remove's error path")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/spi/spi-imx.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/spi/spi-imx.c b/drivers/spi/spi-imx.c
+index 0e3bc0b0a526..6847038bcc9f 100644
+--- a/drivers/spi/spi-imx.c
++++ b/drivers/spi/spi-imx.c
+@@ -1555,9 +1555,8 @@ spi_imx_prepare_message(struct spi_master *master, struct spi_message *msg)
+ 	struct spi_imx_data *spi_imx = spi_master_get_devdata(master);
+ 	int ret;
+ 
+-	ret = pm_runtime_get_sync(spi_imx->dev);
++	ret = pm_runtime_resume_and_get(spi_imx->dev);
+ 	if (ret < 0) {
+-		pm_runtime_put_noidle(spi_imx->dev);
+ 		dev_err(spi_imx->dev, "failed to enable clock\n");
+ 		return ret;
+ 	}
+@@ -1766,9 +1765,8 @@ static int spi_imx_remove(struct platform_device *pdev)
+ 
+ 	spi_bitbang_stop(&spi_imx->bitbang);
+ 
+-	ret = pm_runtime_get_sync(spi_imx->dev);
++	ret = pm_runtime_resume_and_get(spi_imx->dev);
+ 	if (ret < 0) {
+-		pm_runtime_put_noidle(spi_imx->dev);
+ 		dev_err(spi_imx->dev, "failed to enable clock\n");
+ 		return ret;
+ 	}
+-- 
+2.17.1
+

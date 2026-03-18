@@ -1,0 +1,79 @@
+From 7091a50e370934f09030a519ba47a02f6964963d Mon Sep 17 00:00:00 2001
+From: "GONG, Ruiqi" <gongruiqi1@huawei.com>
+Date: Fri, 20 May 2022 02:21:17 +0000
+Subject: [PATCH 2155/2592] [Huawei] selinux: genfscon: fix kernel panic caused
+ by illegal access
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 186809
+
+--------------------------------
+
+KASAN triggered a kernel panic with the following fail log:
+
+Unable to handle kernel paging request at virtual address ffffffffffffffe0
+...
+Call trace:
+ inode_free_security+0x208/0x310
+ selinux_inode_free_security+0x28/0x40
+ security_inode_free+0x4c/0x9c
+ security_inode_alloc+0xdc/0xf0
+ inode_init_always+0x1fc/0x3a0
+ alloc_inode+0x68/0x154
+ new_inode_pseudo+0x80/0x1dc
+ new_inode+0x30/0x60
+ proc_pid_make_inode+0x90/0x300
+ proc_pident_instantiate+0x50/0x194
+ proc_pident_lookup+0x1a4/0x200
+ proc_tgid_base_lookup+0x40/0x50
+ __lookup_slow+0x120/0x310
+ walk_component+0x2dc/0x33c
+ link_path_walk+0x3f8/0x610
+ path_openat+0x120/0x2c0
+ do_filp_open+0x100/0x230
+ do_sys_openat2+0x31c/0x47c
+ __arm64_sys_openat+0x108/0x17c
+ ...
+Kernel panic - not syncing: Oops: Fatal exception
+
+The bug was found in selinux_inode_alloc_security(). In case that
+isec_alloc() fails, isech->head will be left uninitialized, which
+makes the list iteration in inode_free_security() behave unproperly.
+
+Fix this by moving the initialization of isech ahead of isec_alloc().
+Although initializing a isech that will be freed shortly afterwards is
+redundant, it's not a waste in most of the cases since the failure of
+isec_alloc() is an unlikely event.
+
+Signed-off-by: GONG, Ruiqi <gongruiqi1@huawei.com>
+---
+ security/selinux/hooks.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 34591038c7b4..59659bf7eff6 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -3026,13 +3026,13 @@ static int selinux_inode_alloc_security(struct inode *inode)
+ 	struct inode_security_struct *isec;
+ 	struct inode_security_head *isech = selinux_inode(inode);
+ 
+-	isec = isec_alloc(inode, true);
+-	if (!isec)
+-		return -ENOMEM;
+-
+ 	spin_lock_init(&isech->lock);
+ 	INIT_LIST_HEAD(&isech->head);
+ 	isech->task_sid = current_sid();
++
++	isec = isec_alloc(inode, true);
++	if (unlikely(!isec))
++		return -ENOMEM;
+ 	list_add(&isec->isec_list, &isech->head);
+ 
+ 	return 0;
+-- 
+2.17.1
+

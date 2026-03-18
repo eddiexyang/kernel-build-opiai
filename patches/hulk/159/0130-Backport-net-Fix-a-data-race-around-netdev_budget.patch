@@ -1,0 +1,45 @@
+From 14e202b503f73d4055ec0b1d7ee53c989f2b7ec0 Mon Sep 17 00:00:00 2001
+From: Kuniyuki Iwashima <kuniyu@amazon.com>
+Date: Tue, 23 Aug 2022 10:46:53 -0700
+Subject: [PATCH 130/595] [Backport] net: Fix a data-race around netdev_budget.
+
+stable inclusion
+from stable-v5.10.140
+commit 12a34d7f0463ebb6db01977091b5cda46d9060bc
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5W3GQ
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=12a34d7f0463ebb6db01977091b5cda46d9060bc
+
+--------------------------------
+
+[ Upstream commit 2e0c42374ee32e72948559d2ae2f7ba3dc6b977c ]
+
+While reading netdev_budget, it can be changed concurrently.
+Thus, we need to add READ_ONCE() to its reader.
+
+Fixes: 51b0bdedb8e7 ("[NET]: Separate two usages of netdev_max_backlog.")
+Signed-off-by: Kuniyuki Iwashima <kuniyu@amazon.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ net/core/dev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/core/dev.c b/net/core/dev.c
+index a7affebf1b25..c66ae87c5e66 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -6886,7 +6886,7 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
+ 	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
+ 	unsigned long time_limit = jiffies +
+ 		usecs_to_jiffies(netdev_budget_usecs);
+-	int budget = netdev_budget;
++	int budget = READ_ONCE(netdev_budget);
+ 	LIST_HEAD(list);
+ 	LIST_HEAD(repoll);
+ 
+-- 
+2.17.1
+

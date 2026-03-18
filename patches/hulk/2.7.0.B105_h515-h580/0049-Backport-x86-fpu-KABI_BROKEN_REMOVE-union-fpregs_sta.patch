@@ -1,0 +1,45 @@
+From 9bf537c4caf795c954c2747d6846b01ea34e2f20 Mon Sep 17 00:00:00 2001
+From: Zheng Zengkai <zhengzengkai@huawei.com>
+Date: Sat, 24 Jun 2023 17:13:52 +0800
+Subject: [PATCH 049/780] [Backport] x86/fpu: KABI_BROKEN_REMOVE "union
+ fpregs_state state" from struct fpu
+
+openeuler inclusion
+category: bugfix
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5RQLJ
+
+Reference: https://gitee.com/openeuler/kernel/commit/017f283fbdd2
+
+--------------------------------
+
+aaff3e8076ce ("x86/fpu: Avoid kabi change caused by struct fpu") will
+lead to performance degradation of libmicro pthread_create testcase.
+Assuming that no 3rd party driver will reach into struct fpu,
+replace kabi fix macro from KABI_DEPRECATE to KABI_BROKEN_REMOVE
+for element "union fpregs_state state" of struct fpu.
+
+Signed-off-by: Zheng Zengkai <zhengzengkai@huawei.com>
+---
+ arch/x86/include/asm/fpu/types.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/include/asm/fpu/types.h b/arch/x86/include/asm/fpu/types.h
+index 1ab041f14482..44ffbf971f4f 100644
+--- a/arch/x86/include/asm/fpu/types.h
++++ b/arch/x86/include/asm/fpu/types.h
+@@ -494,8 +494,11 @@ struct fpu {
+ 	 * context switch and when the kernel uses the FPU. The registers
+ 	 * are restored from this storage on return to user space if they
+ 	 * are not longer containing the tasks FPU register state.
++	 *
++	 * For kabi fix:
++	 * Assuming that no 3rd party driver will reach into struct fpu
+ 	 */
+-	KABI_DEPRECATE(union fpregs_state, state)
++	KABI_BROKEN_REMOVE(union fpregs_state state)
+ 	KABI_EXTEND(struct fpstate __fpstate)
+ 	/*
+ 	 * WARNING: '__fpstate' is dynamically-sized.  Do not put
+-- 
+2.17.1
+

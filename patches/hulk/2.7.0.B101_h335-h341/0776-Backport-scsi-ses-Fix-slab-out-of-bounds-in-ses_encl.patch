@@ -1,0 +1,58 @@
+From 67ce05c41072de1e3f96a5439f0978d3c6e21296 Mon Sep 17 00:00:00 2001
+From: Tomas Henzl <thenzl@redhat.com>
+Date: Thu, 2 Feb 2023 17:24:48 +0100
+Subject: [PATCH 776/921] [Backport] scsi: ses: Fix slab-out-of-bounds in
+ ses_enclosure_data_process()
+
+stable inclusion
+from stable-v5.10.173
+commit e4dd25da784b2e07dbfbf04509afa4c5a1375227
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e4dd25da784b2e07dbfbf04509afa4c5a1375227
+
+--------------------------------
+
+commit 9b4f5028e493cb353a5c8f5c45073eeea0303abd upstream.
+
+A fix for:
+
+BUG: KASAN: slab-out-of-bounds in ses_enclosure_data_process+0x949/0xe30 [ses]
+Read of size 1 at addr ffff88a1b043a451 by task systemd-udevd/3271
+
+Checking after (and before in next loop) addl_desc_ptr[1] is sufficient, we
+expect the size to be sanitized before first access to addl_desc_ptr[1].
+Make sure we don't walk beyond end of page.
+
+Link: https://lore.kernel.org/r/20230202162451.15346-2-thenzl@redhat.com
+Cc: stable@vger.kernel.org
+Signed-off-by: Tomas Henzl <thenzl@redhat.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/scsi/ses.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/scsi/ses.c b/drivers/scsi/ses.c
+index 8a048988cff7..1e234c17bfb6 100644
+--- a/drivers/scsi/ses.c
++++ b/drivers/scsi/ses.c
+@@ -602,9 +602,11 @@ static void ses_enclosure_data_process(struct enclosure_device *edev,
+ 			     /* these elements are optional */
+ 			     type_ptr[0] == ENCLOSURE_COMPONENT_SCSI_TARGET_PORT ||
+ 			     type_ptr[0] == ENCLOSURE_COMPONENT_SCSI_INITIATOR_PORT ||
+-			     type_ptr[0] == ENCLOSURE_COMPONENT_CONTROLLER_ELECTRONICS))
++			     type_ptr[0] == ENCLOSURE_COMPONENT_CONTROLLER_ELECTRONICS)) {
+ 				addl_desc_ptr += addl_desc_ptr[1] + 2;
+-
++				if (addl_desc_ptr + 1 >= ses_dev->page10 + ses_dev->page10_len)
++					addl_desc_ptr = NULL;
++			}
+ 		}
+ 	}
+ 	kfree(buf);
+-- 
+2.17.1
+

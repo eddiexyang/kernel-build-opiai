@@ -1,0 +1,65 @@
+From 7ede0c9995d6d4b746588d2a057cce7f20f17621 Mon Sep 17 00:00:00 2001
+From: Suzuki K Poulose <suzuki.poulose@arm.com>
+Date: Tue, 8 Nov 2022 14:37:48 +0800
+Subject: [PATCH 1086/1646] [Backport] coresight: etm4x: Add necessary
+ synchronization for sysreg access
+
+mainline inclusion
+from mainline-v5.12-rc1-dontuse
+commit 1ab3bb9df5e35183fee8da2b3fb30feda9a53ce9
+category: feature
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5YCYK
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=1ab3bb9df5e35183fee8da2b3fb30feda9a53ce9
+
+--------------------------------
+
+As per the specification any update to the TRCPRGCTLR must be synchronized
+by a context synchronization event (in our case an explicist ISB) before
+the TRCSTATR is checked.
+
+Link: https://lore.kernel.org/r/20210110224850.1880240-22-suzuki.poulose@arm.com
+Cc: Mike Leach <mike.leach@linaro.org>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Signed-off-by: Mathieu Poirier <mathieu.poirier@linaro.org>
+Link: https://lore.kernel.org/r/20210201181351.1475223-24-mathieu.poirier@linaro.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/hwtracing/coresight/coresight-etm4x-core.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/drivers/hwtracing/coresight/coresight-etm4x-core.c b/drivers/hwtracing/coresight/coresight-etm4x-core.c
+index 3e91d0028ba3..b5b5753b4e99 100644
+--- a/drivers/hwtracing/coresight/coresight-etm4x-core.c
++++ b/drivers/hwtracing/coresight/coresight-etm4x-core.c
+@@ -292,6 +292,15 @@ static int etm4_enable_hw(struct etmv4_drvdata *drvdata)
+ 	/* Disable the trace unit before programming trace registers */
+ 	writel_relaxed(0, drvdata->base + TRCPRGCTLR);
+ 
++	/*
++	 * If we use system instructions, we need to synchronize the
++	 * write to the TRCPRGCTLR, before accessing the TRCSTATR.
++	 * See ARM IHI0064F, section
++	 * "4.3.7 Synchronization of register updates"
++	 */
++	if (!csa->io_mem)
++		isb();
++
+ 	/* wait for TRCSTATR.IDLE to go up */
+ 	if (coresight_timeout(csa, TRCSTATR, TRCSTATR_IDLE_BIT, 1))
+ 		dev_err(etm_dev,
+@@ -382,6 +391,10 @@ static int etm4_enable_hw(struct etmv4_drvdata *drvdata)
+ 	/* Enable the trace unit */
+ 	writel_relaxed(1, drvdata->base + TRCPRGCTLR);
+ 
++	/* Synchronize the register updates for sysreg access */
++	if (!csa->io_mem)
++		isb();
++
+ 	/* wait for TRCSTATR.IDLE to go back down to '0' */
+ 	if (coresight_timeout(csa, TRCSTATR, TRCSTATR_IDLE_BIT, 0))
+ 		dev_err(etm_dev,
+-- 
+2.17.1
+

@@ -1,0 +1,54 @@
+From 37dd49a526eda23c65cd62fffe40a1846d8169da Mon Sep 17 00:00:00 2001
+From: Artem Bityutskiy <artem.bityutskiy@linux.intel.com>
+Date: Mon, 8 Mar 2021 16:31:46 +0200
+Subject: [PATCH 0155/1646] [Backport] intel_idle: update ICX C6 data
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit d484b8bfc6fa71a088e4ac85d9ce11aa0385867e
+category: feature
+bugzilla: https://gitee.com/openeuler/intel-kernel/issues/I5BECY
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d484b8bfc6fa71a088e4ac85d9ce11aa0385867e
+
+--------------------------------
+
+Change IceLake Xeon C6 latency from 128 us to 170 us. The latency
+was measured with the "wult" tool and corresponds to the 99.99th
+percentile when measuring with the "nic" method. Note, the 128 us
+figure correspond to the median latency, but in intel_idle we use
+the "worst case" latency figure instead.
+
+C6 target residency was increased from 384 us to 600 us, which may
+result in less C6 residency in some workloads. This value was tested
+and compared to values 384, and 1000. Value 600 is a reasonable
+tradeoff between power and performance.
+
+Signed-off-by: Artem Bityutskiy <artem.bityutskiy@linux.intel.com>
+Acked-by: Zhang Rui <rui.zhang@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Signed-off-by: yingbao jia <yingbao.jia@intel.com>
+Signed-off-by: Jun Tian <jun.j.tian@intel.com>
+Signed-off-by: Jialin Zhang <zhangjialin11@huawei.com>
+---
+ drivers/idle/intel_idle.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/idle/intel_idle.c b/drivers/idle/intel_idle.c
+index 725e903cb270..d6982b4831a6 100644
+--- a/drivers/idle/intel_idle.c
++++ b/drivers/idle/intel_idle.c
+@@ -770,8 +770,8 @@ static struct cpuidle_state icx_cstates[] __initdata = {
+ 		.name = "C6",
+ 		.desc = "MWAIT 0x20",
+ 		.flags = MWAIT2flg(0x20) | CPUIDLE_FLAG_TLB_FLUSHED,
+-		.exit_latency = 128,
+-		.target_residency = 384,
++		.exit_latency = 170,
++		.target_residency = 600,
+ 		.enter = &intel_idle,
+ 		.enter_s2idle = intel_idle_s2idle, },
+ 	{
+-- 
+2.17.1
+

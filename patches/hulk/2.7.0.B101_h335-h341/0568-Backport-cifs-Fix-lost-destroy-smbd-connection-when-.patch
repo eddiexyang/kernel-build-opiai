@@ -1,0 +1,52 @@
+From a3f736c5a0e9a34937981fe5dcd126488df3745e Mon Sep 17 00:00:00 2001
+From: Zhang Xiaoxu <zhangxiaoxu5@huawei.com>
+Date: Fri, 18 Nov 2022 16:42:07 +0800
+Subject: [PATCH 568/921] [Backport] cifs: Fix lost destroy smbd connection
+ when MR allocate failed
+
+stable inclusion
+from stable-v5.10.173
+commit caac205e0d5b44c4c23a10c6c0976d50ebe16ac2
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6PMQI
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=caac205e0d5b44c4c23a10c6c0976d50ebe16ac2
+
+--------------------------------
+
+[ Upstream commit e9d3401d95d62a9531082cd2453ed42f2740e3fd ]
+
+If the MR allocate failed, the smb direct connection info is NULL,
+then smbd_destroy() will directly return, then the connection info
+will be leaked.
+
+Let's set the smb direct connection info to the server before call
+smbd_destroy().
+
+Fixes: c7398583340a ("CIFS: SMBD: Implement RDMA memory registration")
+Signed-off-by: Zhang Xiaoxu <zhangxiaoxu5@huawei.com>
+Acked-by: Paulo Alcantara (SUSE) <pc@cjr.nz>
+Reviewed-by: David Howells <dhowells@redhat.com>
+Reviewed-by: Tom Talpey <tom@talpey.com>
+Signed-off-by: Steve French <stfrench@microsoft.com>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ fs/cifs/smbdirect.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/cifs/smbdirect.c b/fs/cifs/smbdirect.c
+index f73f9b062525..c93d4ec843be 100644
+--- a/fs/cifs/smbdirect.c
++++ b/fs/cifs/smbdirect.c
+@@ -1691,6 +1691,7 @@ static struct smbd_connection *_smbd_get_connection(
+ 
+ allocate_mr_failed:
+ 	/* At this point, need to a full transport shutdown */
++	server->smbd_conn = info;
+ 	smbd_destroy(server);
+ 	return NULL;
+ 
+-- 
+2.17.1
+

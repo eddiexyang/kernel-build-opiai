@@ -1,0 +1,198 @@
+From ce9dfae81e5d509dacf6994d30da39a1307bfd63 Mon Sep 17 00:00:00 2001
+From: Wang Wensheng <wangwensheng4@huawei.com>
+Date: Mon, 24 Jul 2023 19:32:07 +0800
+Subject: [PATCH 22/53] [Huawei] mm/sharepool: Unify the process for k2u and
+ sp_alloc
+
+Offering: HULK
+hulk inclusion
+category: feature
+bugzilla: N/A
+
+--------------------------------
+
+When the user calling sp_alloc or k2u, we firstly allocate a sp_area,
+then we traverse all the tasks in the sp_group and mmap a vma and
+create page table for that area.
+
+The only difference is how the page table was created: we calling
+do_mmap_populate for sp_alloc and calling remap_pfn_range for k2u.
+So we can unify those process and simplify the source.
+
+Signed-off-by: Wang Wensheng <wangwensheng4@huawei.com>
+---
+ mm/share_pool.c | 91 +++++++++++++++----------------------------------
+ 1 file changed, 28 insertions(+), 63 deletions(-)
+
+diff --git a/mm/share_pool.c b/mm/share_pool.c
+index f409e7423eb5..4ad85da89e53 100644
+--- a/mm/share_pool.c
++++ b/mm/share_pool.c
+@@ -857,8 +857,9 @@ struct sp_alloc_context {
+ 	enum spa_type type;
+ };
+ 
+-static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+-				    unsigned long prot, struct sp_alloc_context *ac);
++static int sp_map_spa_to_mm(struct mm_struct *mm, struct sp_area *spa,
++			    unsigned long prot, struct sp_alloc_context *ac,
++			    const char *str);
+ 
+ struct sp_k2u_context {
+ 	unsigned long kva;
+@@ -869,9 +870,6 @@ struct sp_k2u_context {
+ 	enum spa_type type;
+ };
+ 
+-static int sp_remap_kva_to_vma(struct sp_area *spa, struct mm_struct *mm,
+-			       unsigned long prot, struct sp_k2u_context *kc);
+-
+ static void free_sp_group_id(int spg_id)
+ {
+ 	/* ida operation is protected by an internal spin_lock */
+@@ -1474,18 +1472,7 @@ int mg_sp_group_add_task(int tgid, unsigned long prot, int spg_id)
+ 
+ 		spin_unlock(&sp_area_lock);
+ 
+-		if (spa->type == SPA_TYPE_K2SPG && spa->kva) {
+-			ret = sp_remap_kva_to_vma(spa, mm, prot, NULL);
+-			if (ret) {
+-				pr_warn("add group remap k2u failed %d\n", ret);
+-				ret = 0;
+-			}
+-
+-			spin_lock(&sp_area_lock);
+-			continue;
+-		}
+-
+-		ret = __sp_alloc_mmap_populate(mm, spa, prot, NULL);
++		ret = sp_map_spa_to_mm(mm, spa, prot, NULL, "add_task");
+ 		if (ret) {
+ 			pr_warn("mmap old spa to new task failed, %d\n", ret);
+ 			ret = 0;
+@@ -2212,9 +2199,12 @@ static int sp_alloc_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	return ret;
+ }
+ 
++static int sp_k2u_populate(struct mm_struct *mm, struct sp_area *spa);
++
+ #define SP_SKIP_ERR 1
+-static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+-				    unsigned long prot, struct sp_alloc_context *ac)
++static int sp_map_spa_to_mm(struct mm_struct *mm, struct sp_area *spa,
++			    unsigned long prot, struct sp_alloc_context *ac,
++			    const char *str)
+ {
+ 	int ret;
+ 	unsigned long mmap_addr;
+@@ -2223,7 +2213,7 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	down_write(&mm->mmap_lock);
+ 	if (unlikely(mm->core_state)) {
+ 		up_write(&mm->mmap_lock);
+-		pr_info("allocation encountered coredump\n");
++		pr_info("%s, encountered coredump\n", str);
+ 		return SP_SKIP_ERR;
+ 	}
+ 
+@@ -2231,16 +2221,24 @@ static int __sp_alloc_mmap_populate(struct mm_struct *mm, struct sp_area *spa,
+ 	mmap_addr = sp_mmap(mm, spa_file(spa), spa, &populate, prot);
+ 	if (IS_ERR_VALUE(mmap_addr)) {
+ 		up_write(&mm->mmap_lock);
+-		pr_err("sp mmap in allocation failed %ld\n", mmap_addr);
++		pr_err("%s, sp mmap failed %ld\n", str, mmap_addr);
+ 		return (int)mmap_addr;
+ 	}
+ 
+-	up_write(&mm->mmap_lock);
+-
+-	ret = sp_alloc_populate(mm, spa, populate, ac);
+-	if (ret) {
+-		down_write(&mm->mmap_lock);
+-		do_munmap(mm, mmap_addr, spa_size(spa), NULL);
++	if (spa->type == SPA_TYPE_ALLOC) {
++		up_write(&mm->mmap_lock);
++		ret = sp_alloc_populate(mm, spa, populate, ac);
++		if (ret) {
++			down_write(&mm->mmap_lock);
++			do_munmap(mm, mmap_addr, spa_size(spa), NULL);
++			up_write(&mm->mmap_lock);
++		}
++	} else {
++		ret = sp_k2u_populate(mm, spa);
++		if (ret) {
++			do_munmap(mm, mmap_addr, spa_size(spa), NULL);
++			pr_info("k2u populate failed, %d\n", ret);
++		}
+ 		up_write(&mm->mmap_lock);
+ 	}
+ 
+@@ -2257,7 +2255,7 @@ static int sp_alloc_mmap_populate(struct sp_area *spa, struct sp_alloc_context *
+ 	/* create mapping for each process in the group */
+ 	list_for_each_entry(spg_node, &spa->spg->proc_head, proc_node) {
+ 		mm = spg_node->master->mm;
+-		mmap_ret = __sp_alloc_mmap_populate(mm, spa, spg_node->prot, ac);
++		mmap_ret = sp_map_spa_to_mm(mm, spa, spg_node->prot, ac, "sp_alloc");
+ 		if (mmap_ret) {
+ 			/*
+ 			 * Goto fallback procedure upon ERR_VALUE,
+@@ -2283,7 +2281,7 @@ static int sp_alloc_mmap_populate(struct sp_area *spa, struct sp_alloc_context *
+ 	 * In this case, it will return enomem, but will not free the
+ 	 * memory which has already been allocated.
+ 	 *
+-	 * So if __sp_alloc_mmap_populate fails, always call sp_fallocate()
++	 * So if sp_map_spa_to_mm fails, always call sp_fallocate()
+ 	 * to make sure backup physical memory of the shared file is freed.
+ 	 */
+ 	sp_fallocate(spa);
+@@ -2456,39 +2454,6 @@ static int sp_k2u_populate(struct mm_struct *mm, struct sp_area *spa)
+ 	return 0;
+ }
+ 
+-/* when called by k2u to group, always make sure rw_lock of spg is down */
+-static int sp_remap_kva_to_vma(struct sp_area *spa, struct mm_struct *mm,
+-			       unsigned long prot, struct sp_k2u_context *kc)
+-{
+-	int ret = 0;
+-	unsigned long ret_addr;
+-	unsigned long populate = 0;
+-
+-	down_write(&mm->mmap_lock);
+-	if (unlikely(mm->core_state)) {
+-		up_write(&mm->mmap_lock);
+-		pr_err("k2u mmap: encountered coredump, abort\n");
+-		return SP_SKIP_ERR;
+-	}
+-
+-	ret_addr = sp_mmap(mm, spa_file(spa), spa, &populate, prot);
+-	if (IS_ERR_VALUE(ret_addr)) {
+-		up_write(&mm->mmap_lock);
+-		pr_info("k2u mmap failed %lx\n", ret_addr);
+-		return (int)ret_addr;
+-	}
+-
+-	ret = sp_k2u_populate(mm, spa);
+-	if (ret) {
+-		do_munmap(mm, ret_addr, spa_size(spa), NULL);
+-		pr_info("k2u populate failed, %d\n", ret);
+-	}
+-
+-	up_write(&mm->mmap_lock);
+-
+-	return ret;
+-}
+-
+ static bool vmalloc_area_set_flag(unsigned long kva, unsigned long flags)
+ {
+ 	struct vm_struct *area;
+@@ -2529,7 +2494,7 @@ static void *sp_make_share_kva_to_spg(struct sp_k2u_context *kc, struct sp_group
+ 	spa->kva = kc->kva_aligned;
+ 	list_for_each_entry(spg_node, &spg->proc_head, proc_node) {
+ 		mm = spg_node->master->mm;
+-		mmap_ret = sp_remap_kva_to_vma(spa, mm, spg_node->prot, kc);
++		mmap_ret = sp_map_spa_to_mm(mm, spa, spg_node->prot, NULL, "k2u");
+ 		if (mmap_ret) {
+ 			if (mmap_ret == SP_SKIP_ERR)
+ 				continue;
+-- 
+2.17.1
+

@@ -1,0 +1,138 @@
+From 1fc5d442748889e5e28cca2dc75c5db822423e30 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@redhat.com>
+Date: Wed, 18 Aug 2021 22:08:24 +0200
+Subject: [PATCH 0879/1646] [Backport] ovl: enable RCU'd ->get_acl()
+
+mainline inclusion
+from mainline-v5.15-rc1
+commit 332f606b32b6291a944c8cf23b91f53a6e676525
+category: perf
+bugzilla: 188725
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=332f606b32b6291a944c8cf23b91f53a6e676525
+
+--------------------------------
+
+Overlayfs does not cache ACL's (to avoid double caching).  Instead it just
+calls the underlying filesystem's i_op->get_acl(), which will return the
+cached value, if possible.
+
+In rcu path walk, however, get_cached_acl_rcu() is employed to get the
+value from the cache, which will fail on overlayfs resulting in dropping
+out of rcu walk mode.  This can result in a big performance hit in certain
+situations.
+
+Fix by calling ->get_acl() with rcu=true in case of ACL_DONT_CACHE (which
+indicates pass-through)
+
+Reported-by: garyhuang <zjh.20052005@163.com>
+Signed-off-by: Miklos Szeredi <mszeredi@redhat.com>
+Conflicts:
+	fs/posix_acl.c
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/overlayfs/inode.c      |  7 ++++---
+ fs/posix_acl.c            | 13 ++++++++++++-
+ include/linux/fs.h        |  5 +++++
+ include/linux/posix_acl.h |  3 ++-
+ 4 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/fs/overlayfs/inode.c b/fs/overlayfs/inode.c
+index 0148d819910e..f319505bc9f0 100644
+--- a/fs/overlayfs/inode.c
++++ b/fs/overlayfs/inode.c
+@@ -11,6 +11,7 @@
+ #include <linux/posix_acl.h>
+ #include <linux/ratelimit.h>
+ #include <linux/fiemap.h>
++#include <linux/namei.h>
+ #include "overlayfs.h"
+ 
+ 
+@@ -447,12 +448,12 @@ struct posix_acl *ovl_get_acl(struct inode *inode, int type, bool rcu)
+ 	const struct cred *old_cred;
+ 	struct posix_acl *acl;
+ 
+-	if (rcu)
+-		return ERR_PTR(-ECHILD);
+-
+ 	if (!IS_ENABLED(CONFIG_FS_POSIX_ACL) || !IS_POSIXACL(realinode))
+ 		return NULL;
+ 
++	if (rcu)
++		return get_cached_acl_rcu(realinode, type);
++
+ 	old_cred = ovl_override_creds(inode->i_sb);
+ 	acl = get_acl(realinode, type);
+ 	revert_creds(old_cred);
+diff --git a/fs/posix_acl.c b/fs/posix_acl.c
+index c7eeb841c2ad..5e908c3cec46 100644
+--- a/fs/posix_acl.c
++++ b/fs/posix_acl.c
+@@ -22,6 +22,7 @@
+ #include <linux/xattr.h>
+ #include <linux/export.h>
+ #include <linux/user_namespace.h>
++#include <linux/namei.h>
+ 
+ static struct posix_acl **acl_by_type(struct inode *inode, int type)
+ {
+@@ -56,7 +57,17 @@ EXPORT_SYMBOL(get_cached_acl);
+ 
+ struct posix_acl *get_cached_acl_rcu(struct inode *inode, int type)
+ {
+-	return rcu_dereference(*acl_by_type(inode, type));
++	struct posix_acl *acl = rcu_dereference(*acl_by_type(inode, type));
++
++	if (acl == ACL_DONT_CACHE && inode->i_op->get_acl2) {
++		struct posix_acl *ret;
++
++		ret = inode->i_op->get_acl2(inode, type, LOOKUP_RCU);
++		if (!IS_ERR(ret))
++			acl = ret;
++	}
++
++	return acl;
+ }
+ EXPORT_SYMBOL(get_cached_acl_rcu);
+ 
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index ba7af7d42986..8171ad259ff1 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -593,6 +593,11 @@ static inline void mapping_allow_writable(struct address_space *mapping)
+ 
+ struct posix_acl;
+ #define ACL_NOT_CACHED ((void *)(-1))
++/*
++ * ACL_DONT_CACHE is for stacked filesystems, that rely on underlying fs to
++ * cache the ACL.  This also means that ->get_acl2() can be called in RCU mode
++ * with the LOOKUP_RCU flag.
++ */
+ #define ACL_DONT_CACHE ((void *)(-3))
+ 
+ static inline struct posix_acl *
+diff --git a/include/linux/posix_acl.h b/include/linux/posix_acl.h
+index 90797f1b421d..c23654c2adfe 100644
+--- a/include/linux/posix_acl.h
++++ b/include/linux/posix_acl.h
+@@ -71,6 +71,8 @@ extern int __posix_acl_chmod(struct posix_acl **, gfp_t, umode_t);
+ extern struct posix_acl *get_posix_acl(struct inode *, int);
+ extern int set_posix_acl(struct inode *, int, struct posix_acl *);
+ 
++struct posix_acl *get_cached_acl_rcu(struct inode *inode, int type);
++
+ #ifdef CONFIG_FS_POSIX_ACL
+ extern int posix_acl_chmod(struct inode *, umode_t);
+ extern int posix_acl_create(struct inode *, umode_t *, struct posix_acl **,
+@@ -81,7 +83,6 @@ extern int simple_set_acl(struct inode *, struct posix_acl *, int);
+ extern int simple_acl_create(struct inode *, struct inode *);
+ 
+ struct posix_acl *get_cached_acl(struct inode *inode, int type);
+-struct posix_acl *get_cached_acl_rcu(struct inode *inode, int type);
+ void set_cached_acl(struct inode *inode, int type, struct posix_acl *acl);
+ void forget_cached_acl(struct inode *inode, int type);
+ void forget_all_cached_acls(struct inode *inode);
+-- 
+2.17.1
+

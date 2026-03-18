@@ -1,0 +1,93 @@
+From 96cadd011fca1dbafe696cc78e0f93d4f18fbc5c Mon Sep 17 00:00:00 2001
+From: Tetsuo Handa <penguin-kernel@I-love.SAKURA.ne.jp>
+Date: Thu, 1 Apr 2021 14:58:23 +0900
+Subject: [PATCH 200/921] [Backport] kernel: Initialize cpumask before parsing
+
+mainline inclusion
+from mainline-v5.13-rc1
+commit c5e3a41187ac01425f5ad1abce927905e4ac44e4
+category: bugfix
+bugzilla: 188543
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c5e3a41187ac01425f5ad1abce927905e4ac44e4
+
+--------------------------------
+
+KMSAN complains that new_value at cpumask_parse_user() from
+write_irq_affinity() from irq_affinity_proc_write() is uninitialized.
+
+  [  148.133411][ T5509] =====================================================
+  [  148.135383][ T5509] BUG: KMSAN: uninit-value in find_next_bit+0x325/0x340
+  [  148.137819][ T5509]
+  [  148.138448][ T5509] Local variable ----new_value.i@irq_affinity_proc_write created at:
+  [  148.140768][ T5509]  irq_affinity_proc_write+0xc3/0x3d0
+  [  148.142298][ T5509]  irq_affinity_proc_write+0xc3/0x3d0
+  [  148.143823][ T5509] =====================================================
+
+Since bitmap_parse() from cpumask_parse_user() calls find_next_bit(),
+any alloc_cpumask_var() + cpumask_parse_user() sequence has possibility
+that find_next_bit() accesses uninitialized cpu mask variable. Fix this
+problem by replacing alloc_cpumask_var() with zalloc_cpumask_var().
+
+Signed-off-by: Tetsuo Handa <penguin-kernel@I-love.SAKURA.ne.jp>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Acked-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+Link: https://lore.kernel.org/r/20210401055823.3929-1-penguin-kernel@I-love.SAKURA.ne.jp
+Signed-off-by: Lin Yujun <linyujun809@huawei.com>
+---
+ kernel/irq/proc.c    | 4 ++--
+ kernel/profile.c     | 2 +-
+ kernel/trace/trace.c | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/irq/proc.c b/kernel/irq/proc.c
+index 590091094ef3..33a9e3e9943e 100644
+--- a/kernel/irq/proc.c
++++ b/kernel/irq/proc.c
+@@ -144,7 +144,7 @@ static ssize_t write_irq_affinity(int type, struct file *file,
+ 	if (!irq_can_set_affinity_usr(irq) || no_irq_affinity)
+ 		return -EIO;
+ 
+-	if (!alloc_cpumask_var(&new_value, GFP_KERNEL))
++	if (!zalloc_cpumask_var(&new_value, GFP_KERNEL))
+ 		return -ENOMEM;
+ 
+ 	if (type)
+@@ -238,7 +238,7 @@ static ssize_t default_affinity_write(struct file *file,
+ 	cpumask_var_t new_value;
+ 	int err;
+ 
+-	if (!alloc_cpumask_var(&new_value, GFP_KERNEL))
++	if (!zalloc_cpumask_var(&new_value, GFP_KERNEL))
+ 		return -ENOMEM;
+ 
+ 	err = cpumask_parse_user(buffer, count, new_value);
+diff --git a/kernel/profile.c b/kernel/profile.c
+index 0436737db956..4134c788d345 100644
+--- a/kernel/profile.c
++++ b/kernel/profile.c
+@@ -438,7 +438,7 @@ static ssize_t prof_cpu_mask_proc_write(struct file *file,
+ 	cpumask_var_t new_value;
+ 	int err;
+ 
+-	if (!alloc_cpumask_var(&new_value, GFP_KERNEL))
++	if (!zalloc_cpumask_var(&new_value, GFP_KERNEL))
+ 		return -ENOMEM;
+ 
+ 	err = cpumask_parse_user(buffer, count, new_value);
+diff --git a/kernel/trace/trace.c b/kernel/trace/trace.c
+index 45d7e9790152..d003e1403ca2 100644
+--- a/kernel/trace/trace.c
++++ b/kernel/trace/trace.c
+@@ -4807,7 +4807,7 @@ tracing_cpumask_write(struct file *filp, const char __user *ubuf,
+ 	cpumask_var_t tracing_cpumask_new;
+ 	int err;
+ 
+-	if (!alloc_cpumask_var(&tracing_cpumask_new, GFP_KERNEL))
++	if (!zalloc_cpumask_var(&tracing_cpumask_new, GFP_KERNEL))
+ 		return -ENOMEM;
+ 
+ 	err = cpumask_parse_user(ubuf, count, tracing_cpumask_new);
+-- 
+2.17.1
+

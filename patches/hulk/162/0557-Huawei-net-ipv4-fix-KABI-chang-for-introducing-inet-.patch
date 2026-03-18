@@ -1,0 +1,39 @@
+From e8f142a1b8512808d2c87a2d18a163d70edd401b Mon Sep 17 00:00:00 2001
+From: zhangchengceng <zhangchengceng1@huawei.com>
+Date: Tue, 7 Feb 2023 16:49:44 +0800
+Subject: [PATCH 557/905] [Huawei] net: ipv4: fix KABI chang for introducing
+ inet vendor hook
+
+Offering: HULK
+ont inclusion
+category: feature
+bugzilla: 188338
+
+-------------------------------
+
+After adding inet vendor hook, make KABI of ip_do_fragment and ip_local_out
+changed. That is because include header file trace/hooks/inet.h. Use
+__GENKSYMS__ to fix it.
+
+Signed-off-by: zhangchengceng <zhangchengceng1@huawei.com>
+---
+ net/ipv4/ip_output.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
+index db76b8c321a4..8081a83557ef 100644
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -83,7 +83,9 @@
+ #include <linux/netlink.h>
+ #include <linux/tcp.h>
+ 
++#ifndef __GENKSYMS__
+ #include <trace/hooks/inet.h>
++#endif
+ 
+ static int
+ ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
+-- 
+2.17.1
+

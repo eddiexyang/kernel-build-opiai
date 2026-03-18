@@ -1,0 +1,75 @@
+From 11687793c68cc0366d0e351a248f4ddf7f82ae8e Mon Sep 17 00:00:00 2001
+From: Zhihao Cheng <chengzhihao1@huawei.com>
+Date: Thu, 13 Jul 2023 15:57:32 +0800
+Subject: [PATCH 19/36] [Huawei] Revert "[Huawei] ext4: Don't increase
+ s_mb_free_pending when freeing blocks in error branch"
+
+Offering: HULK
+hulk inclusion
+category: bugfix
+bugzilla: 188972
+
+--------------------------------
+
+This reverts commit d07754c82f2ca79848d56ccd509a75fb1baa9ccd.
+
+Signed-off-by: Zhihao Cheng <chengzhihao1@huawei.com>
+---
+ fs/ext4/ext4.h    | 1 -
+ fs/ext4/extents.c | 4 +---
+ fs/ext4/mballoc.c | 5 ++---
+ 3 files changed, 3 insertions(+), 7 deletions(-)
+
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index 05d243d9b908..779cd6be8d92 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -702,7 +702,6 @@ enum {
+ #define EXT4_FREE_BLOCKS_NOFREE_FIRST_CLUSTER	0x0010
+ #define EXT4_FREE_BLOCKS_NOFREE_LAST_CLUSTER	0x0020
+ #define EXT4_FREE_BLOCKS_RERESERVE_CLUSTER      0x0040
+-#define EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL      0x0080
+ 
+ /*
+  * ioctl commands
+diff --git a/fs/ext4/extents.c b/fs/ext4/extents.c
+index f1529e111eeb..cc89c4888de0 100644
+--- a/fs/ext4/extents.c
++++ b/fs/ext4/extents.c
+@@ -1294,8 +1294,7 @@ static int ext4_ext_split(handle_t *handle, struct inode *inode,
+ 			if (!ablocks[i])
+ 				continue;
+ 			ext4_free_blocks(handle, inode, NULL, ablocks[i], 1,
+-					 EXT4_FREE_BLOCKS_METADATA |
+-					 EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL);
++					 EXT4_FREE_BLOCKS_METADATA);
+ 		}
+ 	}
+ 	kfree(ablocks);
+@@ -4330,7 +4329,6 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
+ 			ext4_discard_preallocations(inode, 0);
+ 			if (flags & EXT4_GET_BLOCKS_DELALLOC_RESERVE)
+ 				fb_flags = EXT4_FREE_BLOCKS_NO_QUOT_UPDATE;
+-			fb_flags |= EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL;
+ 			ext4_free_blocks(handle, inode, NULL, newblock,
+ 					 EXT4_C2B(sbi, allocated_clusters),
+ 					 fb_flags);
+diff --git a/fs/ext4/mballoc.c b/fs/ext4/mballoc.c
+index 9efaf0e6635b..64c3ffcd40e3 100644
+--- a/fs/ext4/mballoc.c
++++ b/fs/ext4/mballoc.c
+@@ -5501,9 +5501,8 @@ static void ext4_mb_clear_bb(handle_t *handle, struct inode *inode,
+ 	 * consistency guarantees.
+ 	 */
+ 	if (ext4_handle_valid(handle) &&
+-	    (((flags & EXT4_FREE_BLOCKS_METADATA) ||
+-	     !ext4_should_writeback_data(inode)) &&
+-	     !(flags & EXT4_FREE_BLOCKS_DONT_WAIT_JOURNAL))) {
++	    ((flags & EXT4_FREE_BLOCKS_METADATA) ||
++	     !ext4_should_writeback_data(inode))) {
+ 		struct ext4_free_data *new_entry;
+ 		/*
+ 		 * We use __GFP_NOFAIL because ext4_free_blocks() is not allowed
+-- 
+2.17.1
+

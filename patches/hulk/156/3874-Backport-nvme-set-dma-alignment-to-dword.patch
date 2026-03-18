@@ -1,0 +1,50 @@
+From 1acff4406d44917a9e1420091af775103b067338 Mon Sep 17 00:00:00 2001
+From: Keith Busch <kbusch@kernel.org>
+Date: Wed, 4 May 2022 11:43:25 -0700
+Subject: [PATCH 3874/4585] [Backport] nvme: set dma alignment to dword
+
+stable inclusion
+from stable-v5.10.121
+commit 4dcae15ff84f26c28e56768c84947a5865e70fa1
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I5JGN1
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=4dcae15ff84f26c28e56768c84947a5865e70fa1
+
+--------------------------------
+
+[ Upstream commit 52fde2c07da606f3f120af4f734eadcfb52b04be ]
+
+The nvme specification only requires qword alignment for segment
+descriptors, and the driver already guarantees that. The spec has always
+allowed user data to be dword aligned, which is what the queue's
+attribute is for, so relax the alignment requirement to that value.
+
+While we could allow byte alignment for some controllers when using
+SGLs, we still need to support PRP, and that only allows dword.
+
+Fixes: 3b2a1ebceba3 ("nvme: set dma alignment to qword")
+Signed-off-by: Keith Busch <kbusch@kernel.org>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/nvme/host/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/nvme/host/core.c b/drivers/nvme/host/core.c
+index 2de09ce5c9d5..f703dd69f72d 100644
+--- a/drivers/nvme/host/core.c
++++ b/drivers/nvme/host/core.c
+@@ -2004,7 +2004,7 @@ static void nvme_set_queue_limits(struct nvme_ctrl *ctrl,
+ 		blk_queue_max_segments(q, min_t(u32, max_segments, USHRT_MAX));
+ 	}
+ 	blk_queue_virt_boundary(q, NVME_CTRL_PAGE_SIZE - 1);
+-	blk_queue_dma_alignment(q, 7);
++	blk_queue_dma_alignment(q, 3);
+ 	blk_queue_write_cache(q, vwc, vwc);
+ }
+ 
+-- 
+2.17.1
+

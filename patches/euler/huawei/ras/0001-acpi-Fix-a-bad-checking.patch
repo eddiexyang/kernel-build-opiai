@@ -1,0 +1,26 @@
+From 4220df2207bed7f906b105a45e6b93e49f867f99 Mon Sep 17 00:00:00 2001
+From: Chen Jun <chenjun102@huawei.com>
+Date: Sat, 3 Jun 2023 13:08:35 +0800
+Subject: [PATCH] acpi: Fix a bad checking
+
+Signed-off-by: Chen Jun <chenjun102@huawei.com>
+---
+ drivers/acpi/dt_apei.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/acpi/dt_apei.c b/drivers/acpi/dt_apei.c
+index 9bb2b4256..aa17fe02d 100644
+--- a/drivers/acpi/dt_apei.c
++++ b/drivers/acpi/dt_apei.c
+@@ -111,7 +111,7 @@ static int __init dt_apei_parse_hest(struct apei_table_params *table_params)
+ 	acpi_size table_size;
+ 
+ 	table_size = dt_apei_get_table_size(table_params, ACPI_SIG_HEST);
+-	if ((table_size > table_params->phys) || (table_size <= 0))
++	if ((table_size > table_params->size) || (table_size <= 0))
+ 		return -ENOMEM;
+ 
+ 	/* Map the hest table, for exttract hest table */
+-- 
+2.17.1
+

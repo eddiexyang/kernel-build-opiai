@@ -1,0 +1,64 @@
+From 5e872119e620acba0e242d2820435297f2c912cf Mon Sep 17 00:00:00 2001
+From: Anna-Maria Behnsen <anna-maria@linutronix.de>
+Date: Tue, 5 Apr 2022 21:17:32 +0200
+Subject: [PATCH 2497/2592] [Backport] timers: Fix warning condition in
+ __run_timers()
+
+stable inclusion
+from stable-v5.10.112
+commit 9a5a4d23e24d39784b643e5db2e4c3a97da4a1ac
+bugzilla: https://gitee.com/openeuler/kernel/
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9a5a4d23e24d39784b643e5db2e4c3a97da4a1ac
+
+--------------------------------
+
+commit c54bc0fc84214b203f7a0ebfd1bd308ce2abe920 upstream.
+
+When the timer base is empty, base::next_expiry is set to base::clk +
+NEXT_TIMER_MAX_DELTA and base::next_expiry_recalc is false. When no timer
+is queued until jiffies reaches base::next_expiry value, the warning for
+not finding any expired timer and base::next_expiry_recalc is false in
+__run_timers() triggers.
+
+To prevent triggering the warning in this valid scenario
+base::timers_pending needs to be added to the warning condition.
+
+Fixes: 31cd0e119d50 ("timers: Recalculate next timer interrupt only when necessary")
+Reported-by: Johannes Berg <johannes@sipsolutions.net>
+Signed-off-by: Anna-Maria Behnsen <anna-maria@linutronix.de>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Reviewed-by: Frederic Weisbecker <frederic@kernel.org>
+Link: https://lore.kernel.org/r/20220405191732.7438-3-anna-maria@linutronix.de
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ kernel/time/timer.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/time/timer.c b/kernel/time/timer.c
+index 351420c23064..f7d3a108e27c 100644
+--- a/kernel/time/timer.c
++++ b/kernel/time/timer.c
+@@ -1738,11 +1738,14 @@ static inline void __run_timers(struct timer_base *base)
+ 	       time_after_eq(jiffies, base->next_expiry)) {
+ 		levels = collect_expired_timers(base, heads);
+ 		/*
+-		 * The only possible reason for not finding any expired
+-		 * timer at this clk is that all matching timers have been
+-		 * dequeued.
++		 * The two possible reasons for not finding any expired
++		 * timer at this clk are that all matching timers have been
++		 * dequeued or no timer has been queued since
++		 * base::next_expiry was set to base::clk +
++		 * NEXT_TIMER_MAX_DELTA.
+ 		 */
+-		WARN_ON_ONCE(!levels && !base->next_expiry_recalc);
++		WARN_ON_ONCE(!levels && !base->next_expiry_recalc
++			     && base->timers_pending);
+ 		base->clk++;
+ 		base->next_expiry = __next_timer_interrupt(base);
+ 
+-- 
+2.17.1
+

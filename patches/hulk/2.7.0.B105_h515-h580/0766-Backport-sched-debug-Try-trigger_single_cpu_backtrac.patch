@@ -1,0 +1,101 @@
+From 4038a087c72945dfaf9ae00080def96a37495060 Mon Sep 17 00:00:00 2001
+From: Zhen Lei <thunder.leizhen@huawei.com>
+Date: Thu, 4 Aug 2022 10:34:19 +0800
+Subject: [PATCH 766/780] [Backport] sched/debug: Try
+ trigger_single_cpu_backtrace(cpu) in dump_cpu_task()
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit e73dfe30930b75c98746152e7a2f6a8ab6067b51
+category: feature
+bugzilla: 188933
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e73dfe30930b75c98746152e7a2f6a8ab6067b51
+
+--------------------------------
+
+The trigger_all_cpu_backtrace() function attempts to send an NMI to the
+target CPU, which usually provides much better stack traces than the
+dump_cpu_task() function's approach of dumping that stack from some other
+CPU.  So much so that most calls to dump_cpu_task() only happen after
+a call to trigger_all_cpu_backtrace() has failed.  And the exception to
+this rule really should attempt to use trigger_all_cpu_backtrace() first.
+
+Therefore, move the trigger_all_cpu_backtrace() invocation into
+dump_cpu_task().
+
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Juri Lelli <juri.lelli@redhat.com>
+Cc: Vincent Guittot <vincent.guittot@linaro.org>
+Cc: Dietmar Eggemann <dietmar.eggemann@arm.com>
+Cc: Ben Segall <bsegall@google.com>
+Cc: Mel Gorman <mgorman@suse.de>
+Cc: Daniel Bristot de Oliveira <bristot@redhat.com>
+Cc: Valentin Schneider <vschneid@redhat.com>
+Conflicts:
+	kernel/smp.c
+
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+---
+ kernel/rcu/tree_stall.h | 5 ++---
+ kernel/sched/core.c     | 3 +++
+ kernel/smp.c            | 3 +--
+ 3 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/rcu/tree_stall.h b/kernel/rcu/tree_stall.h
+index f7d031ef5593..338d35fc674a 100644
+--- a/kernel/rcu/tree_stall.h
++++ b/kernel/rcu/tree_stall.h
+@@ -336,7 +336,7 @@ static void rcu_dump_cpu_stacks(void)
+ 			if (rnp->qsmask & leaf_node_cpu_bit(rnp, cpu)) {
+ 				if (cpu_is_offline(cpu))
+ 					pr_err("Offline CPU %d blocking current GP.\n", cpu);
+-				else if (!trigger_single_cpu_backtrace(cpu))
++				else
+ 					dump_cpu_task(cpu);
+ 			}
+ 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+@@ -473,8 +473,7 @@ static void rcu_check_gp_kthread_starvation(void)
+ 					pr_err("RCU GP kthread last ran on offline CPU %d.\n", cpu);
+ 				} else  {
+ 					pr_err("Stack dump where RCU GP kthread last ran:\n");
+-					if (!trigger_single_cpu_backtrace(cpu))
+-						dump_cpu_task(cpu);
++					dump_cpu_task(cpu);
+ 				}
+ 			}
+ 			wake_up_process(gpk);
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index bf631c8fcca0..624b8ddcbc20 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -9144,6 +9144,9 @@ struct cgroup_subsys cpu_cgrp_subsys = {
+ 
+ void dump_cpu_task(int cpu)
+ {
++	if (trigger_single_cpu_backtrace(cpu))
++		return;
++
+ 	pr_info("Task dump for CPU %d:\n", cpu);
+ 	sched_show_task(cpu_curr(cpu));
+ }
+diff --git a/kernel/smp.c b/kernel/smp.c
+index 114776d0d11e..b9e6397a1a72 100644
+--- a/kernel/smp.c
++++ b/kernel/smp.c
+@@ -205,8 +205,7 @@ static __always_inline bool csd_lock_wait_toolong(struct __call_single_data *csd
+ 			 *bug_id, !cpu_cur_csd ? "unresponsive" : "handling this request");
+ 	}
+ 	if (cpu >= 0) {
+-		if (!trigger_single_cpu_backtrace(cpu))
+-			dump_cpu_task(cpu);
++		dump_cpu_task(cpu);
+ 		if (!cpu_cur_csd) {
+ 			pr_alert("csd: Re-sending CSD lock (#%d) IPI from CPU#%02d to CPU#%02d\n", *bug_id, raw_smp_processor_id(), cpu);
+ 			arch_send_call_function_single_ipi(cpu);
+-- 
+2.17.1
+

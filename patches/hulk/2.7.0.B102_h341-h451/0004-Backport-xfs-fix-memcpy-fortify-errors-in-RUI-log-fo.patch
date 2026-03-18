@@ -1,0 +1,145 @@
+From e097caea1c398db23d35a7364d754544f7b9c7c0 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Thu, 20 Oct 2022 16:26:36 -0700
+Subject: [PATCH 0004/1646] [Backport] xfs: fix memcpy fortify errors in RUI
+ log format copying
+
+mainline inclusion
+from mainline-v6.1-rc1
+commit b45ca961e94673df83ab1900802afe82776966e6
+category: bugfix
+bugzilla: 188220
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b45ca961e94673df83ab1900802afe82776966e6
+
+--------------------------------
+
+Starting in 6.1, CONFIG_FORTIFY_SOURCE checks the length parameter of
+memcpy.  Since we're already fixing problems with BUI item copying, we
+should fix it everything else.
+
+Refactor the xfs_rui_copy_format function to handle the copying of the
+head and the flex array members separately.  While we're at it, fix a
+minor validation deficiency in the recovery function.
+
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Allison Henderson <allison.henderson@oracle.com>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+Signed-off-by: Long Li <leo.lilong@huawei.com>
+---
+ fs/xfs/xfs_ondisk.h    |  3 +++
+ fs/xfs/xfs_rmap_item.c | 58 ++++++++++++++++++++----------------------
+ 2 files changed, 30 insertions(+), 31 deletions(-)
+
+diff --git a/fs/xfs/xfs_ondisk.h b/fs/xfs/xfs_ondisk.h
+index ce1ee34fef03..6ae655f769eb 100644
+--- a/fs/xfs/xfs_ondisk.h
++++ b/fs/xfs/xfs_ondisk.h
+@@ -136,11 +136,14 @@ xfs_check_ondisk_structs(void)
+ 	XFS_CHECK_STRUCT_SIZE(struct xfs_bud_log_format,	16);
+ 	XFS_CHECK_STRUCT_SIZE(struct xfs_cui_log_format,	16);
+ 	XFS_CHECK_STRUCT_SIZE(struct xfs_cud_log_format,	16);
++	XFS_CHECK_STRUCT_SIZE(struct xfs_rui_log_format,	16);
++	XFS_CHECK_STRUCT_SIZE(struct xfs_rud_log_format,	16);
+ 	XFS_CHECK_STRUCT_SIZE(struct xfs_map_extent,		32);
+ 	XFS_CHECK_STRUCT_SIZE(struct xfs_phys_extent,		16);
+ 
+ 	XFS_CHECK_OFFSET(struct xfs_bui_log_format, bui_extents,	16);
+ 	XFS_CHECK_OFFSET(struct xfs_cui_log_format, cui_extents,	16);
++	XFS_CHECK_OFFSET(struct xfs_rui_log_format, rui_extents,	16);
+ 
+ 	/*
+ 	 * The v5 superblock format extended several v4 header structures with
+diff --git a/fs/xfs/xfs_rmap_item.c b/fs/xfs/xfs_rmap_item.c
+index 53a4e49202a4..46ada19c3c26 100644
+--- a/fs/xfs/xfs_rmap_item.c
++++ b/fs/xfs/xfs_rmap_item.c
+@@ -154,31 +154,6 @@ xfs_rui_init(
+ 	return ruip;
+ }
+ 
+-/*
+- * Copy an RUI format buffer from the given buf, and into the destination
+- * RUI format structure.  The RUI/RUD items were designed not to need any
+- * special alignment handling.
+- */
+-STATIC int
+-xfs_rui_copy_format(
+-	struct xfs_log_iovec		*buf,
+-	struct xfs_rui_log_format	*dst_rui_fmt)
+-{
+-	struct xfs_rui_log_format	*src_rui_fmt;
+-	uint				len;
+-
+-	src_rui_fmt = buf->i_addr;
+-	len = xfs_rui_log_format_sizeof(src_rui_fmt->rui_nextents);
+-
+-	if (buf->i_len != len) {
+-		XFS_ERROR_REPORT(__func__, XFS_ERRLEVEL_LOW, NULL);
+-		return -EFSCORRUPTED;
+-	}
+-
+-	memcpy(dst_rui_fmt, src_rui_fmt, len);
+-	return 0;
+-}
+-
+ static inline struct xfs_rud_log_item *RUD_ITEM(struct xfs_log_item *lip)
+ {
+ 	return container_of(lip, struct xfs_rud_log_item, rud_item);
+@@ -621,6 +596,20 @@ static const struct xfs_item_ops xfs_rui_item_ops = {
+ 	.iop_relog	= xfs_rui_item_relog,
+ };
+ 
++static inline void
++xfs_rui_copy_format(
++	struct xfs_rui_log_format	*dst,
++	const struct xfs_rui_log_format	*src)
++{
++	unsigned int			i;
++
++	memcpy(dst, src, offsetof(struct xfs_rui_log_format, rui_extents));
++
++	for (i = 0; i < src->rui_nextents; i++)
++		memcpy(&dst->rui_extents[i], &src->rui_extents[i],
++				sizeof(struct xfs_map_extent));
++}
++
+ /*
+  * This routine is called to create an in-core extent rmap update
+  * item from the rui format structure which was logged on disk.
+@@ -635,19 +624,26 @@ xlog_recover_rui_commit_pass2(
+ 	struct xlog_recover_item	*item,
+ 	xfs_lsn_t			lsn)
+ {
+-	int				error;
+ 	struct xfs_mount		*mp = log->l_mp;
+ 	struct xfs_rui_log_item		*ruip;
+ 	struct xfs_rui_log_format	*rui_formatp;
++	size_t				len;
+ 
+ 	rui_formatp = item->ri_buf[0].i_addr;
+ 
+-	ruip = xfs_rui_init(mp, rui_formatp->rui_nextents);
+-	error = xfs_rui_copy_format(&item->ri_buf[0], &ruip->rui_format);
+-	if (error) {
+-		xfs_rui_item_free(ruip);
+-		return error;
++	if (item->ri_buf[0].i_len < xfs_rui_log_format_sizeof(0)) {
++		XFS_ERROR_REPORT(__func__, XFS_ERRLEVEL_LOW, log->l_mp);
++		return -EFSCORRUPTED;
+ 	}
++
++	len = xfs_rui_log_format_sizeof(rui_formatp->rui_nextents);
++	if (item->ri_buf[0].i_len != len) {
++		XFS_ERROR_REPORT(__func__, XFS_ERRLEVEL_LOW, log->l_mp);
++		return -EFSCORRUPTED;
++	}
++
++	ruip = xfs_rui_init(mp, rui_formatp->rui_nextents);
++	xfs_rui_copy_format(&ruip->rui_format, rui_formatp);
+ 	atomic_set(&ruip->rui_next_extent, rui_formatp->rui_nextents);
+ 	/*
+ 	 * Insert the intent into the AIL directly and drop one reference so
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From f065ef04a35afdb6b4560c62fa6ee076b1c8e35d Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Mon, 11 Jul 2022 10:42:52 +0200
+Subject: [PATCH 1441/1646] [Backport] serial: 8250: SERIAL_8250_ASPEED_VUART
+ should depend on ARCH_ASPEED
+
+stable inclusion
+from stable-v5.10.177
+commit 5fcb12f00a05241089449d7d7bdb22b66803e4ce
+category: bugfix
+bugzilla: https://gitee.com/openeuler/kernel/issues/I6XGEC
+
+Reference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=5fcb12f00a05241089449d7d7bdb22b66803e4ce
+
+--------------------------------
+
+[ Upstream commit 806a449725cbd679a7f52c394d3c87b451d66bd5 ]
+
+The Aspeed Virtual UART is only present on Aspeed BMC platforms.  Hence
+add a dependency on ARCH_ASPEED, to prevent asking the user about this
+driver when configuring a kernel without Aspeed BMC support.
+
+Reviewed-by: Jeremy Kerr <jk@ozlabs.org>
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/259138c372d433005b4871789ef9ee8d15320307.1657528861.git.geert+renesas@glider.be
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Stable-dep-of: f8086d1a65ac ("serial: 8250: ASPEED_VUART: select REGMAP instead of depending on it")
+Signed-off-by: Sasha Levin <sashal@kernel.org>
+Signed-off-by: Wang Hai <wanghai38@huawei.com>
+---
+ drivers/tty/serial/8250/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/tty/serial/8250/Kconfig b/drivers/tty/serial/8250/Kconfig
+index b1a395936fcc..0233f973b836 100644
+--- a/drivers/tty/serial/8250/Kconfig
++++ b/drivers/tty/serial/8250/Kconfig
+@@ -255,6 +255,7 @@ config SERIAL_8250_ASPEED_VUART
+ 	depends on SERIAL_8250
+ 	depends on OF
+ 	depends on REGMAP && MFD_SYSCON
++	depends on ARCH_ASPEED || COMPILE_TEST
+ 	help
+ 	  If you want to use the virtual UART (VUART) device on Aspeed
+ 	  BMC platforms, enable this option. This enables the 16550A-
+-- 
+2.17.1
+
