@@ -10,6 +10,7 @@ kernel: | ensure-output-dirs
 	$(MAKE) --no-print-directory kernel-patch
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" olddefconfig
 	if [ "$(SKIP_MENUCONFIG)" = "1" ]; then
 		printf 'skip menuconfig because SKIP_MENUCONFIG=1\n'
 	else

@@ -23,11 +23,25 @@ $(KERNEL_WORKSPACE_MARKER): | ensure-output-dirs
 	cp -f "$(KERNEL_TOOLS_DIR)/publickey/ELF_Common_RSA4096_CN_20191009_Huawei.der" \
 		"$(KERNEL_WORKSPACE)/certs/ELF_Common_RSA4096_CN_20191009_Huawei.der"
 	cd "$(KERNEL_WORKSPACE)"
-	"$(KERNEL_TOOLS_DIR)/apply-patches" "$(PATCH_ROOT_DIR)/series.conf" "$(ROOT_DIR)"
-	"$(KERNEL_TOOLS_DIR)/apply-patches" "$(PATCH_ROOT_DIR)/product_series.conf" "$(ROOT_DIR)"
-	printf 'switch eMMC patch from mini to Ascend310B\n'
-	patch -E -Rp1 --batch --no-backup-if-mismatch -i "$(KERNEL_EMMC_MINI_PATCH)"
-	patch -E -p1 --batch --no-backup-if-mismatch -i "$(KERNEL_EMMC_310B_PATCH)"
+	if [ -n "$(strip $(KERNEL_PATCH_SERIES))" ]; then
+		printf 'apply kernel patch series: %s\n' "$(KERNEL_PATCH_SERIES)"
+		"$(KERNEL_TOOLS_DIR)/apply-patches" "$(KERNEL_PATCH_SERIES)" "$(ROOT_DIR)"
+	else
+		printf 'skip kernel patch series for current source baseline\n'
+	fi
+	if [ -n "$(strip $(KERNEL_PRODUCT_PATCH_SERIES))" ]; then
+		printf 'apply product patch series: %s\n' "$(KERNEL_PRODUCT_PATCH_SERIES)"
+		"$(KERNEL_TOOLS_DIR)/apply-patches" "$(KERNEL_PRODUCT_PATCH_SERIES)" "$(ROOT_DIR)"
+	else
+		printf 'skip product patch series for current source baseline\n'
+	fi
+	if [ "$(KERNEL_APPLY_EMMC_PATCH_SWAP)" = "1" ]; then
+		printf 'switch eMMC patch from mini to Ascend310B\n'
+		patch -E -Rp1 --batch --no-backup-if-mismatch -i "$(KERNEL_EMMC_MINI_PATCH)"
+		patch -E -p1 --batch --no-backup-if-mismatch -i "$(KERNEL_EMMC_310B_PATCH)"
+	else
+		printf 'skip legacy eMMC patch swap\n'
+	fi
 	touch "$@"
 
 clean-kernel-outputs:
