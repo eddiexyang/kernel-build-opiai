@@ -26,9 +26,9 @@ modules-deb: | ensure-output-dirs
 	mapfile -t releases < <(find "$(OUTPUT_DIR)/modules/lib/modules" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 	[ "$${#releases[@]}" -eq 1 ] || { printf 'error: expected exactly one kernel release under %s, found %s\n' "$(OUTPUT_DIR)/modules/lib/modules" "$${#releases[@]}" >&2; exit 1; }
 	kernel_release="$${releases[0]}"
-	package_name="$${MODULES_DEB_PACKAGE_NAME:-linux-modules}"
+	package_name="$${MODULES_DEB_PACKAGE_NAME:-linux-modules-$$kernel_release}"
 	package_arch="$${MODULES_DEB_PACKAGE_ARCH:-$(MODULES_DEB_PACKAGE_ARCH)}"
-	package_version="$${MODULES_DEB_PACKAGE_VERSION:-$${kernel_release}-1}"
+	package_version="$${MODULES_DEB_PACKAGE_VERSION:-1}"
 	deb_workspace="$(WORKSPACE_DIR)/modules-deb"
 	pkg_root="$$deb_workspace/pkgroot"
 	debian_dir="$$pkg_root/DEBIAN"
