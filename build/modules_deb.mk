@@ -38,6 +38,7 @@ modules-deb: | ensure-output-dirs
 	rm -rf "$$deb_workspace"
 	mkdir -p "$$pkg_root"
 	cp -a "$(OUTPUT_DIR)/modules/." "$$pkg_root/"
+	rm -rf "$$pkg_root/lib/modules/$$kernel_release/build" "$$pkg_root/lib/modules/$$kernel_release/source"
 	mkdir -p "$$driver_target_dir"
 	cp -a "$(OUTPUT_DIR)/driver_modules/." "$$driver_target_dir/"
 	find "$$pkg_root/lib/modules/$$kernel_release" -maxdepth 1 -type f \
