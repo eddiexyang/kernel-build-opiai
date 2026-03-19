@@ -85,10 +85,10 @@ HOST_KERNEL_VERSION_SYMVERS := $(HOST_OUT_INTERMEDIATES)/symvers/$($(KO_TYPE)_KE
 
 $(HOST_KERNEL_VERSION_SYMVERS):
 	@mkdir -p $(dir $@)
-	@if [ -f "${KERNEL_DIR}/vmlinux.symvers" ]; then \
-		cp -f "${KERNEL_DIR}/vmlinux.symvers" "$@"; \
-	elif [ -f "${KERNEL_DIR}/Module.symvers" ]; then \
+	@if [ -f "${KERNEL_DIR}/Module.symvers" ]; then \
 		cp -f "${KERNEL_DIR}/Module.symvers" "$@"; \
+	elif [ -f "${KERNEL_DIR}/vmlinux.symvers" ]; then \
+		cp -f "${KERNEL_DIR}/vmlinux.symvers" "$@"; \
 	else \
 		echo "Error: missing kernel symvers under ${KERNEL_DIR}" >&2; \
 		exit 1; \
@@ -97,6 +97,10 @@ $(HOST_KERNEL_VERSION_SYMVERS):
 
 define ko_extra_symvers
 $(strip $(foreach m,$(1),$(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)/$(strip $(m))_ko/Module.symvers))
+endef
+
+define normalize-local-extra-symvers
+$(strip $(if $(strip $(1)),$(abspath $(1))))
 endef
 
 ifneq ($(strip $(symbol_check)), false)
@@ -110,7 +114,8 @@ $(KO_MODULES_OUT_INTER)/Module.symvers: $(KO_KERNEL_TIMESTAMP)
 
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_SYMBOLS_PATH := $(LOCAL_DEPEND_KERNEL)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_DEPEND_KO := $(strip $(LOCAL_DEPEND_KO))
-$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(call ko_extra_symvers,$(PRIVATE_DEPEND_KO))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_LOCAL_EXTRA_SYMBOLS := $(call normalize-local-extra-symvers,$(LOCAL_KBUILD_EXTRA_SYMBOLS))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(strip $(call ko_extra_symvers,$(PRIVATE_DEPEND_KO)) $(PRIVATE_LOCAL_EXTRA_SYMBOLS))
 $(KO_KERNEL_TIMESTAMP): PRIVATE_PRODUCT_SIDE := $(PRODUCT_SIDE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KO_TYPE := $(KO_TYPE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KO_NAME := $(my_ko_module_name)
