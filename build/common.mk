@@ -15,7 +15,7 @@ sync-kernel-source-inputs: | ensure-output-dirs
 		printf 'error: missing required path: %s\n' "$(KERNEL_WORKSPACE)/certs/ELF_Common_RSA4096_CN_20191009_Huawei.pem" >&2; \
 		exit 1; \
 	}
-	printf 'patch flow disabled; build directly from %s\n' "$(KERNEL_WORKSPACE)"
+	printf 'build directly from %s\n' "$(KERNEL_WORKSPACE)"
 
 clean-kernel-outputs:
 	rm -rf "$(OUTPUT_DIR)/modules" "$(OUTPUT_DIR)/Image"

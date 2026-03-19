@@ -13,7 +13,7 @@ headers-deb: | ensure-output-dirs
 	deb_path=
 	printf 'start generate headers deb\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
-	$(MAKE) --no-print-directory kernel-patch
+	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" olddefconfig

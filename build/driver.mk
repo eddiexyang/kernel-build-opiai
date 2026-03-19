@@ -4,7 +4,7 @@ driver: | ensure-output-dirs
 	printf 'start make driver\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
 	$(MAKE) --no-print-directory clean-driver-outputs
-	$(MAKE) --no-print-directory kernel-patch
+	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
 	trap 'status=$$?; $(MAKE) --no-print-directory cleanup-driver-dependencies >/dev/null 2>&1 || true; exit $$status' EXIT
 	$(MAKE) --no-print-directory prepare-driver-dependencies

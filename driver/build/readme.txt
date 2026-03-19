@@ -25,9 +25,6 @@ make clean
 make ARCH=x86 HOST_OS=CentOS KERNEL_DIR=/usr/kernel/linux-3.10
 
 场景4 （编译ctrl cpu device驱动）
-生成device侧内核仓:(解压原代码后，只需要执行一次)
-cd kernel/linux-source
-../patches/apply-patches ../patches/linux-source/series.conf ../patches/linux-source/
 编译驱动:
 make clean
 make 0=../../lib/device driver_device CROSS_COMPILE=/source/build/prebuilts/hcc/linux-x86/aarch64/aarch64-linux-gnu/bin/aarch64-linux-gnu- KERNEL_DIR=/source/kernel/linux-source KERNEL_DEFCONFIG=/source/kernel/linux-source/arch/arm64/configs/eulerosv2r9_defconfig build_device=true

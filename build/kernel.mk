@@ -1,13 +1,10 @@
-.PHONY: kernel-patch kernel
-
-kernel-patch: sync-kernel-source-inputs
-	printf 'kernel source tree is ready in-place at [%s]\n' "$(KERNEL_WORKSPACE)"
+.PHONY: kernel
 
 kernel: | ensure-output-dirs
 	printf 'start make kernel\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
 	$(MAKE) --no-print-directory clean-kernel-outputs
-	$(MAKE) --no-print-directory kernel-patch
+	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" olddefconfig

@@ -12,7 +12,6 @@ CROSS_COMPILE_PREFIX ?= aarch64-linux-gnu-
 JOBS ?= $(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 16)
 
 LINUX_SOURCE_DIR ?= $(ROOT_DIR)/linux-source
-PATCH_ROOT_DIR := $(ROOT_DIR)/patches
 KERNEL_TOOLS_DIR := $(ROOT_DIR)/kernel-tools
 KERNEL_SPMI_DIR := $(KERNEL_TOOLS_DIR)/spmi_hisi
 DRIVER_SOURCE_DIR := $(ROOT_DIR)/driver
@@ -46,7 +45,6 @@ include $(ROOT_DIR)/build/headers_deb.mk
 help:
 	printf '%s\n' '[Usage]:'
 	printf '%-50s%-50s\n' '    make clean' '# build clean'
-	printf '%-50s%-50s\n' '    make kernel-patch' '# sync in-place kernel source inputs'
 	printf '%-50s%-50s\n' '    make kernel' '# build kernel for Euler'
 	printf '%-50s%-50s\n' '    make dtb' '# build dtb'
 	printf '%-50s%-50s\n' '    make driver' '# build driver'
