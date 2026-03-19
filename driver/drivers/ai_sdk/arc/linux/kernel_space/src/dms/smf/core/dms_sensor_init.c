@@ -148,7 +148,7 @@ static void dms_clean_sensor_timer(void)
 {
     struct dms_system_ctrl_block *sys_cb = NULL;
     sys_cb = dms_get_sys_ctrl_cb();
-    del_timer_sync(&sys_cb->dms_sensor_check_timer);
+    timer_shutdown_sync(&sys_cb->dms_sensor_check_timer);
 }
 
 static void dms_stop_sensor_scan(void)

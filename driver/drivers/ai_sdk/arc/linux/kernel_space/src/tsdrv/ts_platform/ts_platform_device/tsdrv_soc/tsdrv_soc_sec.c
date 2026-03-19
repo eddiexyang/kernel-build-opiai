@@ -52,6 +52,16 @@ int sec_read_pg_info(uint32_t dev_id, pg_cmd_data cmd, uint64_t *out_arg)
 {
     return dms_get_pg_info(dev_id, cmd, out_arg);
 }
+#elif defined(CFG_SOC_PLATFORM_MINIV3)
+int sec_read_pg_info(uint32_t dev_id, pg_cmd_data cmd, uint64_t *out_arg)
+{
+    return -EOPNOTSUPP;
+}
+
+int sec_read_pg_info_block(uint32_t dev_id, pg_cmd_data cmd, uint8_t *buf, uint32_t buf_len)
+{
+    return -EOPNOTSUPP;
+}
 #endif
 STATIC int tsdrv_sec_read_pg_info_thread(void *arg)
 {
@@ -91,4 +101,3 @@ int tsdrv_sec_read_pg_info(u32 dev_id, pg_cmd_data cmd, u64 *cmd_ret_val)
 
     return ret;
 }
-

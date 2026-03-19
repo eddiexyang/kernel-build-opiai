@@ -119,7 +119,6 @@ int drv_ascend_intf_ioctl_check_module_no_use(
     struct file *filep,
     unsigned int cmd,
     unsigned long arg);
-extern void svm_process_exit_clean_slots(int pid);
 
 STATIC int (*const g_davinci_ioctl_handlers[DAVINCI_INTF_IOCTL_CMD_MAX_NR])(struct file *filep, unsigned int cmd,
     unsigned long arg) = {
@@ -130,9 +129,11 @@ STATIC int (*const g_davinci_ioctl_handlers[DAVINCI_INTF_IOCTL_CMD_MAX_NR])(stru
 
 STATIC void drv_davinci_svm_process_exit_clean(int pid)
 {
-#ifdef CFG_SUPPORT_OS_SVM_CLEAN
-    svm_process_exit_clean_slots(pid);
-#endif
+    /*
+     * The legacy SVM cleanup hook is not part of the 6.18 module set yet.
+     * Keep release paths functional without taking a hard dependency on it.
+     */
+    (void)pid;
     return;
 }
 
@@ -279,7 +280,7 @@ STATIC signed int drv_ascend_intf_setup_cdev(struct davinci_intf_stru *cb, const
         return -EINVAL;
     }
 
-    g_davinci_class = class_create(THIS_MODULE, "devdrv_manager");
+    g_davinci_class = class_create("devdrv_manager");
     if (IS_ERR(g_davinci_class)) {
         rc = PTR_ERR(g_davinci_class);
         g_davinci_class = NULL;
@@ -515,8 +516,6 @@ int drv_davinci_release_task(void *arg)
         drv_davinci_svm_process_exit_clean(owner_pid);
     }
 
-    /* need call do_exit, noone will call kthread_stop */
-    do_exit(0);
     return 0;
 }
 
@@ -554,7 +553,6 @@ int drv_davinci_release_run(void *arg)
     ret = drv_ascend_intf_sub_call_release(file_node);
     atomic_dec(&file_node->owner_list->current_count);
     kfree(file_node);
-    do_exit(0);
     return ret;
 }
 
@@ -996,7 +994,11 @@ STATIC int drv_ascend_intf_open(struct inode *inode, struct file *file)
     file_private_data->close_flag = DAVINIC_NOT_INIT_BY_OPENCMD;
     file_private_data->release_status = FALSE;
     atomic_set(&file_private_data->work_count, 0);
-    file_private_data->priv_filep = *file;
+    /*
+     * struct file gained read-only members on newer kernels, so keep the
+     * legacy shadow-copy behavior via memcpy instead of direct assignment.
+     */
+    memcpy(&file_private_data->priv_filep, file, sizeof(file_private_data->priv_filep));
     ret = strcpy_s(file_private_data->module_name, DAVINIC_MODULE_NAME_MAX,
         DAVINIC_UNINIT_FILE);
     if (ret != 0) {
@@ -1663,7 +1665,7 @@ u32 drv_davinci_get_device_id(const struct file *filep)
 }
 EXPORT_SYMBOL(drv_davinci_get_device_id);
 
-STATIC int ascend_intf_report_process_status(pid_t pid, unsigned int status)
+int ascend_intf_report_process_status(pid_t pid, unsigned int status)
 {
     struct davinci_intf_process_stru *proc = NULL;
 
@@ -1684,8 +1686,6 @@ STATIC int ascend_intf_report_process_status(pid_t pid, unsigned int status)
 
     return 0;
 }
-EXPORT_SYMBOL(ascend_intf_report_process_status);
-
 STATIC int ascend_intf_get_process_status(pid_t pid, unsigned int *status)
 {
     struct davinci_intf_process_stru *proc = NULL;

@@ -229,7 +229,7 @@ static void print_audit_last_logs(struct mttcan_priv *priv)
 #ifdef SUPPORT_MTTCAN_FAULT_RECOVERY
 void mttcan_fault_recovery_routine(struct timer_list *pram)
 {
-    struct mttcan_priv *priv = from_timer(priv, pram, fault_revovery_timer);
+    struct mttcan_priv *priv = container_of(pram, struct mttcan_priv, fault_revovery_timer);
     struct net_device *ndev = priv->ndev;
     if (ndev == NULL) {
         mttcan_err("run mttcan fault detection and recovery error. ndev is NULL.\n");
@@ -274,7 +274,7 @@ void mttcan_init_fault_recovery_timer(struct net_device *ndev)
 void mttcan_stop_fault_recovery_timer(struct net_device *ndev)
 {
     struct mttcan_priv *priv = netdev_priv(ndev);
-    if (del_timer_sync(&priv->fault_revovery_timer)) {
+    if (timer_delete_sync(&priv->fault_revovery_timer)) {
         mttcan_err("delete fault detection and recovery timer failed.\n");
     }
 }

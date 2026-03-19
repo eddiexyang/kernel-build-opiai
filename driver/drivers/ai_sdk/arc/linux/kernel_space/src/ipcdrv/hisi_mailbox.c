@@ -669,7 +669,6 @@ STATIC int mbox_startup(struct hisi_mbox_device *mdev, mbox_mail_type_t mail_typ
 {
     int ret = 0;
     unsigned int tx_buff = 0;
-    int policy = 0;
 
     mutex_lock(&mdev->dev_lock);
     if (!mdev->configured++) {
@@ -690,16 +689,12 @@ STATIC int mbox_startup(struct hisi_mbox_device *mdev, mbox_mail_type_t mail_typ
                     kfifo_free(&mdev->fifo);
                     goto deconfig;
                 } else {
-                    struct sched_param param;
-
-                    /* set the thread's priority to MAX_RT_PRIO - 20, the bigger sched_priority, the higher priority */
-#ifdef AOS_LLVM_BUILD
-                    policy = SCHED_SP_FIFO;
-#else
-                    policy = SCHED_RR;
-#endif
-                    param.sched_priority = (MAX_RT_PRIO - 20);
-                    (void)sched_setscheduler(mdev->tx_kthread, policy, &param);
+                    /*
+                     * External modules cannot call sched_setscheduler() on
+                     * 6.18 because it is no longer exported. Use the
+                     * exported FIFO helper to keep the TX worker in RT class.
+                     */
+                    sched_set_fifo(mdev->tx_kthread);
 
                     mbox_ts_tx_bind_cpu(mdev);
                     (void)wake_up_process(mdev->tx_kthread);
@@ -1055,7 +1050,7 @@ int mbox_init(void)
 {
     int i;
 
-    g_hisi_mbox_class = class_create(THIS_MODULE, "hisi-mailbox");
+    g_hisi_mbox_class = class_create("hisi-mailbox");
     if (IS_ERR(g_hisi_mbox_class)) {
         return (int)PTR_ERR(g_hisi_mbox_class);
     }
@@ -1101,4 +1096,3 @@ int mbox_is_exist_by_rp(int ipc_id, const char *rp_name)
 
     return 0;
 }
-

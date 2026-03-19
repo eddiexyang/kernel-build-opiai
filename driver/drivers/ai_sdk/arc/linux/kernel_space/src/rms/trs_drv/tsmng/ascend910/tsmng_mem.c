@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/gfp.h>
 #include <linux/slab.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/version.h>
 #include <linux/oom.h>
 
@@ -206,4 +207,3 @@ void tsmng_mem_ut_stub(void)
     return;
 }
 #endif
-

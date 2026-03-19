@@ -74,6 +74,22 @@ typedef void (*_fearture_uninit_dev_func)(u32 udevid);
 typedef int (*_fearture_init_task_func)(int pid);
 typedef void (*_fearture_uninit_task_func)(int pid);
 
+/*
+ * struct kernel_symbol is opaque to modules on newer kernels. Keep a local
+ * view of the layout so the vendor feature loader can walk THIS_MODULE->syms.
+ */
+struct feature_loader_kernel_symbol {
+#ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
+    int value_offset;
+    int name_offset;
+    int namespace_offset;
+#else
+    unsigned long value;
+    const char *name;
+    const char *namespace;
+#endif
+};
+
 
 /* the function decleared will be auto call in module insert
    init_fn : shoule like "int _fearture_init_func(void)" */
@@ -129,7 +145,7 @@ typedef void (*_fearture_uninit_task_func)(int pid);
     } \
     EXPORT_SYMBOL(stage##_task_uninit_##uninit_fn)
 
-static inline void *get_symbol_fun(const struct kernel_symbol *sym)
+static inline void *get_symbol_fun(const struct feature_loader_kernel_symbol *sym)
 {
 #ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
     return (void *)(uintptr_t)offset_to_ptr(&sym->value_offset);
@@ -138,7 +154,7 @@ static inline void *get_symbol_fun(const struct kernel_symbol *sym)
 #endif
 }
 
-static inline const char *get_symbol_name(const struct kernel_symbol *sym)
+static inline const char *get_symbol_name(const struct feature_loader_kernel_symbol *sym)
 {
 #ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
     return offset_to_ptr(&sym->name_offset);
@@ -147,7 +163,7 @@ static inline const char *get_symbol_name(const struct kernel_symbol *sym)
 #endif
 }
 
-static inline void *get_symbol_prefix_func(const struct kernel_symbol *sym, char *prefix)
+static inline void *get_symbol_prefix_func(const struct feature_loader_kernel_symbol *sym, char *prefix)
 {
     const char *sym_name = get_symbol_name(sym);
     if (strstr(sym_name, prefix) != sym_name) {
@@ -170,7 +186,7 @@ static inline int module_feature_init_call(int feature_scope, void *fn, u32 para
 }
 
 static inline int module_feature_try_to_init(int feature_scope, u32 param,
-    const struct kernel_symbol *sym, char *prefix)
+    const struct feature_loader_kernel_symbol *sym, char *prefix)
 {
     void *fn = get_symbol_prefix_func(sym, prefix);
     return (fn != NULL) ? module_feature_init_call(feature_scope, fn, param) : 0;
@@ -188,7 +204,7 @@ static inline void module_feature_uninit_call(int feature_scope, void *fn, u32 p
 }
 
 static inline void module_feature_try_to_uninit(int feature_scope, u32 param,
-    const struct kernel_symbol *sym, char *prefix)
+    const struct feature_loader_kernel_symbol *sym, char *prefix)
 {
     void *fn = get_symbol_prefix_func(sym, prefix);
     if (fn != NULL) {
@@ -199,20 +215,24 @@ static inline void module_feature_try_to_uninit(int feature_scope, u32 param,
 static inline void module_feature_uninit_prefix_range(int feature_scope, u32 param,
     struct module *module, char *prefix, u32 num_syms)
 {
+    const struct feature_loader_kernel_symbol *syms =
+        (const struct feature_loader_kernel_symbol *)module->syms;
     u32 i;
 
     for (i = 0; i < num_syms; i++) {
-        module_feature_try_to_uninit(feature_scope, param, &module->syms[i], prefix);
+        module_feature_try_to_uninit(feature_scope, param, &syms[i], prefix);
     }
 }
 
 static inline int module_feature_init_prefix(int feature_scope, u32 param, char *init_prefix, char *uninit_prefix)
 {
     struct module *module = THIS_MODULE;
+    const struct feature_loader_kernel_symbol *syms =
+        (const struct feature_loader_kernel_symbol *)module->syms;
     u32 i;
 
     for (i = 0; i < module->num_syms; i++) {
-        int ret = module_feature_try_to_init(feature_scope, param, &module->syms[i], init_prefix);
+        int ret = module_feature_try_to_init(feature_scope, param, &syms[i], init_prefix);
         if (ret != 0) {
             module_feature_uninit_prefix_range(feature_scope, param, module, uninit_prefix, i);
             return ret;

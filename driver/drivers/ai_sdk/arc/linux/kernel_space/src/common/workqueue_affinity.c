@@ -45,8 +45,10 @@
  *  The alloc_workqueue_attrs and free_workqueue_attrs functions is not
  *  exported in the kernel and needs to be searched through the symbol table.
  */
-typedef struct workqueue_attrs *(alloc_workqueue_attrs_func)(gfp_t gfp_mask);
+typedef struct workqueue_attrs *(alloc_workqueue_attrs_func)(void);
 typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
+typedef int (apply_workqueue_attrs_func)(struct workqueue_struct *wq,
+    const struct workqueue_attrs *attrs);
 
 /**
  * alloc workqueue attrs
@@ -54,20 +56,20 @@ typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
  * The alloc_workqueue_attrs function cannot be directly invoked because it is not exported.
  * need to search the kernel symbol table for this function.
  */
-STATIC struct workqueue_attrs *symbol_alloc_workqueue_attrs(gfp_t gfp_mask)
+STATIC struct workqueue_attrs *symbol_alloc_workqueue_attrs(void)
 {
     static alloc_workqueue_attrs_func *alloc_workqueue_attrs_pt = NULL;
 
     if (!alloc_workqueue_attrs_pt) {
         alloc_workqueue_attrs_pt = (alloc_workqueue_attrs_func *)
-            (uintptr_t)__kallsyms_lookup_name("alloc_workqueue_attrs");
+            (uintptr_t)__kallsyms_lookup_name("alloc_workqueue_attrs_noprof");
         if (IS_ERR_OR_NULL(alloc_workqueue_attrs_pt)) {
             PRINT_ERR("fail to find symbol alloc workqueue attrs\n");
             return NULL;
         }
     }
 
-    return alloc_workqueue_attrs_pt(gfp_mask);
+    return alloc_workqueue_attrs_pt();
 }
 
 /**
@@ -93,6 +95,22 @@ STATIC void symbol_free_workqueue_attrs(struct workqueue_attrs *attrs)
         }
     }
     free_workqueue_attrs_pt(attrs);
+}
+
+STATIC int symbol_apply_workqueue_attrs(struct workqueue_struct *wq, const struct workqueue_attrs *attrs)
+{
+    static apply_workqueue_attrs_func *apply_workqueue_attrs_pt = NULL;
+
+    if (!apply_workqueue_attrs_pt) {
+        apply_workqueue_attrs_pt = (apply_workqueue_attrs_func *)
+            (uintptr_t)__kallsyms_lookup_name("apply_workqueue_attrs");
+        if (IS_ERR_OR_NULL(apply_workqueue_attrs_pt)) {
+            PRINT_ERR("fail to find symbol apply workqueue attrs\n");
+            return -ENOENT;
+        }
+    }
+
+    return apply_workqueue_attrs_pt(wq, attrs);
 }
 
 /**
@@ -121,16 +139,16 @@ int set_workqueue_affinity(struct workqueue_struct *wq, u32 flag, const struct c
         return -EINVAL;
     }
 
-    attrs = symbol_alloc_workqueue_attrs(GFP_KERNEL);
+    attrs = symbol_alloc_workqueue_attrs();
     if (attrs == NULL) {
         PRINT_ERR("alloc workqueue attrs failed\n");
         return -ENOMEM;
     }
     attrs->nice = (flag & WQ_HIGHPRI) ? MIN_NICE : 0;
-    attrs->no_numa = true;
+    attrs->affn_scope = WQ_AFFN_SYSTEM;
     cpumask_copy(attrs->cpumask, wq_cpumask);
 
-    ret = apply_workqueue_attrs(wq, attrs);
+    ret = symbol_apply_workqueue_attrs(wq, attrs);
     if (ret != 0) {
         PRINT_ERR("apply workqueue attrs failed %d\n", ret);
     } else {

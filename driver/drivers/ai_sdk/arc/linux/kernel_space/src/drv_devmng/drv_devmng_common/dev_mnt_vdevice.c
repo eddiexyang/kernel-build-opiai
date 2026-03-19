@@ -436,7 +436,7 @@ STATIC int dev_mnt_vdevice_create_dev(DEV_MNT_VDEV_CB_T *vdev_cb)
     }
 
     vdev_cb->vdev_major = MAJOR(vdev);
-    vdev_cb->vdev_class = class_create(THIS_MODULE, "vdevdrv-class");
+    vdev_cb->vdev_class = class_create("vdevdrv-class");
     if (vdev_cb->vdev_class == NULL || IS_ERR(vdev_cb->vdev_class)) {
         unregister_chrdev_region(vdev_cb->vdev_major, MAX_VDEV_NUM);
         devdrv_drv_err("class_create failed.\n");

@@ -74,6 +74,12 @@ static int tsdrv_check_va_range(struct tsdrv_ctx *ctx, struct vm_area_struct *vm
 
 static int tsdrv_check_va_map(struct vm_area_struct *vma, unsigned long addr, unsigned long size)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    (void)vma;
+    (void)addr;
+    (void)size;
+    return 0;
+#else
     unsigned long end = addr + PAGE_ALIGN(size);
     unsigned long va_check;
     unsigned long pfn;
@@ -87,10 +93,17 @@ static int tsdrv_check_va_map(struct vm_area_struct *vma, unsigned long addr, un
     }
 
     return 0;
+#endif
 }
 
 static int tsdrv_check_va_unmap(struct vm_area_struct *vma, unsigned long addr, unsigned long size)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    (void)vma;
+    (void)addr;
+    (void)size;
+    return 0;
+#else
     unsigned long end = addr + PAGE_ALIGN(size);
     unsigned long va_check;
     unsigned long pfn;
@@ -106,6 +119,7 @@ static int tsdrv_check_va_unmap(struct vm_area_struct *vma, unsigned long addr, 
     }
 
     return 0;
+#endif
 }
 
 static int tsdrv_get_remap_phy_addr(struct tsdrv_ctx *ctx, u32 tsId,

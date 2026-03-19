@@ -29,6 +29,7 @@
 #include <linux/uaccess.h>
 #include <linux/notifier.h>
 #include <linux/profile.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include "ascend_hal_define.h"
 

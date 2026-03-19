@@ -14,11 +14,15 @@
  * Author: huawei
  * Create: 2022-04-25
  */
-#include <linux/gpio.h>
+#include <linux/gpio/driver.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/pinctrl/pinconf-generic.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include "hisi_gpio.h"
@@ -27,9 +31,16 @@
 #define HISI_GPIO_NAME "hgpio"
 #define to_hisi_gpio(x) container_of(x, struct hisi_gpio, chip)
 
+static struct hisi_gpio *hisi_gpio_from_irq_data(struct irq_data *d)
+{
+    struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
+
+    return gpiochip_get_data(chip);
+}
+
 static void hisi_gpio_irq_mask(struct irq_data *d)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     unsigned long flags;
 
     spin_lock_irqsave(&hgpio->lock, flags);
@@ -39,7 +50,7 @@ static void hisi_gpio_irq_mask(struct irq_data *d)
 
 static void hisi_gpio_irq_unmask(struct irq_data *d)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     unsigned long flags;
 
     spin_lock_irqsave(&hgpio->lock, flags);
@@ -49,7 +60,7 @@ static void hisi_gpio_irq_unmask(struct irq_data *d)
 
 static void hisi_gpio_irq_enable(struct irq_data *d)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     unsigned long flags;
 
     spin_lock_irqsave(&hgpio->lock, flags);
@@ -59,7 +70,7 @@ static void hisi_gpio_irq_enable(struct irq_data *d)
 
 static void hisi_gpio_irq_disable(struct irq_data *d)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     unsigned long flags;
 
     spin_lock_irqsave(&hgpio->lock, flags);
@@ -69,24 +80,34 @@ static void hisi_gpio_irq_disable(struct irq_data *d)
 
 static int hisi_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     unsigned long flags;
     int ret;
 
     pr_debug("hisi_gpio_irq_set_type: hwirq = %lu, type = %u\n", d->hwirq, type);
     spin_lock_irqsave(&hgpio->lock, flags);
-    ret = hgpio->gpio_ops->set_int_type(&hgpio->reg_region, d->hwirq, type);
+    ret = hgpio->gpio_ops->set_int_type(&hgpio->reg_region, type, d->hwirq);
     spin_unlock_irqrestore(&hgpio->lock, flags);
 
     if (ret != 0) {
         pr_err("irq: unsupported type %d\n", type);
+        return ret;
     }
+
+    if (type & IRQ_TYPE_LEVEL_MASK) {
+        irq_set_handler_locked(d, handle_level_irq);
+    } else if (type & IRQ_TYPE_EDGE_BOTH) {
+        irq_set_handler_locked(d, handle_edge_irq);
+    } else {
+        irq_set_handler_locked(d, handle_simple_irq);
+    }
+
     return 0;
 }
 
 static int hisi_gpio_irq_set_wake(struct irq_data *d, unsigned int enable)
 {
-    struct hisi_gpio *hgpio = irq_data_get_irq_chip_data(d);
+    struct hisi_gpio *hgpio = hisi_gpio_from_irq_data(d);
     struct context_save_regs *ctx = &hgpio->ctx;
     irq_hw_number_t bit = irqd_to_hwirq(d);
 
@@ -100,24 +121,26 @@ static int hisi_gpio_irq_set_wake(struct irq_data *d, unsigned int enable)
 
 static int hisi_gpio_to_irq(struct gpio_chip *chip, unsigned int offset)
 {
-    struct hisi_gpio *hgpio = to_hisi_gpio(chip);
     int irq;
 
-    irq = irq_create_mapping(hgpio->domain, offset);
+    irq = irq_create_mapping(chip->irq.domain, offset);
     return irq;
 }
 
-static irqreturn_t hisi_gpio_irq_handler(int irq, void *arg)
+static void hisi_gpio_irq_handler(struct irq_desc *desc)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)arg;
+    struct hisi_gpio *hgpio = irq_desc_get_handler_data(desc);
+    struct irq_chip *irq_chip = irq_desc_get_chip(desc);
     int i = 0;
     unsigned long irq_status;
     unsigned long flags;
 
+    chained_irq_enter(irq_chip, desc);
     irq_status = hgpio->gpio_ops->get_int_status(&hgpio->reg_region);
     pr_debug("hisi_gpio_irq_handler: irq_status [%lx]\n", irq_status);
     if (irq_status == 0) {
-        return IRQ_NONE;
+        chained_irq_exit(irq_chip, desc);
+        return;
     }
 
     for_each_set_bit(i, &irq_status, hgpio->chip.ngpio)
@@ -126,48 +149,9 @@ static irqreturn_t hisi_gpio_irq_handler(int irq, void *arg)
         spin_lock_irqsave(&hgpio->lock, flags);
         hgpio->gpio_ops->clear_int(&hgpio->reg_region, i);
         spin_unlock_irqrestore(&hgpio->lock, flags);
-        /* desc->handle_irq, i.e. hooked handle_simple_irq --->action->handler
-         --->Finally, the processing function mounted to each GPIO and request_irq is called. */
-        (void)generic_handle_irq(irq_find_mapping(hgpio->domain, i));
+        generic_handle_domain_irq(hgpio->chip.irq.domain, i);
     }
-    return IRQ_HANDLED;
-}
-
-static int hisi_gpio_irq_domain_map(struct irq_domain *domain, unsigned int irq, irq_hw_number_t hwirq)
-{
-    struct hisi_gpio *hgpio = domain->host_data;
-
-    pr_debug("hisi_gpio_irq_domain_map: hw irq = %d, irq = %d\n", (int)hwirq, irq);
-    irq_set_chip_and_handler(irq, &hgpio->irq_chip, handle_simple_irq); // set desc->handle_irq function
-    // set irq_data.chip_data = data, use irq_data_get_irq_chip_data to get chip_data
-    irq_set_chip_data(irq, domain->host_data);
-
-    irq_clear_status_flags(irq, IRQ_NOREQUEST);
-    return 0;
-}
-
-static const struct irq_domain_ops hisi_gpio_irq_simple_ops = {
-    .map = hisi_gpio_irq_domain_map,
-};
-
-static int hisi_gpio_config_irq(struct hisi_gpio *hgpio)
-{
-    int ret;
-
-    hgpio->domain = irq_domain_add_simple(hgpio->dev->of_node, hgpio->chip.ngpio, 0, &hisi_gpio_irq_simple_ops, hgpio);
-    if (!hgpio->domain) {
-        pr_err("failed to request irq domain\n");
-        return -ENODEV;
-    }
-    ret = devm_request_irq(hgpio->dev, hgpio->irq, hisi_gpio_irq_handler, IRQF_SHARED, "gpio", hgpio);
-    if (ret != 0) {
-        pr_err("failed to request gpio irq\n");
-        return ret;
-    }
-    if (hgpio->gpio_ops->enable_comb_int != NULL) {
-        hgpio->gpio_ops->enable_comb_int(&hgpio->reg_region, 1);
-    }
-    return 0;
+    chained_irq_exit(irq_chip, desc);
 }
 
 static int hisi_gpio_request(struct gpio_chip *chip, unsigned int offset)
@@ -226,7 +210,7 @@ static int hisi_gpio_get(struct gpio_chip *chip, unsigned int offset)
     return ret;
 }
 
-static void hisi_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
+static int hisi_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
 {
     struct hisi_gpio *hgpio = to_hisi_gpio(chip);
     unsigned long flags;
@@ -234,6 +218,7 @@ static void hisi_gpio_set(struct gpio_chip *chip, unsigned int offset, int value
     spin_lock_irqsave(&hgpio->lock, flags);
     hgpio->gpio_ops->set_val(&hgpio->reg_region, offset, value);
     spin_unlock_irqrestore(&hgpio->lock, flags);
+    return 0;
 }
 
 static int hisi_gpio_set_debounce(struct gpio_chip *chip, unsigned int offset, unsigned int debounce)
@@ -328,7 +313,21 @@ static void hisi_gpio_fill_irq_chip(struct irq_chip *irq_chip, struct hisi_gpio 
     irq_chip->irq_set_wake = hisi_gpio_irq_set_wake;
 }
 
-int hisi_gpio_reset(struct device *dev, u32 host_id)
+static void hisi_gpio_init_irq(struct hisi_gpio *hgpio)
+{
+    struct gpio_irq_chip *girq = &hgpio->chip.irq;
+
+    gpio_irq_chip_set_chip(girq, &hgpio->irq_chip);
+    hgpio->parent_irq = hgpio->irq;
+    girq->parent_handler = hisi_gpio_irq_handler;
+    girq->parent_handler_data = hgpio;
+    girq->num_parents = 1;
+    girq->parents = &hgpio->parent_irq;
+    girq->default_type = IRQ_TYPE_NONE;
+    girq->handler = handle_simple_irq;
+}
+
+static int hisi_gpio_reset(struct device *dev, u32 host_id)
 {
     int ret;
     bool enabled;
@@ -426,14 +425,10 @@ static int hisi_gpio_probe(struct platform_device *pdev)
 
     irq_chip = &hgpio->irq_chip;
     hisi_gpio_fill_irq_chip(irq_chip, hgpio);
-    /* Config Interrupt */
-    ret = hisi_gpio_config_irq(hgpio);
-    if (ret < 0) {
-        return ret;
-    }
     gpio_chip = &hgpio->chip;
     hisi_gpio_fill_gpio_chip(gpio_chip, hgpio);
-    ret = gpiochip_add(gpio_chip);
+    hisi_gpio_init_irq(hgpio);
+    ret = devm_gpiochip_add_data(&pdev->dev, gpio_chip, hgpio);
     if (ret < 0) {
         dev_err(&pdev->dev, "add gpiochip fail! ret %d\n", ret);
         return ret;
@@ -442,16 +437,8 @@ static int hisi_gpio_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int hisi_gpio_remove(struct platform_device *pdev)
+static void hisi_gpio_remove(struct platform_device *pdev)
 {
-    struct hisi_gpio *hgpio = (struct hisi_gpio *)platform_get_drvdata(pdev);
-
-    if (hgpio->domain != NULL) {
-        irq_domain_remove(hgpio->domain);
-    }
-
-    gpiochip_remove(&hgpio->chip);
-    return 0;
 }
 
 static const struct of_device_id hisi_gpio_of_match[] = {

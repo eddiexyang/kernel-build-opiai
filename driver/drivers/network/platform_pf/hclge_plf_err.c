@@ -685,6 +685,7 @@ STATIC void hclge_plf_error_handle(struct device *dev, const ras_mod_msg *err, u
 STATIC void hclge_plf_handle_err_reset_request(struct hclge_plf_dev *hdev)
 {
     struct hnae3_ae_dev *ae_dev = platform_get_drvdata(hdev->pdev);
+    struct hnae3_handle *handle = &hdev->vport[0].nic;
 
     if (ae_dev->hw_err_reset_req) {
         enum hnae3_reset_type reset_type;
@@ -694,7 +695,7 @@ STATIC void hclge_plf_handle_err_reset_request(struct hclge_plf_dev *hdev)
     }
 
     if (hdev->default_reset_request && ae_dev->ops->reset_event) {
-        ae_dev->ops->reset_event(ae_dev, NULL);
+        ae_dev->ops->reset_event(NULL, handle);
     }
 }
 

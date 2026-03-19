@@ -56,7 +56,7 @@ int hdcdrv_rebuild_raw_pid(u64 pid)
     return (int)(pid & HDCDRV_RAW_PID_MASK);
 }
 
-STATIC char *hdcdrv_devnode(struct device *dev, umode_t *mode)
+STATIC char *hdcdrv_devnode(const struct device *dev, umode_t *mode)
 {
     return NULL;
 }
@@ -83,7 +83,7 @@ int hdccom_register_cdev(struct hdcdrv_cdev *hcdev, const struct file_operations
         goto CDEV_ADD_FAILED;
     }
 
-    hdc_class = class_create(THIS_MODULE, HDCDRV_CHAR_DRIVER_NAME);
+    hdc_class = class_create(HDCDRV_CHAR_DRIVER_NAME);
     if (IS_ERR(hdc_class)) {
         hdcdrv_err("Class create failed.\n");
         ret = HDCDRV_CHAR_DEV_CREAT_FAIL;

@@ -72,7 +72,7 @@ STATIC int tsdrv_ctx_dfx_open(struct inode *inode, struct file *filp)
 #ifndef AOS_LLVM_BUILD
     data->dfx_id = (u32)(uintptr_t)inode->i_private;
 #else
-    data->dfx_id =  (u32)(uintptr_t)PDE_DATA(inode);
+    data->dfx_id =  (u32)(uintptr_t)pde_data(inode);
     data->finish_flag = 0;
 #endif
     data->buff = kzalloc(CTX_DFX_BUF_LEN, GFP_KERNEL | __GFP_ACCOUNT);

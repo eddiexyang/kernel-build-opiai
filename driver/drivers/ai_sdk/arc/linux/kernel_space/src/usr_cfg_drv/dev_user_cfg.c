@@ -163,7 +163,7 @@ STATIC int dev_user_cfg_get_dts_cfg(struct file *file, unsigned int cmd, unsigne
     return 0;
 }
 
-STATIC int dev_user_cfg_get_cpu_cfg(unsigned int dev_id, cpu_cfg_t *data, unsigned int size)
+int dev_user_cfg_get_cpu_cfg(unsigned int dev_id, cpu_cfg_t *data, unsigned int size)
 {
     int ret;
     uc_cpu_cfg_t flash_cpu_cfg = {0};
@@ -439,8 +439,9 @@ STATIC void dev_user_cfg_cleanup_dev(CDEV_ST *pdev)
 }
 
 /* set cdev node 0640 */
-char *dev_user_cfg_devnode(struct device *d, umode_t *mode)
+char *dev_user_cfg_devnode(const struct device *d, umode_t *mode)
 {
+    (void)d;
     if (mode != NULL) {
         DEV_USER_CFG_INFO("Set the value of devnode to 0600.\n");
         *mode = USER_CFG_DEVNODE_MODE;
@@ -468,7 +469,7 @@ STATIC int dev_user_cfg_init_dev(CDEV_ST *pdev, struct file_operations *pfoprs)
         return ret;
     }
 
-    dev_class = class_create(THIS_MODULE, USER_CFG_DEV_CLASS);
+    dev_class = class_create(USER_CFG_DEV_CLASS);
     if (IS_ERR_OR_NULL(dev_class)) {
         DEV_USER_CFG_ERR("Create device class for user config error.\n");
         ret = PTR_ERR(dev_class);
@@ -538,10 +539,10 @@ STATIC int dev_user_cfg_probe(struct platform_device *pdev)
     return 0;
 }
 
-STATIC int dev_user_cfg_remove(struct platform_device *pdev)
+STATIC void dev_user_cfg_remove(struct platform_device *pdev)
 {
+    (void)pdev;
     DEV_USER_CFG_INFO("User config remove.\n");
-    return 0;
 }
 
 STATIC const struct of_device_id g_user_cfg_of_match[] = {

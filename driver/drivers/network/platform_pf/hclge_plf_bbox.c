@@ -12,6 +12,26 @@
 #include <linux/bootdot.h>
 #else
 #include "ascend_kernel_hal.h"
+
+/*
+ * 6.18 bring-up does not provide the legacy bootdot service as a
+ * loadable dependency for hclgeplf. Keep blockdot call sites intact,
+ * but degrade to no-op helpers so the NIC platform driver can still
+ * link and run without that optional service.
+ */
+#define bootdot_init_blk hclge_plf_bootdot_init_blk
+#define bootdot_set_blk hclge_plf_bootdot_set_blk
+
+static int hclge_plf_bootdot_init_blk(u32 block_id, u32 magic, u32 execption_id,
+    u32 expect_status)
+{
+    return 0;
+}
+
+static int hclge_plf_bootdot_set_blk(u32 block_id, u32 magic, u32 current_status)
+{
+    return 0;
+}
 #endif
 #include "securec.h"
 #include "hclge_plf_bbox.h"

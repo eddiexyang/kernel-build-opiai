@@ -677,11 +677,21 @@ int pkicms_ver_check(int verify_type, int img_id, const img_ver_header *img_ver,
     return 0;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
-// esl don't support tee
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV2) || defined(CFG_SOC_PLATFORM_MINIV3)
+/*
+ * These builds do not carry a TEE-backed nv counter provider in the current
+ * out-of-tree module set. Fall back to a zero counter so the vendor modules
+ * can still initialize and defer any platform-specific policy to runtime.
+ */
 int soc_get_nvcnt(unsigned int dev_id, unsigned int *buff, unsigned int size)
 {
-    pkicms_err("soc_get_nvcnt error, esl don't support tee\n");
+    if ((buff == NULL) || (size < sizeof(*buff))) {
+        pkicms_err("soc_get_nvcnt invalid output buffer. (dev=%u; size=%u)\n", dev_id, size);
+        return -EINVAL;
+    }
+
+    *buff = 0;
+    pkicms_warn("soc_get_nvcnt fallback path used. (dev=%u)\n", dev_id);
     return 0;
 }
 #endif
@@ -706,4 +716,3 @@ int pkicms_write_file_buf(const char *path, u8 *buf, u32 len)
 {
     return 0; /* kernel space not use now, implement when need */
 }
-

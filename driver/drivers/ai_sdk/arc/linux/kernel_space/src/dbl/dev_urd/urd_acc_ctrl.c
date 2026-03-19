@@ -37,6 +37,29 @@
 #  include "drv_whitelist.h"
 #endif
 
+#ifdef OPIAI_URD_STANDALONE_HOST_BUILD
+static inline bool urd_host_davinci_intf_confirm_user(void)
+{
+    return true;
+}
+
+static inline u32 urd_host_davinci_intf_get_manage_group(void)
+{
+    return 0;
+}
+
+static inline s32 urd_host_whitelist_process_handler(const char **list_name, u32 name_num)
+{
+    (void)list_name;
+    (void)name_num;
+    return 0;
+}
+
+#define davinci_intf_confirm_user urd_host_davinci_intf_confirm_user
+#define davinci_intf_get_manage_group urd_host_davinci_intf_get_manage_group
+#define whitelist_process_handler urd_host_whitelist_process_handler
+#endif
+
 #define CHECK_PERI(user, profile, mask, ret_value)                                  \
     do {                                                                 \
         if ((((profile) & (mask)) == 0) && (((user) & (mask)) != 0)) { \

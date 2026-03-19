@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/pci.h>
 #include <linux/version.h>
 #ifdef CFG_FEATURE_EXTERNAL_CDEV
@@ -832,7 +833,7 @@ STATIC const struct file_operations event_sched_fops = {
 };
 
 #if (!defined CFG_FEATURE_EXTERNAL_CDEV) && (!defined AOS_LLVM_BUILD)
-STATIC char *sched_devnode(struct device *dev, umode_t *mode)
+STATIC char *sched_devnode(const struct device *dev, umode_t *mode)
 {
     return NULL;
 }

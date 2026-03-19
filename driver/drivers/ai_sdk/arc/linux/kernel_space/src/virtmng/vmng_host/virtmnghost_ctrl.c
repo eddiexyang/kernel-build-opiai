@@ -342,8 +342,7 @@ void vmngh_bw_data_clear_timer_init(u32 dev_id, u32 vfid)
 
     spin_lock_init(&g_clear_timer.bandwidth_update_lock);
 
-    hrtimer_init(&g_clear_timer.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    g_clear_timer.timer.function = vmngh_bw_data_clear_event;
+    hrtimer_setup(&g_clear_timer.timer, vmngh_bw_data_clear_event, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     g_clear_timer.kt = ktime_set(1, 0);
     hrtimer_start(&g_clear_timer.timer, g_clear_timer.kt, HRTIMER_MODE_REL);
 

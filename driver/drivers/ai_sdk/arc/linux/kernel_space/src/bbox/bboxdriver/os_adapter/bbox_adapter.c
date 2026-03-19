@@ -23,6 +23,7 @@
 #include <linux/kdebug.h>
 #include <linux/kernel.h>
 #include <linux/notifier.h>
+#include <linux/panic_notifier.h>
 #include <linux/printk.h>
 #include <linux/securec.h>
 #include <linux/version.h>
@@ -121,12 +122,11 @@ STATIC s32 bbox_adapter_map(void)
  */
 void bbox_adapter_flush_log_cache(void)
 {
-    const u8 *vaddr = (u8 *)log_buf_addr_get();
-    u32 size = log_buf_len_get();
-    if ((vaddr != NULL) && (size > 0)) {
-        bbox_flush_cache(vaddr, size);
-        BB_PRINT_INFO("flush log cache.\n");
-    }
+    /*
+     * The printk ringbuffer internals are no longer exported to modules on
+     * 6.18. Keep bbox functional without forcing extra kernel exports.
+     */
+    BB_PRINT_INFO("skip flushing kernel log cache from module context.\n");
 }
 
 STATIC void bbox_adapter_save_log(u32 devid, u32 excepid, u8 etype,
@@ -428,12 +428,6 @@ STATIC void bbox_adapter_reset(const struct bbox_reset_ops_info *info)
                   info->devid, info->coreid, info->excepid, info->etype);
 
     bbox_adapter_flush_log_cache();
-    printk_safe_flush_on_panic();
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-    console_flush_on_panic(CONSOLE_FLUSH_PENDING);
-#else
-    console_flush_on_panic();
-#endif
     DEAD_WHILE;
 }
 
@@ -795,4 +789,3 @@ void bbox_adapter_exit(void)
         g_ap_init = false;
     }
 }
-

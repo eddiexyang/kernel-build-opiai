@@ -364,7 +364,7 @@ STATIC enum hrtimer_restart prof_agent_hrtimer_callback(struct hrtimer *timer)
     sample_hrtimer = container_of(timer, struct prof_sample_hrtimer, timer);
     up(&sample_hrtimer->sync_timer_sema);
 #ifndef AOS_LLVM_BUILD
-    (void)hrtimer_forward(timer, timer->base->get_time(), sample_hrtimer->kt);
+    (void)hrtimer_forward(timer, hrtimer_cb_get_time(timer), sample_hrtimer->kt);
 #else
     (void)hrtimer_forward_now(timer, sample_hrtimer->kt);
 #endif
@@ -374,8 +374,8 @@ STATIC enum hrtimer_restart prof_agent_hrtimer_callback(struct hrtimer *timer)
 STATIC void prof_agent_start_hrtimer(struct prof_sub_channel_info *sub_channel_info)
 {
     sema_init(&sub_channel_info->peri_channel.sample_hrtimer.sync_timer_sema, 1);
-    hrtimer_init(&sub_channel_info->peri_channel.sample_hrtimer.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    sub_channel_info->peri_channel.sample_hrtimer.timer.function = prof_agent_hrtimer_callback;
+    hrtimer_setup(&sub_channel_info->peri_channel.sample_hrtimer.timer,
+        prof_agent_hrtimer_callback, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     sub_channel_info->peri_channel.sample_hrtimer.kt =
         ktime_set(0, sub_channel_info->peri_channel.sample_period * PROF_TIMES_MS_TO_NS);
     hrtimer_start(&sub_channel_info->peri_channel.sample_hrtimer.timer,

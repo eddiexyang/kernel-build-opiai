@@ -382,7 +382,7 @@ STATIC int init_pwm_dev(CDEV_ST *pDev, struct file_operations *pfoprs)
         return ret;
     }
 
-    dev_class = class_create(THIS_MODULE, COMM_DEV_CLASS);
+    dev_class = class_create(COMM_DEV_CLASS);
     if (IS_ERR(dev_class)) {
         pwm_log_err("class_create %s error\n", COMM_DEV_CLASS);
         ret = PTR_ERR(dev_class);
@@ -545,11 +545,7 @@ STATIC int adjust_duty_ratio(void *args)
     unsigned int temperate;
     struct dms_lpm_info_in in;
 
-    get_temp_func = (int (*)(void *, char *, u32, char *, u32))kallsyms_lookup_name_wrap("dms_lpm_get_temperature");
-    if (get_temp_func == NULL) {
-        pwm_log_err("Get dms_lpm_get_temperature function failed.\n");
-        return -EINVAL;
-    }
+    pwm_log_info("automatic duty-ratio adjustment is unavailable on the upstream 6.18 build\n");
 
     in.dev_id = 0;
     in.vfid = DMS_VF_ID_PF;
@@ -559,6 +555,10 @@ STATIC int adjust_duty_ratio(void *args)
 
     while (!kthread_should_stop()) {
         if (atomic_read(&g_pwm_mode) == PWM_AUTO) {
+            if (get_temp_func == NULL) {
+                msleep(THREAD_PAUSE_TIME);
+                continue;
+            }
             ret = get_temp_func((void *)&feature, (char *)&in, sizeof(in), (char *)&temperate, sizeof(temperate));
             if (ret != 0) {
                 pwm_log_err("Get temperature failed. (ret=%d)\n", ret);
@@ -664,9 +664,10 @@ STATIC int __init pwm_drv_init(void)
     pwm_info_init(&pwm_io_info, &pwm_info);
 
     g_adjust_duty_ratio_thread = kthread_run(adjust_duty_ratio, NULL, "pwm_thread");
-    if (g_adjust_duty_ratio_thread == NULL) {
+    if (IS_ERR(g_adjust_duty_ratio_thread)) {
         pwm_log_err("Create thread failed.\n");
-        ret = -EAGAIN;
+        ret = PTR_ERR(g_adjust_duty_ratio_thread);
+        g_adjust_duty_ratio_thread = NULL;
         goto out_cdev;
     }
 

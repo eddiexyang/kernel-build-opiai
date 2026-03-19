@@ -78,7 +78,7 @@ ssize_t log_level_file_read(struct file *file, char __user *data, size_t len, lo
         return 0;
     }
 
-    ptr = PDE_DATA(file_inode(file));
+    ptr = pde_data(file_inode(file));
 
     if (len < (size_t)(LOG_LEVEL_FILE_INFO_LEN - (*off))) {
         count = len + *off;
@@ -121,7 +121,7 @@ ssize_t log_level_file_write(struct file *file, const char __user *data, size_t 
 
     mutex_lock(&log_level_mutex);
 
-    ptr = PDE_DATA(file_inode(file));
+    ptr = pde_data(file_inode(file));
 
     ret = copy_from_user(tmp, data, len);
     if (ret != DRV_ERROR_NONE) {

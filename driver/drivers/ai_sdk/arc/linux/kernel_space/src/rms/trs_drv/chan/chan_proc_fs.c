@@ -46,7 +46,7 @@ static int chan_trace_show(struct seq_file *seq, void *offset)
 ssize_t chan_trace_ops_write(struct file *filp, const char __user *ubuf, size_t count, loff_t *ppos)
 {
     struct inode *inode = file_inode(filp);
-    struct trs_chan_ts_inst *ts_inst = (struct trs_chan_ts_inst *)(uintptr_t)PDE_DATA(inode);
+    struct trs_chan_ts_inst *ts_inst = (struct trs_chan_ts_inst *)(uintptr_t)pde_data(inode);
     char ch[2] = {0}; /* 2 bytes long */
     long val;
 
@@ -73,7 +73,7 @@ ssize_t chan_trace_ops_write(struct file *filp, const char __user *ubuf, size_t 
 
 int chan_trace_ops_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, chan_trace_show, PDE_DATA(inode));
+    return single_open(file, chan_trace_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
@@ -112,7 +112,7 @@ static int chan_sum_show(struct seq_file *seq, void *offset)
 
 int chan_sum_ops_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, chan_sum_show, PDE_DATA(inode));
+    return single_open(file, chan_sum_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)

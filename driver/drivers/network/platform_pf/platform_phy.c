@@ -549,7 +549,7 @@ void hclge_plf_mac_start_phy(struct hclge_plf_dev *hdev)
         return;
     }
 
-    phy_loopback(phydev, false);
+    phy_loopback(phydev, false, 0);
 
     phy_start(phydev);
 }
@@ -592,14 +592,14 @@ int hclge_plf_enable_phy_loopback(struct hclge_plf_dev *hdev, struct phy_device 
         return ret;
     }
 
-    return genphy_loopback(phydev, true);
+    return genphy_loopback(phydev, true, 0);
 }
 
 int hclge_plf_disable_phy_loopback(struct hclge_plf_dev *hdev, struct phy_device *phydev)
 {
     int ret;
 
-    ret = genphy_loopback(phydev, false);
+    ret = genphy_loopback(phydev, false, 0);
     if (ret != 0) {
         pr_err("failed to set phy loopback, ret:%d\n", ret);
         return ret;

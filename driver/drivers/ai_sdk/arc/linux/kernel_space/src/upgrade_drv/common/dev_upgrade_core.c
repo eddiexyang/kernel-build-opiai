@@ -1667,7 +1667,7 @@ int dev_upgrade_sync_proc(dev_upgrade_core_ctrl *upgrade_ctrl)
 }
 #else
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_img_sync_and_efuse_update(unsigned int dev_id)
 {
@@ -1974,7 +1974,7 @@ STATIC int dev_upgrade_set_device_info(int dev_id, unsigned int cmd, void *in_bu
 
 #else
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_flash_get_version(unsigned int dev_id, unsigned int img_id, unsigned char *boot_version, unsigned int max_len,
     unsigned int area_check)
@@ -2018,7 +2018,7 @@ STATIC int dev_upgrade_version_get(
     return OK;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_get_fw_verify_result(unsigned int dev_id, unsigned int sub_type, unsigned int *result)
 {
@@ -2046,7 +2046,7 @@ STATIC int dev_upgrade_fw_verify(int dev_id, unsigned char sub_type, unsigned in
     return dev_errno_make(DEV_MID_UPGRADE, ERRNO_NONSUPPORT_ITEM);
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_read_ufs_resetcnt(unsigned int dev_id, unsigned int *out_value)
 {
@@ -2082,7 +2082,7 @@ STATIC int dev_upgrade_get_current_partition(int dev_id, unsigned char sub_type,
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_write_ufs_resetcnt(unsigned int dev_id, unsigned int value)
 {
@@ -2653,7 +2653,7 @@ out:
 
 #if (!defined CFG_SOC_PLATFORM_MINI)
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_rim_update(unsigned int dev_id, unsigned char *rim_buf, unsigned int file_size)
 {
@@ -2716,7 +2716,7 @@ STATIC int dev_upgrade_soc_process(struct upgrade_revocation_in *in)
 #ifdef CFG_FEATURE_UPGRADE_CRL
 #ifndef CFG_SOC_PLATFORM_MDC_V51
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_flash_read(unsigned int dev_id, unsigned int flash_offset, unsigned char *buf, unsigned int buf_len)
 {
@@ -2725,7 +2725,7 @@ int sec_flash_read(unsigned int dev_id, unsigned int flash_offset, unsigned char
 }
 #endif
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_flash_write(unsigned int dev_id, unsigned int offset, unsigned char *buf, unsigned int buf_len)
 {
@@ -3251,7 +3251,7 @@ int dev_upgrade_ioctl_verify_img(struct upgrade_ioctl_msg *upgrade_msg)
     return ret;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_set_recovery_flag(unsigned int dev_id)
 {
@@ -3279,7 +3279,7 @@ STATIC int dev_upgrade_ioctl_set_rcvr_flag(struct upgrade_ioctl_msg *upgrade_msg
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_get_recovery_flag(unsigned int dev_id, int *flag)
 {
@@ -3324,7 +3324,7 @@ STATIC int dev_upgrade_ioctl_get_rcvr_flag(struct upgrade_ioctl_msg *upgrade_msg
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_clear_recovery_flag(unsigned int dev_id)
 {
@@ -3353,7 +3353,7 @@ STATIC int dev_upgrade_ioctl_clean_rcvr_flag(struct upgrade_ioctl_msg *upgrade_m
 
 #ifdef CFG_SOC_PLATFORM_MDC_V51
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_reset_recovery_boot_count(unsigned int dev_id)
 {
@@ -3396,7 +3396,7 @@ STATIC int dev_upgrade_reset_serv_boot_cnt(int dev_id)
 }
 
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int clear_flash_resetcnt(unsigned int dev_id)
 {
@@ -3451,7 +3451,7 @@ STATIC int dev_upgrade_ioctl_reset_rcvr_boot_cnt(struct upgrade_ioctl_msg *upgra
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_set_recovery_status(unsigned int dev_id, unsigned int op, unsigned int part)
 {
@@ -3699,7 +3699,7 @@ STATIC int dev_upgrade_init_dev(CDEV_ST *pdev, struct file_operations *pfoprs)
         return rc;
     }
 
-    dev_class = class_create(THIS_MODULE, UPGRADE_DEV_CLASS);
+    dev_class = class_create(UPGRADE_DEV_CLASS);
     if (IS_ERR(dev_class)) {
         dev_upgrade_err("class_create %s error\r\n", UPGRADE_DEV_CLASS);
         rc = PTR_ERR(dev_class);

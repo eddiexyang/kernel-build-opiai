@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_soft_fault
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
+LOCAL_DEPEND_KO := drv_pcie_host drv_devmng_host ascend_uda ascend_urd
 
 LOCAL_INSTALLED_KO_FILES := drv_soft_fault.ko
 
@@ -17,6 +18,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_soft_fault
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
+LOCAL_DEPEND_KO := drv_pcie drv_devmng ascend_uda ascend_urd
 
 LOCAL_INSTALLED_KO_FILES := drv_soft_fault.ko
 

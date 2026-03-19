@@ -33,9 +33,10 @@ static int find_spi_device_by_spi_no_and_cs(struct device *dev, void *data)
 {
     struct spi_device *spi = to_spi_device(dev);
     struct device_find_data *find_data = (struct device_find_data *)data;
-    struct spi_master *master = spi->master;
+    struct spi_controller *master = spi->controller;
 
-    if (((uint32_t)(int32_t)master->bus_num == find_data->spi_no) && (spi->chip_select == find_data->cs)) {
+    if (((uint32_t)(int32_t)master->bus_num == find_data->spi_no) &&
+        (spi_get_chipselect(spi, 0) == find_data->cs)) {
         find_data->spi = spi;
         return 1;
     }
@@ -100,7 +101,7 @@ static int spi_send_message(struct spi_device *spi, const void *tx_buf, void *rx
     struct spi_message m;
     struct spi_transfer spi_xfer = { 0 };
 
-    spi_bus_lock(spi->master);
+    spi_bus_lock(spi->controller);
 
     spi_xfer.tx_buf = tx_buf;
     spi_xfer.rx_buf = rx_buf;
@@ -109,7 +110,7 @@ static int spi_send_message(struct spi_device *spi, const void *tx_buf, void *rx
     spi_message_init(&m);
     spi_message_add_tail(&spi_xfer, &m);
     ret = spi_sync_locked(spi, &m);
-    spi_bus_unlock(spi->master);
+    spi_bus_unlock(spi->controller);
 
     return ret;
 }

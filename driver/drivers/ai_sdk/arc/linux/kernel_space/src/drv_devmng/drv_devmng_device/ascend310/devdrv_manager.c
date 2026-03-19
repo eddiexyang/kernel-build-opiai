@@ -4077,7 +4077,7 @@ STATIC int devdrv_manager_create_driver_device(void)
     }
 
     devdrv_major = MAJOR(devdrv_dev);
-    devdrv_class = class_create(THIS_MODULE, "devdrv-class");
+    devdrv_class = class_create("devdrv-class");
     if (IS_ERR(devdrv_class)) {
         unregister_chrdev_region(devdrv_dev, DEVDRV_MAX_DAVINCI_NUM);
         devdrv_drv_err("class_create error.\n");

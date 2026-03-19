@@ -16,6 +16,10 @@ ifneq ($(product),)
             PRODUCT := ascend310
         endif
     endif
+    ifneq ($(filter $(product),ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu helper310p as31xm1),)
+        TARGET_PRODUCT := mini
+        PRODUCT := $(product)
+    endif
 else
     TARGET_PRODUCT := mini
     PRODUCT := ascend310

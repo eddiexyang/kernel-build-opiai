@@ -232,8 +232,9 @@ int ina2xx_get_value(u8 reg, int *result)
     return 0;
 }
 
-STATIC int ina2xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
+STATIC int ina2xx_probe(struct i2c_client *client)
 {
+    const struct i2c_device_id *id;
     struct i2c_adapter *adapter = client->adapter;
     int ret;
 
@@ -260,6 +261,7 @@ STATIC int ina2xx_probe(struct i2c_client *client, const struct i2c_device_id *i
     g_i2c_data->config = &ina2xx_config[INA226];
     g_i2c_data->curr_config = g_i2c_data->config->config_default;
     g_i2c_data->client = client;
+    id = i2c_client_get_device_id(client);
 
     /*
      * Ina226 has a variable update_interval. For ina219 we
@@ -275,17 +277,17 @@ STATIC int ina2xx_probe(struct i2c_client *client, const struct i2c_device_id *i
         return -ENODEV;
     }
 
-    devdrv_drv_info("power monitor %s (Rshunt = %ld uOhm)\n", id->name, g_i2c_data->rshunt);
+    devdrv_drv_info("power monitor %s (Rshunt = %ld uOhm)\n",
+        (id != NULL) ? id->name : dev_name(&client->dev), g_i2c_data->rshunt);
     return 0;
 }
 
-STATIC int ina2xx_remove(struct i2c_client *client)
+STATIC void ina2xx_remove(struct i2c_client *client)
 {
     if (g_i2c_data != NULL) {
         kfree(g_i2c_data);
         g_i2c_data = NULL;
     }
-    return 0;
 }
 
 STATIC const struct i2c_device_id ina2xx_id[] = {

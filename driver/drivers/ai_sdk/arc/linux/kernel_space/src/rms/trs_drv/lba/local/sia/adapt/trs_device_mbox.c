@@ -21,7 +21,6 @@
 #include <linux/kref.h>
 #include <linux/mm.h>
 
-#include "securec.h"
 #include "soc_res.h"
 
 #include "trs_mailbox_def.h"
@@ -260,11 +259,7 @@ int devdrv_send_rdmainfo_to_ts(u32 devid, const u8 *buf, u32 len, int *result)
     }
 
     trs_mbox_init_header(&msg.header, TRS_MBOX_SEND_RDMA_INFO);
-    ret = memcpy_s(msg.buf, sizeof(msg.buf), buf, len);
-    if (ret != EOK) {
-        trs_err("memcpy fail. (devid=%u; tsid=%u; size=0x%lx, len=0x%x)\n", devid, tsid, sizeof(msg.buf), len);
-        return ret;
-    }
+    memcpy(msg.buf, buf, len);
 
     trs_id_inst_pack(&inst, devid, tsid);
     ret = trs_mbox_send(&inst, 0, (void *)&msg, sizeof(msg), TRS_MBXO_DEFAULT_TIMEOUT);
@@ -276,4 +271,3 @@ int devdrv_send_rdmainfo_to_ts(u32 devid, const u8 *buf, u32 len, int *result)
     return 0;
 }
 EXPORT_SYMBOL(devdrv_send_rdmainfo_to_ts);
-

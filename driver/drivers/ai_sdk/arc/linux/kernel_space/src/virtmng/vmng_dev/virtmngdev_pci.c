@@ -175,8 +175,7 @@ STATIC void vmngd_bw_data_clear_timer_init(void)
         return;
     }
 
-    hrtimer_init(&g_clear_timer.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    g_clear_timer.timer.function = vmngd_bw_data_clear_event;
+    hrtimer_setup(&g_clear_timer.timer, vmngd_bw_data_clear_event, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     g_clear_timer.kt = ktime_set(BANDWIDTH_CLEAR_INTERVAL, 0);
     hrtimer_start(&g_clear_timer.timer, g_clear_timer.kt, HRTIMER_MODE_REL);
 

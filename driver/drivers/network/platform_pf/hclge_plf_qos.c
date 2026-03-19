@@ -18,6 +18,9 @@
 #define STATIC
 #endif
 
+typedef int (*hclge_plf_qos_register_func)(const struct qos_master_node *master);
+typedef int (*hclge_plf_qos_unregister_func)(const struct qos_master_node *master);
+
 static struct qos_master_node g_node_nic;
 static struct qos_master_node g_node_tpu;
 static struct qos_master_node g_node_rpu;
@@ -40,6 +43,34 @@ STATIC void set_g_stored_reg_val(int idx, u32 val)
 STATIC u32 get_g_stored_reg_val(int idx)
 {
     return atomic_read(&g_stored_reg_val[idx]);
+}
+
+STATIC int hclge_plf_qos_node_register_symbol(const struct qos_master_node *master)
+{
+    hclge_plf_qos_register_func func;
+    int ret;
+
+    func = (hclge_plf_qos_register_func)__symbol_get("hal_kernel_qos_node_register");
+    if (func == NULL) {
+        pr_info("[hclge_plf]: skip qos register because hal qos helper is unavailable.\n");
+        return 0;
+    }
+
+    ret = func(master);
+    __symbol_put("hal_kernel_qos_node_register");
+    return ret;
+}
+
+STATIC void hclge_plf_qos_node_unregister_symbol(const struct qos_master_node *master)
+{
+    hclge_plf_qos_unregister_func func;
+
+    func = (hclge_plf_qos_unregister_func)__symbol_get("hal_kernel_qos_node_unregister");
+    if (func == NULL)
+        return;
+
+    (void)func(master);
+    __symbol_put("hal_kernel_qos_node_unregister");
 }
 
 STATIC int hclge_plf_nic_set_qos_cfg(int devid, const struct qos_master_config_type *cfg)
@@ -376,7 +407,7 @@ STATIC int nic_qos_node_register(void)
     g_node_nic.set_otsd = hclge_plf_nic_set_otsd_cfg;
     g_node_nic.get_otsd = hclge_plf_nic_get_otsd_cfg;
 
-    ret = hal_kernel_qos_node_register(&g_node_nic);
+    ret = hclge_plf_qos_node_register_symbol(&g_node_nic);
     if (ret != 0) {
         pr_err("[hclge_plf]: nic qos node resigster failed, ret = %d\n", ret);
         return ret;
@@ -497,7 +528,7 @@ STATIC int tpu_qos_node_register(void)
     g_node_tpu.set = NULL;
     g_node_tpu.get = NULL;
 
-    ret = hal_kernel_qos_node_register(&g_node_tpu);
+    ret = hclge_plf_qos_node_register_symbol(&g_node_tpu);
     if (ret != 0) {
         pr_err("[hclge_plf]: tpu qos node resigster failed, ret = %d\n", ret);
         return -EINVAL;
@@ -618,7 +649,7 @@ STATIC int rpu_qos_node_register(void)
     g_node_rpu.set = NULL;
     g_node_rpu.get = NULL;
 
-    ret = hal_kernel_qos_node_register(&g_node_rpu);
+    ret = hclge_plf_qos_node_register_symbol(&g_node_rpu);
     if (ret != 0) {
         pr_err("[hclge_plf]: rpu qos node resigster failed, ret = %d\n", ret);
         return ret;
@@ -629,7 +660,7 @@ STATIC int rpu_qos_node_register(void)
 
 STATIC void qos_node_unregister(struct qos_master_node *node)
 {
-    (void)hal_kernel_qos_node_unregister(node);
+    hclge_plf_qos_node_unregister_symbol(node);
     node->cfg.type = MASTER_INVALID;
     node->set = NULL;
     node->get = NULL;

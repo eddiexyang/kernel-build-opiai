@@ -23,6 +23,10 @@
 #ifndef SECURECTYPE_H_A7BBB686_AADA_451B_B9F9_44DACDAE18A7
 #define SECURECTYPE_H_A7BBB686_AADA_451B_B9F9_44DACDAE18A7
 
+#ifdef __KERNEL__
+#include <linux/securectype.h>
+#else
+
 #ifndef SECUREC_USING_STD_SECURE_LIB
 #if defined(_MSC_VER) && _MSC_VER >= 1400
 #if defined(__STDC_WANT_SECURE_LIB__) && (!__STDC_WANT_SECURE_LIB__)
@@ -293,6 +297,7 @@
 #define SECUREC_ENABLE_FSCANF           0
 #endif
 
+#endif /* __KERNEL__ */
 #endif
 
 #if SECUREC_IN_KERNEL
@@ -582,4 +587,3 @@ long __builtin_expect(long exp, long c);
 
 #endif
 #endif
-

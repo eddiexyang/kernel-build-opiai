@@ -160,7 +160,6 @@ int ascend_ctl_get_flash_cpu_cfg_task(void *data)
         ASCEND_CTL_ERR("kallsyms_lookup_name failed.\n");
         flash_cpu_cfg_clear();
         up(&g_ascend_ctl_sysfs.flash_cpu_cfg_sema);
-        do_exit(0);
         return -EINVAL;
     }
 
@@ -170,13 +169,11 @@ int ascend_ctl_get_flash_cpu_cfg_task(void *data)
         ASCEND_CTL_ERR("Cpu_cfg_handler failed. (ret=%d)\n", ret);
         flash_cpu_cfg_clear();
         up(&g_ascend_ctl_sysfs.flash_cpu_cfg_sema);
-        do_exit(0);
         return ret;
     }
     ASCEND_CTL_INFO("ascend_ctl_get_flash_cpu_cfg success.\n");
     up(&g_ascend_ctl_sysfs.flash_cpu_cfg_sema);
-    do_exit(0);
-    return ret;
+    return 0;
 }
 
 #define GET_FLASH_CPU_CFG_WAIT_TIMEOUT 3000

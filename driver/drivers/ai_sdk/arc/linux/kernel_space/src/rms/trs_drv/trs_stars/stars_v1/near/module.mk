@@ -6,5 +6,5 @@ LOCAL_MODULE := ascend_trs_sub_stars
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 LOCAL_INSTALLED_KO_FILES := ascend_trs_sub_stars.ko
 
+LOCAL_DEPEND_KO:=ascend_soc_resmng ascend_uda
 include $(BUILD_HOST_KO)
-LOCAL_DEPEND_KO:=ascend_soc_resmng

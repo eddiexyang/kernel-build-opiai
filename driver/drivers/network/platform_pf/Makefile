@@ -53,6 +53,7 @@ HNS3_DIR = $(KERNEL_DIR)/drivers/net/ethernet/hisilicon/hns3
 PWD = $(TOP_DIR)/drivers/network/platform_pf
 #add include path
 ccflags-y += 	-I$(HNS3_DIR) \
+		-I$(HNS3_DIR)/hns3_common \
 		-I$(HNS3_DIR)/hns3pf \
 		-I$(PWD) \
 		-I$(PWD)/include/mac \

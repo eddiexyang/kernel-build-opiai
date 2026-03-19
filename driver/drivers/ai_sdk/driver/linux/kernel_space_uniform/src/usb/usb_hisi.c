@@ -348,14 +348,13 @@ exit:
     return ret;
 }
 
-static int usb_hisi_remove(struct platform_device *pdev)
+static void usb_hisi_remove(struct platform_device *pdev)
 {
     struct hisi_usb *hiusb;
     hiusb = platform_get_drvdata(pdev);
 
     devm_iounmap(&pdev->dev, hiusb->host.vaddr);
     platform_set_drvdata(pdev, NULL);
-    return 0;
 }
 
 static int usb_suspend(struct device *dev)
@@ -445,4 +444,3 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Huawei Tech. Co., Ltd.");
 MODULE_DESCRIPTION("usb_hisi driver");
 MODULE_ALIAS("platform:usb_hisi");
-

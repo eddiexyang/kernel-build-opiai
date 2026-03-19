@@ -11,7 +11,7 @@ ARCH_TYPE ?= arm64
 CROSS_COMPILE_PREFIX ?= aarch64-linux-gnu-
 JOBS ?= $(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 16)
 
-LINUX_SOURCE_DIR ?= $(abspath $(ROOT_DIR)/../linux-opiai)
+LINUX_SOURCE_DIR ?= $(ROOT_DIR)/linux-source
 PATCH_ROOT_DIR := $(ROOT_DIR)/patches
 KERNEL_TOOLS_DIR := $(ROOT_DIR)/kernel-tools
 KERNEL_SPMI_DIR := $(KERNEL_TOOLS_DIR)/spmi_hisi

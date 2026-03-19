@@ -7,9 +7,9 @@ LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 LOCAL_INSTALLED_KO_FILES := ascend_trs_nvme_chan.ko
 
 ifeq ($(PRODUCT_SIDE), device)
+LOCAL_DEPEND_KO := ascend_trs_id_allocator
 include $(BUILD_DEVICE_KO)
-LOCAL_DEPEND_KO:=ascend_trs_id_allocator
 else
+LOCAL_DEPEND_KO := ascend_trs_id_allocator drv_seclib_host
 include $(BUILD_HOST_KO)
-LOCAL_DEPEND_KO:=ascend_trs_id_allocator drv_seclib_host
 endif

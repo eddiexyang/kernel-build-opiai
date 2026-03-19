@@ -1029,6 +1029,7 @@ void hclge_plf_rss_indir_init_cfg(struct hclge_plf_dev *hdev);
 int hclge_plf_rss_init_hw(struct hclge_plf_dev *hdev);
 int hclge_plf_notify_client(struct hclge_plf_dev *hdev,
     enum hnae3_reset_notify_type type);
+void hclge_dcb_ops_set(compat_hdev *hdev);
 int wait_hardware_done(void __iomem *reg, u32 val_mask, u32 value, u32 interval, u32 cnt);
 
 extern int hns3_client_init(struct hnae3_handle *handle);

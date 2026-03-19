@@ -54,13 +54,13 @@ static int proc_trace_show(struct seq_file *seq, void *offset)
 
 int proc_trace_ops_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, proc_trace_show, PDE_DATA(inode));
+    return single_open(file, proc_trace_show, pde_data(inode));
 }
 
 ssize_t proc_trace_ops_write(struct file *filp, const char __user *ubuf, size_t count, loff_t *ppos)
 {
     struct inode *inode = file_inode(filp);
-    struct trs_core_ts_inst *ts_inst = (struct trs_core_ts_inst *)(uintptr_t)PDE_DATA(inode);
+    struct trs_core_ts_inst *ts_inst = (struct trs_core_ts_inst *)(uintptr_t)pde_data(inode);
     char ch[2] = {0}; /* 2 bytes long */
     long val;
 
@@ -180,7 +180,7 @@ static int ts_inst_info_show(struct seq_file *seq, void *offset)
 
 int ts_inst_sum_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, ts_inst_info_show, PDE_DATA(inode));
+    return single_open(file, ts_inst_info_show, pde_data(inode));
 }
 
 static void trs_chan_show(struct trs_core_ts_inst *ts_inst, struct seq_file *seq, int chan_id)
@@ -421,7 +421,7 @@ static int ts_inst_res_detail_show(struct seq_file *seq, void *offset)
 
 int ts_inst_res_detail_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, ts_inst_res_detail_show, PDE_DATA(inode));
+    return single_open(file, ts_inst_res_detail_show, pde_data(inode));
 }
 
 static void proc_res_show(struct trs_proc_ctx *proc_ctx, struct trs_core_ts_inst *ts_inst, struct seq_file *seq)
@@ -477,7 +477,7 @@ static int proc_sum_show(struct seq_file *seq, void *offset)
 
 int proc_sum_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, proc_sum_show, PDE_DATA(inode));
+    return single_open(file, proc_sum_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)

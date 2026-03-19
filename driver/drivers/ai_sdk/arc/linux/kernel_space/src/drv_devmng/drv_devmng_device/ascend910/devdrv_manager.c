@@ -35,6 +35,7 @@
 #include <linux/poll.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/securec.h>
 #include <linux/securectype.h>
 #include <linux/dma-mapping.h>
@@ -5605,7 +5606,7 @@ STATIC void devdrv_manager_release_driver_device(void)
 
 #if (defined CFG_FEATURE_VFIO) && (defined CFG_FEATURE_RC_MODE)
 #define DEV_VF_NODE_MODE 0660
-STATIC char *dev_vf_node(struct device *d, umode_t *mode)
+STATIC char *dev_vf_node(const struct device *d, umode_t *mode)
 {
     if (mode != NULL) {
         *mode = DEV_VF_NODE_MODE;

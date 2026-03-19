@@ -160,7 +160,7 @@ STATIC int mailbox_proc_dfx_open(struct inode *inode, struct file *filp)
         return -ENODEV;
     }
 
-    data->dfx_id = (u32)(uintptr_t)PDE_DATA(inode);
+    data->dfx_id = (u32)(uintptr_t)pde_data(inode);
     u32 devid = tsdrv_dfx_id_to_devid(data->dfx_id);
     u32 tsid = tsdrv_dfx_id_to_tsid(data->dfx_id);
     u32 fid = tsdrv_dfx_id_to_fid(data->dfx_id);

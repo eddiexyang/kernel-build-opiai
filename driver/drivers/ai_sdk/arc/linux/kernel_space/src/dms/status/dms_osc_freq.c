@@ -233,7 +233,6 @@ STATIC int dms_osc_freq_calculate_task(void *arg)
     dms_check_and_update_freq(devid);
 #endif
 
-    do_exit(0);
     return 0;
 }
 

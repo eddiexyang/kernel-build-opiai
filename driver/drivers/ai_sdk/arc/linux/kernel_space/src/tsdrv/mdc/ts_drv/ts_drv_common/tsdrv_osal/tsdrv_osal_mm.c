@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/gfp.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include "tsdrv_osal_mm.h"
 
@@ -84,4 +85,3 @@ void tsdrv_free_pages_exact(void *virt, size_t size)
     kfree(virt);
 #endif
 }
-

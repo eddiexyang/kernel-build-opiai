@@ -16,6 +16,7 @@
 */
 
 #include <linux/notifier.h>
+#include <linux/cper.h>
 #include <linux/securec.h>
 
 #ifdef AOS_LLVM_BUILD
@@ -621,4 +622,3 @@ void fpdc_ras_receiver_exit(void)
     fpdc_info("Unregister ras event notifier success.\n");
     return;
 }
-

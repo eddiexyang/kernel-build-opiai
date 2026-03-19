@@ -215,6 +215,40 @@ else #for CMake & ctrl cpu open
 	include $(DRIVER_KERNEL_DIR)/src/dms/xpc/dms_xpc.mk
 	include ${DRIVER_KERNEL_DIR}/src/dms/time/dms_time.mk
 
+	ifeq ($(PRODUCT_SIDE), device)
+		drv_devmng-y += core/securec_compat.o
+		drv_devmng-y += dtm/dms_dev_node.o
+		drv_devmng-y += dtm/dms_node_type.o
+		drv_devmng-y += smf/core/dms_sensor_init.o
+		drv_devmng-y += smf/core/dms_notifier.o
+		drv_devmng-y += smf/event/dms_event.o
+		drv_devmng-y += smf/event/dms_event_converge.o
+		drv_devmng-y += smf/event/dms_event_distribute.o
+		drv_devmng-y += smf/event/dms_event_distribute_proc.o
+		drv_devmng-y += smf/event/dms_event_dfx.o
+		drv_devmng-y += smf/event/smf_event_adapt.o
+		drv_devmng-y += smf/sensor/dms_sensor.o
+		drv_devmng-y += smf/sensor/dms_sensor_notify.o
+		drv_devmng-y += smf/sensor/dms_sensor_statis.o
+		drv_devmng-y += smf/sensor/dms_sensor_discrete.o
+		drv_devmng-y += smf/sensor/dms_sensor_general.o
+		drv_devmng-y += smf/sensor/config/dms_sensor_type.o
+		drv_devmng-y += smf/report/dfm_dev_register.o
+		drv_devmng-y += smf/report/dfm_report.o
+		drv_devmng-y += smf/report/dfm_safety_report.o
+		drv_devmng-y += ../dbl/dev_urd/urd_feature.o
+		drv_devmng-y += ../dbl/dev_urd/urd_kv.o
+		drv_devmng-y += ../dbl/dev_urd/urd_acc_ctrl.o
+		drv_devmng-y += ../dbl/dev_urd/urd_container.o
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/dtm
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/core
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/event
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/sensor
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/smf/sensor/config
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dbl/dev_urd
+		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/fpdc
+	endif
+
 	EXTRA_CFLAGS += -I$(TOP_DIR)/libc_sec/include
 	EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc
 	EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dbl/dev_urd

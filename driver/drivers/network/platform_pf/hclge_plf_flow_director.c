@@ -544,7 +544,7 @@ int hclge_plf_init_fd_config(struct hclge_plf_dev *hdev)
         init_fd_entry_num();
     }
 
-    if (hnae3_dev_fd_supported(hdev)) {
+    if (hnae3_ae_dev_fd_supported(hdev->ae_dev)) {
         template_id = port_id;
         hclge_plf_set_generic_fd_mode(hdev);
         ret = hclge_plf_fd_templs_table_cfg(hdev, template_id);
@@ -1725,7 +1725,7 @@ int hclge_plf_add_fd_entry(struct hnae3_handle *handle,
     u8 action;
     int ret;
 
-    if (!hnae3_dev_fd_supported(hdev)) {
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev)) {
         dev_err(&hdev->pdev->dev, "Flow table director is not supported\n");
         return -EOPNOTSUPP;
     }
@@ -1778,7 +1778,7 @@ int hclge_plf_del_fd_entry(struct hnae3_handle *handle,
     struct ethtool_rx_flow_spec *fs;
     int ret;
 
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return -EOPNOTSUPP;
 
     fs = (struct ethtool_rx_flow_spec *)&cmd->fs;
@@ -1844,7 +1844,7 @@ int hclge_plf_get_fd_rule_cnt(struct hnae3_handle *handle,
     struct hclge_plf_vport *vport = hclge_plf_get_vport(handle);
     struct hclge_plf_dev *hdev = vport->back;
 
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return -EOPNOTSUPP;
 
     cmd->rule_cnt = hdev->hclge_fd_user_rule_num;
@@ -2030,7 +2030,7 @@ int hclge_plf_get_fd_rule_info(struct hnae3_handle *handle,
     struct ethtool_rx_flow_spec *fs;
     struct hlist_node *node;
 
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return -EOPNOTSUPP;
 
     fs = (struct ethtool_rx_flow_spec *)&cmd->fs;
@@ -2107,7 +2107,7 @@ int hclge_plf_get_all_rules(struct hnae3_handle *handle,
     struct hlist_node *node;
     int cnt = 0;
 
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return -EOPNOTSUPP;
 
     cmd->data = USER_BC_MC_ENTRY_NUM - 1;
@@ -2142,7 +2142,7 @@ static void hclge_plf_clear_fd_rules_in_list(struct hclge_plf_dev *hdev,
     struct hlist_node *node;
     u16 location;
 
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return;
 
     spin_lock_bh(&hdev->fd_rule_lock);
@@ -2242,7 +2242,7 @@ int hclge_plf_restore_fd_entries(struct hnae3_handle *handle)
      * return value. If error is returned here, the reset process will
      * fail.
      */
-    if (!hnae3_dev_fd_supported(hdev))
+    if (!hnae3_ae_dev_fd_supported(hdev->ae_dev))
         return 0;
 
     /* if fd is disabled, should not restore it when reset */
@@ -2277,4 +2277,3 @@ void hclge_plf_enable_fd(struct hnae3_handle *handle, bool enable)
 
     return;
 }
-

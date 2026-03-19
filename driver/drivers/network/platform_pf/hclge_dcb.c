@@ -11,7 +11,6 @@
 #include "hclge_tm.h"
 #else
 #include "hclge_plf_main.h"
-#include "hclge_dcb.h"
 #include "hclge_plf_tm.h"
 #endif
 #include "hnae3.h"

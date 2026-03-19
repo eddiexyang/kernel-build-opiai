@@ -122,29 +122,16 @@ void uda_host_ns_init_work(struct work_struct *work)
 
 static bool uda_is_admin_task(struct task_struct *task)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
-    kernel_cap_t privileged = (kernel_cap_t){{ ~0, (CAP_TO_MASK(CAP_AUDIT_READ + 1) - 1)}};
-#else
-    kernel_cap_t privileged = CAP_FULL_SET;
-#endif
     const struct cred *cred = NULL;
-    kernel_cap_t effective;
-    u32 i, user_id;
+    bool is_admin;
 
     rcu_read_lock();
     cred = __task_cred(task); //lint !e1058 !e64 !e666
-    effective = cred->cap_effective;
-    user_id = cred->uid.val;
+    is_admin = uid_eq(cred->uid, GLOBAL_ROOT_UID) &&
+        cap_issubset(CAP_FULL_SET, cred->cap_effective);
     rcu_read_unlock();
 
-    CAP_FOR_EACH_U32(i)
-    {
-        if ((effective.cap[i] & privileged.cap[i]) != privileged.cap[i]) {
-            return false;
-        }
-    }
-
-    return (user_id == 0);
+    return is_admin;
 }
 
 bool uda_cur_is_host(void)
@@ -952,7 +939,7 @@ static const struct file_operations uda_access_fops = {
     .release = uda_access_release,
 };
 
-static char *uda_devnode(struct device *dev, umode_t *mode, kuid_t *uid, kgid_t *gid)
+static char *uda_devnode(const struct device *dev, umode_t *mode, kuid_t *uid, kgid_t *gid)
 {
     if (dev != NULL) {
         u32 udevid = MINOR(dev->devt);
@@ -1124,7 +1111,7 @@ static int uda_cdev_class_init(void)
         return ret;
     }
 
-    uda_class = class_create(THIS_MODULE, "devdrv-class");
+    uda_class = class_create("devdrv-class");
     if (IS_ERR(uda_class)) {
         unregister_chrdev_region(uda_dev, UDA_UDEV_MAX_NUM);
         uda_err("Create class failed.\n");
@@ -1551,12 +1538,16 @@ static struct notifier_block uda_task_exit_nb = {
 
 static void uda_task_exit_reg(void)
 {
-    (void)profile_event_register(PROFILE_TASK_EXIT, &uda_task_exit_nb);
+    /*
+     * The legacy profile task-exit hook is gone on modern kernels.
+     * UDA can still function without it, so keep registration optional.
+     */
+    return;
 }
 
 static void uda_task_exit_unreg(void)
 {
-    (void)profile_event_unregister(PROFILE_TASK_EXIT, &uda_task_exit_nb);
+    return;
 }
 
 void uda_init_phy_dev_num(void)

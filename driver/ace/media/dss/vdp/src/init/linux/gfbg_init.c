@@ -326,7 +326,7 @@ int gfbg_vsync_init(void)
         gfbg_error("Unable to register characterdevice!\n");
         return ret;
     }
-    g_vsync_cls = class_create(THIS_MODULE, "vsync");
+    g_vsync_cls = class_create("vsync");
     if (IS_ERR(g_vsync_cls)) {
         unregister_chrdev(g_vsync_major, "vsync");
         return -EBUSY;
@@ -391,7 +391,7 @@ int gfbg_pts_init(void)
         return ret;
     }
 
-    g_pts_cls = class_create(THIS_MODULE, "vsync_pts");
+    g_pts_cls = class_create("vsync_pts");
     if (IS_ERR(g_pts_cls)) {
         unregister_chrdev(g_pts_major, "vsync_pts");
         return -EBUSY;
@@ -465,4 +465,3 @@ td_void set_global_name(void)
     set_video_name(g_tmp_video);
 }
 #endif
-

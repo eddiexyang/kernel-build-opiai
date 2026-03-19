@@ -20,6 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_mdio.h>
 #include <linux/of_platform.h>
+#include <linux/mdio.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -29,6 +30,10 @@
 #include <linux/version.h>
 
 #define MDIO_TIMEOUT 100
+
+#ifndef MII_ADDR_C45
+#define MII_ADDR_C45 (1U << 30)
+#endif
 
 #define drv_printk(level, module, fmt, ...) \
     printk(level " [%s] [%s %d] " fmt, module, __func__, __LINE__, ##__VA_ARGS__)

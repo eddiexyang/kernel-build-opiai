@@ -323,7 +323,7 @@ int dev_upgrade_storage_ufs(struct upgrade_component *component)
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_img_update(unsigned int dev_id, unsigned int idx)
 {
@@ -422,7 +422,7 @@ int dev_upgrade_verify_component(struct upgrade_component *component)
 #endif
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_img_verify(unsigned int dev_id, unsigned int img_num, img_verify_info_s *img_info, unsigned int pss_cfg)
 {
@@ -504,7 +504,7 @@ out:
     return ret;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_update_finish(unsigned int dev_id)
 {
@@ -1023,7 +1023,7 @@ int get_nvme_ssd_capacity(u64 *capacity)
     return 0;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int get_ufs_capacity(u64 *capacity)
 {

@@ -16,6 +16,7 @@
 */
 
 #include <linux/hugetlb.h>
+#include <linux/huge_mm.h>
 #include <linux/io.h>
 #include <linux/mm.h>
 
@@ -37,6 +38,26 @@ struct tsfw_shr_mem {
     u32 count;
     u64 addr[MAX_SHARE_MEM_BLOCK_NUM];
 };
+
+static struct page *trs_alloc_tsfw_shr_page(int nid)
+{
+    gfp_t gfp = GFP_TRANSHUGE_LIGHT | __GFP_THISNODE | __GFP_COMP | __GFP_NOWARN;
+    struct page *page;
+
+    page = alloc_pages_node(nid, gfp, HPAGE_PMD_ORDER);
+    if (page != NULL) {
+        return page;
+    }
+
+    gfp = GFP_KERNEL | __GFP_THISNODE | __GFP_COMP | __GFP_NOWARN | __GFP_NORETRY;
+    page = alloc_pages_node(nid, gfp, HPAGE_PMD_ORDER);
+    if (page != NULL) {
+        return page;
+    }
+
+    gfp = GFP_KERNEL | __GFP_COMP | __GFP_NOWARN | __GFP_NORETRY;
+    return alloc_pages(gfp, HPAGE_PMD_ORDER);
+}
 
 static void trs_get_shr_mem_block_num(u32 devid, u32 *task_num)
 {
@@ -82,7 +103,7 @@ void trs_tsfw_shr_mem_config(struct trs_id_inst *inst)
     memset_io(shr_mem, 0, sizeof(*shr_mem));
     for (i = 0; i < block_num; i++) {
 #ifndef EMU_ST /* if delete, the emu_st will mem leak */
-        hpage = hugetlb_alloc_hugepage(trs_get_ts_nid(inst->devid), HUGETLB_ALLOC_BUDDY);
+        hpage = trs_alloc_tsfw_shr_page(trs_get_ts_nid(inst->devid));
         if (hpage == NULL) {
             trs_err("Alloc hugepage failed. (i=%u)", i);
             for (j = 0; j < i; j++) {

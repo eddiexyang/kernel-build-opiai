@@ -352,7 +352,7 @@ int drv_notify_register_cdev(struct drv_notify_cdev *cdev, const struct file_ope
         goto CDEV_ADD_FAILED;
     }
 
-    cdev->cdev_class = class_create(THIS_MODULE, DRV_NOTIFY_CDEV_NAME);
+    cdev->cdev_class = class_create(DRV_NOTIFY_CDEV_NAME);
     if (cdev->cdev_class == NULL) {
         notify_err("class create failed.\n");
         ret = -EINVAL;

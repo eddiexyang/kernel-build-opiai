@@ -58,7 +58,7 @@ static int task_node_show(struct seq_file *seq, void *offset)
 
 STATIC int task_node_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, task_node_show, PDE_DATA(inode));
+    return single_open(file, task_node_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
@@ -181,7 +181,7 @@ static int task_info_show(struct seq_file *seq, void *offset)
 
 STATIC int task_sum_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, task_info_show, PDE_DATA(inode));
+    return single_open(file, task_info_show, pde_data(inode));
 }
 
 
@@ -254,7 +254,7 @@ static int pool_info_show(struct seq_file *seq, void *offset)
 
 STATIC int xsmem_pool_sum_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, pool_info_show, PDE_DATA(inode));
+    return single_open(file, pool_info_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)

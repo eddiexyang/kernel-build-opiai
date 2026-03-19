@@ -416,9 +416,7 @@ int vtsdrv_mmap(struct file *filep, struct vm_area_struct *vma)
     ctx = filep->private_data;
     devid = tsdrv_get_devid_by_ctx(ctx);
     vma->vm_ops = NULL;
-    vma->vm_flags |= VM_LOCKED;
-    vma->vm_flags |= VM_DONTEXPAND;
-    vma->vm_flags |= VM_PFNMAP;
+    vm_flags_set(vma, VM_LOCKED | VM_DONTEXPAND | VM_PFNMAP);
     vma->vm_private_data = ctx;
     TSDRV_PRINT_DEBUG("devid = %u, vma->vm_start = 0x%pK, vma->vm_end = 0x%pK\n",
         devid, (void *)(uintptr_t)vma->vm_start, (void *)(uintptr_t)vma->vm_end);

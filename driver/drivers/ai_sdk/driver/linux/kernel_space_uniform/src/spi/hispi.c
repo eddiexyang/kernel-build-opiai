@@ -161,10 +161,10 @@ static int hispi_do_tx(struct hisi_spi *hispi, struct hisi_trans_info *info)
 static irqreturn_t hisi_spi_irq(int irq, void *dev_id)
 {
     struct hisi_spi *hispi = NULL;
-    struct spi_master *master = dev_id;
+    struct spi_controller *master = dev_id;
     struct kdrv_spi_trans_irq status = {0};
 
-    hispi = spi_master_get_devdata(master);
+    hispi = spi_controller_get_devdata(master);
     if (master->cur_msg == NULL) {
         dev_err(hispi->dev, "cur_msg is null\n");
         hispi->soc_ops->disable(&hispi->reg);
@@ -216,13 +216,13 @@ static void spi_save_load_trans_info(struct hisi_trans_info *dst, struct hisi_tr
     dst->is_lsb_first = src->is_lsb_first;
 }
 
-static int hisi_transfer_one(struct spi_master *master, struct spi_device *spi, struct spi_transfer *transfer)
+static int hisi_transfer_one(struct spi_controller *master, struct spi_device *spi, struct spi_transfer *transfer)
 {
     struct hisi_spi *hispi = NULL;
     struct hisi_trans_info tmp;
     int ret;
 
-    hispi = spi_master_get_devdata(master);
+    hispi = spi_controller_get_devdata(master);
     spi_save_load_trans_info(&tmp, &hispi->info);
     hispi->info.tx_buf = transfer->tx_buf;
     hispi->info.rx_buf = transfer->rx_buf;
@@ -231,12 +231,12 @@ static int hisi_transfer_one(struct spi_master *master, struct spi_device *spi, 
     hispi->info.rx_cnt = hispi->info.tx_cnt;
     hispi->info.max_speed_hz = transfer->speed_hz;
 
-    hispi->info.chip_select = spi->chip_select;
+    hispi->info.chip_select = spi_get_chipselect(spi, 0);
     hispi->info.mode = spi->mode;
     hispi->info.is_lsb_first = ((spi->mode & SPI_LSB_FIRST) != 0);
 
     dev_dbg(&spi->dev, "spi speed=%u, cs=%u, mode=0x%x, bpw=%u, len=%u\n",
-        transfer->speed_hz, spi->chip_select, spi->mode, transfer->bits_per_word, transfer->len);
+        transfer->speed_hz, spi_get_chipselect(spi, 0), spi->mode, transfer->bits_per_word, transfer->len);
     ret = hispi->soc_ops->setup(&hispi->reg, &hispi->info, hispi->clk_freq, hispi->rx_fifo_level);
     if (ret != 0) {
         dev_err(&spi->dev, "setup fail , ret = %d\n", ret);
@@ -306,7 +306,7 @@ static int hisi_spi_get_dts_acpi(struct platform_device *pdev, struct hisi_spi *
     return 0;
 }
 
-static inline void hisi_spi_construct_master(struct spi_master *master,
+static inline void hisi_spi_construct_master(struct spi_controller *master,
     struct hisi_spi *hispi, struct platform_device *pdev)
 {
     master->num_chipselect = hispi->num_chipselect;
@@ -354,15 +354,15 @@ static int hisi_spi_reset_before_init(struct hisi_spi *hispi)
 
 static int hisi_spi_probe(struct platform_device *pdev)
 {
-    struct spi_master *master = NULL;
+    struct spi_controller *master = NULL;
     struct hisi_spi *hispi = NULL;
     int ret;
 
-    master = spi_alloc_master(&pdev->dev, sizeof(struct hisi_spi));
+    master = spi_alloc_host(&pdev->dev, sizeof(struct hisi_spi));
     if (master == NULL) {
         return -ENOMEM;
     }
-    hispi = spi_master_get_devdata(master);
+    hispi = spi_controller_get_devdata(master);
     hispi->master = master;
     hispi->dev = &pdev->dev;
     hispi->soc_ops = spi_get_ops();
@@ -392,7 +392,7 @@ static int hisi_spi_probe(struct platform_device *pdev)
         goto out_master_put;
     }
 
-    ret = spi_register_master(master);
+    ret = spi_register_controller(master);
     if (ret != 0) {
         dev_err(&pdev->dev, "register spi master failed, ret=%d\n", ret);
         goto out_master_put;
@@ -400,17 +400,15 @@ static int hisi_spi_probe(struct platform_device *pdev)
     return 0;
 
 out_master_put:
-	spi_master_put(master);
+	spi_controller_put(master);
     return ret;
 }
 
-static int hisi_spi_remove(struct platform_device *pdev)
+static void hisi_spi_remove(struct platform_device *pdev)
 {
-    struct spi_master *master = platform_get_drvdata(pdev);
+    struct spi_controller *master = platform_get_drvdata(pdev);
 
-    spi_unregister_master(master);
-
-    return 0;
+    spi_unregister_controller(master);
 }
 
 int hisi_spi_reset(struct hisi_spi *hispi)
@@ -468,15 +466,15 @@ int hisi_spi_reset(struct hisi_spi *hispi)
 
 static int hisi_spi_suspend(struct device *dev)
 {
-    struct spi_master *master = NULL;
+    struct spi_controller *master = NULL;
     struct hisi_spi *hispi = NULL;
     int ret;
 
     dev_info(dev, "spi suspend enter\n");
     master = dev_get_drvdata(dev);
-    hispi = spi_master_get_devdata(master);
+    hispi = spi_controller_get_devdata(master);
 
-    ret = spi_master_suspend(master);
+    ret = spi_controller_suspend(master);
     if (ret != 0) {
         dev_err(dev, "spi master suspend failed, ret=%d\n", ret);
         return ret;
@@ -500,13 +498,13 @@ static int hisi_spi_suspend(struct device *dev)
 
 static int hisi_spi_resume(struct device *dev)
 {
-    struct spi_master *master = NULL;
+    struct spi_controller *master = NULL;
     struct hisi_spi *hispi = NULL;
     int ret;
 
     dev_info(dev, "spi resume enter\n");
     master = dev_get_drvdata(dev);
-    hispi = spi_master_get_devdata(master);
+    hispi = spi_controller_get_devdata(master);
     ret = hisi_spi_reset(hispi);
     if (ret != 0) {
         dev_err(dev, "spi reset fail\n");
@@ -517,7 +515,7 @@ static int hisi_spi_resume(struct device *dev)
         dev_err(dev, "setup fail , ret = %d\n", ret);
         return ret;
     }
-    ret = spi_master_resume(master);
+    ret = spi_controller_resume(master);
     if (ret != 0) {
         dev_err(dev, "spi master resume fail, ret = %d\n", ret);
         return ret;
@@ -591,8 +589,8 @@ module_platform_driver(hisi_spi_drv);
 static int find_spi_master_by_spi_no(struct device *dev, void *data)
 {
     struct master_find_data *spi_search_info = (struct master_find_data *)data;
-    struct spi_master *master = dev_get_drvdata(dev);
-    struct hisi_spi *hispi = spi_master_get_devdata(master);
+    struct spi_controller *master = dev_get_drvdata(dev);
+    struct hisi_spi *hispi = spi_controller_get_devdata(master);
 
     if (hispi->bus_num == spi_search_info->spi_no) {
         spi_search_info->hispi = hispi;

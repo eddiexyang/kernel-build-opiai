@@ -16,7 +16,8 @@
  */
 #ifndef HISI_GPIO_H
 #define HISI_GPIO_H
-#include <linux/gpio.h>
+#include <linux/gpio/driver.h>
+#include <linux/irq.h>
 #include <linux/reset-controller.h>
 #include <linux/reset.h>
 #include <linux/clk.h>
@@ -67,8 +68,8 @@ struct hisi_gpio {
     struct io_region reg_region;
     struct gpio_chip chip;
     struct irq_chip irq_chip;
-    struct irq_domain *domain;
     int irq;
+    unsigned int parent_irq;
     u32 host_id;
     spinlock_t lock;
     struct reset_control *rst;

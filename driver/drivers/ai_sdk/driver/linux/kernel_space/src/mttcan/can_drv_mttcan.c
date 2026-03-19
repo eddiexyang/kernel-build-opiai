@@ -18,6 +18,7 @@
 #include "can_drv_mttcan.h"
 
 #include <linux/securec.h>
+#include <linux/can/length.h>
 #ifdef RUN_IN_AOS
 #include <linux/can/error.h>
 #endif
@@ -432,13 +433,13 @@ STATIC int mttcan_set_tx_delay_compensation(const struct mttcan_priv *priv, stru
     /* Use the same value of secondary sampling point
      * as the data sampling point
      */
-    ssp = priv->can.data_bittiming.sample_point;
+    ssp = priv->can.fd.data_bittiming.sample_point;
 
     /* Equation based on Bosch's M_CAN User Manual's
      * Transmitter Delay Compensation Section
      */
     tdco = (priv->can.clock.freq / CAN_CLOCK_FREQ_DGREE) *
-        ssp / priv->can.data_bittiming.bitrate;
+        ssp / priv->can.fd.data_bittiming.bitrate;
 
     /* Max valid TDCO value is 127 */
     if (tdco > MAX_TDCR_TDCO) {
@@ -483,7 +484,7 @@ int mttcan_set_data_bittiming(struct net_device *ndev)
         return -1;
     }
 
-    data_bittiming = &priv->can.data_bittiming;
+    data_bittiming = &priv->can.fd.data_bittiming;
     if (data_bittiming->bitrate > MAX_DATA_BITRATE) {
         mttcan_err("Invalid data bitrate, the value must be smaller than %d.\n", MAX_DATA_BITRATE);
         return -EINVAL;
@@ -1084,7 +1085,7 @@ STATIC struct canfd_frame *mttcan_read_rxb_r1(struct net_device *ndev, const voi
             goto exit;
         }
 
-        cfd->len = can_dlc2len((rxb_r1 & RXB_R1_DLC_MASK) >> RXB_R1_DLC_SHIFT);
+        cfd->len = can_fd_dlc2len((rxb_r1 & RXB_R1_DLC_MASK) >> RXB_R1_DLC_SHIFT);
         if (rxb_r1 & RXB_R1_BRS) {
             cfd->flags |= CANFD_BRS;
         }
@@ -1095,7 +1096,7 @@ STATIC struct canfd_frame *mttcan_read_rxb_r1(struct net_device *ndev, const voi
             goto exit;
         }
 
-        cfd->len = can_dlc2len((rxb_r1 & RXB_R1_DLC_MASK) >> RXB_R1_DLC_SHIFT);
+        cfd->len = can_cc_dlc2len((rxb_r1 & RXB_R1_DLC_MASK) >> RXB_R1_DLC_SHIFT);
         if (cfd->len > CAN_MAX_DLC) {
             cfd->len = CAN_MAX_DLC;
         }
@@ -1424,7 +1425,11 @@ STATIC void mttcan_write_txb_t1(void __iomem *element_addr, struct sk_buff *skb,
         }
     }
 
-    txb_dlc = can_len2dlc(cf->len);
+    if (can_is_canfd_skb(skb)) {
+        txb_dlc = can_fd_len2dlc(cf->len);
+    } else {
+        txb_dlc = can_get_cc_dlc((struct can_frame *)cf, priv->can.ctrlmode);
+    }
     txb_t1 |= ((u64)txb_dlc << TXB_T1_DLC_SHIFT) & TXB_T1_DLC_MASK;
 
     writel(txb_t1, element_addr + BYTES_OF_WORD);
@@ -1645,20 +1650,17 @@ int mttcan_read_rx_buffer(struct net_device *ndev, int weight)
 STATIC int mttcan_tx_free_skb(struct net_device *ndev, u32 tc_idx,
     u32 skb_max, struct sk_buff *skb)
 {
-    int bytes = 0;
+    unsigned int frame_len = 0;
 
     if (likely(tc_idx < skb_max)) {
         if (skb != NULL) {
-            /* struct canfd is compatible with can frame */
-            struct canfd_frame *cf = (struct canfd_frame *)skb->data;
-            bytes = cf->len;
-            can_free_echo_skb(ndev, tc_idx);
+            can_free_echo_skb(ndev, tc_idx, &frame_len);
         }
     } else {
-        bytes = CAN_ERR_DLC;
+        frame_len = CAN_ERR_DLC;
     }
 
-    return bytes;
+    return (int)frame_len;
 }
 
 STATIC void mttcan_get_tx_latency(struct mttcan_priv *priv, u32 tx_idx)
@@ -1895,8 +1897,9 @@ void mttcan_tx_cancel_finish(struct net_device *ndev)
     tx_cancel = txbcf & priv->tx_obj;
 
     while (tx_cancel) {
+        unsigned int frame_len = 0;
         tx_cancel_idx = ffs(tx_cancel) - 1;
-        can_free_echo_skb(ndev, tx_cancel_idx);
+        can_free_echo_skb(ndev, tx_cancel_idx, &frame_len);
         clear_bit(tx_cancel_idx, (void *)&priv->tx_obj);
         tx_cancel &= ~(1U << tx_cancel_idx);
         ndev_stats->tx_aborted_errors++;

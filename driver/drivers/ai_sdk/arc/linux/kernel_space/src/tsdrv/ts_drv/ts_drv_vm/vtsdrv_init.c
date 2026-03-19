@@ -20,6 +20,7 @@
 #include <linux/vmalloc.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/pci.h>
@@ -133,7 +134,7 @@ static int vtsdrv_inform_dev_ready(struct vtsdrv_ctrl *tsdrv_ctrl)
     return 0;
 }
 
-static char *vtsdrv_devnode(struct device *dev, umode_t *mode)
+static char *vtsdrv_devnode(const struct device *dev, umode_t *mode)
 {
     return NULL;
 }

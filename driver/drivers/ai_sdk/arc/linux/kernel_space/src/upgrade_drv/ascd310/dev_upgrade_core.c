@@ -1883,7 +1883,7 @@ STATIC int dev_upgrade_init_dev(CDEV_ST *pdev, struct file_operations *pfoprs)
         return rc;
     }
 
-    dev_class = class_create(THIS_MODULE, UPGRADE_DEV_CLASS);
+    dev_class = class_create(UPGRADE_DEV_CLASS);
     if (IS_ERR(dev_class)) {
         dev_upgrade_err("class_create %s error\r\n", UPGRADE_DEV_CLASS);
         rc = PTR_ERR(dev_class);

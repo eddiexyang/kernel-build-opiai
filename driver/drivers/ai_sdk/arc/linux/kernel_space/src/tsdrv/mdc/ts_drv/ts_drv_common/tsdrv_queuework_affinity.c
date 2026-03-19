@@ -39,6 +39,9 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)) || (defined(AOS_LLVM_BUILD))
 typedef struct workqueue_attrs *(alloc_workqueue_attrs_func)(gfp_t gfp_mask);
 typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
+#else
+typedef struct workqueue_attrs *(alloc_workqueue_attrs_func)(void);
+typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
 #endif
 
 
@@ -51,19 +54,19 @@ typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
 STATIC struct workqueue_attrs *tsdrv_alloc_workqueue_attrs(gfp_t gfp_mask)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)) && (!defined AOS_LLVM_BUILD)
-    struct workqueue_attrs *attris;
+    static alloc_workqueue_attrs_func *alloc_workqueue_attrs_pt = NULL;
 
-    attris = kzalloc(sizeof(*attris), GFP_KERNEL);
-    if (attris == NULL)
-        goto FAIL;
-    if (!alloc_cpumask_var(&attris->cpumask, GFP_KERNEL))
-        goto FAIL;
-
-    cpumask_copy(attris->cpumask, cpu_possible_mask);
-    return attris;
-FAIL:
-    free_workqueue_attrs(attris);
-    return NULL;
+    if (!alloc_workqueue_attrs_pt) {
+        alloc_workqueue_attrs_pt = (alloc_workqueue_attrs_func *)
+            (uintptr_t)__kallsyms_lookup_name("alloc_workqueue_attrs_noprof");
+        if (IS_ERR_OR_NULL(alloc_workqueue_attrs_pt)) {
+#ifndef TSDRV_UT
+            TSDRV_PRINT_ERR("fail to find symbol alloc workqueue attrs\n");
+#endif
+            return NULL;
+        }
+    }
+    return alloc_workqueue_attrs_pt();
 #else
     static alloc_workqueue_attrs_func *alloc_workqueue_attrs_pt = NULL;
 
@@ -91,17 +94,13 @@ STATIC void tsdrv_free_workqueue_attrs(struct workqueue_attrs *attrs)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
     static free_workqueue_attrs_func *free_workqueue_attrs_pt = NULL;
+#else
+    static free_workqueue_attrs_func *free_workqueue_attrs_pt = NULL;
 #endif
 
     if (attrs == NULL) {
         return;
     }
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-    if (attrs) {
-        free_cpumask_var(attrs->cpumask);
-        kfree(attrs);
-    }
-#else
     if (!free_workqueue_attrs_pt) {
         free_workqueue_attrs_pt = (free_workqueue_attrs_func *)
             (uintptr_t)__kallsyms_lookup_name("free_workqueue_attrs");
@@ -113,7 +112,6 @@ STATIC void tsdrv_free_workqueue_attrs(struct workqueue_attrs *attrs)
         }
     }
     free_workqueue_attrs_pt(attrs);
-#endif
 }
 
 /**
@@ -156,7 +154,7 @@ int tsdrv_set_workqueue_affinity(struct workqueue_struct *wq, u32 flag)
 #else
     attrs->nice = 0;
 #endif
-    attrs->no_numa = true;
+    attrs->affn_scope = WQ_AFFN_SYSTEM;
     cpumask_copy(attrs->cpumask, &g_tsdrv_wq_cpumask);
 
     ret = apply_workqueue_attrs(wq, attrs);

@@ -95,7 +95,7 @@ static struct notifier_block g_ap_oom_notifier = {
 s32 bbox_oom_init(void)
 {
     if (bbox_check_feature(FEATURE_OOM) == true) {
-        return register_hisi_oom_notifier(&g_ap_oom_notifier);
+        return register_oom_notifier(&g_ap_oom_notifier);
     } else {
         return BBOX_SUCCESS;
     }
@@ -108,7 +108,7 @@ s32 bbox_oom_init(void)
 void bbox_oom_exit(void)
 {
     if (bbox_check_feature(FEATURE_OOM) == true) {
-        s32 ret = unregister_hisi_oom_notifier(&g_ap_oom_notifier);
+        s32 ret = unregister_oom_notifier(&g_ap_oom_notifier);
         BB_CHECK_RET(ret != 0, "unregister oom notifier failed with %d.\n", ret);
     }
 }

@@ -99,7 +99,148 @@
 #include "dms_osc_freq.h"
 #endif
 
+struct dms_system_ctrl_block *g_dms_system_ccb;
+
 #define MAX_EVENT_CONFIG_SIZE  (2*1024*1024)
+
+struct dms_system_ctrl_block *dms_get_sys_ctrl_cb(void)
+{
+	return g_dms_system_ccb;
+}
+EXPORT_SYMBOL(dms_get_sys_ctrl_cb);
+
+static void dms_free_sys_ctrl_cb(void)
+{
+	kfree(g_dms_system_ccb);
+	g_dms_system_ccb = NULL;
+}
+
+int dms_check_device_id(int dev_id)
+{
+	if (dev_id < 0 || dev_id >= DEVICE_NUM_MAX)
+		return -1;
+
+	return 0;
+}
+EXPORT_SYMBOL(dms_check_device_id);
+
+DMS_MODE_T dms_get_rc_ep_mode(void)
+{
+#ifdef CFG_FEATURE_EP_MODE
+	return DMS_EP_MODE;
+#else
+	return DMS_RC_MODE;
+#endif
+}
+EXPORT_SYMBOL(dms_get_rc_ep_mode);
+
+struct dms_dev_ctrl_block *dms_get_dev_cb(int dev_id)
+{
+	struct dms_system_ctrl_block *cb = dms_get_sys_ctrl_cb();
+	int ret;
+
+	if (cb == NULL) {
+		dms_err("g_dms_system_ccb is NULL.\n");
+		return NULL;
+	}
+
+	ret = dms_check_device_id(dev_id);
+	if (ret != 0) {
+		dms_err("dev_id out of range. (ret=%d; dev_id=%d)\n", ret, dev_id);
+		return NULL;
+	}
+
+	return &cb->dev_cb_table[dev_id];
+}
+EXPORT_SYMBOL(dms_get_dev_cb);
+
+bool dms_is_devid_valid(int dev_id)
+{
+	struct dms_dev_ctrl_block *dev_cb = dms_get_dev_cb(dev_id);
+
+	if (dev_cb == NULL) {
+		dms_err("Get dev_ctrl block failed. (dev_id=%d)\n", dev_id);
+		return false;
+	}
+
+	if (dev_cb->state != DMS_IN_USED) {
+		dms_err("Device state not in used. (dev_id=%d; state=%u)\n",
+			dev_id, dev_cb->state);
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(dms_is_devid_valid);
+
+/*
+ * Some legacy TS/RMS modules still expect a PASID lookup hook from the vendor
+ * memory-management stack. On 6.18 we do not have that integration yet, so
+ * use the caller TGID as a stable software fallback identifier.
+ */
+int svm_get_pasid(pid_t vpid, int dev_id)
+{
+	(void)dev_id;
+	return (int)vpid;
+}
+EXPORT_SYMBOL(svm_get_pasid);
+
+struct dms_dev_ctrl_block *get_dev_ctrl_block(u32 dev_id)
+{
+	if (dev_id == 1000)
+		return &g_dms_system_ccb->base_cb;
+
+	if (dev_id >= DEVICE_NUM_MAX)
+		return NULL;
+
+	return &g_dms_system_ccb->dev_cb_table[dev_id];
+}
+
+static int dms_init_dev_cb(void)
+{
+	int i;
+	struct dms_dev_ctrl_block *cb;
+
+	g_dms_system_ccb = kzalloc(sizeof(*g_dms_system_ccb),
+				   GFP_KERNEL | __GFP_ACCOUNT);
+	if (g_dms_system_ccb == NULL) {
+		dms_err("Memory alloc for g_dms_system_ccb failed.\n");
+		return -ENOMEM;
+	}
+
+	cb = &g_dms_system_ccb->base_cb;
+	mutex_init(&cb->node_lock);
+	INIT_LIST_HEAD(&cb->dev_node_list);
+
+	for (i = 0; i < DEVICE_NUM_MAX; i++) {
+		cb = &g_dms_system_ccb->dev_cb_table[i];
+		mutex_init(&cb->node_lock);
+		INIT_LIST_HEAD(&cb->dev_node_list);
+	}
+
+	return 0;
+}
+
+static void dms_uninit_dev_cb(void)
+{
+	int i;
+	struct dms_dev_ctrl_block *cb;
+
+	if (g_dms_system_ccb == NULL)
+		return;
+
+	cb = &g_dms_system_ccb->base_cb;
+	mutex_destroy(&cb->node_lock);
+	INIT_LIST_HEAD(&cb->dev_node_list);
+
+	for (i = 0; i < DEVICE_NUM_MAX; i++) {
+		cb = &g_dms_system_ccb->dev_cb_table[i];
+		mutex_destroy(&cb->node_lock);
+		INIT_LIST_HEAD(&cb->dev_node_list);
+	}
+
+	dms_free_sys_ctrl_cb();
+}
 
 static int read_file_to_buf(size_t file_size, char *config_buf)
 {
@@ -361,7 +502,6 @@ undo_acBuf_alloc:
     return ret;
 }
 
-EXPORT_SYMBOL(get_eventinfo_from_config);
 
 STATIC int dms_release_prepare(struct file *file_op, unsigned long mode)
 {
@@ -466,10 +606,16 @@ STATIC int __init dms_init(void)
     }
 #endif
 
+	ret = dms_init_dev_cb();
+	if (ret != 0) {
+		dms_err("init dev cb failed. (ret=%d)\n", ret);
+		goto register_notify_fail;
+	}
+
     ret = dms_init_submodule();
     if (ret) {
         dms_err("init sub module failed. (ret=%d)\n", ret);
-        goto register_notify_fail;
+        goto init_dev_cb_fail;
     }
     dms_event_adapt_init();
     /* Initialize sensor global resources */
@@ -487,6 +633,8 @@ STATIC int __init dms_init(void)
     dms_info("Dms driver init success.\n");
     return 0;
 
+init_dev_cb_fail:
+	dms_uninit_dev_cb();
 register_notify_fail:
     return ret;
 }
@@ -508,6 +656,7 @@ STATIC void __exit dms_exit(void)
     dms_event_adapt_exit();
 
     dms_exit_submodule();
+	dms_uninit_dev_cb();
 
     (void)drv_ascend_unregister_notify(DAVINCI_INTF_MODULE_DMS);
 

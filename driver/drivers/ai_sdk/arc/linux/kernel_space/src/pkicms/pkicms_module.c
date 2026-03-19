@@ -23,6 +23,7 @@
 #include "linux/securec.h"
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/opiai_vendor_compat.h>
 #include <asm/io.h>
 #include <asm/ioctl.h>
 #include <linux/uaccess.h>
@@ -114,7 +115,7 @@ struct file_operations g_pkicms_fops = {
 };
 
 /* set cdev node 0600 */
-char *pkicms_devnode(struct device *d, umode_t *mode)
+char *pkicms_devnode(const struct device *d, umode_t *mode)
 {
     if (mode != NULL) {
         *mode = DEVNODE_MODE;

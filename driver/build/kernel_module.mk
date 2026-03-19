@@ -1,5 +1,6 @@
 
 my_ko_module_name := $(LOCAL_MODULE)
+my_ko_module_target := $(KO_TYPE).$(my_ko_module_name)
 
 my_installed_ko_modules := $(LOCAL_INSTALLED_KO_FILES)
 
@@ -30,21 +31,46 @@ KERNEL_ARCH_CONFIGS_DIR := $(dir $(KERNEL_KO_CONFIG_FILE))
 
 KO_GEN_CONFIG_PATH := $(KERNEL_ARCH_CONFIGS_DIR)/hw_$(TARGET_PRODUCT)_ko_defconfig
 
-export TOP_DIR=${KERNEL_DIR}/../../
-export DRIVER_USER_DIR=${KERNEL_DIR}/../../abl/ascend_hal/user_space
-export DRIVER_OPEN_USER_DIR=${KERNEL_DIR}/../../abl/ascend_hal/user_space_open
-export DRIVER_CHIP_KERNEL_DIR=${KERNEL_DIR}/../../drivers/ai_sdk/driver/linux/kernel_space
-export DRIVER_KERNEL_UNIFORM_DIR=${KERNEL_DIR}/../../drivers/ai_sdk/driver/linux/kernel_space_uniform
-export DRIVER_KERNEL_DIR=${KERNEL_DIR}/../../drivers/ai_sdk/arc/linux/kernel_space
-export DRIVER_OPEN_KERNEL_DIR=${KERNEL_DIR}/../../drivers/ai_sdk/arc/linux/kernel_space_open
+ifneq ($(KERNEL_KO_CONFIG_FILE),)
+KERNEL_KO_DOT_CONFIG := $(KO_DEP_KERNEL_DIR)/.config
+endif
+
+export TOP_DIR := $(abspath $(PWD))
+export DRIVER_USER_DIR := $(abspath $(TOP_DIR)/abl/ascend_hal/user_space)
+export DRIVER_OPEN_USER_DIR := $(abspath $(TOP_DIR)/abl/ascend_hal/user_space_open)
+export DRIVER_CHIP_KERNEL_DIR := $(abspath $(TOP_DIR)/drivers/ai_sdk/driver/linux/kernel_space)
+export DRIVER_KERNEL_UNIFORM_DIR := $(abspath $(TOP_DIR)/drivers/ai_sdk/driver/linux/kernel_space_uniform)
+export DRIVER_KERNEL_DIR := $(abspath $(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space)
+export DRIVER_OPEN_KERNEL_DIR := $(abspath $(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space_open)
+
+COMMON_KO_CPPFLAGS := \
+	-include $(abspath $(PWD)/kernel/linux-source/include/linux/opiai_vendor_compat.h) \
+	-I$(TOP_DIR)/inc \
+	-I$(TOP_DIR)/inc/driver \
+	-I$(TOP_DIR)/libc_sec/include \
+	-I$(TOP_DIR)/drivers/network/platform_pf \
+	-I$(TOP_DIR)/drivers/network/platform_pf/include/mac \
+	-I$(TOP_DIR)/drivers/network/platform_pf/include/reg \
+	-I$(TOP_DIR)/drivers/network/platform_pf/mdio \
+	-I$(DRIVER_KERNEL_DIR)/inc \
+	-I$(DRIVER_KERNEL_DIR)/inc/dbl \
+	-I$(DRIVER_KERNEL_DIR)/src/common \
+	-I$(DRIVER_KERNEL_DIR)/src/fpdc \
+	-I$(DRIVER_KERNEL_DIR)/src/rms/trs_drv/lba/comm/adapt
+
+ifeq ($(KO_TYPE),HOST)
+COMMON_KO_CPPFLAGS += -DOPIAI_DRIVER_HOST_BUILD
+else ifeq ($(KO_TYPE),DEVICE)
+COMMON_KO_CPPFLAGS += -DOPIAI_DRIVER_DEVICE_BUILD
+endif
 
 ifneq ($(KERNEL_KO_CONFIG_FILE),)
 $(KO_GEN_CONFIG_PATH): $(KERNEL_KO_CONFIG_FILE)
 	cp -f $<  $@
 
 $(KERNEL_KO_DOT_CONFIG): $(KO_GEN_CONFIG_PATH)
-	@mkdir -p $(dir $@)
-	@+make -C $(PRIVATE_KERNEL_DIR) O=$(PRIVATE_KERNEL_MODULES_OUT) ARCH=$(PRIVATE_ARCH_TYPE) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) $(notdir $<)
+	@+make -C $(KO_DEP_KERNEL_DIR) ARCH=$(KO_ARCH_TYPE) CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) $(notdir $<)
+	@+make -C $(KO_DEP_KERNEL_DIR) ARCH=$(KO_ARCH_TYPE) CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) olddefconfig
 else
 $(KERNEL_KO_DOT_CONFIG):
 ifneq ($(KO_DEP_KERNEL_DIR),)
@@ -59,24 +85,34 @@ HOST_KERNEL_VERSION_SYMVERS := $(HOST_OUT_INTERMEDIATES)/symvers/$($(KO_TYPE)_KE
 
 $(HOST_KERNEL_VERSION_SYMVERS):
 	@mkdir -p $(dir $@)
-	@cp -rf ${KERNEL_DIR}/Module.symvers $@
+	@if [ -f "${KERNEL_DIR}/vmlinux.symvers" ]; then \
+		cp -f "${KERNEL_DIR}/vmlinux.symvers" "$@"; \
+	elif [ -f "${KERNEL_DIR}/Module.symvers" ]; then \
+		cp -f "${KERNEL_DIR}/Module.symvers" "$@"; \
+	else \
+		echo "Error: missing kernel symvers under ${KERNEL_DIR}" >&2; \
+		exit 1; \
+	fi
 
 
-KBUILD_EXTRA_SYMBOLS_VAL :=
-$(foreach m,$(LOCAL_DEPEND_KO),$(eval KBUILD_EXTRA_SYMBOLS_VAL += $(addprefix $(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)/, $(strip $(m))_ko/Module.symvers)))
+define ko_extra_symvers
+$(strip $(foreach m,$(1),$(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)/$(strip $(m))_ko/Module.symvers))
+endef
 
 ifneq ($(strip $(symbol_check)), false)
-ifneq ($(KERNEL_KO_CONFIG_FILE),)
-LOCAL_DEPEND_VALID_KO :=
-LOCAL_DEPEND_KERNEL :=
-else
-LOCAL_DEPEND_VALID_KO := $(LOCAL_DEPEND_KO)
-LOCAL_DEPEND_KERNEL := $($(KO_TYPE)_OUT_INTERMEDIATES)/symvers/$($(KO_TYPE)_KERNEL_PATH)/Module.symvers
-endif
+LOCAL_DEPEND_VALID_KO := $(addprefix $(KO_TYPE).,$(LOCAL_DEPEND_KO))
+LOCAL_DEPEND_SYMVERS := $(call ko_extra_symvers,$(LOCAL_DEPEND_KO))
+LOCAL_DEPEND_KERNEL := $(HOST_KERNEL_VERSION_SYMVERS)
 endif
 
+$(KO_MODULES_OUT_INTER)/Module.symvers: $(KO_KERNEL_TIMESTAMP)
+	@:
+
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_SYMBOLS_PATH := $(LOCAL_DEPEND_KERNEL)
-$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS := $(strip $(KBUILD_EXTRA_SYMBOLS_VAL))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_DEPEND_KO := $(strip $(LOCAL_DEPEND_KO))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(call ko_extra_symvers,$(PRIVATE_DEPEND_KO))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_PRODUCT_SIDE := $(PRODUCT_SIDE)
+$(KO_KERNEL_TIMESTAMP): PRIVATE_KO_TYPE := $(KO_TYPE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KO_NAME := $(my_ko_module_name)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_MODULES_OUT := $(KO_MODULES_OUT_INTER)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_DIR := $(KO_DEP_KERNEL_DIR)
@@ -84,28 +120,36 @@ $(KO_KERNEL_TIMESTAMP): PRIVATE_COMPILER_PREFIX := $(CROSS_COMPILER_PREFIX)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_MODULE_DIR := $(MODULE_DIR)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_BUILD_KO_MODULES := $(BUILT_KO_MODULES)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_ARCH_TYPE := $(KO_ARCH_TYPE)
-$(KO_KERNEL_TIMESTAMP): $(KERNEL_KO_DOT_CONFIG) $(LOCAL_DEPEND_VALID_KO) $(LOCAL_DEPEND_KERNEL)
-	@mkdir -p $(dir $@)
-	@-cp -rf $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_MODULES_OUT)
+$(KO_KERNEL_TIMESTAMP): PRIVATE_COMMON_CPPFLAGS := $(strip $(COMMON_KO_CPPFLAGS))
+$(KO_KERNEL_TIMESTAMP): $(KERNEL_KO_DOT_CONFIG) $(LOCAL_DEPEND_VALID_KO) $(LOCAL_DEPEND_SYMVERS) $(LOCAL_DEPEND_KERNEL)
+	@mkdir -p $(PRIVATE_KERNEL_MODULES_OUT)
+	@if [ -n "$(strip $(PRIVATE_KERNEL_SYMBOLS_PATH))" ]; then \
+		cp -f $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_MODULES_OUT)/; \
+		cp -f $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_DIR)/Module.symvers; \
+	fi
 
 ifneq ($(KERNEL_KO_CONFIG_FILE),)
-	@$(MAKE) -C $(PRIVATE_KERNEL_DIR) O=$(PRIVATE_KERNEL_MODULES_OUT) ARCH=$(PRIVATE_ARCH_TYPE) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) modules_prepare
-	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) O=$(PRIVATE_KERNEL_MODULES_OUT) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRODUCT_SIDE) modules
+	@$(MAKE) -C $(PRIVATE_KERNEL_DIR) ARCH=$(PRIVATE_ARCH_TYPE) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) modules_prepare
+	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" KBUILD_EXTRA_CPPFLAGS="$(PRIVATE_COMMON_CPPFLAGS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRIVATE_PRODUCT_SIDE) OPIAI_KO_TYPE=$(PRIVATE_KO_TYPE) modules
 else
-	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) O='' CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRODUCT_SIDE) modules
+	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) O='' CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" KBUILD_EXTRA_CPPFLAGS="$(PRIVATE_COMMON_CPPFLAGS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRIVATE_PRODUCT_SIDE) OPIAI_KO_TYPE=$(PRIVATE_KO_TYPE) modules
 endif   
 	@$(PRIVATE_COMPILER_PREFIX)strip -S --remove-section=.note.gnu.build-id $(PRIVATE_BUILD_KO_MODULES)
-	@cp -rf $(PRIVATE_BUILD_KO_MODULES) $(dir $@)
-	@cp -rf $(PRIVATE_MODULE_DIR)/Module.symvers $(dir $@)
+	@cp -f $(PRIVATE_BUILD_KO_MODULES) $(PRIVATE_KERNEL_MODULES_OUT)/$(notdir $(PRIVATE_BUILD_KO_MODULES))
+		@if [ -f "$(PRIVATE_MODULE_DIR)/Module.symvers" ]; then \
+			cp -f $(PRIVATE_MODULE_DIR)/Module.symvers $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers; \
+		else \
+			: > $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers; \
+		fi
 	rm -rf $(PRIVATE_MODULE_DIR)/.*.cmd $(PRIVATE_MODULE_DIR)/*.o $(PRIVATE_MODULE_DIR)/.tmp_versions $(PRIVATE_MODULE_DIR)/Module.symvers $(PRIVATE_MODULE_DIR)/modules.order $(PRIVATE_MODULE_DIR)/$(PRIVATE_KO_NAME).ko $(PRIVATE_MODULE_DIR)/$(PRIVATE_KO_NAME).mod.c $(PRIVATE_MODULE_DIR)/.cache.mk
 	@touch $@
 
 $(INSTALLD_KO_MOUDLES): $(KO_KERNEL_TIMESTAMP)
 	@mkdir -p $(dir $@)
-	@cp -rf $(dir $<)/$(notdir $@) $@
+	@cp -f $(dir $<)/$(notdir $@) $@
 
-.PHONY:$(my_ko_module_name) 
-$(my_ko_module_name): $(INSTALLD_KO_MOUDLES)
+.PHONY: $(my_ko_module_target)
+$(my_ko_module_target): $(INSTALLD_KO_MOUDLES)
 
 
 ifeq ($(strip $(LOCAL_IS_TEST_MODULE)),true)

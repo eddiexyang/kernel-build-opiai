@@ -10,12 +10,12 @@ LOCAL_MODULE := drv_devmng
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 ifneq ($(TARGET_PRODUCT),mini)
-	LOCAL_DEPEND_KO:=drv_nor_flash tee_drv drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf
+	LOCAL_DEPEND_KO:=drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf ascend_uda ascend_trs_tsmng drv_fpdc drv_user_cfg dbl_chip_config ascend_virtmng_dev
 else
 	ifeq ($(TARGET_CHIP_ID), $(ASCEND_FLORENCE_DC_V10))
-		LOCAL_DEPEND_KO:=drv_nor_flash tee_drv drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf
+		LOCAL_DEPEND_KO:=drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf ascend_uda ascend_trs_tsmng drv_fpdc drv_user_cfg dbl_chip_config ascend_virtmng_dev
 	else
-		LOCAL_DEPEND_KO:=tee_drv drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf
+		LOCAL_DEPEND_KO:=drv_icm drv_pcie drv_dfm mntn_bbox drv_davinci_intf ascend_uda ascend_trs_tsmng drv_fpdc drv_user_cfg dbl_chip_config ascend_virtmng_dev
 	endif
 endif
 

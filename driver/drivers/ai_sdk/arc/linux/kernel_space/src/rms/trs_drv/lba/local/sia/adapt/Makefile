@@ -19,6 +19,7 @@ EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/rms/trs_drv/lba/local/sia/adapt/core
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/rms/trs_drv/lba/local/sia/adapt/comm
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/rms/trs_drv/lba/local/sia/adapt/comm/tscpu
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/rms/trs_drv/lba/local/sia/adapt/local_comm
+EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/rms/trs_drv/lba/comm/adapt
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/dms/include/
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/dms/config/
 EXTRA_CFLAGS += -I$(DRIVER_SRC_BASE_DIR)/dbl/dev_urd/

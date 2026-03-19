@@ -108,12 +108,12 @@ static int numa_id_memctrol_type_show(struct seq_file *seq, void *offset)
 
 STATIC int numa_id_device_mem_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, numa_id_device_mem_show, PDE_DATA(inode));
+    return single_open(file, numa_id_device_mem_show, pde_data(inode));
 }
 
 STATIC int numa_id_memctrol_type_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, numa_id_memctrol_type_show, PDE_DATA(inode));
+    return single_open(file, numa_id_memctrol_type_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)

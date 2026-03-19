@@ -15,6 +15,7 @@
 #include <linux/netdevice.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
+#include <linux/timer.h>
 #include <linux/if_vlan.h>
 #include <linux/crash_dump.h>
 #include <net/ipv6.h>
@@ -29,7 +30,6 @@
 #include "hclge_plf_main.h"
 
 #include "kcompat.h"
-#include "hclge_dcb.h"
 #include "hnae3.h"
 #include "reg_rcb_com.h"
 #include "reg_ppp.h"
@@ -494,7 +494,9 @@ STATIC int hclge_plf_vport_setup(struct hclge_plf_vport *vport, u16 num_tqps)
 
     nic->plfdev = hdev->pdev;
     nic->ae_algo = &ae_algo_plf;
-    nic->numa_node_mask = hdev->numa_node_mask;
+    nodes_clear(nic->numa_node_mask);
+    if (hdev->numa_node_mask < MAX_NUMNODES)
+        node_set(hdev->numa_node_mask, nic->numa_node_mask);
     nic->kinfo.io_base = hdev->hw.io_base;
     nic->flags |= HNAE3_SUPPORT_PLATFORM_DEV;
 
@@ -565,7 +567,7 @@ STATIC void hclge_plf_state_uninit(struct hclge_plf_dev *hdev)
     set_bit(HCLGE_STATE_REMOVING, &hdev->state);
 
     if (hdev->reset_timer.function)
-        del_timer_sync(&hdev->reset_timer);
+        timer_delete_sync(&hdev->reset_timer);
     if (hdev->service_task.work.func)
         cancel_delayed_work_sync(&hdev->service_task);
 }
@@ -2063,7 +2065,8 @@ err_reset:
 #endif
 }
 
-STATIC void hclge_plf_reset_event(struct hnae3_ae_dev *ae_dev, struct hnae3_handle *handle)
+STATIC void hclge_plf_do_reset_event(struct hnae3_ae_dev *ae_dev,
+    struct hnae3_handle *handle)
 {
     struct hclge_plf_dev *hdev = ae_dev->priv;
 
@@ -2111,7 +2114,8 @@ STATIC void hclge_plf_reset_event(struct hnae3_ae_dev *ae_dev, struct hnae3_hand
 
 STATIC void hclge_plf_reset_timer(struct timer_list *t)
 {
-    struct hclge_plf_dev *hdev = from_timer(hdev, t, reset_timer);
+    struct hclge_plf_dev *hdev = container_of(t, struct hclge_plf_dev,
+        reset_timer);
     struct hnae3_ae_dev *ae_dev = hdev->ae_dev;
 
     /* if default_reset_request has no value, it means that this reset
@@ -2122,7 +2126,7 @@ STATIC void hclge_plf_reset_timer(struct timer_list *t)
 
     dev_info(&hdev->pdev->dev, "triggering reset in reset timer\n");
 
-    hclge_plf_reset_event(ae_dev, NULL);
+    hclge_plf_do_reset_event(ae_dev, NULL);
 }
 
 void hclge_plf_set_def_reset_request(struct hnae3_ae_dev *ae_dev,
@@ -2149,6 +2153,25 @@ STATIC bool hclge_plf_reset_end(struct hnae3_handle *handle, bool done)
     if (hdev->rst_stats.reset_fail_cnt >= HCLGE_PLF_RESET_MAX_FAIL_CNT)
         dev_err(&hdev->pdev->dev, "reset fail!\n");
     return done;
+}
+
+STATIC void hclge_plf_reset_event(struct pci_dev *pdev,
+    struct hnae3_handle *handle)
+{
+    struct hclge_plf_vport *vport = NULL;
+    struct hnae3_ae_dev *ae_dev = NULL;
+
+    if (handle) {
+        vport = hclge_plf_get_vport(handle);
+        ae_dev = vport->back->ae_dev;
+    } else if (pdev) {
+        ae_dev = pci_get_drvdata(pdev);
+    }
+
+    if (!ae_dev)
+        return;
+
+    hclge_plf_do_reset_event(ae_dev, handle);
 }
 
 STATIC void hclge_plf_reset_subtask(struct hclge_plf_dev *hdev)
@@ -2934,7 +2957,8 @@ STATIC void hclge_plf_get_mac_addr(struct hnae3_handle *handle, u8 *p)
 }
 
 static int hclge_plf_update_vlan_filter(struct hnae3_handle *handle);
-STATIC int hclge_plf_set_mac_addr(struct hnae3_handle *handle, void *p, bool is_first)
+STATIC int hclge_plf_set_mac_addr(struct hnae3_handle *handle, const void *p,
+    bool is_first)
 {
     const unsigned char *new_addr = (const unsigned char *)p;
     struct hclge_plf_vport *vport = hclge_plf_get_vport(handle);
@@ -3055,7 +3079,7 @@ int hclge_plf_reset_tqp(struct hnae3_handle *handle)
     return ret;
 }
 
-STATIC void hclge_plf_update_stats(struct hnae3_handle *handle, struct net_device_stats *net_stats)
+STATIC void hclge_plf_update_stats(struct hnae3_handle *handle)
 {
     return;
 }
@@ -3290,11 +3314,12 @@ STATIC u8 *hclge_plf_get_mac_strings(struct hclge_plf_dev *hdev, u32 stringset,
     return (u8 *)buff;
 }
 
-STATIC void hclge_plf_get_strings(struct hnae3_handle *handle, u32 stringset, u8 *data)
+STATIC void hclge_plf_get_strings(struct hnae3_handle *handle, u32 stringset,
+    u8 **data)
 {
     struct hclge_plf_vport *vport = hclge_get_vport(handle);
     struct hclge_plf_dev *hdev = vport->back;
-    u8 *p = (char *)data;
+    u8 *p = *data;
     u32 size;
 
     if (stringset == ETH_SS_STATS) {
@@ -3303,6 +3328,8 @@ STATIC void hclge_plf_get_strings(struct hnae3_handle *handle, u32 stringset, u8
             size, p);
         (void)hclge_plf_tqps_get_strings(handle, p);
     }
+
+    *data = p;
 }
 
 STATIC int hclge_plf_set_vport_mtu(struct hclge_plf_vport *vport, int new_mtu)
@@ -3712,7 +3739,7 @@ STATIC int hclge_plf_do_ioctl(struct hnae3_handle *handle, struct ifreq *ifr, in
 }
 
 STATIC void hclge_plf_get_ksettings_an_result(struct hnae3_handle *handle,
-    u8 *auto_neg, u32 *speed, u8 *duplex, u16 *strip_fcs_ts)
+    u8 *auto_neg, u32 *speed, u8 *duplex, u32 *lane_num)
 {
     struct hclge_plf_vport *vport = hclge_plf_get_vport(handle);
     struct hclge_plf_dev *hdev = vport->back;
@@ -3723,8 +3750,8 @@ STATIC void hclge_plf_get_ksettings_an_result(struct hnae3_handle *handle,
         *duplex = hdev->hw.mac.duplex;
     if (auto_neg)
         *auto_neg = hdev->hw.mac.autoneg;
-    if (strip_fcs_ts)
-        *strip_fcs_ts = 0;
+    if (lane_num)
+        *lane_num = 0;
 }
 
 STATIC void hclge_plf_get_media_type(struct hnae3_handle *handle, u8 *media_type,
@@ -3781,12 +3808,31 @@ int hclge_plf_cfg_mac_speed_dup(struct hclge_plf_dev *hdev, int speed, u8 duplex
 }
 
 STATIC int hclge_plf_cfg_mac_speed_dup_h(struct hnae3_handle *handle, int speed,
-    u8 duplex)
+    u8 duplex, u8 lane_num)
 {
     struct hclge_plf_vport *vport = hclge_plf_get_vport(handle);
     struct hclge_plf_dev *hdev = vport->back;
 
+    (void)lane_num;
     return hclge_plf_cfg_mac_speed_dup(hdev, speed, duplex);
+}
+
+STATIC int hclge_plf_get_rss_tuple_compat(struct hnae3_handle *handle,
+    struct ethtool_rxfh_fields *cmd)
+{
+    (void)handle;
+    (void)cmd;
+
+    return -EOPNOTSUPP;
+}
+
+STATIC int hclge_plf_set_rss_tuple_compat(struct hnae3_handle *handle,
+    const struct ethtool_rxfh_fields *cmd)
+{
+    (void)handle;
+    (void)cmd;
+
+    return -EOPNOTSUPP;
 }
 
 STATIC void hclge_plf_get_link_mode(struct hnae3_handle *handle,
@@ -4245,8 +4291,8 @@ STATIC struct hnae3_ae_ops hclge_plf_ops = {
 
     .get_rss = hclge_plf_get_rss,
     .set_rss = hclge_plf_set_rss,
-    .get_rss_tuple = hclge_plf_get_rss_tuple,
-    .set_rss_tuple = hclge_plf_set_rss_tuple,
+    .get_rss_tuple = hclge_plf_get_rss_tuple_compat,
+    .set_rss_tuple = hclge_plf_set_rss_tuple_compat,
 
     .enable_hw_strip_rxvtag = hclge_plf_en_hw_strip_rxvtag,
     .do_ioctl = hclge_plf_do_ioctl,
@@ -4353,7 +4399,7 @@ STATIC int hns3_platform_probe(struct platform_device *pdev)
     return 0;
 }
 
-STATIC int hns3_platform_remove(struct platform_device *pdev)
+STATIC void hns3_platform_remove(struct platform_device *pdev)
 {
     struct hnae3_ae_dev *ae_dev = platform_get_drvdata(pdev);
 
@@ -4361,8 +4407,6 @@ STATIC int hns3_platform_remove(struct platform_device *pdev)
 
     hnae3_unregister_ae_dev(ae_dev);
     platform_set_drvdata(pdev, NULL);
-
-    return 0;
 }
 
 STATIC const struct of_device_id hns3_platform_of_match[] = {

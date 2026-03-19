@@ -18,6 +18,7 @@
 #include <linux/uaccess.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/securec.h>
 #ifndef AOS_LLVM_BUILD
 #include <linux/securectype.h>
@@ -219,7 +220,7 @@ static const struct file_operations ts_fops = {
 #endif
 };
 #ifndef AOS_LLVM_BUILD
-STATIC char *ts_devnode(struct device *dev, umode_t *mode)
+STATIC char *ts_devnode(const struct device *dev, umode_t *mode)
 {
     return NULL;
 }

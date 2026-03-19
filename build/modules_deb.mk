@@ -10,6 +10,8 @@ modules-deb: | ensure-output-dirs
 	pkg_root=
 	debian_dir=
 	driver_target_dir=
+	autoload_conf_src=
+	autoload_conf_dir=
 	deb_path=
 	test -e "$(OUTPUT_DIR)/modules/lib/modules" || { printf 'error: missing required path: %s\n' "$(OUTPUT_DIR)/modules/lib/modules" >&2; exit 1; }
 	test -e "$(OUTPUT_DIR)/driver_modules" || { printf 'error: missing required path: %s\n' "$(OUTPUT_DIR)/driver_modules" >&2; exit 1; }
@@ -33,6 +35,8 @@ modules-deb: | ensure-output-dirs
 	pkg_root="$$deb_workspace/pkgroot"
 	debian_dir="$$pkg_root/DEBIAN"
 	driver_target_dir="$$pkg_root/lib/modules/$$kernel_release/extra/ascend310b"
+	autoload_conf_src="$(OUTPUT_DIR)/ascend310b-driver-modules.conf"
+	autoload_conf_dir="$$pkg_root/etc/modules-load.d"
 	deb_path="$(OUTPUT_DIR)/$${package_name}_$${package_version}_$${package_arch}.deb"
 	printf 'start generate modules deb\n'
 	rm -rf "$$deb_workspace"
@@ -41,6 +45,12 @@ modules-deb: | ensure-output-dirs
 	rm -rf "$$pkg_root/lib/modules/$$kernel_release/build" "$$pkg_root/lib/modules/$$kernel_release/source"
 	mkdir -p "$$driver_target_dir"
 	cp -a "$(OUTPUT_DIR)/driver_modules/." "$$driver_target_dir/"
+	if [ ! -f "$$autoload_conf_src" ]; then
+		find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
+			| sed 's/\.ko$$//' | sort -u > "$$autoload_conf_src"
+	fi
+	mkdir -p "$$autoload_conf_dir"
+	cp -f "$$autoload_conf_src" "$$autoload_conf_dir/ascend310b-driver-modules.conf"
 	find "$$pkg_root/lib/modules/$$kernel_release" -maxdepth 1 -type f \
 		\( -name 'modules.dep*' -o -name 'modules.alias*' -o -name 'modules.symbols*' \
 		   -o -name 'modules.softdep' -o -name 'modules.weakdep' -o -name 'modules.devname' \) \
@@ -60,6 +70,7 @@ modules-deb: | ensure-output-dirs
 		'#!/bin/sh' \
 		'set -e' \
 		"if command -v depmod >/dev/null 2>&1; then depmod -a $${kernel_release} || true; fi" \
+		'if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then systemctl restart systemd-modules-load.service || true; fi' \
 		> "$$debian_dir/postinst"
 	printf '%s\n' \
 		'#!/bin/sh' \

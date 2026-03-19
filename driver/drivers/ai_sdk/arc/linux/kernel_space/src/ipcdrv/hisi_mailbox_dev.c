@@ -932,7 +932,7 @@ STATIC void hisi_mdev_put(struct platform_device *pdev, struct hisi_ipc_device *
     return;
 }
 
-STATIC int hisi_mdev_remove(struct platform_device *pdev)
+STATIC void hisi_mdev_remove(struct platform_device *pdev)
 {
     struct hisi_ipc_device *idev = platform_get_drvdata(pdev);
 
@@ -949,7 +949,7 @@ STATIC int hisi_mdev_remove(struct platform_device *pdev)
         kfree(idev);
         idev = NULL;
     }
-    return 0;
+    return;
 }
 
 #ifdef CFG_SOC_PLATFORM_MINIV2

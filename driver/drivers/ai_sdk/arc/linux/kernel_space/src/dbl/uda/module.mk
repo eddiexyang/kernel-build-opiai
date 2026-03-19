@@ -7,6 +7,7 @@ LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 LOCAL_INSTALLED_KO_FILES := ascend_uda.ko
 
 ifeq ($(PRODUCT_SIDE), device)
+LOCAL_DEPEND_KO:=drv_davinci_intf
 include $(BUILD_DEVICE_KO)
 else
 LOCAL_DEPEND_KO:=drv_seclib_host

@@ -7,8 +7,10 @@ LOCAL_MODULE := drv_upgrade
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 
+LOCAL_DEPEND_KO := drv_user_cfg drv_pkicms
+
 ifeq ($(TARGET_PRODUCT),cloud)
-    LOCAL_DEPEND_KO:=drv_nor_flash tee_drv drv_dfm
+    LOCAL_DEPEND_KO += drv_nor_flash tee_drv drv_dfm
 endif
 
 LOCAL_INSTALLED_KO_FILES := drv_upgrade.ko

@@ -358,13 +358,60 @@ static int trs_check_va_range(struct vm_area_struct *vma, unsigned long addr, un
     return 0;
 }
 
+static bool trs_is_va_mapped(struct mm_struct *mm, unsigned long addr)
+{
+    pgd_t *pgd = NULL;
+    p4d_t *p4d = NULL;
+    pud_t *pud = NULL;
+    pmd_t *pmd = NULL;
+    pte_t *pte = NULL;
+    bool mapped = false;
+
+    pgd = pgd_offset(mm, addr);
+    if (pgd_none(*pgd) || pgd_bad(*pgd)) {
+        return false;
+    }
+
+    p4d = p4d_offset(pgd, addr);
+    if (p4d_none(*p4d) || p4d_bad(*p4d)) {
+        return false;
+    }
+
+    pud = pud_offset(p4d, addr);
+    if (pud_none(*pud) || pud_bad(*pud)) {
+        return false;
+    }
+
+    if (pud_present(*pud) && pud_leaf(*pud)) {
+        return true;
+    }
+
+    pmd = pmd_offset(pud, addr);
+    if (pmd_none(pmdp_get(pmd)) || pmd_bad(pmdp_get(pmd))) {
+        return false;
+    }
+
+    if (pmd_present(pmdp_get(pmd)) && pmd_leaf(pmdp_get(pmd))) {
+        return true;
+    }
+
+    pte = pte_offset_kernel(pmd, addr);
+    if (pte == NULL) {
+        return false;
+    }
+
+    mapped = pte_present(ptep_get(pte));
+
+    return mapped;
+}
+
 static int trs_check_va_map(struct vm_area_struct *vma, unsigned long addr, unsigned long size)
 {
     unsigned long end = addr + PAGE_ALIGN(size);
-    unsigned long va_check, pfn;
+    unsigned long va_check;
 
     for (va_check = addr; va_check < end; va_check += PAGE_SIZE) {
-        if (follow_pfn(vma, va_check, &pfn) == 0) {
+        if (trs_is_va_mapped(vma->vm_mm, va_check)) {
             trs_err("Check va is map. (addr=0x%lx; size=0x%lx; va_check=0x%lx)\n", addr, size, va_check);
             return -EINVAL;
         }
@@ -376,10 +423,10 @@ static int trs_check_va_map(struct vm_area_struct *vma, unsigned long addr, unsi
 static int trs_check_va_unmap(struct vm_area_struct *vma, unsigned long addr, unsigned long size)
 {
     unsigned long end = addr + PAGE_ALIGN(size);
-    unsigned long va_check, pfn;
+    unsigned long va_check;
 
     for (va_check = addr; va_check < end; va_check += PAGE_SIZE) {
-        if (follow_pfn(vma, va_check, &pfn) != 0) {
+        if (!trs_is_va_mapped(vma->vm_mm, va_check)) {
             trs_err("Check va is unmap. (addr=0x%lx; size=0x%lx; va_check=0x%lx)\n", addr, size, va_check);
             return -EINVAL;
         }

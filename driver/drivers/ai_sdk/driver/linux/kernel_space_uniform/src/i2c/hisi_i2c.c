@@ -711,7 +711,7 @@ static int hisi_i2c_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int hisi_i2c_remove(struct platform_device *pdev)
+static void hisi_i2c_remove(struct platform_device *pdev)
 {
     struct hisi_i2c_controller *hisi_i2c = platform_get_drvdata(pdev);
 
@@ -720,7 +720,6 @@ static int hisi_i2c_remove(struct platform_device *pdev)
 #ifdef CONFIG_FMEA
     i2c_fmea_deinit(hisi_i2c);
 #endif
-    return 0;
 }
 
 static const struct of_device_id hisi_i2c_ids[] = {

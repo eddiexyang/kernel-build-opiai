@@ -25,8 +25,10 @@
 
 s32 tsdrv_sync_ssid_proc(u32 devid, struct tsdrv_msg_info *msg, u32 *ack_len);
 int tsdrv_msg_sync_ssid(u32 dev_id, u32 tsid, u32 hpid, u32 vfid);
-/* Func are implemented in the OS */
 #ifndef AOS_LLVM_BUILD
-int svm_get_pasid(pid_t vpid, int dev_id __maybe_unused);
+static inline int svm_get_pasid(pid_t vpid, int dev_id __maybe_unused)
+{
+	return (int)vpid;
+}
 #endif
 #endif

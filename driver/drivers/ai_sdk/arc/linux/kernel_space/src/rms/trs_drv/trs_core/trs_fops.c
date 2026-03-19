@@ -634,8 +634,7 @@ static int trs_release(struct inode *inode, struct file *file)
 
 static int trs_mmap(struct file *file, struct vm_area_struct *vma)
 {
-    vma->vm_flags |= VM_DONTEXPAND;
-    vma->vm_flags |= VM_LOCKED;
+    vm_flags_set(vma, VM_DONTEXPAND | VM_LOCKED);
 
     vma->vm_private_data = file->private_data;
 

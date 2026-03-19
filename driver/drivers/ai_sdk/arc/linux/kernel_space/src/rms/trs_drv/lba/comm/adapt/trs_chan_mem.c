@@ -14,6 +14,8 @@
 * Author: huawei
 * Create: 2022-7-15
 */
+#include <linux/opiai_vendor_compat.h>
+
 #include "trs_chan.h"
 #include "trs_rsv_mem.h"
 #include "trs_chan_mem.h"
@@ -88,4 +90,3 @@ void trs_chan_mem_free_rsv(struct trs_id_inst *inst, int type, void *sq_addr, si
 {
     trs_rsv_mem_free(inst, type, sq_addr, size);
 }
-

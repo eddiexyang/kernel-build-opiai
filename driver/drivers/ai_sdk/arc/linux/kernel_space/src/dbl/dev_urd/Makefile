@@ -39,9 +39,10 @@ ifeq ($(TOP_DIR),)         # for DKMS cmake
 
 else     # for cmake
 
-  ifeq ($(PRODUCT_SIDE), host)
+  ifeq ($(OPIAI_KO_TYPE),HOST)
       EXTRA_CFLAGS += -DCFG_HOST_ENV
       EXTRA_CFLAGS += -DCFG_FEATURE_DEVICE_ENV
+      EXTRA_CFLAGS += -DOPIAI_URD_STANDALONE_HOST_BUILD
       ifneq ($(filter $(PRODUCT), ascend910B), )
           EXTRA_CFLAGS += -DCFG_CHIP_INFO_FROM_DEVINFO
       endif

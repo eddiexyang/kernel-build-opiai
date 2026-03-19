@@ -31,6 +31,7 @@
 #include <linux/version.h>
 #include <linux/cpumask.h>
 #include <linux/gfp.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include "dbl/chip_config.h"
 #include "dbl/uda.h"
@@ -356,9 +357,9 @@ void log_cq1_callback(u32 device_id, u32 tsid, const u8 *cq_buf, u8 *sq_buf)
 
 STATIC s32 log_remap_noncache(struct log_channel_info *channel_info, s32 buf_size)
 {
-    struct vm_struct *area = NULL;
     struct page **pages = NULL;
     struct page *page = NULL;
+    void *mapped_addr = NULL;
     u32 i;
     u32 page_num;
     s32 ret;
@@ -373,47 +374,34 @@ STATIC s32 log_remap_noncache(struct log_channel_info *channel_info, s32 buf_siz
         return LOG_RET_ERROR;
     }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
-    area = __get_vm_area((size_t)(u32)buf_size, VM_ALLOC, VMALLOC_START, VMALLOC_END);
+    mapped_addr = NULL;
 #else
-    area = __get_vm_area_caller((size_t)(u32)buf_size, VM_ALLOC,
-        VMALLOC_START, VMALLOC_END, __builtin_return_address(0));
+    mapped_addr = NULL;
 #endif
-    if (area == NULL) {
-        slog_drv_err("Cannot find vm struct address. (buf_size=%d)\n", buf_size);
-        return LOG_RET_ERROR;
-    }
     page = phys_to_page(channel_info->phy_addr);
 
     pages = kzalloc(sizeof(struct page *) * page_num, GFP_KERNEL);
     if (pages == NULL) {
         slog_drv_err("Malloc pages failed. (buf_size=%d; page_num=%u)\n", buf_size, page_num);
-        free_vm_area(area);
         return LOG_RET_ERROR;
     }
     for (i = 0; i < page_num; i++) {
         pages[i] = nth_page(page, i);
     }
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-    ret = map_kernel_range((unsigned long)(uintptr_t)area->addr, get_vm_area_size(area),
-        __pgprot(PROT_NORMAL_NC), pages);
-    if (ret < 0) {
-#else
-    ret = map_vm_area(area, __pgprot(PROT_NORMAL_NC), pages);
-    if (ret != (s32)LOG_RET_OK) {
-#endif
+    mapped_addr = vmap(pages, page_num, VM_MAP, __pgprot(PROT_NORMAL_NC));
+    if (mapped_addr == NULL) {
         kfree(pages);
         pages = NULL;
-        free_vm_area(area);
-        slog_drv_err("Cannot map area. (buf_size=%d; ret=%d)\n", buf_size, ret);
+        slog_drv_err("Cannot vmap area. (buf_size=%d)\n", buf_size);
         return LOG_RET_ERROR;
     }
     kfree(pages);
     pages = NULL;
-    slog_drv_info("Remap succeeded. (area_size=%lu)\n", area->size);
+    slog_drv_info("Remap succeeded. (page_num=%u)\n", page_num);
 
-    channel_info->area = area;
+    channel_info->area = NULL;
     channel_info->vir_addr_kmalloc = channel_info->vir_addr;
-    channel_info->vir_addr = area->addr;
+    channel_info->vir_addr = mapped_addr;
 
     return LOG_RET_OK;
 }
@@ -423,10 +411,10 @@ STATIC void log_unmap_noncache(struct log_channel_info *channel_info)
     if (channel_info->channel_conn != LOG_CHANNEL_CONN_SQCQ) {
         return;
     }
-    if (channel_info->area != NULL) {
-        free_vm_area(channel_info->area);
-        channel_info->area = NULL;
+    if ((channel_info->vir_addr != NULL) && (channel_info->vir_addr != channel_info->vir_addr_kmalloc)) {
+        vunmap(channel_info->vir_addr);
     }
+    channel_info->area = NULL;
     if (channel_info->vir_addr_kmalloc != NULL) {
         log_free_pages_exact((u64)(uintptr_t)channel_info->vir_addr_kmalloc, channel_info->buf_size);
         channel_info->vir_addr_kmalloc = NULL;
@@ -1151,9 +1139,13 @@ STATIC s32 log_msg_compress(const struct log_device_ctx *device_ctx, struct log_
 
     if (likely(atomic_read(&device_ctx->compress_config) && !IS_ERR(device_ctx->compress_desc.tfm))) {
         compress_buf->data_size = compress_buf->buf_size - compress_buf->head_size;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
         ret = crypto_comp_compress(device_ctx->compress_desc.tfm, (void *)msg_head + sizeof(struct log_msg_head),
                                    (u32)msg_data_size, (u8 *)compress_buf->data_addr,
                                    (u32 *)&compress_buf->data_size);
+#else
+        ret = -EOPNOTSUPP;
+#endif
         if (likely(ret == (s32)LOG_RET_OK)) {
             compressed = 1;
         } else {
@@ -2043,7 +2035,7 @@ void log_calc_generate_rate(size_t arg)
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-    generate_rate = from_timer(generate_rate, arg, rate_timer);
+    generate_rate = container_of(arg, struct log_generate_rate, rate_timer);
 #else
     generate_rate = (struct log_generate_rate *)arg;
 #endif
@@ -2144,6 +2136,7 @@ STATIC struct log_device_ctx *log_create_device_ctx(s32 device_id)
     }
 
 #if defined(CFG_SOC_PLATFORM_CLOUD) || defined(CFG_SOC_PLATFORM_CLOUD_V2)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
     // Allocate transform for zlib-deflate
     device_ctx->compress_desc.alg_name = LOG_COMPRESS_HW_ALG_NAME;
     device_ctx->compress_desc.type = CRYPTO_ALG_TYPE_COMPRESS;
@@ -2153,6 +2146,9 @@ STATIC struct log_device_ctx *log_create_device_ctx(s32 device_id)
     if (IS_ERR(device_ctx->compress_desc.tfm)) {
         slog_drv_warn("Doesn't support log compression: tfm is invalid. (device_id=%d)\n", device_id);
     }
+#else
+    device_ctx->compress_desc.tfm = ERR_PTR(-EOPNOTSUPP);
+#endif
 #else
     device_ctx->compress_desc.tfm = ERR_PTR(-EINVAL);
 #endif
@@ -2186,7 +2182,9 @@ STATIC void log_destroy_device_ctx(struct log_device_ctx *device_ctx)
     (void)del_timer_sync(&device_ctx->generate_rate.rate_timer);
 
     if (!IS_ERR(device_ctx->compress_desc.tfm)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
         crypto_free_comp(device_ctx->compress_desc.tfm);
+#endif
         device_ctx->compress_desc.tfm = NULL;
         slog_drv_info("Free device_ctx->compress_desc.tfm succeeded.\n");
     }

@@ -378,12 +378,12 @@ void devdrv_lc_gpioirq_unregister(void)
 
     // gpio73
     if (gpio_state.state[0].gpio >= 0) {
-        del_timer_sync(&gpio_state.state[0].timer);
+        timer_shutdown_sync(&gpio_state.state[0].timer);
     }
 
     // gpio1
     if (gpio_state.state[1].gpio >= 0) {
-        del_timer_sync(&gpio_state.state[1].timer);
+        timer_shutdown_sync(&gpio_state.state[1].timer);
     }
 
     devdrv_stop_calc_ave_current();

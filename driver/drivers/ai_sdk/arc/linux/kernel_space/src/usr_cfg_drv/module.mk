@@ -15,7 +15,7 @@ else
     else ifeq ($(TARGET_CHIP_ID), $(ASCEND_MDC_BS9SX1A))
         LOCAL_DEPEND_KO:=
     else
-        LOCAL_DEPEND_KO:=drv_nor_flash tee_drv
+        LOCAL_DEPEND_KO:=
     endif
 endif
 

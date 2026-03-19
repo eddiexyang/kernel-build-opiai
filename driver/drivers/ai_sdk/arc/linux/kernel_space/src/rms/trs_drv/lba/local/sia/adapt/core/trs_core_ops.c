@@ -294,17 +294,19 @@ static unsigned long trs_core_ops_vm_mmap(struct mm_struct *mm, unsigned long ad
 {
     unsigned long populate;
     LIST_HEAD(uf);
-    return __do_mmap_mm(mm, NULL, addr, len, prot, flag, 0, pgoff, &populate, &uf);
+    struct mm_struct *orig_mm = current->mm;
+
+    current->mm = mm;
+    addr = do_mmap(NULL, addr, len, prot, flag, 0, pgoff, &populate, &uf);
+    current->mm = orig_mm;
+
+    return addr;
 }
 
 static int trs_core_ops_vm_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 {
     LIST_HEAD(uf);
-#ifdef CFG_SUPPORT_AOS_KERNEL
     return do_munmap(mm, start, len, &uf);
-#else
-    return __do_munmap(mm, start, len, &uf, false);
-#endif
 }
 
 static struct task_struct *trs_core_ops_find_get_task(pid_t pid)
@@ -382,11 +384,7 @@ static int trs_core_ops_mmap_remote(pid_t pid, phys_addr_t paddr, size_t size, u
         put_task_struct(tsk);
         return -ENOMEM;
     }
-    vma->vm_flags |= VM_LOCKED;
-    vma->vm_flags |= VM_DONTEXPAND;
-    vma->vm_flags |= VM_PFNMAP;
-    vma->vm_flags |= VM_DONTDUMP;
-    vma->vm_flags |= VM_DONTCOPY;
+    vm_flags_set(vma, VM_LOCKED | VM_DONTEXPAND | VM_PFNMAP | VM_DONTDUMP | VM_DONTCOPY);
 
     ret = remap_pfn_range(vma, addr, PFN_DOWN(paddr), size, trs_core_ops_pgprot(0));
     if (ret != 0) {
@@ -424,11 +422,7 @@ static int trs_core_ops_mmap_local(pid_t pid, phys_addr_t paddr, size_t size, u6
         up_write(get_mmap_sem(current->mm));
         return -ENOMEM;
     }
-    vma->vm_flags |= VM_LOCKED;
-    vma->vm_flags |= VM_DONTEXPAND;
-    vma->vm_flags |= VM_PFNMAP;
-    vma->vm_flags |= VM_DONTDUMP;
-    vma->vm_flags |= VM_DONTCOPY;
+    vm_flags_set(vma, VM_LOCKED | VM_DONTEXPAND | VM_PFNMAP | VM_DONTDUMP | VM_DONTCOPY);
 
     ret = remap_pfn_range(vma, addr, PFN_DOWN(paddr), size, trs_core_ops_pgprot(0));
     if (ret != 0) {

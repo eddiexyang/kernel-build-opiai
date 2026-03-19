@@ -20,6 +20,7 @@
 #include "hilink_fw_data_h25.h"
 
 #include <linux/types.h>
+#include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/of_address.h>
@@ -56,6 +57,62 @@ static int g_hilinkReadyFlag = 0;
 #ifdef CFG_SOC_PLATFORM_MDC_V11
 STATIC struct serdes_dts_param g_serdes_cfg[MACRO_MAX];
 #endif
+
+STATIC int hilink_sec_io_read32(SEC_IO_REGS_ID_TYPE type, u32 *val)
+{
+    void __iomem *ao_subctrl_base = NULL;
+    u32 reg_offset;
+
+    if (val == NULL) {
+        return -EINVAL;
+    }
+
+    switch (type) {
+        case AO_SC_SDS0_POWER_CTRL:
+            reg_offset = AO_SUBCTRL_SC_SDS0_POWER_CTRL_REG;
+            break;
+        case AO_SC_SDS1_POWER_CTRL:
+            reg_offset = AO_SUBCTRL_SC_SDS1_POWER_CTRL_REG;
+            break;
+        default:
+            return -EINVAL;
+    }
+
+    ao_subctrl_base = ioremap(AO_SUBCTRL_REG_BASE, AO_SUBCTRL_REG_SIZE);
+    if (ao_subctrl_base == NULL) {
+        return -ENOMEM;
+    }
+
+    *val = readl(ao_subctrl_base + reg_offset);
+    iounmap(ao_subctrl_base);
+    return 0;
+}
+
+STATIC int hilink_sec_io_write32(SEC_IO_REGS_ID_TYPE type, u32 val)
+{
+    void __iomem *ao_subctrl_base = NULL;
+    u32 reg_offset;
+
+    switch (type) {
+        case AO_SC_SDS0_POWER_CTRL:
+            reg_offset = AO_SUBCTRL_SC_SDS0_POWER_CTRL_REG;
+            break;
+        case AO_SC_SDS1_POWER_CTRL:
+            reg_offset = AO_SUBCTRL_SC_SDS1_POWER_CTRL_REG;
+            break;
+        default:
+            return -EINVAL;
+    }
+
+    ao_subctrl_base = ioremap(AO_SUBCTRL_REG_BASE, AO_SUBCTRL_REG_SIZE);
+    if (ao_subctrl_base == NULL) {
+        return -ENOMEM;
+    }
+
+    writel(val, ao_subctrl_base + reg_offset);
+    iounmap(ao_subctrl_base);
+    return 0;
+}
 
 STATIC int HILINK_init_macro_info(void)
 {
@@ -973,13 +1030,13 @@ STATIC int HILINK_SerdesPowerOnThread(void* args)
         ao_subctrl_reg = AO_SC_SDS1_POWER_CTRL;
     }
 
-    ret = sec_io_read32(0, (SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, &readData);
+    ret = hilink_sec_io_read32((SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, &readData);
     if (ret != 0) {
         HILINK_ERR("Read AO reg failed. (ret=%d)\n", ret);
         g_retWriteAOReg = AO_REG_WRITE_FAILED;
         return RET_ERROR;
     }
-    ret = sec_io_write32(0, (SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, readData | val);
+    ret = hilink_sec_io_write32((SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, readData | val);
     if (ret != 0) {
         HILINK_ERR("Write AO reg failed. (ret=%d)\n", ret);
         g_retWriteAOReg = AO_REG_WRITE_FAILED;
@@ -987,7 +1044,7 @@ STATIC int HILINK_SerdesPowerOnThread(void* args)
     }
     readData = 0x0;
     // write check
-    ret = sec_io_read32(0, (SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, &readData);
+    ret = hilink_sec_io_read32((SEC_IO_REGS_ID_TYPE)ao_subctrl_reg, &readData);
     if ((ret != 0) || ((readData & val) != val)) {
         HILINK_ERR("READ AO reg failed. (ret=%d)\n", ret);
         HILINK_ERR("Write AO reg failed. reg: 0x%x(0x%x)\n", readData, readData & val);
@@ -1784,9 +1841,8 @@ STATIC s32 hilink_module_probe(struct platform_device *pdev)
     return 0;
 }
 
-STATIC s32 hilink_module_remove(struct platform_device *pdev)
+STATIC void hilink_module_remove(struct platform_device *pdev)
 {
-    u32 ret = RET_OK;
     drv_snapshot_bootdot_init(SERDES_MODULE_ID, SNAPSHOT_STATUS_REMOVE, SERDES_REMOVE_EXPECT);
     HILINK_INFO_SNAPSHOT(SERDES_REMOVE_BEGIN, "Serdes module remove start.\n");
 
@@ -1794,7 +1850,7 @@ STATIC s32 hilink_module_remove(struct platform_device *pdev)
     HILINK_Uninit();
 
     HILINK_INFO_SNAPSHOT(SERDES_REMOVE_EXPECT, "Serdes module remove end.\n");
-    return ret;
+    return;
 }
 
 int hilink_module_suspend(void)

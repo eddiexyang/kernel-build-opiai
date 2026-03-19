@@ -576,7 +576,7 @@ STATIC int __init eeprom_init(void)
         return ret;
     }
 
-    cls = class_create(THIS_MODULE, EEPROM_NAME);
+    cls = class_create(EEPROM_NAME);
     if (IS_ERR(cls)) {
         ret = PTR_ERR(cls);
         unregister_chrdev_region(devno, EEPROM_I2C_MINORS);

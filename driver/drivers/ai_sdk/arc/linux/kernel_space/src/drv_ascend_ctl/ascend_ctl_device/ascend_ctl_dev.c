@@ -53,10 +53,9 @@ STATIC int ascend_ctl_probe(struct platform_device *pdev)
     return 0;
 }
 
-STATIC int ascend_ctl_remove(struct platform_device *pdev)
+STATIC void ascend_ctl_remove(struct platform_device *pdev)
 {
     ASCEND_CTL_INFO("drv ascend ctl remove.\n");
-    return 0;
 }
 
 STATIC const struct of_device_id g_ascend_ctl_of_match[] = {

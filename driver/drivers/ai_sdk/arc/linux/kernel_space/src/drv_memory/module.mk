@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_memory
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
+LOCAL_DEPEND_KO := drv_devmng drv_fpdc ascend_uda ascend_soc_resmng drv_icm
 
 LOCAL_INSTALLED_KO_FILES := drv_memory.ko
 

@@ -1119,8 +1119,7 @@ int devdrv_llc_init(unsigned int dev_id)
     /* initialize mutex/hrtimer/tasklet */
     mutex_init(&g_llc_info[dev_id]->dsmi_lock);
     mutex_init(&g_llc_info[dev_id]->dfx_lock);
-    hrtimer_init(&(g_llc_info[dev_id]->dfx_timer), CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    g_llc_info[dev_id]->dfx_timer.function = handler;
+    hrtimer_setup(&(g_llc_info[dev_id]->dfx_timer), handler, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     tasklet_init(&g_llc_info[dev_id]->tasklet, devdrv_llc_dfx_handler, (unsigned long)(uintptr_t)g_llc_info[dev_id]);
     /* register memory mapping */
     g_llc_info[dev_id]->dev_id = dev_id;

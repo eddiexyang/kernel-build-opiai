@@ -626,8 +626,7 @@ STATIC enum hrtimer_restart devdrv_refresh_error_code_event(struct hrtimer *t)
 
 void devdrv_refresh_error_code_init(void)
 {
-    hrtimer_init(&g_os_heart_beat.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    g_os_heart_beat.timer.function = devdrv_refresh_error_code_event;
+    hrtimer_setup(&g_os_heart_beat.timer, devdrv_refresh_error_code_event, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     hrtimer_start(&g_os_heart_beat.timer, ktime_set(OS_HEART_BEAT_INTERVAL, 0), HRTIMER_MODE_REL);
 }
 

@@ -314,7 +314,7 @@ STATIC int drv_pcierc_probe(struct platform_device *pdev)
     return ret;
 }
 
-STATIC int drv_pcierc_remove(struct platform_device *pdev)
+STATIC void drv_pcierc_remove(struct platform_device *pdev)
 {
     int ret;
 
@@ -331,11 +331,11 @@ STATIC int drv_pcierc_remove(struct platform_device *pdev)
     if (ret != 0) {
         drv_snapshot_bootdot_set(PCIE_MODULE_ID, PCIERC_REMOVE_UNINIT_CTRL_FAIL);
         drv_pcie_rc_err("Failed to uninit pcie controler.\n");
-        return ret;
+        return;
     }
 
     drv_snapshot_bootdot_set(PCIE_MODULE_ID, PCIERC_REMOVE_EXPECT);
-    return 0;
+    return;
 }
 
 STATIC int drv_pcierc_pm_suspend(struct device *dev)

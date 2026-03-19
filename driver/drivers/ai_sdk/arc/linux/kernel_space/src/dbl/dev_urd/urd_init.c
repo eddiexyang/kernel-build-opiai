@@ -48,6 +48,25 @@
 #include <linux/namei.h>
 #endif
 
+#ifdef OPIAI_URD_STANDALONE_HOST_BUILD
+static inline int urd_host_drv_davinci_register_sub_module(const char *module_name,
+    const struct file_operations *ops)
+{
+    (void)module_name;
+    (void)ops;
+    return 0;
+}
+
+static inline int urd_host_drv_ascend_unregister_sub_module(const char *module_name)
+{
+    (void)module_name;
+    return 0;
+}
+
+#define drv_davinci_register_sub_module urd_host_drv_davinci_register_sub_module
+#define drv_ascend_unregister_sub_module urd_host_drv_ascend_unregister_sub_module
+#endif
+
 STATIC int dms_open(struct inode* inode, struct file* filep)
 {
     struct urd_file_private_stru* file_private = NULL;

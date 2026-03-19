@@ -1089,9 +1089,7 @@ int devdrv_mmap(struct file *filep, struct vm_area_struct *vma)
     }
 
     ctx = filep->private_data;
-    vma->vm_flags |= VM_DONTEXPAND;
-    vma->vm_flags |= VM_LOCKED;
-    vma->vm_flags |= VM_PFNMAP;
+    vm_flags_set(vma, VM_DONTEXPAND | VM_LOCKED | VM_PFNMAP);
     vma->vm_ops = &devdrv_vm_ops;
 
     TSDRV_PRINT_DEBUG("vma->vm_start = %pK, vma->vm_end = %pK, vm_flag=0x%lx\n",

@@ -544,7 +544,7 @@ s32 bbox_dev_ioctl_init(u32 num)
     BB_CHECK_EXP_ACT(ret != 0, return BBOX_FAILURE, "alloc_chrdev_region failed.\n");
 
     g_bbox_devs_manage.dev_major = MAJOR(devno);
-    g_bbox_devs_manage.dev_class = class_create(THIS_MODULE, CHAR_DRIVER_NAME);
+    g_bbox_devs_manage.dev_class = class_create(CHAR_DRIVER_NAME);
     if (IS_ERR(g_bbox_devs_manage.dev_class)) {
         BB_PRINT_ERR("class_create failed.\n");
         unregister_chrdev_region(MKDEV(g_bbox_devs_manage.dev_major, 0), num);

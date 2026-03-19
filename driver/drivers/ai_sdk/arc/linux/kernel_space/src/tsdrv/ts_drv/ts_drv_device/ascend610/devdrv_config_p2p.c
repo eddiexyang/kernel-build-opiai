@@ -16,7 +16,8 @@
  */
 #ifdef CFG_FEATURE_SURPORT_P2P
 #include <linux/workqueue.h>
-#include <linux/hugetlb.h>
+#include <linux/mm.h>
+#include <linux/sizes.h>
 #include <securec.h>
 #include "devdrv_config_p2p.h"
 #include "devdrv_common.h"
@@ -28,6 +29,7 @@
 #define DEVID_CONFIGED      1
 #define DEVID_NOT_CONFIG    0
 #define TSDRV_HOST_MAX_DAVINCI_NUM 64
+#define TASKID_SHARE_MEM_BLOCK_ORDER get_order(SZ_2M)
 
 STATIC struct delayed_work ts_work;
 static bool dwork_int = false;
@@ -211,7 +213,8 @@ void tsdrv_init_taskid_share_memory(u32 devid, u32 tsnum, u32 chipid, u32 dieid)
      */
     nid = (u32)devdrv_manager_devid_to_nid(devid, (u32)DEVDRV_TS_NODE_DDR_MEM);
     for (shm_id = 0; shm_id < TASKID_SHARE_MEM_BLOCK_NUM; shm_id++) {
-        hpage = hugetlb_alloc_hugepage(nid, HUGETLB_ALLOC_BUDDY);
+        hpage = alloc_pages_node(nid, GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN | __GFP_COMP,
+            TASKID_SHARE_MEM_BLOCK_ORDER);
         if (hpage == NULL) {
             TSDRV_PRINT_ERR("device(%u) alloc shm(%u) on node (%u) failed, cannot use addr translation fuc.\n",
                 devid, shm_id, nid);
@@ -221,7 +224,7 @@ void tsdrv_init_taskid_share_memory(u32 devid, u32 tsnum, u32 chipid, u32 dieid)
     }
     if (shm_id != TASKID_SHARE_MEM_BLOCK_NUM) {
         for (i = 0; i < shm_id; i++) {
-            put_page(phys_to_page(idx_addr->addr[i]));
+            __free_pages(phys_to_page(idx_addr->addr[i]), TASKID_SHARE_MEM_BLOCK_ORDER);
         }
         iounmap(idx_addr);
         idx_addr = NULL;
@@ -237,4 +240,3 @@ void tsdrv_init_taskid_share_memory(u32 devid, u32 tsnum, u32 chipid, u32 dieid)
 #endif
 }
 #endif
-

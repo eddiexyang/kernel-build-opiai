@@ -18,6 +18,10 @@
 #ifndef SECUREC_H_5D13A042_DC3F_4ED9_A8D1_882811274C27
 #define SECUREC_H_5D13A042_DC3F_4ED9_A8D1_882811274C27
 
+#ifdef __KERNEL__
+#include <linux/securec.h>
+#else
+
 #include "securectype.h"
 #ifndef SECUREC_HAVE_STDARG_H
 #define SECUREC_HAVE_STDARG_H 1
@@ -625,5 +629,5 @@ extern errno_t memcpy_sOptTc(void *dest, size_t destMax, const void *src, size_t
 #ifdef __cplusplus
 }
 #endif
+#endif /* __KERNEL__ */
 #endif
-

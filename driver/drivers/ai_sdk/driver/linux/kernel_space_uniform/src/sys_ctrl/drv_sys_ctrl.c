@@ -126,7 +126,7 @@ EXIT:
     return -1;
 }
 
-static int sys_ctrl_remove(struct platform_device *pdev)
+static void sys_ctrl_remove(struct platform_device *pdev)
 {
     u32 idx;
     u32 size;
@@ -137,7 +137,6 @@ static int sys_ctrl_remove(struct platform_device *pdev)
             rst_infos_arr[idx].reg_ioremap_addr = NULL;
         }
     }
-    return 0;
 }
 
 static int sys_ctrl_suspend_noirq(struct device *dev)

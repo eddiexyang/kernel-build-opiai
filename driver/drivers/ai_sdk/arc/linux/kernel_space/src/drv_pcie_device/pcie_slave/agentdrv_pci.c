@@ -990,7 +990,7 @@ STATIC void agentdrv_alloc_soc_db_interrupt_callback(struct msi_desc *desc, stru
 STATIC void agentdrv_free_soc_db_interrupt(void *data)
 {
     struct device *dev = data;
-    platform_msi_domain_free_irqs(dev);
+    platform_device_msi_free_irqs_all(dev);
 }
 
 int agentdrv_alloc_soc_db_interrupt(struct agentdrv_devctrl *agent_dev, struct platform_device *pdev)
@@ -1009,19 +1009,22 @@ int agentdrv_alloc_soc_db_interrupt(struct agentdrv_devctrl *agent_dev, struct p
     }
 
     if (!acpi_disabled) {
-        ret = platform_msi_domain_alloc_irqs(&pdev->dev, AGENTDRV_SOC_DB_IRQ_NUM,
+        ret = platform_device_msi_init_and_alloc_irqs(&pdev->dev, AGENTDRV_SOC_DB_IRQ_NUM,
             agentdrv_alloc_soc_db_interrupt_callback);
         if (ret) {
             devdrv_err("Allocate soc doorbell Failed. (ret=%d)\n", ret);
             return ret;
         }
-        for_each_msi_entry(desc, &pdev->dev) {
-            if (desc->platform.msi_index >= AGENTDRV_SOC_DB_IRQ_NUM) {
+
+        __msi_lock_descs(&pdev->dev);
+        msi_for_each_desc(desc, &pdev->dev, MSI_DESC_ALL) {
+            if (desc->msi_index >= AGENTDRV_SOC_DB_IRQ_NUM) {
                 break;
             }
-            agent_dev->msi_irq_base[agent_dev->func_index][desc->platform.msi_index] =
+            agent_dev->msi_irq_base[agent_dev->func_index][desc->msi_index] =
                 desc->irq;
         }
+        __msi_unlock_descs(&pdev->dev);
 
         (void)devm_add_action(&pdev->dev, agentdrv_free_soc_db_interrupt, &pdev->dev);
         agent_dev->func_index++;
@@ -1424,14 +1427,14 @@ platform_init_fail:
     return ret;
 }
 
-int agentdrv_platform_remove(struct platform_device *pdev)
+void agentdrv_platform_remove(struct platform_device *pdev)
 {
     struct agentdrv_devctrl *agent_dev = NULL;
 
     agent_dev = agentdrv_get_dev_by_apb_dev(pdev);
     if (agent_dev == NULL) {
         devdrv_info("agent_dev is NULL.\n");
-        return 0;
+        return;
     }
     agentdrv_platform_unbind_irq(agent_dev);
 
@@ -1443,7 +1446,7 @@ int agentdrv_platform_remove(struct platform_device *pdev)
 
     devm_iounmap(&pdev->dev, agent_dev->apb_base);
     agent_dev->apb_base = NULL;
-    return 0;
+    return;
 }
 
 static const struct of_device_id pcie_of_match[] = {
@@ -1957,7 +1960,6 @@ STATIC void schedule_agent_dev_init(void)
 
     schedule_work(&g_agent_dev_init);
 }
-EXPORT_SYMBOL(schedule_agent_dev_init);
 
 STATIC void agentdrv_unregister_ieps(void)
 {

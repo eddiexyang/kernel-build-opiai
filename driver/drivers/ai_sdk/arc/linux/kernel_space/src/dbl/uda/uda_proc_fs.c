@@ -103,7 +103,7 @@ static int uda_udev_show(struct seq_file *seq, void *offset)
 
 int uda_udev_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, uda_udev_show, PDE_DATA(inode));
+    return single_open(file, uda_udev_show, pde_data(inode));
 }
 
 void uda_ns_node_single_show(struct uda_ns_node *ns_node, void *priv)
@@ -128,7 +128,7 @@ static int uda_ns_node_show(struct seq_file *seq, void *offset)
 
 int uda_ns_node_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, uda_ns_node_show, PDE_DATA(inode));
+    return single_open(file, uda_ns_node_show, pde_data(inode));
 }
 
 static void _uda_notifier_show(struct uda_dev_type *type, struct uda_notifiers *notifiers, void *priv)
@@ -177,7 +177,7 @@ static int uda_notifier_show(struct seq_file *seq, void *offset)
 
 int uda_notifier_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, uda_notifier_show, PDE_DATA(inode));
+    return single_open(file, uda_notifier_show, pde_data(inode));
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)

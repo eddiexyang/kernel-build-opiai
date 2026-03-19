@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/kthread.h>
+#include <linux/timer.h>
 
 #include "devdrv_manager.h"
 #include "devdrv_gpioirq_register.h"
@@ -361,12 +362,12 @@ void devdrv_lc_gpioirq_unregister(void)
 
     // gpio73
     if (gpio_state.state[GPIO_LC_INDEX_ZERO].gpio >= 0) {
-        del_timer_sync(&gpio_state.state[GPIO_LC_INDEX_ZERO].timer);
+        timer_shutdown_sync(&gpio_state.state[GPIO_LC_INDEX_ZERO].timer);
     }
 
     // gpio1
     if (gpio_state.state[GPIO_LC_INDEX_ONE].gpio >= 0) {
-        del_timer_sync(&gpio_state.state[GPIO_LC_INDEX_ONE].timer);
+        timer_shutdown_sync(&gpio_state.state[GPIO_LC_INDEX_ONE].timer);
     }
 
     devdrv_stop_calc_ave_current();
@@ -378,7 +379,6 @@ void devdrv_lc_gpioirq_unregister(void)
              (gpio_state.state[i].gpio_reg_flag == DEVDRV_GPIO_REGISTERED_NO_NEED_HANDLE)) &&
             gpio_is_valid(gpio)) {
             devdrv_drv_info("gpio is valid, %d", gpio);
-            devm_gpio_free(dev_info->dev, gpio);
             devm_free_irq(dev_info->dev, gpio_to_irq(gpio), dev_info);
         }
 
@@ -426,7 +426,6 @@ STATIC int devdrv_lc_gpioirq_request(struct devdrv_info *dev_info, int idx)
             devdrv_drv_err("request irq failed, ret = %d, "
                            "gpio_irqname=%s\n",
                            ret, gpio_irqname);
-            devm_gpio_free(dev_info->dev, gpio);
             return ret;
         }
     }

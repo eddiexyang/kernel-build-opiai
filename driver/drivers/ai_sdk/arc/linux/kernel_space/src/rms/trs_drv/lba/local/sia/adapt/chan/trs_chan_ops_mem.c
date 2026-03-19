@@ -15,6 +15,7 @@
 * Create: 2022-12-15
 */
 #include <linux/oom.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include "trs_chan_mem.h"
 #include "trs_device_comm.h"
@@ -197,4 +198,3 @@ void trs_chan_ops_invalid_cqe_cache(struct trs_id_inst *inst,
     }
 }
 EXPORT_SYMBOL(trs_chan_ops_invalid_cqe_cache);
-

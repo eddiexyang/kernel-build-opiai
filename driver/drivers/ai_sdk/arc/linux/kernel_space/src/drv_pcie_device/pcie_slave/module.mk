@@ -7,7 +7,7 @@ LOCAL_MODULE := drv_pcie
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 
-LOCAL_DEPEND_KO := dbl_runenv_config drv_dfm
+LOCAL_DEPEND_KO := dbl_runenv_config drv_dfm ascend_uda dbl_chip_config
 
 LOCAL_INSTALLED_KO_FILES := drv_pcie.ko
 

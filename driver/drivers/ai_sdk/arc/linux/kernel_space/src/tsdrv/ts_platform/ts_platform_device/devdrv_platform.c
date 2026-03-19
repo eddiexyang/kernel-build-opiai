@@ -32,6 +32,7 @@
 #include <linux/of_irq.h>
 #include <linux/kernel.h>
 #include <linux/notifier.h>
+#include <linux/panic_notifier.h>
 
 #ifndef COMPILE_WITH_UT
 #include <linux/acpi.h>
@@ -970,7 +971,7 @@ err_devinfo_create:
     return -ENOMEM;
 }
 
-STATIC int devdrv_device_remove(struct platform_device *pdev)
+STATIC void devdrv_device_remove(struct platform_device *pdev)
 {
     struct devdrv_platform_data *pdata = NULL;
     struct devdrv_info *dev_info = NULL;
@@ -978,31 +979,32 @@ STATIC int devdrv_device_remove(struct platform_device *pdev)
 
     if (pdev == NULL) {
         TSDRV_PRINT_ERR("pdev is NULL\n");
-        return -EINVAL;
+        return;
     }
 
     dev_info = platform_get_drvdata(pdev);
     if (dev_info == NULL) {
         TSDRV_PRINT_ERR("dev_info is NULL.\n");
-        return -ENOMEM;
+        return;
     }
 
     if (dev_info->dev_id >= MAX_CHIP_NUM) {
         TSDRV_PRINT_ERR("device id(%u) invalid, return.\n", dev_info->dev_id);
-        return -ENOMEM;
+        return;
     }
 
     pdata = (struct devdrv_platform_data *)dev_info->pdata;
     if (pdata == NULL) {
         TSDRV_PRINT_ERR("pdata is NULL.\n");
         devdrv_devinfo_destroy(dev_info);
-        return -ENOMEM;
+        return;
     }
 
 #ifdef CFG_SOC_PLATFORM_MDC_V51
     if (devdrv_get_ts_node_num() == 0) {
         TSDRV_PRINT_INFO("ts node does not exist!\n");
-        return devdrv_device_remove_no_tsnode(pdev, dev_info, pdata);
+        (void)devdrv_device_remove_no_tsnode(pdev, dev_info, pdata);
+        return;
     }
 #endif
 
@@ -1030,7 +1032,6 @@ STATIC int devdrv_device_remove(struct platform_device *pdev)
     devdrv_destroy_pdata(pdev, pdata);
     devdrv_devinfo_destroy(dev_info);
     platform_set_drvdata(pdev, NULL);
-    return 0;
 }
 
 STATIC void devdrv_device_shutdown(struct platform_device *pdev)
@@ -1098,10 +1099,28 @@ static void tscpu_write_lpi_msgs(struct msi_desc *desc, struct msi_msg *msg)
 {
 }
 
+static int tsdrv_get_first_platform_msi_irq(struct device *dev, u32 *base_irq)
+{
+    struct msi_desc *desc = NULL;
+
+    if (base_irq == NULL) {
+        return -EINVAL;
+    }
+
+    __msi_lock_descs(dev);
+    desc = msi_first_desc(dev, MSI_DESC_ALL);
+    if (desc != NULL) {
+        *base_irq = desc->irq;
+    }
+    __msi_unlock_descs(dev);
+
+    return (desc != NULL) ? 0 : -ENODEV;
+}
+
 static void tscpu_free_msis(void *data)
 {
     struct device *dev = data;
-    platform_msi_domain_free_irqs(dev);
+    platform_device_msi_free_irqs_all(dev);
 }
 #endif
 #ifndef CFG_SOC_PLATFORM_CLOUD_V2
@@ -1115,9 +1134,6 @@ static u32 tscpu_irq[TSCPU_MAX_LPI_IRQ_NUM];
 STATIC int tscpu_device_probe(struct platform_device *pdev)
 {
     int irq_num = TSCPU_MAX_LPI_IRQ_NUM;
-#ifndef AOS_LLVM_BUILD
-    struct msi_desc *desc = NULL;
-#endif
     static u32 devid = 0;
     u32 base_irq = 0;
     int ret = 0;
@@ -1130,15 +1146,16 @@ STATIC int tscpu_device_probe(struct platform_device *pdev)
 
     if (!acpi_disabled) {
 #ifndef AOS_LLVM_BUILD
-        ret = platform_msi_domain_alloc_irqs(&pdev->dev, irq_num, tscpu_write_lpi_msgs);
+        ret = platform_device_msi_init_and_alloc_irqs(&pdev->dev, irq_num, tscpu_write_lpi_msgs);
         if (ret != 0) {
             TSDRV_PRINT_ERR("failed to allocate LPI(%d)\n", ret);
             return ret;
         }
         (void)devm_add_action(&pdev->dev, tscpu_free_msis, &pdev->dev);
-        desc = first_msi_entry(&pdev->dev);
-        if (desc != NULL) {
-            base_irq = desc->irq;
+        ret = tsdrv_get_first_platform_msi_irq(&pdev->dev, &base_irq);
+        if (ret != 0) {
+            TSDRV_PRINT_ERR("failed to get first MSI irq(%d)\n", ret);
+            return ret;
         }
 #else
         TSDRV_PRINT_ERR("acpi enabled\n");
@@ -1185,7 +1202,7 @@ err_request_irq:
     return -ENODEV;
 }
 
-STATIC int tscpu_device_remove(struct platform_device *pdev)
+STATIC void tscpu_device_remove(struct platform_device *pdev)
 {
     int i;
 
@@ -1195,7 +1212,6 @@ STATIC int tscpu_device_remove(struct platform_device *pdev)
             tscpu_irq[i] = 0;
         }
     }
-    return 0;
 }
 #ifndef AOS_LLVM_BUILD
 static const struct acpi_device_id tscpu_acpi_match[] = {
@@ -1254,23 +1270,20 @@ static void ffts_cpu_write_lpi_msgs(struct msi_desc *desc, struct msi_msg *msg)
 static void ffts_cpu_free_msis(void *data)
 {
     struct device *dev = data;
-    platform_msi_domain_free_irqs(dev);
+    platform_device_msi_free_irqs_all(dev);
 }
 
 int tsdrv_get_ffts_mcu_irq_id(u32 dev_id, u32 *hwirq)
 {
     struct irq_data *irq_data = NULL;
     struct irq_data *parent = NULL;
-    struct irq_desc *desc = NULL;
     u32 irq = ffts_cpu_irq[dev_id][0];
 
-    desc = irq_to_desc(irq);
-    if (desc == NULL) {
+    irq_data = irq_get_irq_data(irq);
+    if (irq_data == NULL) {
         TSDRV_PRINT_ERR("Irq is invalid. (irq=%u)\n", irq);
         return -EINVAL;
     }
-
-    irq_data = irq_desc_get_irq_data(desc);
     parent = irq_data->parent_data;
 
     while (parent != NULL) {
@@ -1288,9 +1301,6 @@ int ffts_cpu_device_probe(struct platform_device *pdev)
 {
 #ifndef TSDRV_UT
     int irq_num = FFTS_CPU_MAX_LPI_IRQ_NUM;
-#ifndef AOS_LLVM_BUILD
-    struct msi_desc *desc = NULL;
-#endif
     static u32 devid = 0;
     u32 base_irq = 0;
     int ret, i, j, fftscpu_id;
@@ -1308,14 +1318,17 @@ int ffts_cpu_device_probe(struct platform_device *pdev)
 
     if (!acpi_disabled) {
 #ifndef AOS_LLVM_BUILD
-        ret = platform_msi_domain_alloc_irqs(&pdev->dev, irq_num, ffts_cpu_write_lpi_msgs);
+        ret = platform_device_msi_init_and_alloc_irqs(&pdev->dev, irq_num, ffts_cpu_write_lpi_msgs);
         if (ret != 0) {
             TSDRV_PRINT_ERR("Failed to allocate LPI, ret[%d]\n", ret);
             return ret;
         }
         (void)devm_add_action(&pdev->dev, ffts_cpu_free_msis, &pdev->dev);
-        desc = first_msi_entry(&pdev->dev);
-        base_irq = desc->irq;
+        ret = tsdrv_get_first_platform_msi_irq(&pdev->dev, &base_irq);
+        if (ret != 0) {
+            TSDRV_PRINT_ERR("Failed to get first MSI irq, ret[%d]\n", ret);
+            return ret;
+        }
 #else
         TSDRV_PRINT_ERR("acpi enabled\n");
 #endif
@@ -1362,7 +1375,7 @@ err_request_irq:
 #endif
 }
 
-int ffts_cpu_device_remove(struct platform_device *pdev)
+void ffts_cpu_device_remove(struct platform_device *pdev)
 {
 #ifndef TSDRV_UT
     static u32 devid = 0;
@@ -1377,7 +1390,6 @@ int ffts_cpu_device_remove(struct platform_device *pdev)
     }
     devid++;
 #endif
-    return 0;
 }
 #ifndef AOS_LLVM_BUILD
 static const struct acpi_device_id ffts_cpu_acpi_match[] = {
@@ -1405,6 +1417,9 @@ static struct platform_driver ffts_cpu_platform_driver = {
 };
 
 #ifdef CFG_FEATURE_QOS
+typedef int (*tsdrv_qos_register_func)(const struct qos_master_node *master);
+typedef int (*tsdrv_qos_unregister_func)(const struct qos_master_node *master);
+
 enum tsdrv_qos_node {
     TSDRV_QOS_NODE_AIC_DAT,
     TSDRV_QOS_NODE_AIC_INS,
@@ -1416,6 +1431,37 @@ enum tsdrv_qos_node {
 
 static struct qos_master_node node[TSDRV_QOS_NODE_MAX];
 #define QOS_NODE_NAME_MAX_LEN 256
+static int tsdrv_qos_node_register_symbol(const struct qos_master_node *master)
+{
+    tsdrv_qos_register_func func = NULL;
+    int ret = 0;
+
+    func = (tsdrv_qos_register_func)__symbol_get("hal_kernel_qos_node_register");
+    if (func == NULL) {
+        TSDRV_PRINT_INFO("Skip qos register because hal qos helper is unavailable.\n");
+        return 0;
+    }
+
+    ret = func(master);
+    __symbol_put("hal_kernel_qos_node_register");
+    return ret;
+}
+
+static int tsdrv_qos_node_unregister_symbol(const struct qos_master_node *master)
+{
+    tsdrv_qos_unregister_func func = NULL;
+    int ret = 0;
+
+    func = (tsdrv_qos_unregister_func)__symbol_get("hal_kernel_qos_node_unregister");
+    if (func == NULL) {
+        return 0;
+    }
+
+    ret = func(master);
+    __symbol_put("hal_kernel_qos_node_unregister");
+    return ret;
+}
+
 static int tsdrv_qos_node_register(void)
 {
     int ret, idx, i;
@@ -1435,7 +1481,7 @@ static int tsdrv_qos_node_register(void)
         node[idx].set_otsd = tsdrv_set_otsd_cfg;
         node[idx].get_otsd = tsdrv_get_otsd_cfg;
 
-        ret = hal_kernel_qos_node_register(&node[idx]);
+        ret = tsdrv_qos_node_register_symbol(&node[idx]);
         if (ret != 0) {
             TSDRV_PRINT_ERR("qos node resigster failed.\n");
             goto err_qos_node_resigster;
@@ -1446,7 +1492,7 @@ static int tsdrv_qos_node_register(void)
 
 err_qos_node_resigster:
     for (i = 0; i < idx; i++) {
-        hal_kernel_qos_node_unregister(&node[i]);
+        (void)tsdrv_qos_node_unregister_symbol(&node[i]);
     }
     return -EINVAL;
 }
@@ -1456,7 +1502,7 @@ static void tsdrv_qos_node_unregister(void)
     int idx;
 
     for (idx = 0; idx < TSDRV_QOS_NODE_MAX; idx++) {
-        (void)hal_kernel_qos_node_unregister(&node[idx]);
+        (void)tsdrv_qos_node_unregister_symbol(&node[idx]);
         node[idx].cfg.type = MASTER_INVALID;
         node[idx].set = NULL;
         node[idx].get = NULL;
@@ -1628,4 +1674,3 @@ int devdrv_plat_utest(void)
     return 0;
 }
 #endif
-

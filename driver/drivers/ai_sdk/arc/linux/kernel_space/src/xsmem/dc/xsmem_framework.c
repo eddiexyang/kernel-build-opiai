@@ -34,6 +34,7 @@
 #include <linux/jhash.h>
 #include <linux/seq_file.h>
 #include <linux/profile.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include <linux/version.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))

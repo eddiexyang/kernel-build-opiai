@@ -18,6 +18,7 @@
 #include <linux/uaccess.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/securec.h>
 #include <linux/securectype.h>
 #include <linux/of.h>
@@ -148,7 +149,7 @@ const struct file_operations ts_fops = {
     .unlocked_ioctl = ts_fop_ioctl,
 };
 
-char *ts_devnode(struct device *dev, umode_t *mode)
+char *ts_devnode(const struct device *dev, umode_t *mode)
 {
     if (mode != NULL) {
         *mode = DEVNODE_PERMISSION;
@@ -296,7 +297,7 @@ fail:
     return TS_INNER_ERR;
 }
 
-STATIC int ts_drv_remove(struct platform_device *pdev)
+STATIC void ts_drv_remove(struct platform_device *pdev)
 {
     int node_id;
     struct drv_hwts_ctrl *hwts = NULL;
@@ -306,13 +307,13 @@ STATIC int ts_drv_remove(struct platform_device *pdev)
     node_id = numa_node_id();
     if (node_id < 0 || node_id >= CHIP_NUM_MAX) {
         ts_drv_err("node_id out range. node_id:%d, max:%d\n", node_id, CHIP_NUM_MAX);
-        goto remove_exit;
+        return;
     }
 
     hwts = g_drv_ctrl_hwts[node_id];
     if (hwts == NULL) {
         ts_drv_err("hwts is null. dev_id:%d\n", node_id);
-        goto remove_exit;
+        return;
     }
 
     hwts_drv_release(pdev, hwts);
@@ -323,10 +324,6 @@ STATIC int ts_drv_remove(struct platform_device *pdev)
 
     ts_aisle_uninit(node_id);
     ts_drv_info("ts drv remove ok. dev_id:%d\n", node_id);
-    return 0;
-
-remove_exit:
-    return TS_INNER_ERR;
 }
 
 STATIC int ts_drv_resume(struct platform_device *pdev)

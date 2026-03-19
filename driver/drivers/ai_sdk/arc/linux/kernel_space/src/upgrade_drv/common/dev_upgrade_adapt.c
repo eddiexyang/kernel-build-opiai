@@ -1413,14 +1413,14 @@ STATIC int dev_upgrade_mdc_all_flash_match(int dev_id, component_area_info *comp
     return 0;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 int sec_flash_read_mtd_nums(unsigned int *nums)
 {
     dev_upgrade_err("sec_flash_read_mtd_nums error, esl don't support tee");
     return 0;
 }
 #endif
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 int sec_flash_read_mtd_info(unsigned int read_count, sec_flash_mtd_info_s *sec_flash_mtd_info)
 {
     dev_upgrade_err("sec_flash_read_mtd_info error, esl don't support tee");
@@ -1635,7 +1635,7 @@ int dev_upgrade_ufs_valid_chk(unsigned int component_type)
     return ERROR;
 }
 
-#ifdef CFG_SOC_PLATFORM_MDC_LITE_ESL
+#if defined(CFG_SOC_PLATFORM_MDC_LITE_ESL) || defined(CFG_SOC_PLATFORM_MINIV3)
 // esl don't support tee
 int sec_flash_read_cmdline(unsigned int dev_id, unsigned int *cmdline)
 {

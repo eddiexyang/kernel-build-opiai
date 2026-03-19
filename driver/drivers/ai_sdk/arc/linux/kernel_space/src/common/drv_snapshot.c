@@ -27,6 +27,24 @@
 #include <linux/bootdot.h>
 #else
 #include "ascend_kernel_hal.h"
+
+/*
+ * The 310B 6.18 bring-up keeps snapshot call sites but does not provide the
+ * legacy bootdot service as a loadable dependency. Fall back to no-op stubs
+ * so snapshot-enabled vendor modules can still link and run.
+ */
+static int drv_snapshot_bootdot_init_blk(u32 block_id, u32 magic, u32 execption_id, u32 expect_status)
+{
+    return 0;
+}
+
+static int drv_snapshot_bootdot_set_blk(u32 block_id, u32 magic, u32 current_status)
+{
+    return 0;
+}
+
+#define bootdot_init_blk drv_snapshot_bootdot_init_blk
+#define bootdot_set_blk drv_snapshot_bootdot_set_blk
 #endif
 
 #ifdef STATIC_SKIP

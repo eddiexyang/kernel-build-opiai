@@ -430,7 +430,7 @@ STATIC int32_t lptest_cdev_init(void)
 		goto cdev_add_err;
 	}
 
-	g_lptest_dev.myclass = class_create(THIS_MODULE, LP_NAME);
+	g_lptest_dev.myclass = class_create(LP_NAME);
 	if (IS_ERR(g_lptest_dev.myclass)) {
 		ret = -1;
 		lpm_log_err("class_create %s err\n", LP_NAME);

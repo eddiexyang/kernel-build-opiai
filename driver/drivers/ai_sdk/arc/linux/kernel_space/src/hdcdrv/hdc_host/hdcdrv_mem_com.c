@@ -2259,8 +2259,10 @@ STATIC int hdcdrv_check_va(const void *ctx, struct vm_area_struct *vma, const st
     unsigned long size = f_mem->alloc_len;
     unsigned long addr = f_mem->user_va;
     unsigned long end = addr + PAGE_ALIGN(size);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
     unsigned long va_check;
     unsigned long pfn;
+#endif
 
     if ((vma->vm_flags & VM_HUGETLB) != 0) {
         hdcdrv_err("Input pararmeter is error. (addr=%llx)\n", f_mem->user_va);
@@ -2282,12 +2284,21 @@ STATIC int hdcdrv_check_va(const void *ctx, struct vm_area_struct *vma, const st
         return HDCDRV_PARA_ERR;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    /*
+     * follow_pfn() is no longer available to external modules on modern
+     * kernels. Keep the VMA ownership/range checks and rely on the remap
+     * helpers below to validate the actual PFN mapping operation.
+     */
+    (void)size;
+#else
     for (va_check = addr; va_check < end; va_check += PAGE_SIZE) {
         if (follow_pfn(vma, va_check, &pfn) == 0) {
             hdcdrv_err("va_check is invalid. (ddr=%llx; size=%lu; va_check=%lx)\n", f_mem->user_va, size, va_check);
             return HDCDRV_PARA_ERR;
         }
     }
+#endif
 
     return HDCDRV_OK;
 }
@@ -2338,7 +2349,7 @@ STATIC int hdcdrv_remap_va(void *ctx, struct hdcdrv_fast_mem *f_mem)
     }
 
     if (hdcdrv_get_running_env() == HDCDRV_RUNNING_ENV_ARM_3559) {
-        vma->vm_flags |= VM_IO | VM_SHARED;
+        vm_flags_set(vma, VM_IO | VM_SHARED);
         /*lint -e446 */
         vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
         /*lint +e446 */

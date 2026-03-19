@@ -14,7 +14,7 @@ EXTRA_CFLAGS += -I$(PWD)/drivers/dev_core/device_manager/device_manager_inc
 EXTRA_CFLAGS += -I$(PWD)/drivers/firmware/hiss/inc
 
 obj-m   += drv_user_cfg.o
-drv_user_cfg-objs := dev_user_cfg.o user_cfg_management.o drv_whitelist.o
+drv_user_cfg-objs := dev_user_cfg.o user_cfg_management.o drv_whitelist.o sec_flash_compat.o
 ccflags-y += -Wall -Werror -funsigned-char -Wextra -Wformat=2 -Wfloat-equal -Wcast-align -Wundef $(WDATE_TIME)
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare
 
@@ -73,7 +73,7 @@ include $(FEATURE_MK_PATH)
 EXTRA_CFLAGS += $(CONFIG_DEFINES)
 
 obj-m   += drv_user_cfg.o
-drv_user_cfg-objs := dev_user_cfg.o user_cfg_management.o drv_whitelist.o
+drv_user_cfg-objs := dev_user_cfg.o user_cfg_management.o drv_whitelist.o sec_flash_compat.o
 ccflags-y += -Wall -Werror -funsigned-char -Wextra -Wformat=2 -Wfloat-equal -Wcast-align -Wundef $(WDATE_TIME)
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare
 

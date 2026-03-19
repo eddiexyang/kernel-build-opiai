@@ -46,6 +46,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/securec.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/types.h>
 #include <linux/cpumask.h>
 #include <linux/vmalloc.h>
@@ -1765,7 +1766,7 @@ STATIC const struct file_operations prof_drv_fops = {
 };
 
 #ifndef AOS_LLVM_BUILD
-STATIC char *prof_devnode(struct device *dev, umode_t *mode)
+STATIC char *prof_devnode(const struct device *dev, umode_t *mode)
 {
     return NULL;
 }

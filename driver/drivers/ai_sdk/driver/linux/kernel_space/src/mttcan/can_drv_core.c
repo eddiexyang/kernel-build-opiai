@@ -20,12 +20,13 @@
 
 #ifdef RUN_IN_AOS
 #include <linux/time64.h>
-#include <linux/platform_device.h>
 #include "aos_dlib.h"
 #else
 #include <linux/module.h>
 #endif
 #include <linux/clk.h>
+#include <linux/platform_device.h>
+#include <linux/timer.h>
 #include <linux/of_device.h>
 #include <linux/securec.h>
 #include <linux/of_gpio.h>
@@ -743,7 +744,7 @@ STATIC int mttcan_set_working_mode(const struct net_device *ndev)
     return 0;
 }
 
-STATIC u64 mttcan_read_timebase(const struct cyclecounter *cyc_counter)
+STATIC u64 mttcan_read_timebase(struct cyclecounter *cyc_counter)
 {
     struct mttcan_priv *priv = container_of(cyc_counter, struct mttcan_priv, cc);
 
@@ -783,7 +784,7 @@ STATIC u64 mttcan_get_time_ns(struct mttcan_priv *priv)
 
 STATIC void mttcan_timer_callback(struct timer_list *pram)
 {
-    struct mttcan_priv *priv = from_timer(priv, pram, timer);
+    struct mttcan_priv *priv = container_of(pram, struct mttcan_priv, timer);
     u64 kernel_time_ns;
     u64 timer_period;
     unsigned long irq_flags;
@@ -840,7 +841,7 @@ STATIC int mttcan_calc_current_busload(struct mttcan_priv *priv)
             /* CANFD Standard BRS frames */
             + fc->canfd_std_brs_packets * CANFD_SDF_HS_STUFF_LEN
             + fc->canfd_std_brs_bits)
-            / priv->can.data_bittiming.bitrate;
+            / priv->can.fd.data_bittiming.bitrate;
     }
 
     time_gaps = time_now_ns - fc->busload_last_time;
@@ -863,7 +864,7 @@ STATIC int mttcan_calc_current_busload(struct mttcan_priv *priv)
 
 STATIC void mttcan_check_busload(struct timer_list *pram)
 {
-    struct mttcan_priv *priv = from_timer(priv, pram, busload.cheking_timer);
+    struct mttcan_priv *priv = container_of(pram, struct mttcan_priv, busload.cheking_timer);
     int busload_percent;
 
     if (!mttcan_working(priv)) {
@@ -917,7 +918,7 @@ STATIC bool is_err_count_update(struct mttcan_priv *priv)
 STATIC void mttcan_echo_sysfs_log(struct timer_list *pram)
 {
     int ret;
-    struct mttcan_priv *priv = from_timer(priv, pram, echo_sysfs_log_timer);
+    struct mttcan_priv *priv = container_of(pram, struct mttcan_priv, echo_sysfs_log_timer);
 
     if (is_err_count_update(priv)) {
         mttcan_dump_reg(priv->ndev);
@@ -1089,11 +1090,11 @@ STATIC void mttcan_stop(const struct net_device *ndev)
     struct mttcan_priv *priv = netdev_priv(ndev);
 
     priv->can.state = CAN_STATE_STOPPED;
-    del_timer_sync(&priv->timer);
+    timer_delete_sync(&priv->timer);
 #ifdef SUPPORT_MTTCAN_DFX
-    del_timer_sync(&priv->busload.cheking_timer);
+    timer_delete_sync(&priv->busload.cheking_timer);
 #endif
-    del_timer_sync(&priv->echo_sysfs_log_timer);
+    timer_delete_sync(&priv->echo_sysfs_log_timer);
     mttcan_disable_interrupts(ndev, INT_LINE_ALL);
 
     /* set bit CCCR.INIT and CCCR.CCE */
@@ -1288,7 +1289,7 @@ static netdev_tx_t mttcan_add_tx_request(struct sk_buff *skb, struct net_device 
         return NETDEV_TX_BUSY;
     }
     /* used for local loopback */
-    can_put_echo_skb(skb, ndev, txb_idx);
+    can_put_echo_skb(skb, ndev, txb_idx, 0);
     mttcan_write_reg(&priv->addr, REG_TXBAR, (1U << txb_idx));
     raw_spin_unlock_irqrestore(&priv->tx_complete, irq_flags);
     return NETDEV_TX_OK;
@@ -1458,11 +1459,11 @@ STATIC int mttcan_register_can_device(struct net_device *ndev)
     struct mttcan_priv *priv = netdev_priv(ndev);
 
     priv->can.bittiming_const = &mttcan_bittiming_const_nominal;
-    priv->can.data_bittiming_const = &mttcan_bittiming_const_data;
+    priv->can.fd.data_bittiming_const = &mttcan_bittiming_const_data;
     priv->can.do_get_berr_counter = mttcan_get_berr_counter;     /* Data transmission error counting */
     priv->can.do_set_mode = mttcan_set_mode;                     /* Mode settings */
     priv->can.do_set_bittiming = mttcan_set_bittiming;           /* Bit rate settings */
-    priv->can.do_set_data_bittiming = mttcan_set_data_bittiming; /* Data bit rate settings */
+    priv->can.fd.do_set_data_bittiming = mttcan_set_data_bittiming; /* Data bit rate settings */
     priv->can.ctrlmode_supported = CAN_CTRLMODE_FD | CAN_CTRLMODE_LOOPBACK | CAN_CTRLMODE_LISTENONLY |
         CAN_CTRLMODE_BERR_REPORTING | CAN_CTRLMODE_ONE_SHOT;
 
@@ -1611,7 +1612,7 @@ exit_free:
     return err;
 }
 
-STATIC int plat_drv_remove(struct platform_device *pdev)
+STATIC void plat_drv_remove(struct platform_device *pdev)
 {
     struct net_device *ndev = platform_get_drvdata(pdev);
     struct mttcan_priv *priv = netdev_priv(ndev);
@@ -1629,8 +1630,6 @@ STATIC int plat_drv_remove(struct platform_device *pdev)
     can_drv_sysfs_remove_nodes(&pdev->dev);
 #endif
     mttcan_free_can_device(ndev);
-
-    return 0;
 }
 
 STATIC int mttcan_resume_bitrate(struct net_device *ndev)
@@ -1644,7 +1643,7 @@ STATIC int mttcan_resume_bitrate(struct net_device *ndev)
         }
     }
 
-    if ((priv->can.ctrlmode & CAN_CTRLMODE_FD) && (priv->can.data_bittiming.bitrate != 0)) {
+    if ((priv->can.ctrlmode & CAN_CTRLMODE_FD) && (priv->can.fd.data_bittiming.bitrate != 0)) {
         if (mttcan_set_data_bittiming(ndev) != 0) {
             mttcan_err("%s: mttcan_set_data_bittiming failed.\n", ndev->name);
             return -1;

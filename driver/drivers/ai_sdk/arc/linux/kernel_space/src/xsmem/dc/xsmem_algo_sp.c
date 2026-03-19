@@ -29,6 +29,7 @@
 #include <linux/version.h>
 #include <linux/nodemask.h>
 #include <linux/oom.h>
+#include <linux/opiai_vendor_compat.h>
 
 #include "xsmem_framework.h"
 #include "ascend_kernel_hal.h"
@@ -374,4 +375,3 @@ int hal_kernel_numa_get_nid(unsigned int device_id, unsigned int type)
     return device_id;
 }
 EXPORT_SYMBOL(hal_kernel_numa_get_nid);
-

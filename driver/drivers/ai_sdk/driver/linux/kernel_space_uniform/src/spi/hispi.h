@@ -69,7 +69,7 @@ struct region {
 };
 
 struct hisi_spi {
-    struct spi_master *master;
+    struct spi_controller *master;
     struct device *dev;
     struct region reg;
     const struct hisi_spi_ops *soc_ops;
