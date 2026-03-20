@@ -13,6 +13,7 @@
 #ifdef LPM_FAULT_HEARTBEAT
 #include <linux/kernel.h>
 #include <linux/kthread.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/timer.h>
 #include <linux/time64.h>
 #include <linux/version.h>

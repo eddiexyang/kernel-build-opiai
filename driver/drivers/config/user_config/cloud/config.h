@@ -4,8 +4,8 @@
  * Author: huawei
  * Create: 2019-08-06
  */
-#ifndef __CONFIG_H
-#define __CONFIG_H
+#ifndef __OPIAI_USER_CONFIG_CLOUD_H
+#define __OPIAI_USER_CONFIG_CLOUD_H
 
 #ifndef NULL
 #define NULL    (0L)

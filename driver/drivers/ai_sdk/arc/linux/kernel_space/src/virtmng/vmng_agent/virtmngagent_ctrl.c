@@ -17,6 +17,7 @@
 
 #include "virtmngagent_ctrl.h"
 #include "virtmngagent_unit.h"
+#include "devdrv_interface.h"
 #include "virtmng_interface.h"
 #include "virtmng_public_def.h"
 #include <linux/errno.h>
@@ -516,6 +517,12 @@ void vmnga_register_dev_startup_callback(vmnga_dev_startup_notify startup_notify
 }
 EXPORT_SYMBOL(vmnga_register_dev_startup_callback);
 
+void drvdrv_dev_startup_register(devdrv_dev_startup_notify startup_callback)
+{
+	vmnga_register_dev_startup_callback(startup_callback);
+}
+EXPORT_SYMBOL(drvdrv_dev_startup_register);
+
 void vmnga_dev_state_notifier(struct vmnga_unit *unit)
 {
     u32 dev_id;
@@ -654,6 +661,26 @@ int vmnga_get_pci_dev_info(u32 dev_id, struct vmnga_pci_dev_info *dev_info)
     return 0;
 }
 EXPORT_SYMBOL(vmnga_get_pci_dev_info);
+
+int devdrv_get_pci_dev_info(u32 dev_id, struct devdrv_pci_dev_info *dev_info)
+{
+	struct vmnga_pci_dev_info vmnga_info;
+	int ret;
+
+	if (dev_info == NULL)
+		return -EINVAL;
+
+	ret = vmnga_get_pci_dev_info(dev_id, &vmnga_info);
+	if (ret != 0)
+		return ret;
+
+	dev_info->bus_no = vmnga_info.bus_no;
+	dev_info->device_no = vmnga_info.device_no;
+	dev_info->function_no = vmnga_info.function_no;
+
+	return 0;
+}
+EXPORT_SYMBOL(devdrv_get_pci_dev_info);
 
 int vmnga_get_pcie_id_info(u32 dev_id, struct vmnga_pcie_id_info *dev_info)
 {

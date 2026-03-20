@@ -44,6 +44,7 @@
 #include <linux/version.h>
 #include <linux/kallsyms.h>
 #include <linux/kthread.h>
+#include <linux/opiai_vendor_compat.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/signal.h>
@@ -4960,8 +4961,9 @@ int devdrv_manager_rx_msg_process(void *msg_chan, void *data, u32 in_data_len, u
 }
 EXPORT_SYMBOL_UNRELEASE(devdrv_manager_rx_msg_process);
 
-STATIC void devdrv_manager_msg_chan_notify(u32 dev_id, int status)
+STATIC void devdrv_manager_msg_chan_notify(u32 dev_id)
 {
+    (void)dev_id;
 }
 
 #define DEV_MNG_NON_TRANS_MSG_DESC_SIZE 1024
@@ -5171,7 +5173,7 @@ STATIC void devdrv_check_start_event(struct timer_list *t)
 {
     struct devdrv_info *dev_info = NULL;
     struct timespec stamp;
-    struct devdrv_check_start_s *devdrv_start_check = from_timer(devdrv_start_check, t, check_timer);
+    struct devdrv_check_start_s *devdrv_start_check = timer_container_of(devdrv_start_check, t, check_timer);
     u32 dev_id;
     u32 tsid = 0;
 
@@ -5265,6 +5267,11 @@ STATIC int devdrv_manager_dev_state_notify(u32 probe_num, u32 devid, u32 state)
     ssleep(1); // add 1s for bbox to dump when unbind
 
     return 0;
+}
+
+STATIC int devdrv_manager_dev_state_notify_compat(u32 devid, u32 state)
+{
+    return devdrv_manager_dev_state_notify(0, devid, state);
 }
 
 STATIC int devdrv_manager_dev_startup_notify(u32 prob_num, const u32 devids[], u32 array_len, u32 devnum)
@@ -6258,7 +6265,7 @@ int devdrv_manager_init(void)
     }
 
     drvdrv_dev_startup_register(devdrv_manager_dev_startup_notify);
-    drvdrv_dev_state_notifier_register(devdrv_manager_dev_state_notify);
+    drvdrv_dev_state_notifier_register(devdrv_manager_dev_state_notify_compat);
 
     ret = log_level_file_init();
     if (ret != 0) {

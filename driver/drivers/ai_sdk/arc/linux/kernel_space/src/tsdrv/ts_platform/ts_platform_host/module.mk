@@ -7,7 +7,9 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_tsdrv_platform_host
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
-LOCAL_DEPEND_KO:= drv_seclib_host drv_pcie_host drv_devmng_host drv_devdrv_host
+LOCAL_DEPEND_KO:= drv_devmng_host drv_devdrv_host ascend_uda
+LOCAL_KBUILD_EXTRA_SYMBOLS := \
+	$(PWD)/$(DEVICE_OUT_INTERMEDIATES)/drv_pcie_ko/Module.symvers
 
 LOCAL_INSTALLED_KO_FILES := drv_tsdrv_platform_host.ko
 

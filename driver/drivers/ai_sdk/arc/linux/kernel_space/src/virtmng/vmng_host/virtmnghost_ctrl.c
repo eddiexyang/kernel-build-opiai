@@ -1875,6 +1875,17 @@ static void set_sriov_mode(u32 dev_id, int sriov_mode)
     ctrl->sriov_mode = sriov_mode;
 }
 
+int devdrv_set_sriov_and_mdev_mode(u32 dev_id, int sriov_mode)
+{
+    if (dev_id >= VMNG_PDEV_MAX) {
+        vmng_err("Input parameter is error. (dev_id=%u; MAX=%d)\n", dev_id, VMNG_PDEV_MAX);
+        return -EINVAL;
+    }
+
+    set_sriov_mode(dev_id, sriov_mode);
+    return 0;
+}
+
 int vmngh_enable_sriov(u32 dev_id)
 {
     int ret;

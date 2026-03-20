@@ -18,12 +18,24 @@ driver: | ensure-output-dirs
 		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
 		build_device=true \
 		-j1
+	$(MAKE) driver_host \
+		PRODUCT="$(DRIVER_PRODUCT)" \
+		PRODUCT_SIDE=host \
+		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
+		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
+		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
+		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
+		-j1
 	mkdir -p "$(OUTPUT_DIR)/driver_modules"
-	cp -rf "$(DRIVER_SOURCE_DIR)/out/release_imags/." "$(OUTPUT_DIR)/driver_modules/"
+	cp -rf "$(DRIVER_SOURCE_DIR)/out/device/." "$(OUTPUT_DIR)/driver_modules/"
+	rm -rf "$(OUTPUT_DIR)/driver_modules_host"
+	mkdir -p "$(OUTPUT_DIR)/driver_modules_host"
+	cp -rf "$(DRIVER_SOURCE_DIR)/out/host/." "$(OUTPUT_DIR)/driver_modules_host/"
 	find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
 		| sed 's/\.ko$$//' | sort -u > "$(OUTPUT_DIR)/ascend310b-driver-modules.conf"
 	trap - EXIT
 	$(MAKE) --no-print-directory cleanup-driver-dependencies >/dev/null 2>&1 || true
 	printf 'generate %s/driver_modules success\n' "$(OUTPUT_DIR)"
+	printf 'generate %s/driver_modules_host success\n' "$(OUTPUT_DIR)"
 	printf 'generate %s/ascend310b-driver-modules.conf success\n' "$(OUTPUT_DIR)"
 	printf 'make driver success\n'

@@ -422,6 +422,12 @@ int agentdrv_get_host_phy_mach_flag(u32 dev_id, u32 *host_flag)
 }
 EXPORT_SYMBOL(agentdrv_get_host_phy_mach_flag);
 
+int devdrv_get_host_phy_mach_flag(u32 dev_id, u32 *host_flag)
+{
+	return agentdrv_get_host_phy_mach_flag(dev_id, host_flag);
+}
+EXPORT_SYMBOL(devdrv_get_host_phy_mach_flag);
+
 void agentdrv_set_host_phy_mach_flag(u32 dev_id, u32 host_flag)
 {
     struct agentdrv_devctrl *agent_dev = NULL;

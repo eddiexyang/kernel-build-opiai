@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
 */
 #include <linux/types.h>
+#include <linux/opiai_vendor_compat.h>
 #include <linux/version.h>
 #include <linux/timer.h>
 #include "lpm_devmng_common.h"

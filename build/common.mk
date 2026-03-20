@@ -60,7 +60,7 @@ cleanup-driver-dependencies:
 	fi
 
 clean-driver-outputs:
-	rm -rf "$(OUTPUT_DIR)/driver_modules"
+	rm -rf "$(OUTPUT_DIR)/driver_modules" "$(OUTPUT_DIR)/driver_modules_host"
 	$(MAKE) --no-print-directory cleanup-driver-dependencies
 	$(MAKE) -C "$(DRIVER_SOURCE_DIR)" clean >/dev/null 2>&1 || true
 

@@ -32,6 +32,10 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_devmng_host
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
+LOCAL_DEPEND_KO := ascend_dms_dtm ascend_dms_smf ascend_dms_mng ascend_urd ascend_uda ascend_soc_resmng drv_davinci_intf_host drv_vpcie
+LOCAL_KBUILD_EXTRA_SYMBOLS := \
+	$(PWD)/$(DEVICE_OUT_INTERMEDIATES)/drv_pcie_ko/Module.symvers \
+	$(PWD)/$(DEVICE_OUT_INTERMEDIATES)/ascend_virtmng_dev_ko/Module.symvers
 
 LOCAL_INSTALLED_KO_FILES := drv_devmng_host.ko
 

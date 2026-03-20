@@ -85,6 +85,7 @@ STATIC void hisi_pm_wake(void)
  * Function Name: sr_psci_suspend
  * Decription: PSCI interface, calls by suspend and resume
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 static s32 sr_psci_suspend(unsigned long suspend_arg)
 {
 	(void)suspend_arg;
@@ -96,6 +97,7 @@ static s32 sr_psci_suspend(unsigned long suspend_arg)
 				virt_to_phys(cpu_resume));
 #endif
 }
+#endif
 
 /*
  * Function Name: hisi_pm_enter
@@ -103,6 +105,14 @@ static s32 sr_psci_suspend(unsigned long suspend_arg)
  * Parameters: suspend status
  * Return: 0 is success, otherwise non-zero
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,18,0)
+static s32 hisi_pm_enter(suspend_state_t state)
+{
+	(void)state;
+	lpm_log_err("hisi pm suspend entry is unavailable for the external 6.18 module build.\n");
+	return -EOPNOTSUPP;
+}
+#else
 static s32 hisi_pm_enter(suspend_state_t state)
 {
 	u32 cluster = 0;
@@ -125,6 +135,7 @@ static s32 hisi_pm_enter(suspend_state_t state)
 	lpm_log_info("pm enter--\n");
 	return 0;
 }
+#endif
 
 STATIC const struct platform_suspend_ops* hisi_pm_get_pm_ops(void)
 {

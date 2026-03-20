@@ -23,6 +23,25 @@
 #define LPM_SUSPEND_WAIT_RESUME_CNT 5000
 #define LPM_SUSPEND_WAIT_RESUME_TIME LPM_DELAY_1000_US
 
+#ifndef REC_FAILED_NUM
+#define REC_FAILED_NUM 2
+#endif
+
+struct lpm_suspend_stats_compat {
+	unsigned int step_failures[SUSPEND_RESUME];
+	unsigned int success;
+	unsigned int fail;
+	int last_failed_dev;
+	char failed_devs[REC_FAILED_NUM][40];
+	int last_failed_errno;
+	int errno[REC_FAILED_NUM];
+	int last_failed_step;
+	u64 last_hw_sleep;
+	u64 total_hw_sleep;
+	u64 max_hw_sleep;
+	enum suspend_stat_step failed_steps[REC_FAILED_NUM];
+};
+
 typedef bool (*fn_pm_get_wakeup_count_call)(uint32_t *count, bool block);
 typedef bool (*fn_pm_save_wakeup_count_call)(uint32_t count);
 
@@ -77,12 +96,12 @@ struct lpm_suspend_opt_hook {
 	bool opt_avail;
 	fn_pm_get_wakeup_count_call get_wakeup_count;
 	fn_pm_save_wakeup_count_call save_wakeup_count;
-	struct suspend_stats *suspend_stats;
+	struct lpm_suspend_stats_compat *suspend_stats;
 };
 
 struct lpm_suspend_priv {
 	struct lpm_suspend_opt_hook opt_hook;
-	struct suspend_stats last_suspend_stats;
+	struct lpm_suspend_stats_compat last_suspend_stats;
 	struct mutex suspend_lock;
 };
 

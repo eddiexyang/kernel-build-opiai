@@ -10,6 +10,6 @@ ifeq ($(PRODUCT_SIDE), device)
 LOCAL_DEPEND_KO:=drv_davinci_intf
 include $(BUILD_DEVICE_KO)
 else
-LOCAL_DEPEND_KO:=drv_seclib_host
+LOCAL_DEPEND_KO:=drv_davinci_intf_host
 include $(BUILD_HOST_KO)
 endif

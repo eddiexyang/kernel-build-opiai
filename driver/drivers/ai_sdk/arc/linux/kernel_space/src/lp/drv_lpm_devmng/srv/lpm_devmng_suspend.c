@@ -39,6 +39,16 @@ STATIC struct lpm_suspend_priv *lpm_suspend_priv_info(void)
 	return &g_suspend_priv;
 }
 
+STATIC unsigned int lpm_suspend_stats_step_failure(
+	const struct lpm_suspend_stats_compat *stats, enum suspend_stat_step step)
+{
+	if ((stats == NULL) || (step <= SUSPEND_WORKING) || (step > SUSPEND_RESUME)) {
+		return 0;
+	}
+
+	return stats->step_failures[step - 1];
+}
+
 STATIC void lpm_suspend_init_priv_data(void)
 {
 	(void)memset_s(&g_suspend_priv, sizeof(g_suspend_priv), 0, sizeof(g_suspend_priv));
@@ -88,7 +98,8 @@ STATIC void lpm_suspend_get_opt_hook(void)
 		(fn_pm_save_wakeup_count_call)(uintptr_t)__symbol_get("pm_save_wakeup_count");
 
 	// some kernel versions do not export "suspend_stats"
-	suspend_priv->opt_hook.suspend_stats = (struct suspend_stats *)(uintptr_t)__symbol_get("suspend_stats");
+	suspend_priv->opt_hook.suspend_stats =
+		(struct lpm_suspend_stats_compat *)(uintptr_t)__symbol_get("suspend_stats");
 
 	suspend_priv->opt_hook.opt_avail = true;
 }
@@ -192,7 +203,7 @@ STATIC void lpm_suspend_print_suspend_stats(void)
 	int32_t i;
 	int32_t last_step, last_dev, last_err;
 	struct lpm_suspend_priv *suspend_priv = lpm_suspend_priv_info();
-	struct suspend_stats *suspend_stats = suspend_priv->opt_hook.suspend_stats;
+	struct lpm_suspend_stats_compat *suspend_stats = suspend_priv->opt_hook.suspend_stats;
 
 	if (suspend_stats != NULL) {
 		last_dev  = (suspend_stats->last_failed_dev   + REC_FAILED_NUM - 1) % REC_FAILED_NUM;
@@ -202,14 +213,22 @@ STATIC void lpm_suspend_print_suspend_stats(void)
 		lpm_log_event("suspend_stats:\n");
 		lpm_log_event("    %s: %d\n", "success", suspend_stats->success);
 		lpm_log_event("    %s: %d\n", "fail", suspend_stats->fail);
-		lpm_log_event("    %s: %d\n", "failed_freeze", suspend_stats->failed_freeze);
-		lpm_log_event("    %s: %d\n", "failed_prepare", suspend_stats->failed_prepare);
-		lpm_log_event("    %s: %d\n", "failed_suspend", suspend_stats->failed_suspend);
-		lpm_log_event("    %s: %d\n", "failed_suspend_late", suspend_stats->failed_suspend_late);
-		lpm_log_event("    %s: %d\n", "failed_suspend_noirq", suspend_stats->failed_suspend_noirq);
-		lpm_log_event("    %s: %d\n", "failed_resume_noirq", suspend_stats->failed_resume_noirq);
-		lpm_log_event("    %s: %d\n", "failed_resume_early", suspend_stats->failed_resume_early);
-		lpm_log_event("    %s: %d\n", "failed_resume", suspend_stats->failed_resume);
+		lpm_log_event("    %s: %d\n", "failed_freeze",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_FREEZE));
+		lpm_log_event("    %s: %d\n", "failed_prepare",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_PREPARE));
+		lpm_log_event("    %s: %d\n", "failed_suspend",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_SUSPEND));
+		lpm_log_event("    %s: %d\n", "failed_suspend_late",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_SUSPEND_LATE));
+		lpm_log_event("    %s: %d\n", "failed_suspend_noirq",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_SUSPEND_NOIRQ));
+		lpm_log_event("    %s: %d\n", "failed_resume_noirq",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_NOIRQ));
+		lpm_log_event("    %s: %d\n", "failed_resume_early",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_EARLY));
+		lpm_log_event("    %s: %d\n", "failed_resume",
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME));
 		lpm_log_event("    %s: %s\n", "last_failed_dev", suspend_stats->failed_devs[last_dev]);
 		lpm_log_event("    %s: %d\n", "last_failed_err", suspend_stats->errno[last_err]);
 		lpm_log_event("    %s: %s\n", "last_failed_step",
@@ -224,8 +243,8 @@ STATIC void lpm_suspend_print_suspend_stats(void)
 STATIC bool lpm_suspend_is_resume_succ(void)
 {
 	struct lpm_suspend_priv *suspend_priv = lpm_suspend_priv_info();
-	struct suspend_stats *suspend_stats = suspend_priv->opt_hook.suspend_stats;
-	struct suspend_stats *last_stats = &suspend_priv->last_suspend_stats;
+	struct lpm_suspend_stats_compat *suspend_stats = suspend_priv->opt_hook.suspend_stats;
+	struct lpm_suspend_stats_compat *last_stats = &suspend_priv->last_suspend_stats;
 	int32_t ret;
 	bool succ_flag = true;
 
@@ -233,19 +252,25 @@ STATIC bool lpm_suspend_is_resume_succ(void)
 		return succ_flag;
 	}
 
-	if ((suspend_stats->failed_resume > last_stats->failed_resume) ||
-		(suspend_stats->failed_resume_early > last_stats->failed_resume_early) ||
-		(suspend_stats->failed_resume_noirq > last_stats->failed_resume_noirq)) {
+	if ((lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME) >
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME)) ||
+		(lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_EARLY) >
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME_EARLY)) ||
+		(lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_NOIRQ) >
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME_NOIRQ))) {
 		lpm_log_err("invoke os interface pm_suspend failed in resume, fail resume stats info:"
 			"curr_resume:%d, last_resume:%d, curr_resume_early:%d, last_resume_early:%d, "
 			"curr_resume_noirq:%d, last_resume_noirq:%d\n",
-			suspend_stats->failed_resume, last_stats->failed_resume,
-			suspend_stats->failed_resume_early, last_stats->failed_resume_early,
-			suspend_stats->failed_resume_noirq, last_stats->failed_resume_noirq);
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME),
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME),
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_EARLY),
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME_EARLY),
+			lpm_suspend_stats_step_failure(suspend_stats, SUSPEND_RESUME_NOIRQ),
+			lpm_suspend_stats_step_failure(last_stats, SUSPEND_RESUME_NOIRQ));
 		succ_flag = false;
 	}
 
-	ret = memcpy_s(last_stats, sizeof(struct suspend_stats), suspend_stats, sizeof(struct suspend_stats));
+	ret = memcpy_s(last_stats, sizeof(*last_stats), suspend_stats, sizeof(*suspend_stats));
 	if (ret != 0) {
 		lpm_log_warn("save suspend stats failed, ret=%d\n", ret);
 	}

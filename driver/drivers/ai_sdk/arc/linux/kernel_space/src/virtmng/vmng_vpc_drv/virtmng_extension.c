@@ -26,8 +26,8 @@ void vmng_msg_cmn_verify_send_prepare(struct vmng_msg_common_pcie_txd_verify *x1
     u32 data_len = sizeof(struct vmng_msg_common_pcie_txd_verify);
 
     x1->cmd = VMNG_V2P_MSG_COMMON_PCIE_CMD_TEST;
-    x1->d1 = get_random_int();
-    x1->d2 = get_random_int();
+    x1->d1 = get_random_u32();
+    x1->d2 = get_random_u32();
     x2->cnt = x1->cnt;
     x2->d1 = x1->d1;
     x2->d2 = x1->d2;
@@ -39,4 +39,3 @@ void vmng_msg_cmn_verify_send_prepare(struct vmng_msg_common_pcie_txd_verify *x1
 
     vmng_debug("Get process value. (d1=%x; d2=%x; len=%u)\n", x1->d1, x1->d2, tx_info->out_data_len);
 }
-

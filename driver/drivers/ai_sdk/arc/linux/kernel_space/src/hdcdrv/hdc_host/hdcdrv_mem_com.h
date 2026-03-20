@@ -321,6 +321,10 @@ int hdccom_rx_vpc_msg_para_check(u32 dev_id, u32 fid, const struct vmng_rx_msg_p
 int hdccom_rx_vpc_cmd_type_check(unsigned int cmd, const struct vmng_rx_msg_proc_info *proc_info);
 int hdccom_rx_comm_msg_type_check(unsigned int cmd_min_len, const struct vmng_rx_msg_proc_info *proc_info);
 void hdccom_fill_cmd_size_table(void);
+#else
+static inline void hdccom_fill_cmd_size_table(void)
+{
+}
 #endif
 
 #ifdef CFG_FEATURE_MIRROR

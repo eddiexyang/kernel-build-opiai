@@ -303,6 +303,12 @@ int dms_get_dev_topology(unsigned int dev_id1, unsigned int dev_id2, int *topolo
 }
 EXPORT_SYMBOL(dms_get_dev_topology);
 
+int devdrv_get_dev_topology(u32 devid, u32 peer_devid, int *topo_type)
+{
+	return dms_get_dev_topology(devid, peer_devid, topo_type);
+}
+EXPORT_SYMBOL(devdrv_get_dev_topology);
+
 int dms_feature_get_dev_topology(void *feature, char *in, u32 in_len, char *out, u32 out_len)
 {
     int ret;

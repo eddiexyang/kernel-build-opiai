@@ -10,6 +10,6 @@ ifeq ($(PRODUCT_SIDE), device)
 LOCAL_DEPEND_KO := ascend_trs_id_allocator
 include $(BUILD_DEVICE_KO)
 else
-LOCAL_DEPEND_KO := ascend_trs_id_allocator drv_seclib_host
+LOCAL_DEPEND_KO := ascend_trs_id_allocator
 include $(BUILD_HOST_KO)
 endif

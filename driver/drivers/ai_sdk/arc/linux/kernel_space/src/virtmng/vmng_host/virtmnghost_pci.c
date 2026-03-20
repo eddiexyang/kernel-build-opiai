@@ -40,6 +40,7 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/timer.h>
 
 #include "dbl/uda.h"
 #include "soc_res.h"
@@ -58,6 +59,128 @@ u32 procfs_valid;
 #define VMNGH_VF_SRIOV_MDEV_MODE 0
 #define VMNGH_PF_MDEV_MODE 1
 #define VMNGH_VF_MDEV_MODE 2
+
+int devdrv_get_dev_id_by_pdev(struct pci_dev *pdev)
+{
+    u32 dev_id;
+
+    if (pdev == NULL) {
+        return -EINVAL;
+    }
+
+    for (dev_id = 0; dev_id < VMNG_PDEV_MAX; ++dev_id) {
+        struct vmngh_pci_dev *vmngh_pdev = vmngh_get_pdev_from_unit(dev_id);
+
+        if (vmngh_pdev != NULL && vmngh_pdev->pdev == pdev) {
+            return (int)dev_id;
+        }
+    }
+
+    return -ENODEV;
+}
+
+int devdrv_get_davinci_dev_num_by_pdev(struct pci_dev *pdev)
+{
+    u32 dev_id;
+    int dev_num = 0;
+
+    if (pdev == NULL) {
+        return -EINVAL;
+    }
+
+    for (dev_id = 0; dev_id < VMNG_PDEV_MAX; ++dev_id) {
+        struct vmngh_pci_dev *vmngh_pdev = vmngh_get_pdev_from_unit(dev_id);
+
+        if (vmngh_pdev != NULL && vmngh_pdev->pdev == pdev) {
+            dev_num++;
+        }
+    }
+
+    return dev_num > 0 ? dev_num : -ENODEV;
+}
+
+void *devdrv_get_devdrv_priv(struct pci_dev *pdev)
+{
+    int dev_id = devdrv_get_dev_id_by_pdev(pdev);
+    struct vmngh_pci_dev *vmngh_pdev;
+
+    if (dev_id < 0) {
+        return NULL;
+    }
+
+    vmngh_pdev = vmngh_get_pdev_from_unit((u32)dev_id);
+    if (vmngh_pdev == NULL) {
+        return NULL;
+    }
+
+    return &vmngh_pdev->vdavinci_priv;
+}
+
+int devdrv_get_theoretical_capability(u32 dev_id, u64 *bandwidth, u64 *packspeed)
+{
+    (void)dev_id;
+    (void)bandwidth;
+    (void)packspeed;
+    return -EOPNOTSUPP;
+}
+
+int devdrv_get_real_capability_ratio(u32 dev_id, u32 *bandwidth_ratio, u32 *packspeed_ratio)
+{
+    (void)dev_id;
+    (void)bandwidth_ratio;
+    (void)packspeed_ratio;
+    return -EOPNOTSUPP;
+}
+
+static struct device *vmngh_get_pci_dev_by_devid(u32 dev_id)
+{
+    struct vmngh_pci_dev *vmngh_pdev = vmngh_get_pdev_from_unit(dev_id);
+
+    if (vmngh_pdev == NULL || vmngh_pdev->pdev == NULL) {
+        return NULL;
+    }
+
+    return &vmngh_pdev->pdev->dev;
+}
+
+static struct pci_dev *devdrv_get_pci_pdev_by_devid(u32 dev_id)
+{
+    struct vmngh_pci_dev *vmngh_pdev = vmngh_get_pdev_from_unit(dev_id);
+
+    if (vmngh_pdev == NULL) {
+        return NULL;
+    }
+
+    return vmngh_pdev->pdev;
+}
+
+static int devdrv_get_dev_id_by_pdev_with_dev_index(struct pci_dev *pdev, int dev_index)
+{
+    (void)dev_index;
+    return devdrv_get_dev_id_by_pdev(pdev);
+}
+
+static int devdrv_mdev_pm_init_msi_interrupt(u32 dev_id)
+{
+    (void)dev_id;
+    return 0;
+}
+
+static void devdrv_mdev_pm_uninit_msi_interrupt(u32 dev_id)
+{
+    (void)dev_id;
+}
+
+static void devdrv_mdev_free_vf_dma_sqcq_on_pm(u32 dev_id)
+{
+    (void)dev_id;
+}
+
+static int devdrv_vpc_client_init(u32 dev_id)
+{
+    (void)dev_id;
+    return 0;
+}
 
 STATIC inline u32 vmngh_get_fid_for_host(struct vdavinci_dev *vdev)
 {
@@ -123,7 +246,7 @@ int vmngh_add_mia_dev(u32 dev_id, u32 vfid, u32 agent_flag)
 
     if (devdrv_is_sriov_support(dev_id)) {
         devdrv_get_devid_by_pfvf_id(dev_id, vfid, &udevid);
-        dev = devdrv_get_pci_dev_by_devid(udevid);
+        dev = vmngh_get_pci_dev_by_devid(udevid);
     }
 
     uda_dev_type_pack(&type, UDA_DAVINCI, object, UDA_NEAR, prop);
@@ -432,7 +555,7 @@ STATIC int vmngh_add_sec_eh_dev(u32 dev_id, u32 vfid)
 
     uda_dev_type_pack(&type, UDA_DAVINCI, UDA_ENTITY, UDA_NEAR, UDA_REAL_SEC_EH);
     uda_dev_para_pack(&para, UDA_INVALID_UDEVID,
-        UDA_INVALID_UDEVID, uda_get_chip_type(dev_id), devdrv_get_pci_dev_by_devid(udevid));
+        UDA_INVALID_UDEVID, uda_get_chip_type(dev_id), vmngh_get_pci_dev_by_devid(udevid));
     uda_mia_dev_para_pack(&mia_para, dev_id, vfid - 1);
 
     return uda_add_mia_dev(&type, &para, &mia_para, &udevid);
@@ -591,7 +714,7 @@ STATIC int vmngh_vdev_unfeature(struct vmngh_vd_dev *vd_dev)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 static void vmngh_start_timer_task(struct timer_list *t)
 {
-    struct vmngh_start_dev *start_dev = from_timer(start_dev, t, wd_timer);
+    struct vmngh_start_dev *start_dev = container_of(t, struct vmngh_start_dev, wd_timer);
     struct vmngh_vd_dev *vd_dev = container_of(start_dev, struct vmngh_vd_dev, start_dev);
 #else
 static void vmngh_start_timer_task(unsigned long data)
@@ -636,7 +759,7 @@ STATIC void vmngh_set_start_timer(struct vmngh_vd_dev *vd_dev)
 STATIC void vmngh_del_start_timer(struct vmngh_vd_dev *vd_dev)
 {
     if (vd_dev->start_dev.timer_cycle != 0) {
-        del_timer_sync(&vd_dev->start_dev.wd_timer);
+        timer_delete_sync(&vd_dev->start_dev.wd_timer);
         vd_dev->start_dev.timer_cycle = 0;
         vmng_info("Delete start timer. (devid=%u; fid=%u)\n", vd_dev->dev_id, vd_dev->fid);
     }
@@ -1993,6 +2116,8 @@ static void vmngh_init_pci_pdev(struct vmngh_pci_dev *vmngh_pcidev, u32 dev_id, 
     vmngh_pcidev->dev_id = dev_id;
     vmngh_pcidev->pdev = to_pci_dev(dev);
     vmngh_pcidev->dev = dev;
+    vmngh_pcidev->vdavinci_priv.dev = dev;
+    vmngh_pcidev->vdavinci_priv.ops = NULL;
     vmngh_pcidev->vdev_num = VMNG_FID_BEGIN; /* vdev_num begin as 1. */
     vmngh_pcidev->ep_devic_id = vmngh_pcidev->pdev->device;
     mutex_init(&vmngh_pcidev->vpdev_mutex);
@@ -2005,6 +2130,8 @@ static void vmngh_uninit_pci_pdev(struct vmngh_pci_dev *vmngh_pcidev)
     vmngh_pcidev->dev_id = (u32)VMNG_CTRL_DEVICE_ID_INIT;
     vmngh_pcidev->pdev = NULL;
     vmngh_pcidev->dev = NULL;
+    vmngh_pcidev->vdavinci_priv.dev = NULL;
+    vmngh_pcidev->vdavinci_priv.ops = NULL;
     vmngh_pcidev->vdev_num = 0; /* vdev_num begin as 1. */
     vmngh_pcidev->ep_devic_id = 0;
     vmngh_pcidev->vdev_ref = 0;

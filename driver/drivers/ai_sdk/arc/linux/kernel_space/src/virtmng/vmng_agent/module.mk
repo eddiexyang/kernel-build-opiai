@@ -5,7 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := drv_vpcie
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
+LOCAL_DEPEND_KO := drv_vpc_host ascend_uda
 LOCAL_INSTALLED_KO_FILES := drv_vpcie.ko
 
 include $(BUILD_HOST_KO)
-

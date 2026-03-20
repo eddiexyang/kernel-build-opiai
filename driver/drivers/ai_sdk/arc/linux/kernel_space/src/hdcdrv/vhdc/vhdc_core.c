@@ -19,6 +19,58 @@
 #include "vhdc_agent.h"
 #include "vhdc_mem.h"
 
+#ifndef CFG_FEATURE_VFIO
+static int hdccom_rx_comm_msg_para_check(u32 dev_id, u32 fid, const struct vmng_rx_msg_proc_info *proc_info)
+{
+    if ((proc_info == NULL) || (proc_info->real_out_len == NULL) || (proc_info->data == NULL) ||
+        (dev_id >= VMNG_PDEV_MAX) || (fid >= VMNG_VDEV_MAX_PER_PDEV)) {
+        hdcdrv_err("Input pararmeter is error. (dev_id=%u; fid=%u)\n", dev_id, fid);
+        return HDCDRV_PARA_ERR;
+    }
+
+    if ((proc_info->in_data_len < (sizeof(enum VHDC_CTRL_MSG_TYPE) + sizeof(int))) ||
+        (proc_info->out_data_len < (sizeof(enum VHDC_CTRL_MSG_TYPE) + sizeof(int)))) {
+        hdcdrv_err("Input pararmeter is error. (in_data_len=%u; out_data_len=%u)\n",
+            proc_info->in_data_len, proc_info->out_data_len);
+        return HDCDRV_PARA_ERR;
+    }
+
+    return HDCDRV_OK;
+}
+
+static int hdccom_rx_vpc_msg_para_check(u32 dev_id, u32 fid, const struct vmng_rx_msg_proc_info *proc_info)
+{
+    if ((proc_info == NULL) || (proc_info->real_out_len == NULL) || (proc_info->data == NULL) ||
+        (dev_id >= VMNG_PDEV_MAX) || (fid >= VMNG_VDEV_MAX_PER_PDEV)) {
+        hdcdrv_err("Input pararmeter is error. (dev_id=%u; fid=%u)\n", dev_id, fid);
+        return HDCDRV_PARA_ERR;
+    }
+
+    if ((proc_info->in_data_len < (sizeof(struct vhdc_ioctl_msg) - sizeof(union hdcdrv_cmd))) ||
+        (proc_info->out_data_len < (sizeof(struct vhdc_ioctl_msg) - sizeof(union hdcdrv_cmd)))) {
+        hdcdrv_err("Input pararmeter is error. (in_data_len=%u; out_data_len=%u)\n",
+            proc_info->in_data_len, proc_info->out_data_len);
+        return HDCDRV_PARA_ERR;
+    }
+
+    return HDCDRV_OK;
+}
+
+static int hdccom_rx_comm_msg_type_check(unsigned int cmd_min_len, const struct vmng_rx_msg_proc_info *proc_info)
+{
+    int ctrl_msg_head = sizeof(enum VHDC_CTRL_MSG_TYPE) + sizeof(int);
+
+    if (((cmd_min_len + ctrl_msg_head) > proc_info->in_data_len) ||
+        ((cmd_min_len + ctrl_msg_head) > proc_info->out_data_len)) {
+        hdcdrv_err("Input pararmeter is error. (in_data_len=%u; out_data_len=%u)\n",
+            proc_info->in_data_len, proc_info->out_data_len);
+        return HDCDRV_PARA_ERR;
+    }
+
+    return HDCDRV_OK;
+}
+#endif
+
 
 long vhdca_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {

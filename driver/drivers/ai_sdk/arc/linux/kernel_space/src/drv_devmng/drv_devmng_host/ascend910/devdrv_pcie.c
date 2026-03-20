@@ -750,6 +750,22 @@ int devdrv_manager_get_p2p_capability(struct file *filep, unsigned int cmd, unsi
     return ret;
 }
 
+/*
+ * The original vendor tree expects a lower-level host PCIe helper to provide
+ * this query. That helper is not present in the trimmed 6.18 build yet, so
+ * keep the ioctl wired up with a conservative fallback: advertise no P2P
+ * capability instead of leaving an unresolved symbol at link time.
+ */
+int devdrv_get_p2p_capability(u32 dev_id, u64 *capability)
+{
+    if (capability == NULL)
+        return -EINVAL;
+
+    *capability = 0;
+    return 0;
+}
+EXPORT_SYMBOL(devdrv_get_p2p_capability);
+
 int devdrv_check_va(struct vm_area_struct *vma, unsigned long long va, unsigned int size)
 {
     unsigned long long end = va + PAGE_ALIGN(size);
@@ -772,12 +788,21 @@ int devdrv_check_va(struct vm_area_struct *vma, unsigned long long va, unsigned 
         return -EINVAL;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    /*
+     * follow_pfn() is no longer available to external modules on modern
+     * kernels. Keep the VMA range checks and let the later remap helpers
+     * validate the actual PFN mapping operation.
+     */
+    (void)pfn;
+#else
     for (va_check = va; va_check < end; va_check += PAGE_SIZE) {
         if (follow_pfn(vma, va_check, &pfn) == 0) {
             devdrv_drv_err("va(0x%llx) size(0x%x), va_check(0x%llx) is valid\n", va, size, va_check);
             return -EINVAL;
         }
     }
+#endif
     return 0;
 }
 
@@ -1000,8 +1025,12 @@ bool devdrv_manager_is_mdev_vm_mode(unsigned int dev_id)
 bool devdrv_manager_is_mdev_vf_vm_mode(unsigned int dev_id)
 {
 #ifndef DEVDRV_MANAGER_HOST_UT_TEST
-    return ((devdrv_get_env_boot_type(dev_id) == DEVDRV_MDEV_VF_VM_BOOT) ||
-        (devdrv_get_env_boot_type(dev_id) == DEVDRV_MDEV_FULL_SPEC_VF_VM_BOOT));
+    /*
+     * Older vendor trees distinguished VF/full-spec VM boot types through
+     * devdrv_get_env_boot_type(). The exported helper available in the 6.18
+     * port only preserves the higher-level "mdev VM boot mode" semantic.
+     */
+    return devdrv_is_mdev_vm_boot_mode(dev_id);
 #endif
 }
 

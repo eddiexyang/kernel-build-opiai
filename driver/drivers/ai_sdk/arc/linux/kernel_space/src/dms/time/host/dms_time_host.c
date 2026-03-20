@@ -68,6 +68,7 @@ int dms_heartbeat_is_stop(u32 dev_id)
 
     return 0x1 & (status >> 1); /* #define DAVINCI_INTF_DEVICE_STATUS_HEARTBIT_LOST (1<<1) */
 }
+EXPORT_SYMBOL(dms_heartbeat_is_stop);
 
 int dms_time_sync_info_init(u32 dev_id)
 {
@@ -448,4 +449,3 @@ int dms_is_sync_timezone(void)
     }
     return false;
 }
-

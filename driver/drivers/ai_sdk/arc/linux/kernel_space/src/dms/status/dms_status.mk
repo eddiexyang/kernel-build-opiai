@@ -25,7 +25,7 @@ else #for CMake & ctrl cpu open
 			drv_devmng_host-y += status/dms_host_aicpu_info.o
 		endif
 
-		ifneq ($(filter $(PRODUCT), ascend310p ascend310B ascend910 ascend910B),)
+		ifneq ($(filter $(PRODUCT), ascend310p ascend310B ascend310Brc ascend910 ascend910B),)
 			drv_devmng_host-y += status/dms_osc_freq.o
 		endif
 	else

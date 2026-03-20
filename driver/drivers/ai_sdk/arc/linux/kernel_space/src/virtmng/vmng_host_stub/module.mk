@@ -6,7 +6,7 @@ LOCAL_MODULE := stub/drv_virtmng_host
 
 LOCAL_KO_SRC_FOLDER := $(LOCAL_PATH)
 
-LOCAL_DEPEND_KO := drv_pcie_host drv_seclib_host
+LOCAL_DEPEND_KO :=
 
 LOCAL_INSTALLED_KO_FILES := stub/drv_virtmng_host.ko
 

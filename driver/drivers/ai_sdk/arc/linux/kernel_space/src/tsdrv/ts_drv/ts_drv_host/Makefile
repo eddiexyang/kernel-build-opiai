@@ -319,7 +319,7 @@ else
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common/tsdrv_cdqm
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/tsdrv_cdqm
 		endif
-	else ifneq ($(filter $(PRODUCT), ascend310 ascend310rc ascend310B ascend310Besl ascend310p ),)
+	else ifneq ($(filter $(PRODUCT), ascend310 ascend310rc ascend310B ascend310Brc ascend310Besl ascend310p ),)
 		EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINI
 		EXTRA_CFLAGS += -I$(TOP_DIR)/inc/driver
 		EXTRA_CFLAGS += -I$(TOP_DIR)/inc/soc/mini_v1
@@ -334,7 +334,7 @@ else
 			EXTRA_CFLAGS += -DCFG_FEATURE_USE_MAILBOX_RECYCLE
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_platform/ts_platform_host/ascend610
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common/tsdrv_conflict_check/ascend610
-		else ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl),)
+		else ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc ascend310Besl),)
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINIV3
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_HOST
 			EXTRA_CFLAGS += -DCFG_FEATURE_CDQM
@@ -365,7 +365,7 @@ else
 		endif
 	endif
 
-	ifneq ($(filter $(PRODUCT), ascend310 ascend310rc ascend310B ascend310Besl ascend310p  ascend910 ascend910B ascend920esl ascend920emu),)
+	ifneq ($(filter $(PRODUCT), ascend310 ascend310rc ascend310B ascend310Brc ascend310Besl ascend310p  ascend910 ascend910B ascend920esl ascend920emu),)
 		obj-m += drv_devdrv_host.o
 	else
 		obj-$(CONFIG_HOST_DEVDRV_DEVDRIVER) += drv_devdrv_host.o
@@ -420,10 +420,10 @@ else
 		else
 			drv_devdrv_host-objs += tsdrv_virt/hvtsdrv_mdev.o
 		endif
-	else ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend610 bs9sx1a ascend310p),)
+	else ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc ascend310Besl ascend610 bs9sx1a ascend310p),)
 		drv_devdrv_host-objs += ts_drv_common/tsdrv_conflict_check/ascend610/tsdrv_set_runtime_conflict_check.o
 		drv_devdrv_host-objs += tsdrv_virt/hvtsdrv_mdev.o
-		ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl),)
+		ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc ascend310Besl),)
 			drv_devdrv_host-objs += tsdrv_cdqm/tsdrv_cdqm_host.o
 			drv_devdrv_host-objs += ts_drv_common/tsdrv_cmo_id.o
 			drv_devdrv_host-objs += ts_drv_common/tsdrv_cdqm/tsdrv_cdqm_module.o

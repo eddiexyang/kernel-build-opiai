@@ -231,8 +231,7 @@ int hal_kernel_sqe_update_desc_create(u32 devid, u32 tsid, struct trs_dma_desc_a
         return ret;
     }
 
-    dma_prepare = devdrv_dma_link_prepare(devid, DEVDRV_DMA_DATA_TRAFFIC, &dma_node, dma_node_num,
-        DEVDRV_DMA_DESC_FILL_FINISH);
+    dma_prepare = devdrv_dma_link_prepare(devid, DEVDRV_DMA_DATA_TRAFFIC, &dma_node, dma_node_num);
     if (dma_prepare == NULL) {
         trs_err("Dma_link_prepare alloc failed. (devid=%u)\n", devid);
         return -ENOMEM;
@@ -304,4 +303,3 @@ void trs_sqe_update_init(u32 devid)
     rb_info->rb_cnt = 0;
     spin_lock_init(&rb_info->spinlock);
 }
-

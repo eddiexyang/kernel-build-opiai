@@ -6,7 +6,7 @@ ifeq ($(TOP_DIR),)
 		EXTRA_CFLAGS += -DCFG_FEATURE_TIMESYNC
 	endif
 else #for CMake & ctrl cpu open
-	ifneq ($(filter $(PRODUCT), ascend310 ascend310B ascend310Besl ascend310Bemu ascend310p ascend910 ascend910B ascend920esl ascend920emu),)
+	ifneq ($(filter $(PRODUCT), ascend310 ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu helper310p as31xm1 ascend310p ascend910 ascend910B ascend920esl ascend920emu),)
 		ifeq ($(PRODUCT_SIDE), host)
 			drv_devmng_host-y += time/host/dms_time_host.o
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/dms/time/host

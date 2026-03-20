@@ -484,7 +484,7 @@ STATIC struct file_operations eeprom_fops = {
     .unlocked_ioctl = eeprom_ioctl,
 };
 
-STATIC int eeprom_probe(struct i2c_client *client, const struct i2c_device_id *id)
+STATIC int eeprom_probe(struct i2c_client *client)
 {
     struct i2c_adapter *adapter = NULL;
     struct m24256_dev *i2c_dev = NULL;
@@ -540,13 +540,12 @@ STATIC int eeprom_probe(struct i2c_client *client, const struct i2c_device_id *i
     return 0;
 }
 
-STATIC int eeprom_remove(struct i2c_client *client)
+STATIC void eeprom_remove(struct i2c_client *client)
 {
     if (client == NULL) {
         eeprom_err("invalid parameter,client == NULL\n");
-        return -1;
+        return;
     }
-    return 0;
 }
 
 static struct i2c_driver eeprom_driver = {

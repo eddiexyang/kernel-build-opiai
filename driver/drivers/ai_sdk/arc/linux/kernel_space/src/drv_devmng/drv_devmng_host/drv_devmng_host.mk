@@ -217,6 +217,7 @@ ifeq ($(TOP_DIR),)
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_black_box.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_manager_container.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_device_online.o
+	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_compat.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/drv_log.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/tsdrv_status.o
 
@@ -336,7 +337,7 @@ else # ifeq ($(TOP_DIR),)
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/drv_devmng/drv_devmng_common
 		else
 			EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINI
-			ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend610 ascend610Lite ascend610Liteesl bs9sx1a ascend310p),)
+			ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu ascend610 ascend610Lite ascend610Liteesl bs9sx1a helper310p as31xm1 ascend310p),)
 				ifeq ($(PRODUCT), ascend310p)
 					EXTRA_CFLAGS += -DCFG_FEATURE_VASCEND
 					EXTRA_CFLAGS += -DCFG_FEATURE_VFIO
@@ -345,7 +346,7 @@ else # ifeq ($(TOP_DIR),)
 					EXTRA_CFLAGS += -DCFG_FEATURE_DEVICE_SHARE
 				endif
 
-				ifneq ($(findstring $(PRODUCT), ascend310B ascend310Besl ascend310Bemu),)
+				ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu helper310p as31xm1),)
 					EXTRA_CFLAGS += -DCFG_FEATURE_PCIE_BBOX_ADDR
 				endif
 				EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINIV2
@@ -378,7 +379,7 @@ else # ifeq ($(TOP_DIR),)
 		ifneq ($(filter $(PRODUCT),  ascend910B ascend920esl ascend920emu),)
 			drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_chip_dev_map.o
 		endif
-	else ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend610 ascend610Lite ascend610Liteesl ascend610bs9sx1a ascend310p),)
+	else ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu ascend610 ascend610Lite ascend610Liteesl ascend610bs9sx1a helper310p as31xm1 ascend310p),)
 		BUILD_PREFIX_DIR := drv_devmng/drv_devmng_host/ascend910
 		drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_pcie.o
 		drv_devmng_host-y += $(BUILD_PREFIX_DIR)/hvdevmng_init.o
@@ -405,6 +406,7 @@ else # ifeq ($(TOP_DIR),)
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_black_box.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_manager_container.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_device_online.o
+	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/devdrv_compat.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/drv_log.o
 	drv_devmng_host-y += $(BUILD_PREFIX_DIR)/tsdrv_status.o
 

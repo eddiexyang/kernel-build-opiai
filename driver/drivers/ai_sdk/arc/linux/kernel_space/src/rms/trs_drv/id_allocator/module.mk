@@ -10,6 +10,6 @@ ifeq ($(PRODUCT_SIDE), device)
 LOCAL_DEPEND_KO:=
 include $(BUILD_DEVICE_KO)
 else
-LOCAL_DEPEND_KO:=drv_seclib_host
+LOCAL_DEPEND_KO:=
 include $(BUILD_HOST_KO)
 endif

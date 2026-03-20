@@ -103,6 +103,7 @@ struct vmngh_pci_dev {
     void *unit_priv;
     struct pci_dev *pdev;
     struct device *dev;
+    struct vdavinci_priv vdavinci_priv;
     struct vmngh_vd_dev *vd_dev[VMNG_VDEV_MAX_PER_PDEV];
     struct dvt_devinfo dev_info;
     struct mutex vpdev_mutex;

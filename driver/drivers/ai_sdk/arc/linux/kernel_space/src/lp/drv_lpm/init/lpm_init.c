@@ -263,7 +263,7 @@ STATIC int32_t lpm_fault_probe(struct platform_device *pdev)
 	return 0;
 }
 
-STATIC int32_t lpm_fault_remove(struct platform_device *pdev)
+STATIC int32_t lpm_fault_remove_impl(struct platform_device *pdev)
 {
 	int32_t ret;
 	uint32_t dev_num = lpm_common_get_dev_num();
@@ -288,6 +288,11 @@ STATIC int32_t lpm_fault_remove(struct platform_device *pdev)
 
 	lpm_log_info("lpm fault driver remove end.\n");
 	return 0;
+}
+
+STATIC void lpm_fault_remove(struct platform_device *pdev)
+{
+	(void)lpm_fault_remove_impl(pdev);
 }
 
 #if !defined(LPM_START_DIRECT)
@@ -349,7 +354,7 @@ STATIC void __exit lpm_exit(void)
 #else
 	int32_t ret;
 	struct platform_device pdev = {0};
-	ret = lpm_fault_remove(&pdev);
+	ret = lpm_fault_remove_impl(&pdev);
 	if (ret != 0) {
 		lpm_log_err("lpm fault driver exit failed, ret=%d\n", ret);
 		return;

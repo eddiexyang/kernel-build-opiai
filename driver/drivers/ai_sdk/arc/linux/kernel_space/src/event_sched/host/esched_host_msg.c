@@ -36,7 +36,7 @@ STATIC int esched_host_msg_send(u32 dev_id, struct esched_ctrl_msg *msg, u32 msg
     int ret;
     u32 out_len;
 
-    ret = devdrv_common_msg_send(dev_id, (void *)msg, msg_len, msg_len, &out_len, DEVDRV_COMMON_MSG_ESCHED);
+    ret = agentdrv_common_msg_send(dev_id, (void *)msg, msg_len, msg_len, &out_len, AGENTDRV_COMMON_MSG_ESCHED);
     if ((ret != 0) || (msg->error_code != 0)) {
         sched_debug("Failed to send message to device. (dev_id=%d; error_code=%d; ret=%d)\n",
             dev_id, msg->error_code, ret);
@@ -279,8 +279,8 @@ STATIC int esched_ctrl_msg_recv(u32 devid, void *data, u32 in_data_len, u32 out_
     return 0;
 }
 
-struct devdrv_common_msg_client esched_host_msg_client = {
-    .type = DEVDRV_COMMON_MSG_ESCHED,
+struct agentdrv_common_msg_client esched_host_msg_client = {
+    .type = AGENTDRV_COMMON_MSG_ESCHED,
     .common_msg_recv = esched_ctrl_msg_recv,
 };
 
@@ -371,10 +371,11 @@ int esched_client_init(void)
         return ret;
     }
 
-    ret = devdrv_register_common_msg_client(&esched_host_msg_client);
+    ret = agentdrv_register_common_msg_client(&esched_host_msg_client);
     if (ret != 0) {
         (void)uda_notifier_unregister(ESCHED_HOST_NOTIFIER, &type);
-        sched_err("Failed to invoke the devdrv_register_common_msg_client. (type=%d)\n", esched_host_msg_client.type);
+        sched_err("Failed to invoke the agentdrv_register_common_msg_client. (type=%d)\n",
+            (int)esched_host_msg_client.type);
         return ret;
     }
 
@@ -384,7 +385,7 @@ int esched_client_init(void)
 void esched_client_uninit(void)
 {
     struct uda_dev_type type;
-    (void)devdrv_unregister_common_msg_client(0, &esched_host_msg_client);
+    (void)agentdrv_unregister_common_msg_client(&esched_host_msg_client);
     uda_davinci_near_real_entity_type_pack(&type);
     (void)uda_notifier_unregister(ESCHED_HOST_NOTIFIER, &type);
 }

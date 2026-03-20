@@ -80,3 +80,14 @@ int vmnga_unregister_irq_func(void *drvdata, u32 vector_index, void *para)
 
     return 0;
 }
+
+int vmnga_register_vpc_irq_func(void *drvdata, u32 vector_index,
+    irqreturn_t (*callback_func)(int, void *), void *para, const char *name)
+{
+    return vmnga_register_irq_func(drvdata, vector_index, callback_func, para, name);
+}
+
+int vmnga_unregister_vpc_irq_func(void *drvdata, u32 vector_index, void *para)
+{
+    return vmnga_unregister_irq_func(drvdata, vector_index, para);
+}

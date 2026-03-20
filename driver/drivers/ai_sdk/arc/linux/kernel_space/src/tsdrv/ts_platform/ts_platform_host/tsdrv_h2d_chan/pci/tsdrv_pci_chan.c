@@ -158,7 +158,7 @@ STATIC int set_pci_chan_cleanup(enum pci_chan_type type)
     return err;
 }
 
-static void pci_slow_chan_init_callback(u32 devid, int status)
+static void pci_slow_chan_init_callback(u32 devid)
 {
     if (devid >= TSDRV_MAX_DAVINCI_NUM) {
         TSDRV_PRINT_ERR("invalid devid=%u\n", devid);

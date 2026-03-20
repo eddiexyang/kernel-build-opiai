@@ -103,6 +103,8 @@ else
 		else  ifeq ($(PRODUCT),ascend310p)
             EXTRA_CFLAGS += -DCFG_FEATURE_RUNTIME_NO_THREAD
 			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_platform/ts_platform_host/ascend610
+		else ifneq ($(filter $(PRODUCT),ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu helper310p as31xm1),)
+			EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_platform/ts_platform_host/ascend310
 		endif
 		EXTRA_CFLAGS += -I$(DRIVER_OPEN_KERNEL_DIR)/inc
 		EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/inc

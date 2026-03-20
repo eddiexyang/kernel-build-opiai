@@ -46,6 +46,7 @@ int devdrv_get_platform_type(unsigned int *p_type, unsigned int *version);
 #define DEVDRV_HOST_PHY_MACH_FLAG           0x5a6b7c8d    /* host physical mathine flag */
 #define DEVDRV_HOST_VM_MACH_FLAG            0x1a2b3c4d    /* vm mathine flag */
 #define DEVDRV_HOST_CONTAINER_MACH_FLAG     0xa4b3c2d1    /* container mathine flag */
+#define DEVDRV_DIVERSITY_PCIE_VENDOR_ID     0xFFFF
 #define DEVDRV_HOST_PHY_MACH_FLAG_OFFSET    0x400         /* HOST_FLAG offset in BAR4 */
 #define DEVDRV_ERROR_CODE_OFFSET            0x404         /* ERROR_CODE offset in BAR4 */
 
@@ -297,6 +298,71 @@ int agentdrv_unregister_common_msg_client(const struct agentdrv_common_msg_clien
 int agentdrv_common_msg_send(u32 devid, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len,
                              enum agentdrv_common_msg_type msg_type);
 
+/*
+ * Legacy host-side compatibility layer.
+ *
+ * A subset of the older host stack still builds against the historical
+ * devdrv_* messaging API. The current 6.18 tree only keeps agentdrv_*,
+ * so bridge the old names here and let drv_pcie provide the queue wrappers.
+ */
+#define devdrv_sync_msg_send agentdrv_sync_msg_send
+
+#define DEVDRV_COMMON_MSG_VMNG AGENTDRV_COMMON_MSG_VMNG
+#define DEVDRV_COMMON_MSG_HDC AGENTDRV_COMMON_MSG_HDC
+#define DEVDRV_COMMON_MSG_DEVDRV_MANAGER AGENTDRV_COMMON_MSG_DEVDRV_MANAGER
+#define DEVDRV_COMMON_MSG_DEVDRV_TSDRV AGENTDRV_COMMON_MSG_DEVDRV_TSDRV
+#define DEVDRV_COMMON_MSG_DP_PROC_MNG AGENTDRV_COMMON_MSG_DP_PROC_MNG
+#define DEVDRV_COMMON_MSG_TYPE_MAX AGENTDRV_COMMON_MSG_TYPE_MAX
+
+#define devdrv_msg_client_hdc agentdrv_msg_client_hdc
+#define devdrv_msg_client_devmanager agentdrv_msg_client_devmanager
+#define devdrv_msg_client_tsdrv agentdrv_msg_client_tsdrv
+
+#define devdrv_common_msg_client agentdrv_common_msg_client
+
+static inline int devdrv_common_msg_send(u32 devid, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len,
+    u32 msg_type)
+{
+    return agentdrv_common_msg_send(devid, data, in_data_len, out_data_len, real_out_len,
+        (enum agentdrv_common_msg_type)msg_type);
+}
+
+static inline int devdrv_register_common_msg_client(struct devdrv_common_msg_client *msg_client)
+{
+    return agentdrv_register_common_msg_client((struct agentdrv_common_msg_client *)msg_client);
+}
+
+static inline int devdrv_unregister_common_msg_client(u32 devid, const struct devdrv_common_msg_client *msg_client)
+{
+    (void)devid;
+    return agentdrv_unregister_common_msg_client((const struct agentdrv_common_msg_client *)msg_client);
+}
+
+struct devdrv_non_trans_msg_chan_info {
+    u32 msg_type;
+    u32 flag;
+    u32 level;
+    u32 s_desc_size;
+    u32 c_desc_size;
+    int (*rx_msg_process)(void *msg_chan, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len);
+};
+
+struct devdrv_trans_msg_chan_info {
+    u32 msg_type;
+    u32 queue_depth;
+    u32 level;
+    u32 sq_desc_size;
+    u32 cq_desc_size;
+    void (*rx_msg_notify)(void *msg_chan);
+    void (*tx_finish_notify)(void *msg_chan);
+};
+
+void *devdrv_pcimsg_alloc_non_trans_queue(u32 dev_id, const struct devdrv_non_trans_msg_chan_info *chan_info);
+int devdrv_pcimsg_free_non_trans_queue(void *msg_chan);
+void *devdrv_pcimsg_alloc_trans_queue(u32 dev_id, const struct devdrv_trans_msg_chan_info *chan_info);
+int devdrv_pcimsg_realease_trans_queue(void *msg_chan);
+int devdrv_get_support_msg_chan_cnt(u32 dev_id, u32 msg_type);
+
 /****************************************************************************
  * ***************************** client register *****************************
  ***************************************************************************/
@@ -529,6 +595,15 @@ enum devdrv_addr_type {
     DEVDRV_ADDR_TYPE_MAX
 };
 
+/*
+ * Older host-side modules still probe these optional TS table resources.
+ * The current host compatibility layer returns -EOPNOTSUPP for address
+ * queries anyway, so keep the legacy names as sentinels for build
+ * compatibility.
+ */
+#define DEVDRV_ADDR_TS_NOTIFY_TBL_BASE DEVDRV_ADDR_TYPE_MAX
+#define DEVDRV_ADDR_TS_EVENT_TBL_NS_BASE DEVDRV_ADDR_TYPE_MAX
+
 /* module init finish */
 #define DEVDRV_HOST_MODULE_PCIVNIC 0
 #define DEVDRV_HOST_MODULE_HDC 1
@@ -570,6 +645,7 @@ int devdrv_get_slot_num(void);
 int devdrv_get_davinci_dev_num(void);
 int devdrv_get_device_boot_status(u32 devid, u32 *boot_status);
 int devdrv_get_pci_dev_info(u32 devid, struct devdrv_pci_dev_info *dev_info);
+struct device *devdrv_get_pci_dev_by_devid(u32 devid);
 int devdrv_get_ts_drv_irq_vector_id(u32 devid, u32 index, unsigned int *entry);
 int devdrv_get_topic_sched_irq_vector_id(u32 devid, u32 index, unsigned int *entry);
 int devdrv_get_cdqm_irq_vector_id(u32 devid, u32 index, unsigned int *entry);

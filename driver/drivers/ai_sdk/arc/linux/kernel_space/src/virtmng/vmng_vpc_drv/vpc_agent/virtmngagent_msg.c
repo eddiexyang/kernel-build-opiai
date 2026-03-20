@@ -243,6 +243,7 @@ void vmnga_uninit_vpc_msg(struct vmng_msg_dev *msg_dev)
 }
 EXPORT_SYMBOL(vmnga_uninit_vpc_msg);
 
+#ifndef VMNGA_VPC_MSG_NO_MODULE_INIT
 STATIC int __init vmnga_vpc_init_module(void)
 {
     vmng_info("Init vmnga vpc module finish.\n");
@@ -258,6 +259,7 @@ STATIC void __exit vmnga_vpc_exit_module(void)
     vmnga_msg_dev_list_free();
 }
 module_exit(vmnga_vpc_exit_module);
+#endif
 
 MODULE_AUTHOR("Huawei Tech. Co., Ltd.");
 MODULE_DESCRIPTION("virt vpc agent driver");

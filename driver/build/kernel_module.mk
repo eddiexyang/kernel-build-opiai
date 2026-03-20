@@ -1,6 +1,8 @@
 
 my_ko_module_name := $(LOCAL_MODULE)
 my_ko_module_target := $(KO_TYPE).$(my_ko_module_name)
+my_ko_type := $(KO_TYPE)
+my_local_depend_ko := $(strip $(LOCAL_DEPEND_KO))
 
 my_installed_ko_modules := $(LOCAL_INSTALLED_KO_FILES)
 
@@ -96,7 +98,7 @@ $(HOST_KERNEL_VERSION_SYMVERS):
 
 
 define ko_extra_symvers
-$(strip $(foreach m,$(1),$(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)/$(strip $(m))_ko/Module.symvers))
+$(strip $(foreach m,$(1),$(PWD)/$($(2)_OUT_INTERMEDIATES)/$(strip $(m))_ko/Module.symvers))
 endef
 
 define normalize-local-extra-symvers
@@ -104,8 +106,8 @@ $(strip $(if $(strip $(1)),$(abspath $(1))))
 endef
 
 ifneq ($(strip $(symbol_check)), false)
-LOCAL_DEPEND_VALID_KO := $(addprefix $(KO_TYPE).,$(LOCAL_DEPEND_KO))
-LOCAL_DEPEND_SYMVERS := $(call ko_extra_symvers,$(LOCAL_DEPEND_KO))
+LOCAL_DEPEND_VALID_KO := $(addprefix $(my_ko_type).,$(my_local_depend_ko))
+LOCAL_DEPEND_SYMVERS := $(call ko_extra_symvers,$(my_local_depend_ko),$(my_ko_type))
 LOCAL_DEPEND_KERNEL := $(HOST_KERNEL_VERSION_SYMVERS)
 endif
 
@@ -113,9 +115,9 @@ $(KO_MODULES_OUT_INTER)/Module.symvers: $(KO_KERNEL_TIMESTAMP)
 	@:
 
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_SYMBOLS_PATH := $(LOCAL_DEPEND_KERNEL)
-$(KO_KERNEL_TIMESTAMP): PRIVATE_DEPEND_KO := $(strip $(LOCAL_DEPEND_KO))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_DEPEND_KO := $(my_local_depend_ko)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_LOCAL_EXTRA_SYMBOLS := $(call normalize-local-extra-symvers,$(LOCAL_KBUILD_EXTRA_SYMBOLS))
-$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(strip $(call ko_extra_symvers,$(PRIVATE_DEPEND_KO)) $(PRIVATE_LOCAL_EXTRA_SYMBOLS))
+$(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(strip $(call ko_extra_symvers,$(PRIVATE_DEPEND_KO),$(PRIVATE_KO_TYPE)) $(PRIVATE_LOCAL_EXTRA_SYMBOLS))
 $(KO_KERNEL_TIMESTAMP): PRIVATE_PRODUCT_SIDE := $(PRODUCT_SIDE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KO_TYPE := $(KO_TYPE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KO_NAME := $(my_ko_module_name)
@@ -128,8 +130,8 @@ $(KO_KERNEL_TIMESTAMP): PRIVATE_ARCH_TYPE := $(KO_ARCH_TYPE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_COMMON_CPPFLAGS := $(strip $(COMMON_KO_CPPFLAGS))
 $(KO_KERNEL_TIMESTAMP): $(KERNEL_KO_DOT_CONFIG) $(LOCAL_DEPEND_VALID_KO) $(LOCAL_DEPEND_SYMVERS) $(LOCAL_DEPEND_KERNEL)
 	@mkdir -p $(PRIVATE_KERNEL_MODULES_OUT)
+	@rm -f $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers
 	@if [ -n "$(strip $(PRIVATE_KERNEL_SYMBOLS_PATH))" ]; then \
-		cp -f $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_MODULES_OUT)/; \
 		cp -f $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_DIR)/Module.symvers; \
 	fi
 
@@ -142,7 +144,7 @@ endif
 	@$(PRIVATE_COMPILER_PREFIX)strip -S --remove-section=.note.gnu.build-id $(PRIVATE_BUILD_KO_MODULES)
 	@cp -f $(PRIVATE_BUILD_KO_MODULES) $(PRIVATE_KERNEL_MODULES_OUT)/$(notdir $(PRIVATE_BUILD_KO_MODULES))
 		@if [ -f "$(PRIVATE_MODULE_DIR)/Module.symvers" ]; then \
-			cp -f $(PRIVATE_MODULE_DIR)/Module.symvers $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers; \
+			awk '$$3 != "vmlinux"' "$(PRIVATE_MODULE_DIR)/Module.symvers" > "$(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers"; \
 		else \
 			: > $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers; \
 		fi

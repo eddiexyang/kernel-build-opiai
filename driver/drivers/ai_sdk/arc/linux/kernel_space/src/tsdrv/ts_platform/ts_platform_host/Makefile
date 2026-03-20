@@ -195,13 +195,16 @@ else
             EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/drv_devmng/drv_devmng_host/ascend310
             EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_platform/ts_platform_host/tsdrv_parse/ascend310
             drv_tsdrv_platform_host-objs += tsdrv_parse/ascend310/tsdrv_irq_parse.o tsdrv_parse/ascend310/tsdrv_addr_parse.o
-        else ifneq ($(filter $(PRODUCT), ascend310p ascend310B ascend310Besl),)
-            ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl),)
+        else ifneq ($(filter $(PRODUCT), ascend310p ascend310B ascend310Brc ascend310Besl),)
+            ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc ascend310Besl),)
                 EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINIV3
                 EXTRA_CFLAGS += -DCFG_FEATURE_SUPPORT_VSQ_MNG
             else
                 EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_MINIV2
             endif
+            EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host
+            EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common
+            EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_host/ts_drv_common/tsdrv_dev
             EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common
             EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_drv/ts_drv_common/tsdrv_id
             EXTRA_CFLAGS += -I$(DRIVER_KERNEL_DIR)/src/tsdrv/ts_platform/ts_platform_host/tsdrv_parse/ascend910

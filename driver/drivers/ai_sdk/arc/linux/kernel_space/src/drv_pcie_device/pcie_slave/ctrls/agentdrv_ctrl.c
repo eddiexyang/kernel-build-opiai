@@ -26,6 +26,7 @@
 #include "apb_comm_drv.h"
 #include "resource_drv.h"
 #include "kernel_version_adapt.h"
+#include "agentdrv_msg.h"
 
 typedef int (*flr_uninstance)(u32 dev_id);
 STATIC flr_uninstance flr_uninstance_func = NULL;
@@ -422,6 +423,98 @@ int devdrv_get_irq_vector(u32 devid, u32 entry, unsigned int *irq)
     return 0;
 }
 EXPORT_SYMBOL(devdrv_get_irq_vector);
+
+#define DEVDRV_TS_MAILBOX_ACK_VECTOR_INDEX 32U
+#define DEVDRV_TS_SQ_SEND_TRIGGER_VECTOR_INDEX 31U
+#define DEVDRV_TS_CQ_UPDATE_VECTOR_BASE 0U
+#define DEVDRV_TS_CQ_UPDATE_VECTOR_COUNT 16U
+#define DEVDRV_TS_FUNC_CQ_VECTOR_INDEX 18U
+#define DEVDRV_CDQM_VECTOR_BASE 11U
+#define DEVDRV_TOPIC_SCHED_VECTOR_BASE 12U
+
+int devdrv_get_ts_drv_irq_vector_id(u32 devid, u32 index, unsigned int *entry)
+{
+    (void)devid;
+    if (entry == NULL) {
+        return -EINVAL;
+    }
+
+    if (index == 0U) {
+        *entry = DEVDRV_TS_MAILBOX_ACK_VECTOR_INDEX;
+        return 0;
+    }
+
+    if (index == 1U) {
+        *entry = DEVDRV_TS_SQ_SEND_TRIGGER_VECTOR_INDEX;
+        return 0;
+    }
+
+    if ((index >= 2U) && (index < (2U + DEVDRV_TS_CQ_UPDATE_VECTOR_COUNT))) {
+        *entry = DEVDRV_TS_CQ_UPDATE_VECTOR_BASE + (index - 2U);
+        return 0;
+    }
+
+    if (index == (2U + DEVDRV_TS_CQ_UPDATE_VECTOR_COUNT)) {
+        *entry = DEVDRV_TS_FUNC_CQ_VECTOR_INDEX;
+        return 0;
+    }
+
+    return -EINVAL;
+}
+EXPORT_SYMBOL(devdrv_get_ts_drv_irq_vector_id);
+
+int devdrv_get_topic_sched_irq_vector_id(u32 devid, u32 index, unsigned int *entry)
+{
+    (void)devid;
+    if (entry == NULL) {
+        return -EINVAL;
+    }
+
+    *entry = DEVDRV_TOPIC_SCHED_VECTOR_BASE + index;
+    return 0;
+}
+EXPORT_SYMBOL(devdrv_get_topic_sched_irq_vector_id);
+
+int devdrv_get_cdqm_irq_vector_id(u32 devid, u32 index, unsigned int *entry)
+{
+    (void)devid;
+    if (entry == NULL) {
+        return -EINVAL;
+    }
+
+    *entry = DEVDRV_CDQM_VECTOR_BASE + index;
+    return 0;
+}
+EXPORT_SYMBOL(devdrv_get_cdqm_irq_vector_id);
+
+int devdrv_register_irq_func_expand(u32 dev_id, int vector_index, irqreturn_t (*callback_func)(int, void *),
+    void *para, const char *name)
+{
+    unsigned int irq = 0;
+    int ret;
+
+    ret = devdrv_get_irq_vector(dev_id, (u32)vector_index, &irq);
+    if (ret != 0) {
+        return ret;
+    }
+
+    return devdrv_register_irq_func(NULL, (int)irq, callback_func, para, name);
+}
+EXPORT_SYMBOL(devdrv_register_irq_func_expand);
+
+int devdrv_unregister_irq_func_expand(u32 dev_id, int vector_index, void *para)
+{
+    unsigned int irq = 0;
+    int ret;
+
+    ret = devdrv_get_irq_vector(dev_id, (u32)vector_index, &irq);
+    if (ret != 0) {
+        return ret;
+    }
+
+    return devdrv_unregister_irq_func(NULL, (int)irq, para);
+}
+EXPORT_SYMBOL(devdrv_unregister_irq_func_expand);
 
 STATIC void agentdrv_dev_register_instance_proc(struct agentdrv_devctrl *agent_dev,
     const struct agentdrv_client *client, int chip_id)

@@ -35,6 +35,10 @@ typedef struct __dms_topology_check {
 #define DMS_TOPOLOGY_CHECK_HCCS dms_topology_check_hccs_by_hccs_link_status
 #endif
 
+#ifndef DMS_TOPOLOGY_CHECK_HCCS
+#define DMS_TOPOLOGY_CHECK_HCCS dms_topology_check_in_the_same_os
+#endif
+
 #ifdef CFG_FEATURE_CHIP_DIE
 #define DMS_TOPOLOGY_CHECK_SIO dms_topology_check_sio
 #define DMS_TOPOLOGY_CHECK_HCCS_SW dms_topology_check_hccs_sw

@@ -31,7 +31,7 @@ static void vmng_msg_cmn_test_rand_sleep(u32 dly_us)
     u32 time;
     u32 rd;
 
-    rd = get_random_int();
+    rd = get_random_u32();
     rd = rd >> DATA_OFFSET;
     time = (dly_us * rd) >> DATA_OFFSET;
     vmng_debug("Get time value. (rd=%u; time=%u)\n", rd, time);

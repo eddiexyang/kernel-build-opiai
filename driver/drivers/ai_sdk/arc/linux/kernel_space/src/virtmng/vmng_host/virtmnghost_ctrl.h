@@ -28,6 +28,12 @@
 
 #define VMNGH_DTYPE_TO_AICORE_NUM(dtype) (0x01 << (dtype))
 
+enum devdrv_boot_sriov_mode {
+    DEVDRV_BOOT_DEFAULT_MODE = 0,
+    DEVDRV_BOOT_ONLY_SRIOV = 1,
+    DEVDRV_BOOT_MDEV_AND_SRIOV = 2,
+};
+
 struct vmngh_vm_info {
     u32 devid;
     u32 fid;
@@ -130,5 +136,36 @@ bool is_sriov_enable(u32 dev_id);
 struct mutex *vmngh_get_ctrl_mutex(void);
 int vmngh_common_enable_sriov(u32 dev_id);
 void vmng_set_device_split_mode(u32 dev_id, enum vmng_split_mode split_mode);
+int devdrv_set_sriov_and_mdev_mode(u32 dev_id, int sriov_mode);
+int vmngh_enable_sriov(u32 dev_id);
+int vmngh_disable_sriov(u32 dev_id);
+
+static inline int devdrv_sriov_init_instance(u32 dev_id)
+{
+    (void)dev_id;
+    return 0;
+}
+
+static inline int devdrv_sriov_uninit_instance(u32 dev_id)
+{
+    (void)dev_id;
+    return 0;
+}
+
+static inline int devdrv_sriov_enable(u32 dev_id)
+{
+    return vmngh_enable_sriov(dev_id);
+}
+
+static inline int devdrv_sriov_disable(u32 dev_id)
+{
+    return vmngh_disable_sriov(dev_id);
+}
+
+static inline bool devdrv_check_half_probe_finish(u32 dev_id)
+{
+    (void)dev_id;
+    return true;
+}
 
 #endif
