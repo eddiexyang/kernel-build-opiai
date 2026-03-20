@@ -10,6 +10,13 @@ WORKSPACE_DIR ?= $(ROOT_DIR)/workspace
 ARCH_TYPE ?= arm64
 CROSS_COMPILE_PREFIX ?= aarch64-linux-gnu-
 JOBS ?= $(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 16)
+CCACHE_BIN ?= $(shell command -v ccache 2>/dev/null || true)
+CCACHE ?= $(CCACHE_BIN)
+
+KERNEL_CC := $(if $(strip $(CCACHE_BIN)),$(strip $(CCACHE_BIN)) $(CROSS_COMPILE_PREFIX)gcc,$(CROSS_COMPILE_PREFIX)gcc)
+KERNEL_HOSTCC := $(if $(strip $(CCACHE_BIN)),$(strip $(CCACHE_BIN)) gcc,gcc)
+KERNEL_HOSTCXX := $(if $(strip $(CCACHE_BIN)),$(strip $(CCACHE_BIN)) g++,g++)
+KERNEL_MAKE_VARS := ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" CC="$(KERNEL_CC)" HOSTCC="$(KERNEL_HOSTCC)" HOSTCXX="$(KERNEL_HOSTCXX)"
 
 LINUX_SOURCE_DIR ?= $(ROOT_DIR)/linux-source
 KERNEL_TOOLS_DIR := $(ROOT_DIR)/kernel-tools

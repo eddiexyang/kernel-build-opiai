@@ -68,7 +68,9 @@ u32 dfm_gen_event_id(u8 dev_node_type, u8 sensor_type, u8 error_type)
     fault_id |= (u32)error_type;
     return fault_id;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_gen_event_id);
+#endif
 
 dfm_event_node *dfm_create_event_list_node(const dfm_event *event)
 {
@@ -167,7 +169,9 @@ int dfm_add_event(struct dfm_struct *dfm, u32 node_id, const dfm_event *event)
 
     return dfm_add_sensor_event(sensor, event);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_add_event);
+#endif
 
 STATIC void dfm_remove_event_node(struct dfm_sensor *sensor, dfm_event_node *event_node)
 {
@@ -218,7 +222,9 @@ int dfm_remove_event(struct dfm_struct *dfm, u32 node_id, const dfm_event *event
     }
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_remove_event);
+#endif
 
 void dfm_clear_event_list(struct dfm_sensor *sensor)
 {
@@ -244,7 +250,9 @@ void dfm_clear_event_list(struct dfm_sensor *sensor)
     }
     spin_unlock_irqrestore(&sensor->sensor_lock, irq_flags);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_clear_event_list);
+#endif
 
 STATIC void dfm_clear_dev_events(struct dfm_struct *dfm)
 {
@@ -274,7 +282,9 @@ void dfm_clear_all_dev_events(void)
         dfm_clear_dev_events(dfms[i]);
     }
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_clear_all_dev_events);
+#endif
 
 bool dfm_is_onetime_event(const struct dfm_sensor *sensor, unsigned int status_bit)
 {
@@ -347,7 +357,9 @@ void dfm_scan_sensor_events(struct dfm_sensor *sensor, struct dms_sensor_event_d
     }
     spin_unlock_irqrestore(&sensor->sensor_lock, irq_flags);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_scan_sensor_events);
+#endif
 
 int dfm_scan_events(struct dfm_struct *dfm, u32 node_id, u8 sensor_type, struct dms_sensor_event_data *data)
 {
@@ -374,4 +386,6 @@ int dfm_scan_events(struct dfm_struct *dfm, u32 node_id, u8 sensor_type, struct 
     dfm_scan_sensor_events(sensor, data);
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_scan_events);
+#endif

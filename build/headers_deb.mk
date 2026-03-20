@@ -13,13 +13,14 @@ headers-deb: | ensure-output-dirs
 	deb_path=
 	printf 'start generate headers deb\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
+	if [ -n "$(strip $(CCACHE_BIN))" ]; then printf 'ccache enabled: %s\n' "$(CCACHE_BIN)"; else printf 'ccache disabled\n'; fi
 	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" olddefconfig
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" modules_prepare
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" modules -j"$(JOBS)"
-	kernel_release="$$( $(MAKE) -s -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" kernelrelease )"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) "$(KERNEL_DEFCONFIG)"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) olddefconfig
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) modules_prepare
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) modules -j"$(JOBS)"
+	kernel_release="$$( $(MAKE) -s -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) kernelrelease )"
 	[ -n "$$kernel_release" ] || { printf 'error: failed to determine kernel release\n' >&2; exit 1; }
 	package_name="$${HEADERS_DEB_PACKAGE_NAME:-linux-headers-$$kernel_release}"
 	package_arch="$${HEADERS_DEB_PACKAGE_ARCH:-$(MODULES_DEB_PACKAGE_ARCH)}"

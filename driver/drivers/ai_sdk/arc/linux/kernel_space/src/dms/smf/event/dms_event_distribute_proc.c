@@ -50,7 +50,9 @@ int dms_event_set_add_exception_handle(add_exception_handle func)
     g_add_exception_func = func;
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_set_add_exception_handle);
+#endif
 
 int dms_event_call_add_exception_handle(u32 devid, u32 code)
 {
@@ -134,4 +136,3 @@ int dms_event_distribute_handle_init(void)
 
     return DRV_ERROR_NONE;
 }
-

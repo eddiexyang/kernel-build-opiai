@@ -25,17 +25,23 @@ int dms_notifyer_call(u64 mode, void* v)
 {
     return raw_notifier_call_chain(&g_dms_chain, mode, v);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_notifyer_call);
+#endif
 
 int dms_register_notifier(struct notifier_block* nb)
 {
     return raw_notifier_chain_register(&g_dms_chain, nb);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_register_notifier);
+#endif
 
 int dms_unregister_notifier(struct notifier_block* nb)
 {
     return raw_notifier_chain_unregister(&g_dms_chain, nb);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_unregister_notifier);
+#endif
 

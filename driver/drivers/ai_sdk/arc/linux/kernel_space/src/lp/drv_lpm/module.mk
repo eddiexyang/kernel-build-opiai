@@ -3,6 +3,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := drv_lpm_fault
+LOCAL_DEPEND_KO := ascend_dms_dtm ascend_dms_smf ascend_uda drv_icm drv_fpdc drv_devmng mntn_bbox
 LOCAL_KBUILD_EXTRA_SYMBOLS := \
 	$(PWD)/$(DEVICE_OUT_INTERMEDIATES)/ascend_dms_dtm_ko/Module.symvers \
 	$(PWD)/$(DEVICE_OUT_INTERMEDIATES)/ascend_dms_smf_ko/Module.symvers \

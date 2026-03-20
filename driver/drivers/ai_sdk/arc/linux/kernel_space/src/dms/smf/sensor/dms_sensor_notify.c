@@ -188,4 +188,6 @@ int dms_sensor_event_notify(unsigned int dev_id, struct dms_sensor_object_cfg *p
 
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_event_notify);
+#endif

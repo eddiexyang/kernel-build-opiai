@@ -181,8 +181,9 @@ ssize_t dms_feature_print_feature_list(char *buf)
     }
     return offset;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_feature_print_feature_list);
-
+#endif
 int dms_feature_register(DMS_FEATURE_S* feature)
 {
     char key[KV_KEY_MAX_LEN + 1] = {0};
@@ -217,7 +218,9 @@ int dms_feature_register(DMS_FEATURE_S* feature)
     dms_info("register OK. (main_cmd=%u; sub_cmd=%u)\n", feature->main_cmd, feature->sub_cmd);
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_feature_register);
+#endif
 
 int dms_feature_unregister(DMS_FEATURE_S* feature)
 {
@@ -261,7 +264,9 @@ int dms_feature_unregister(DMS_FEATURE_S* feature)
     dms_info("unregister OK. (main_cmd=%u; sub_cmd=%u)\n", feature->main_cmd, feature->sub_cmd);
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_feature_unregister);
+#endif
 
 STATIC void dms_update_static(FEATURE_STATISTIC_S *s,
     int ret, u64 start, u64 end)

@@ -169,7 +169,9 @@ int dms_event_report(struct dms_event_obj *event_obj)
     wake_up(&g_event_task.wait);
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_report);
+#endif
 
 static inline unsigned char dms_event_convert_assertion(const struct dms_sensor_object_cb *p_sensor_obj_cb,
     unsigned char event_state)
@@ -428,7 +430,9 @@ int dms_event_clear_by_phyid(u32 phyid)
     dms_event("Clear event success. (phyid=%u)\n", phyid);
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_clear_by_phyid);
+#endif
 
 int dms_event_get_logic_id_and_covert_to_phy_id(char *in, u32 in_len, u32 *logic_id, u32 *phy_id, u32 *fid)
 {
@@ -533,7 +537,9 @@ int dms_event_mask_by_phyid(u32 phyid, u32 event_id, u8 mask)
               phyid, event_id, mask, ret);
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_mask_by_phyid);
+#endif
 
 int dms_event_disable_fault_event(void *feature, char *in, u32 in_len,
     char *out, u32 out_len)
@@ -697,7 +703,9 @@ free_buff:
     event_buff = NULL;
     return ret;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_event_code_from_sensor);
+#endif
 
 static int dms_get_event_code_para_check(u32 devid, u32 fid, u32 *health_code,
     struct devdrv_error_code_para *code_para)
@@ -1372,4 +1380,3 @@ void dms_event_exit(void)
     dms_event_ctrl_uninit();
     dms_event_convergent_diagrams_exit();
 }
-

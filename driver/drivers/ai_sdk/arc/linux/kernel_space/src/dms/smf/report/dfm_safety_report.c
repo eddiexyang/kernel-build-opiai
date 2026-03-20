@@ -170,4 +170,6 @@ int dfm_safety_handler(const struct dfm_safety_module *module_info,
 
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_safety_handler);
+#endif

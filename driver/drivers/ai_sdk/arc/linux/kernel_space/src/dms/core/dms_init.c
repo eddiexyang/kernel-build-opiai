@@ -107,7 +107,9 @@ struct dms_system_ctrl_block *dms_get_sys_ctrl_cb(void)
 {
 	return g_dms_system_ccb;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_sys_ctrl_cb);
+#endif
 
 static void dms_free_sys_ctrl_cb(void)
 {
@@ -122,7 +124,9 @@ int dms_check_device_id(int dev_id)
 
 	return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_check_device_id);
+#endif
 
 DMS_MODE_T dms_get_rc_ep_mode(void)
 {
@@ -132,7 +136,9 @@ DMS_MODE_T dms_get_rc_ep_mode(void)
 	return DMS_RC_MODE;
 #endif
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_rc_ep_mode);
+#endif
 
 struct dms_dev_ctrl_block *dms_get_dev_cb(int dev_id)
 {
@@ -152,7 +158,9 @@ struct dms_dev_ctrl_block *dms_get_dev_cb(int dev_id)
 
 	return &cb->dev_cb_table[dev_id];
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_dev_cb);
+#endif
 
 bool dms_is_devid_valid(int dev_id)
 {
@@ -171,7 +179,9 @@ bool dms_is_devid_valid(int dev_id)
 
 	return true;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_is_devid_valid);
+#endif
 
 /*
  * Some legacy TS/RMS modules still expect a PASID lookup hook from the vendor

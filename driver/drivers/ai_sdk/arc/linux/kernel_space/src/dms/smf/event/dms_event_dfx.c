@@ -64,7 +64,9 @@ ssize_t dms_event_dfx_channel_flux_store(const char *buf, size_t count)
     dms_info("Store dfx channel flux succ. (dev_id=%u)\n", g_event_dfx.channel_devid);
     return count;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_channel_flux_store);
+#endif
 
 static int dms_event_dfx_channel_flux_show_item(const char *flux_name,
     const char *event_type, atomic_t *channel, char **str, int *avl_len)
@@ -148,7 +150,9 @@ out:
     dms_warn("snprintf_s failed. (dev_id=%u)\n", g_event_dfx.channel_devid);
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_channel_flux_show);
+#endif
 
 ssize_t dms_event_dfx_convergent_diagrams_store(const char *buf, size_t count)
 {
@@ -174,7 +178,9 @@ ssize_t dms_event_dfx_convergent_diagrams_store(const char *buf, size_t count)
              g_event_dfx.diagrams_devid, g_event_dfx.diagrams_opt);
     return count;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_convergent_diagrams_store);
+#endif
 
 /*
   convergent diagrams example
@@ -205,7 +211,9 @@ ssize_t dms_event_dfx_convergent_diagrams_show(char *str)
     EVENT_DFX_CHECK_DO_SOMETHING(str == NULL, return 0);
     return dms_event_print_convergent_diagrams(g_event_dfx.diagrams_devid, g_event_dfx.diagrams_opt, str);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_convergent_diagrams_show);
+#endif
 
 ssize_t dms_event_dfx_event_list_store(const char *buf, size_t count)
 {
@@ -229,7 +237,9 @@ ssize_t dms_event_dfx_event_list_store(const char *buf, size_t count)
     dms_info("Store dfx event list succ. (dev_id=%u)\n", g_event_dfx.event_list_devid);
     return count;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_event_list_store);
+#endif
 
 /*
   Print convergent event_list example
@@ -243,7 +253,9 @@ ssize_t dms_event_dfx_event_list_show(char *str)
     EVENT_DFX_CHECK_DO_SOMETHING(str == NULL, return 0);
     return dms_event_print_event_list(g_event_dfx.event_list_devid, str);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_event_list_show);
+#endif
 
 ssize_t dms_event_dfx_mask_list_store(const char *buf, size_t count)
 {
@@ -267,7 +279,9 @@ ssize_t dms_event_dfx_mask_list_store(const char *buf, size_t count)
     dms_info("Store dfx mask list succ. (dev_id=%u)\n", g_event_dfx.mask_list_devid);
     return count;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_mask_list_store);
+#endif
 
 /*
   Print convergent mask_list example
@@ -281,7 +295,9 @@ ssize_t dms_event_dfx_mask_list_show(char *str)
     EVENT_DFX_CHECK_DO_SOMETHING(str == NULL, return 0);
     return dms_event_print_mask_list(g_event_dfx.mask_list_devid, str);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_mask_list_show);
+#endif
 
 /*
   Print subscribe handle function example
@@ -295,7 +311,9 @@ ssize_t dms_event_dfx_subscribe_handle_show(char *str)
     EVENT_DFX_CHECK_DO_SOMETHING(str == NULL, return 0);
     return dms_event_print_subscribe_handle(str);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_subscribe_handle_show);
+#endif
 
 /*
   Print subscribe handle function example
@@ -310,5 +328,6 @@ ssize_t dms_event_dfx_subscribe_process_show(char *str)
     EVENT_DFX_CHECK_DO_SOMETHING(str == NULL, return 0);
     return dms_event_print_subscribe_process(str);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_dfx_subscribe_process_show);
-
+#endif

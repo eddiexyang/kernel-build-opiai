@@ -361,7 +361,9 @@ void dms_event_release_proc(void)
     }
     mutex_unlock(&g_dms_event_process_mutex);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_release_proc);
+#endif
 
 int dms_event_subscribe_register(DMS_EVENT_DISTRIBUTE_HANDLE_T handle_func,
     DMS_DISTRIBUTE_PRIORITY priority)
@@ -388,7 +390,9 @@ int dms_event_subscribe_register(DMS_EVENT_DISTRIBUTE_HANDLE_T handle_func,
     dms_err("The distribute handle list is full. (priority=%u).\n", priority);
     return DRV_ERROR_NO_RESOURCES;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_subscribe_register);
+#endif
 
 void dms_event_subscribe_unregister(DMS_EVENT_DISTRIBUTE_HANDLE_T handle_func)
 {
@@ -403,7 +407,9 @@ void dms_event_subscribe_unregister(DMS_EVENT_DISTRIBUTE_HANDLE_T handle_func)
     }
     mutex_unlock(&g_dms_event_handle_mutex);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_subscribe_unregister);
+#endif
 
 void dms_event_subscribe_unregister_all(void)
 {
@@ -443,7 +449,9 @@ int dms_event_distribute_handle(DMS_EVENT_NODE_STRU *exception_node, DMS_DISTRIB
 
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_distribute_handle);
+#endif
 
 ssize_t dms_event_print_subscribe_handle(char *str)
 {
@@ -517,4 +525,3 @@ out:
     dms_warn("snprintf_s failed.\n");
     return 0;
 }
-

@@ -3,19 +3,20 @@
 kernel: | ensure-output-dirs
 	printf 'start make kernel\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
+	if [ -n "$(strip $(CCACHE_BIN))" ]; then printf 'ccache enabled: %s\n' "$(CCACHE_BIN)"; else printf 'ccache disabled\n'; fi
 	$(MAKE) --no-print-directory clean-kernel-outputs
 	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" "$(KERNEL_DEFCONFIG)"
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" olddefconfig
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) "$(KERNEL_DEFCONFIG)"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) olddefconfig
 	if [ "$(SKIP_MENUCONFIG)" = "1" ]; then
 		printf 'skip menuconfig because SKIP_MENUCONFIG=1\n'
 	else
-		$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" menuconfig
+		$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) menuconfig
 	fi
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" Image -j"$(JOBS)"
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" modules -j"$(JOBS)"
-	$(MAKE) -C "$(KERNEL_WORKSPACE)" ARCH="$(ARCH_TYPE)" CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" LOCALVERSION="$(KERNEL_LOCALVERSION)" INSTALL_MOD_PATH="$(OUTPUT_DIR)/modules" modules_install
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) Image -j"$(JOBS)"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) modules -j"$(JOBS)"
+	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) INSTALL_MOD_PATH="$(OUTPUT_DIR)/modules" modules_install
 	cp -f "$(KERNEL_WORKSPACE)/arch/arm64/boot/Image" "$(OUTPUT_DIR)/Image"
 	python3 "$(SIGNING_DIR)/esbc_header/esbc_header.py" \
 		-raw_img "$(OUTPUT_DIR)/Image" \

@@ -68,7 +68,9 @@ int dms_event_get_notify_serial_num(void)
 {
     return atomic_inc_return(&g_dms_notify_serial_num);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_get_notify_serial_num);
+#endif
 
 static inline unsigned int dms_event_get_owner_node_type(const struct dms_event_obj *event_obj)
 {
@@ -958,7 +960,9 @@ void dms_event_cb_release(int owner_pid)
 
     return;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_cb_release);
+#endif
 
 void dms_event_mask_del_to_event_cb(u32 phyid, struct dms_dev_ctrl_block *dev_cb, u32 event_id)
 {
@@ -1507,13 +1511,17 @@ int dms_get_event_code_from_event_cb(u32 devid, u32 *health_code, u32 health_len
     }
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_event_code_from_event_cb);
+#endif
 
 int dms_event_is_converge(void)
 {
     return g_converge_htable.converge_switch;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_event_is_converge);
+#endif
 
 int dms_event_obj_to_error_code(struct dms_event_obj event_obj, u32 *error_code)
 {
@@ -1646,4 +1654,3 @@ int dms_event_converge_to_exception(struct dms_event_obj *event_obj,
 
     return DRV_ERROR_NONE;
 }
-

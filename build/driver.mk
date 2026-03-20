@@ -3,6 +3,7 @@
 driver: | ensure-output-dirs
 	printf 'start make driver\n'
 	printf 'kernel release suffix: %s\n' "$(KERNEL_RELEASE_SUFFIX)"
+	if [ -n "$(strip $(CCACHE_BIN))" ]; then printf 'ccache enabled: %s\n' "$(CCACHE_BIN)"; else printf 'ccache disabled\n'; fi
 	$(MAKE) --no-print-directory clean-driver-outputs
 	$(MAKE) --no-print-directory sync-kernel-source-inputs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
@@ -12,6 +13,7 @@ driver: | ensure-output-dirs
 	$(MAKE) driver_device \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=device \
+		CCACHE="$(CCACHE)" \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
 		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
@@ -21,6 +23,7 @@ driver: | ensure-output-dirs
 	$(MAKE) driver_host \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=host \
+		CCACHE="$(CCACHE)" \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
 		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \

@@ -50,7 +50,9 @@ int g_dms_mgnt_clock_id = CLOCK_VIRTUAL;
 #define FAULT_EVENT_NODETYPE_TO_CODE(nodetype) (((nodetype) & 0x7ff) << 17)
 
 struct dms_eventinfo_from_config g_event_configs = {{{0}}};
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(g_event_configs);
+#endif
 
 /* Globally unique number */
 atomic_t g_dms_sensor_alarm_serial = ATOMIC_INIT(0);
@@ -1420,7 +1422,9 @@ ssize_t dms_sensor_print_sensor_list(char *buf)
 _out:
     return buf_ret;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_print_sensor_list);
+#endif
 
 static int dms_get_event_def_severity(unsigned char sensor_type, unsigned char event_offset, unsigned int *severity)
 {
@@ -1504,7 +1508,9 @@ int dms_get_event_severity(unsigned int node_type, unsigned char sensor_type, un
     return dms_get_event_def_severity(sensor_type, event_offset, severity);
 }
 
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_event_severity);
+#endif
 
 /* *************************************************************************
 Function:        int dms_get_event_string
@@ -1800,7 +1806,9 @@ sensor_exit:
     *output_count = temp_out_count;
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_get_health_events);
+#endif
 
 int dms_sensor_clean_health_events(struct dms_dev_sensor_cb *dev_sensor_cb)
 {
@@ -1899,7 +1907,9 @@ int dms_sensor_get_dev_health(struct dms_dev_sensor_cb *dev_sensor_cb)
 {
     return dev_sensor_cb->health;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_get_dev_health);
+#endif
 
 /* *************************************************************************
 Function:       unsigned int dms_sensor_register(struct dms_dev_node *owner_node, struct dms_sensor_type *psensor)
@@ -1912,7 +1922,9 @@ unsigned int dms_sensor_register(struct dms_node *owner_node, struct dms_sensor_
 {
     return (dms_sensor_register_all(owner_node, psensor_obj_cfg, DMS_SENSOR_ENV_KERNEL_SPACE));
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_register);
+#endif
 
 /* *************************************************************************
 Function:       unsigned int dms_sensor_register(struct dms_dev_node *owner_node, struct dms_sensor_type *psensor)
@@ -1926,7 +1938,9 @@ unsigned int dms_sensor_register_for_userspace(struct dms_node *owner_node,
 {
     return dms_sensor_register_all(owner_node, psensor_obj_cfg, DMS_SENSOR_ENV_USER_SPACE);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_register_for_userspace);
+#endif
 
 /* *************************************************************************
 Function:    unsigned int dms_sensor_node_unregister(struct dms_node *owner_node)
@@ -1971,7 +1985,9 @@ unsigned int dms_sensor_object_unregister(struct dms_node *owner_node, struct dm
     mutex_unlock(&dev_sensor_cb->dms_sensor_mutex);
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_object_unregister);
+#endif
 
 /* *************************************************************************
 Function:    unsigned int dms_sensor_node_unregister(struct dms_node *owner_node)
@@ -2011,7 +2027,9 @@ unsigned int dms_sensor_node_unregister(struct dms_node *owner_node)
     mutex_unlock(&dev_sensor_cb->dms_sensor_mutex);
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_node_unregister);
+#endif
 
 /* *************************************************************************
 Function:        unsigned int dms_init_sensor(void)
@@ -2129,4 +2147,6 @@ void dms_sensor_release(int owner_pid)
 
     return;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_sensor_release);
+#endif

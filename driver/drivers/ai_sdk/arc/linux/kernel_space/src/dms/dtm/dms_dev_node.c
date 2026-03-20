@@ -38,7 +38,9 @@ int dms_check_node_type(int node_type)
 
     return DRV_ERROR_PARA_ERROR;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_check_node_type);
+#endif
 
 void dev_node_release(int owner_pid)
 {
@@ -79,7 +81,9 @@ void dev_node_release(int owner_pid)
     }
     return;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dev_node_release);
+#endif
 
 static int _add_dev_node_to_list(struct dms_node *node)
 {
@@ -165,7 +169,9 @@ int dms_register_dev_node(struct dms_node *node)
     }
     return ret;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_register_dev_node);
+#endif
 
 int dms_unregister_dev_node(struct dms_node *node)
 {
@@ -186,7 +192,9 @@ int dms_unregister_dev_node(struct dms_node *node)
     }
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_unregister_dev_node);
+#endif
 
 struct dms_node *dms_get_devnode_cb(u32 dev_id, int node_type, int node_id)
 {
@@ -307,5 +315,7 @@ ssize_t dms_devnode_print_node_list(char *buf)
 
     return buf_ret;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_devnode_print_node_list);
+#endif
 

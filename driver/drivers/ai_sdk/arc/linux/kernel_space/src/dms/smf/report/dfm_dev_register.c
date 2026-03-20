@@ -85,7 +85,9 @@ int dfm_struct_init(struct dfm_struct *dfm, u32 node_num, u32 sensor_num)
     }
     return 0;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_struct_init);
+#endif
 
 void dfm_struct_final(struct dfm_struct *dfm, u32 node_num, u32 sensor_num)
 {
@@ -112,7 +114,9 @@ void dfm_struct_final(struct dfm_struct *dfm, u32 node_num, u32 sensor_num)
         dfm->node_num = 0;
     }
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_struct_final);
+#endif
 
 struct dfm_node *dfm_get_node(struct dfm_struct *dfm, u32 node_id)
 {
@@ -166,7 +170,9 @@ _fail:
     }
     return -ENOMEM;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_duplicate_dms_nodes);
+#endif
 
 void dfm_free_dms_nodes(struct dfm_struct *dfm)
 {
@@ -184,7 +190,9 @@ void dfm_free_dms_nodes(struct dfm_struct *dfm)
         }
     }
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_free_dms_nodes);
+#endif
 
 struct dfm_sensor *dfm_get_sensor(struct dfm_node *dev_node, u8 sensor_type)
 {
@@ -337,7 +345,9 @@ _fail:
     }
     return -EFAULT;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_register_nodes);
+#endif
 
 void dfm_unregister_nodes(const struct dfm_struct *dfm)
 {
@@ -350,4 +360,6 @@ void dfm_unregister_nodes(const struct dfm_struct *dfm)
         dfm_unregister_dfm_node(&dfm->dev_nodes[i]);
     }
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dfm_unregister_nodes);
+#endif

@@ -189,6 +189,7 @@ int dms_get_node_type_str(unsigned short node_type,
     dms_err("Cannot find this node_type in table. (node_type=%u)\n", node_type);
     return DRV_ERROR_INVALID_HANDLE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(dms_get_node_type_str);
-
+#endif
 

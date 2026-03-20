@@ -216,6 +216,7 @@ else #for CMake & ctrl cpu open
 	include ${DRIVER_KERNEL_DIR}/src/dms/time/dms_time.mk
 
 	ifeq ($(PRODUCT_SIDE), device)
+		EXTRA_CFLAGS += -DDMS_SHARED_NO_EXPORT
 		drv_devmng-y += core/securec_compat.o
 		drv_devmng-y += dtm/dms_dev_node.o
 		drv_devmng-y += dtm/dms_node_type.o

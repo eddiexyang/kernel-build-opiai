@@ -35,11 +35,14 @@ int urd_register_notifier(struct notifier_block* nb)
 {
     return raw_notifier_chain_register(&g_urd_notifier_chain, nb);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(urd_register_notifier);
+#endif
 
 int urd_unregister_notifier(struct notifier_block* nb)
 {
     return raw_notifier_chain_unregister(&g_urd_notifier_chain, nb);
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(urd_unregister_notifier);
-
+#endif

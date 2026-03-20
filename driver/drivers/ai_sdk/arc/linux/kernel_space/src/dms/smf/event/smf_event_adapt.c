@@ -107,11 +107,14 @@ int smf_event_adapt_init(struct smf_event_adapt *apt)
     (void)memcpy_s(&g_event_adapt, sizeof(struct smf_event_adapt), apt, sizeof(struct smf_event_adapt));
     return DRV_ERROR_NONE;
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(smf_event_adapt_init);
+#endif
 
 void smf_event_adapt_uninit(void)
 {
     (void)memset_s(&g_event_adapt, sizeof(struct smf_event_adapt), 0, sizeof(struct smf_event_adapt));
 }
+#ifndef DMS_SHARED_NO_EXPORT
 EXPORT_SYMBOL(smf_event_adapt_uninit);
-
+#endif
