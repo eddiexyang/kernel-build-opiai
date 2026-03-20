@@ -622,10 +622,16 @@ STATIC int __init dms_init(void)
 		goto register_notify_fail;
 	}
 
+    ret = dms_kv_init();
+    if (ret != 0) {
+        dms_err("init dms kv failed. (ret=%d)\n", ret);
+        goto init_dev_cb_fail;
+    }
+
     ret = dms_init_submodule();
     if (ret) {
         dms_err("init sub module failed. (ret=%d)\n", ret);
-        goto init_dev_cb_fail;
+        goto init_kv_fail;
     }
     dms_event_adapt_init();
     /* Initialize sensor global resources */
@@ -643,6 +649,8 @@ STATIC int __init dms_init(void)
     dms_info("Dms driver init success.\n");
     return 0;
 
+init_kv_fail:
+    dms_kv_uninit();
 init_dev_cb_fail:
 	dms_uninit_dev_cb();
 register_notify_fail:
@@ -666,6 +674,7 @@ STATIC void __exit dms_exit(void)
     dms_event_adapt_exit();
 
     dms_exit_submodule();
+    dms_kv_uninit();
 	dms_uninit_dev_cb();
 
     (void)drv_ascend_unregister_notify(DAVINCI_INTF_MODULE_DMS);
