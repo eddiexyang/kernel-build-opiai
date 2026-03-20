@@ -125,11 +125,11 @@ static td_void debug_echo_helper_vargs(td_char *buf, td_u32 size, const td_char 
         return;
     }
 
-    f = __to_fd(__fdget(DEFAULT_ECHO_DEVICE_HANDLE));
-    if (!f.file)
-            return ;
+    f = fdget(DEFAULT_ECHO_DEVICE_HANDLE);
+    if (fd_empty(f))
+        return;
 
-    ret = vfs_getattr(&f.file->f_path, &stat, STATX_BASIC_STATS, 0);
+    ret = vfs_getattr(&fd_file(f)->f_path, &stat, STATX_BASIC_STATS, 0);
     if (ret) {
         hdmi_err("default echo device handle(%u) invalid! ret=%d\n", (td_u32)DEFAULT_ECHO_DEVICE_HANDLE, ret);
         return;
@@ -145,11 +145,11 @@ static td_void debug_echo_helper_vargs(td_char *buf, td_u32 size, const td_char 
     if (S_ISCHR(stat.mode) &&
         (MAJOR(stat.rdev) == SERIAL_MAJOR || MAJOR(stat.rdev) == TTYAUX_MAJOR ||
         MAJOR(stat.rdev) == UNIX98_PTY_SLAVE_MAJOR)) {
-        struct file *f = fget(DEFAULT_ECHO_DEVICE_HANDLE);
-        if (f != TD_NULL) {
+        struct file *file = fget(DEFAULT_ECHO_DEVICE_HANDLE);
+        if (file != TD_NULL) {
             /* file pos is invalid for chrdev */
-            (void)hdmi_osal_file_write(f, buf, (td_u32)osal_strlen(buf));
-            fput(f);
+            (void)hdmi_osal_file_write(file, buf, (td_u32)osal_strlen(buf));
+            fput(file);
         }
     } else {
         hdmi_err("default echo device is invalid!\n");
@@ -1546,4 +1546,3 @@ error:
 
     return -EFAULT;
 }
-

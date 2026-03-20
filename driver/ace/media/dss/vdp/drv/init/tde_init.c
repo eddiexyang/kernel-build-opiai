@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
+#include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include "ot_tde_mod_init.h"
 #include "ot_type.h"
@@ -33,7 +34,7 @@ static void tde_bootdot_init_block(uint32_t block_id, uint32_t magic, uint32_t e
 {
     int32_t ret;
 
-    ret = bootdot_init_blk(block_id, magic, execption_id, expect_status);
+    ret = osal_bootdot_init_blk(block_id, magic, execption_id, expect_status);
     if (ret != 0) {
         tde_error("tde init block fail\n");
     }
@@ -43,7 +44,7 @@ static void tde_bootdot_set_block_status(uint32_t block_id, uint32_t magic, uint
 {
     int32_t ret;
 
-    ret = bootdot_set_blk(block_id, magic, current_status);
+    ret = osal_bootdot_set_blk(block_id, magic, current_status);
     if (ret != 0) {
         tde_error("tde set block status fail\n");
     }
@@ -94,12 +95,11 @@ static int ot_tde_probe(struct platform_device *pdev)
     return TD_SUCCESS;
 }
 
-static int ot_tde_remove(struct platform_device *pdev)
+static void ot_tde_remove(struct platform_device *pdev)
 {
     ot_unused(pdev);
     tde_drv_mod_exit();
     tde_info("unload drv_tde.ko success!\n");
-    return TD_SUCCESS;
 }
 
 static int ot_tde_suspend(struct platform_device *pdev, pm_message_t state)

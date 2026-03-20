@@ -7,6 +7,7 @@
 #ifndef OT_COMMON_HDMI_H
 #define OT_COMMON_HDMI_H
 
+#include "ot_defines.h"
 #include "ot_type.h"
 #include "ot_errno.h"
 
@@ -773,4 +774,3 @@ typedef struct {
 #endif
 #endif
 #endif
-

@@ -86,7 +86,7 @@ hi_u32 osal_random(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
     return random32();
 #else
-    return get_random_int();
+    return get_random_u32();
 #endif
 #else
     return 0;

@@ -40,13 +40,13 @@ static struct device himedia_bus = {
 
 
 /* bus match & uevent */
-static hi_s32 himedia_match(struct device *dev, struct device_driver *drv)
+static hi_s32 himedia_match(struct device *dev, const struct device_driver *drv)
 {
     const struct himedia_device *pdev = to_himedia_device(dev);
     return (strncmp(pdev->devfs_name, drv->name, sizeof(pdev->devfs_name)) == 0);
 }
 
-static hi_s32 himedia_uevent(struct device *dev, struct kobj_uevent_env *env)
+static hi_s32 himedia_uevent(const struct device *dev, struct kobj_uevent_env *env)
 {
 #ifndef AOS_LLVM_BUILD
     const struct himedia_device *pdev = to_himedia_device(dev);
@@ -358,4 +358,3 @@ void himedia_driver_unregister(struct himedia_driver *pdrv)
 
 // end!
 /*****************************************************************************/
-

@@ -851,7 +851,8 @@ static td_s32 gfbg_fill_data(const struct fb_info* info, td_u32 fill_data, size_
     canvas_size = dst_img.canvas.width * dst_img.canvas.height * GFBG_4BYTE_PER_PIXL;
 
     if (dst_img.canvas.height != 0) {
-        if (memset_s(canvas_addr, canvas_size, GFBG_FB_INIT_VAL, canvas_size) != EOK) {
+        if (memset_s((td_void *)(uintptr_t)gfbg_get_screen_base(info), canvas_size,
+            GFBG_FB_INIT_VAL, canvas_size) != EOK) {
             gfbg_error("memset_s init data failed!\n");
             return TD_FAILURE;
         }
@@ -5069,7 +5070,7 @@ static td_s32 gfbg_disp_setscreensize(td_u32 layer_id, td_u32 width, td_u32 heig
 
 static td_void gfbg_buf_freemem(td_phys_addr_t phyaddr)
 {
-    media_kernel_mem_free(phyaddr);
+    media_kernel_mem_free((td_void *)(uintptr_t)phyaddr);
 }
 
 static td_s32 gfbg_freeccanbuf(gfbg_par *par)
@@ -8015,7 +8016,7 @@ static td_s32 gfbg_set_dynamic_range(gfbg_par *par, ot_fb_dynamic_range dynamic_
 static td_s32 gfbg_mmap(struct fb_info *info, struct vm_area_struct *vma)
 {
     hi_s32 ret;
-    ret = remap_vmalloc_range(vma, info->fix.smem_start, vma->vm_pgoff);
+    ret = remap_vmalloc_range(vma, (td_void *)(uintptr_t)info->fix.smem_start, vma->vm_pgoff);
     if (ret != TD_SUCCESS) {
         gfbg_error("remap_vmalloc_range failed!\n");
     }
@@ -8163,7 +8164,7 @@ static td_s32 __init gfbg_overlay_probe(td_u32 layer_id)
     /* save the info pointer in global pointer array */
     g_layer[layer_id].info = info;
 
-    info->flags = FBINFO_FLAG_DEFAULT | FBINFO_HWACCEL_YPAN | FBINFO_HWACCEL_XPAN;
+    info->flags = FBINFO_HWACCEL_YPAN | FBINFO_HWACCEL_XPAN;
     /* fbops members in fb_info point to g_ot_fb_ops, so open, release, ioctl, etc. can get fb_info. */
     info->fbops = &g_ot_fb_ops;
 
@@ -8797,4 +8798,3 @@ subsys_initcall(gfbg_init);
 #endif
 
 #endif
-

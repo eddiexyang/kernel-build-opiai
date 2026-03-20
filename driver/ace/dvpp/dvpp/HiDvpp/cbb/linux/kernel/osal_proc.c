@@ -51,7 +51,7 @@ static ssize_t osal_procwrite(struct file *file, const hi_char __user *buf, size
     osal_proc_entry_t *sentry = ((struct seq_file *)(file->private_data))->private;
     return sentry->write(sentry, (hi_char *)buf, (hi_s32)count, (hi_s64 *)ppos);
 #else
-    osal_proc_entry_t *item = PDE_DATA(file_inode(file));
+    osal_proc_entry_t *item = pde_data(file_inode(file));
     if ((item != NULL) && (item->write != NULL)) {
         return item->write(item, buf, (hi_s32)count, (hi_s64 *)ppos);
     }
@@ -65,7 +65,7 @@ static hi_s32 osal_procopen(struct inode *inode, struct file *file)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
     osal_proc_entry_t *sentry = PDE(inode)->data;
 #else
-    osal_proc_entry_t *sentry = PDE_DATA(inode);
+    osal_proc_entry_t *sentry = pde_data(inode);
 #endif
     if ((sentry != NULL) && (sentry->open != NULL)) {
         sentry->open(sentry);

@@ -33,17 +33,25 @@ COMMON_INCLUDE += -I$(MPP_PATH)/sys/ext_inc
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/arch/$(OT_ARCH)/include
 COMMON_INCLUDE += -I$(TOP_DIR)/libc_sec/include
 COMMON_INCLUDE += -I$(TOP_DIR)/drivers/ai_sdk/arc/linux/kernel_space/inc
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include/adapt
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/inc/dvpp
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/arch/hidvpp/include
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/ext_inc
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/ext_inc
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/include
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/include/adapt
 #*******************************************************************************
 #********************* Set the source code and include path ********************
 # Head file path variable's
 
 EXTRA_CFLAGS += $(COMMON_INCLUDE)
 
-EXTRA_CFLAGS += -I$(VDP_PATH)/gfbg/include
-EXTRA_CFLAGS += -I$(VDP_PATH)/gfbg/src
-EXTRA_CFLAGS += -I$(VDP_PATH)/gfbg/src/init
-EXTRA_CFLAGS += -I$(VDP_PATH)/gfbg/drv/adp
-EXTRA_CFLAGS += -I$(VDP_PATH)/gfbg/drv/include
+EXTRA_CFLAGS += -I$(VDP_PATH)/include
+EXTRA_CFLAGS += -I$(VDP_PATH)/src
+EXTRA_CFLAGS += -I$(VDP_PATH)/src/init
+EXTRA_CFLAGS += -I$(VDP_PATH)/drv/adp
+EXTRA_CFLAGS += -I$(VDP_PATH)/drv/include
 
 EXTRA_CFLAGS += -I$(VDP_PATH)/vo/ext_inc
 EXTRA_CFLAGS += -I$(VDP_PATH)/tde/drv/include
@@ -70,8 +78,8 @@ endif
 EXTRA_CFLAGS += $(CFG_INC)
 EXTRA_CFLAGS += -Wno-error=date-time
 
--include $(VDP_PATH)/gfbg/src/Makefile
--include $(VDP_PATH)/gfbg/drv/adp/Makefile
+-include $(VDP_PATH)/src/Makefile
+-include $(VDP_PATH)/drv/adp/Makefile
 
 SRCS := src/gfbg_main.c \
        src/gfbg_proc.c \

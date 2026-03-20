@@ -35,6 +35,7 @@ typedef struct {
 static osal_wait_t g_tde_block_job_wq; /* wait queue used to block */
 static tde_swjoblist *g_tde_osi_job_list; /* global job list queue */
 static td_void tde_osi_list_do_free_phy_buff(td_u32 buf_num);
+static td_s32 tde_list_comp_delete_job(td_bool work, td_s32 finished_handle, td_ulong *lockflags);
 
 static inline td_void tde_osi_list_safe_destroy_job(tde_sw_job *pst_job);
 static td_void tde_osi_list_release_handle(tde_handle_mgr *pst_job_header);

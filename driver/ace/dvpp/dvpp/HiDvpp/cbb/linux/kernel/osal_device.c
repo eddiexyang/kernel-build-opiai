@@ -973,7 +973,7 @@ hi_s32 osal_io_remap_pfn_range(const osal_vm_t *vm, hi_ulong addr, hi_ulong pfn,
 {
 #ifndef AOS_LLVM_BUILD
     struct vm_area_struct *const v = (struct vm_area_struct *const)(vm->vm);
-    v->vm_flags |= (hi_ulong)VM_IO;
+    vm_flags_set(v, VM_IO);
     if (size == 0) {
         return -EPERM;
     }

@@ -3,6 +3,7 @@
  * Description: gfbg hal operation
  */
 #include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/seq_file.h>
 #include "gfbg_init.h"
 #include "ot_type.h"
@@ -434,11 +435,10 @@ static int ot_gfbg_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int ot_gfbg_remove(struct platform_device *pdev)
+static void ot_gfbg_remove(struct platform_device *pdev)
 {
     ot_unused(pdev);
     gfbg_cleanup();
-    return 0;
 }
 
 static const struct of_device_id ot_gfbg_match[] = {

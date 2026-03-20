@@ -6,6 +6,7 @@
  */
 #include "ot_hdmi_mod_init.h"
 #include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include "ascend_kernel_hal.h"
 #include "ot_common.h"
@@ -16,12 +17,12 @@
 
 void hdmi_bootdot_init_block(uint32_t block_id, uint32_t magic, uint32_t execption_id, uint32_t expect_status)
 {
-    (void)bootdot_init_blk(block_id, magic, execption_id, expect_status);
+    (void)osal_bootdot_init_blk(block_id, magic, execption_id, expect_status);
 }
 
 void hdmi_bootdot_set_block_status(uint32_t block_id, uint32_t magic, uint32_t current_status)
 {
-    (void)bootdot_set_blk(block_id, magic, current_status);
+    (void)osal_bootdot_set_blk(block_id, magic, current_status);
 }
 
 static int hdmi_probe(struct platform_device *pdev)
@@ -70,7 +71,7 @@ static int hdmi_probe(struct platform_device *pdev)
     return ret;
 }
 
-static int hdmi_remove(struct platform_device *pdev)
+static void hdmi_remove(struct platform_device *pdev)
 {
     ot_unused(pdev);
     hdmi_drv_mod_exit();
@@ -78,8 +79,6 @@ static int hdmi_remove(struct platform_device *pdev)
     hdmi_set_reg(1, NULL);
 
     hdmi_check_pid_spin_lock_destory();
-
-    return TD_SUCCESS;
 }
 
 static const struct of_device_id g_hdmi_match[] = {

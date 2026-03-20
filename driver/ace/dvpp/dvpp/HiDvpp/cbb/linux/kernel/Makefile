@@ -14,6 +14,12 @@ EXTRA_CFLAGS += -DDVPP_MINI_V2_MDC
 endif
 
 EXTRA_CFLAGS += -I$(BASE_INC_PATH)/external/mediabase \
+        -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include \
+        -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include/adapt \
+        -I$(TOP_DIR)/ace/dvpp/inc/dvpp \
+        -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/ext_inc \
+        -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/arch/hidvpp/include \
+        -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/linux/kernel/himedia \
         -I$(BASE_INC_PATH)/mediabase/include \
         -I$(BASE_INC_PATH)/mediabase/include/adapt \
         -I$(BASE_INC_PATH)/mediabase/osal \
@@ -43,7 +49,7 @@ EXTRA_CFLAGS += -DBUILD_DRV_OSAL
 
 obj-m   += drv_osal.o
 drv_osal-objs :=
-drv_osal-objs += osal.o osal_addr.o osal_atomic.o osal_barrier.o osal_iommu.o osal_of.o osal_notifier.o \
+drv_osal-objs += osal.o osal_addr.o osal_atomic.o osal_barrier.o osal_of.o \
                  osal_debug.o osal_cache.o osal_device.o osal_fileops.o osal_property.o \
                  osal_interrupt.o osal_math.o osal_mutex.o osal_acpi.o osal_bootdot.o \
                  osal_platform.o osal_proc.o osal_schedule.o osal_semaphore.o \

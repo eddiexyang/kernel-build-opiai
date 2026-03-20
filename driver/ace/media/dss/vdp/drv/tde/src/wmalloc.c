@@ -332,7 +332,7 @@ td_phys_addr_t wget_user_addr(const td_void *kernel_addr)
 {
     if (kernel_addr == TD_NULL || (kernel_addr < g_mem_pool_k_vrt_addr) ||
         ((td_u8 *)kernel_addr >= ((td_u8 *)g_mem_pool_k_vrt_addr + TDE_MEMPOOL_SIZE))) {
-        return TD_NULL;
+        return 0;
     }
 
     return (g_mem_pool_user_addr + (kernel_addr - g_mem_pool_k_vrt_addr));
@@ -383,7 +383,7 @@ const osal_proc_entry_t *wprintinfo(const osal_proc_entry_t *page)
     free_node = g_stru_mem_block[UNIT_SIZE_NODE].n_free;
     free_filter = g_stru_mem_block[UNIT_SIZE_FILTER].n_free;
 #endif
-    osal_seq_printf(page, "\n[TDE] Version: ["OT_MPP_VERSION"]\n\n");
+    osal_seq_printf(page, "\n[TDE] Version: [%s]\n\n", OT_MPP_VERSION);
     osal_seq_printf(page, "--------- tde memory pool info ---------\n");
 #if OT_TDE_MEMCOUNT_SUPPORT
     osal_seq_printf(page, "type            total    max_used\n");
@@ -409,4 +409,3 @@ const osal_proc_entry_t *wprintinfo(const osal_proc_entry_t *page)
     return page;
 }
 #endif
-

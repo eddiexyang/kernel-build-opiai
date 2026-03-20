@@ -111,6 +111,8 @@ typedef struct {
     td_u32  height;
 } ot_fb_size;
 
+typedef ot_fb_size ot_size;
+
 typedef enum {
     OT_FB_DYNAMIC_RANGE_SDR8 = 0,
     OT_FB_DYNAMIC_RANGE_SDR10,
@@ -350,4 +352,3 @@ typedef struct {
 
 
 #endif /* GFBG_H */
-

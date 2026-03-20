@@ -12,13 +12,26 @@
 #ifndef AOS_LLVM_BUILD
 hi_ulong osal_strlcpy(hi_char *dest, const hi_char *src, hi_ulong size)
 {
-    return strlcpy(dest, src, size);
+    hi_ulong src_len = strlen(src);
+
+    if (size != 0) {
+        (void)strscpy(dest, src, size);
+    }
+
+    return src_len;
 }
 EXPORT_SYMBOL(osal_strlcpy);
 
 hi_ulong osal_strlcat(hi_char *dest, const hi_char *src, hi_ulong count)
 {
-    return strlcat(dest, src, count);
+    hi_ulong dest_len = strnlen(dest, count);
+    hi_ulong src_len = strlen(src);
+
+    if (dest_len < count) {
+        (void)strscpy(dest + dest_len, src, count - dest_len);
+    }
+
+    return dest_len + src_len;
 }
 EXPORT_SYMBOL(osal_strlcat);
 #endif // #ifndef AOS_LLVM_BUILD

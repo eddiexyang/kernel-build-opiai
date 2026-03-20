@@ -106,7 +106,7 @@ hi_s32 osal_del_timer(const osal_timer_t *timer)
         return -1;
     }
     t = timer->timer;
-    return del_timer_sync(t);
+    return timer_delete_sync(t);
 }
 EXPORT_SYMBOL(osal_del_timer);
 
@@ -118,7 +118,7 @@ hi_s32 osal_timer_destroy(osal_timer_t *timer)
         return -1;
     }
     t = timer->timer;
-    (void)del_timer_sync(t);
+    (void)timer_delete_sync(t);
     osal_kfree(t);
     timer->timer = NULL;
     return 0;
@@ -137,7 +137,7 @@ hi_s32 osal_stop_timer(const osal_timer_t *timer)
         return -1;
     }
     t = timer->timer;
-    return del_timer(t);
+    return timer_delete(t);
 }
 EXPORT_SYMBOL(osal_stop_timer);
 

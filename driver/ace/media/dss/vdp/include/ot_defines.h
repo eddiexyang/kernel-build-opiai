@@ -1,0 +1,27 @@
+#ifndef OT_DEFINES_H
+#define OT_DEFINES_H
+
+#include "../../../../dvpp/dvpp/HiDvpp/cbb/base/arch/hidvpp/include/hi_defines.h"
+#include "../../../../dvpp/inc/dvpp/HiDvppCommon.h"
+
+#define OT_DEFINE_ERR(module, level, errid) HI_DEF_ERR(module, level, errid)
+#define OT_ERR_LEVEL_ERROR EN_ERR_LEVEL_ERROR
+
+#define OT_ID_HDMI HI_ID_HDMI
+#define OT_ID_TDE HI_ID_TDE
+#define OT_ID_FB HI_ID_FB
+#define OT_ID_VGS HI_ID_VGS
+#define OT_ID_VO HI_ID_VO
+#define OT_ID_SYS HI_ID_SYS
+
+#define OT_VO_MAX_DEV_NUM VO_MAX_DEV_NUM
+#define OT_VO_MAX_PHYS_DEV_NUM VO_MAX_PHY_DEV_NUM
+
+#define OT_ERR_NULL_PTR      OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_NULL_PTR)
+#define OT_ERR_ILLEGAL_PARAM OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_ILLEGAL_PARAM)
+#define OT_ERR_NOT_SUPPORT   OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_NOT_SUPPORT)
+#define OT_ERR_NOT_PERM      OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_NOT_PERM)
+#define OT_ERR_BUSY          OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_BUSY)
+#define OT_ERR_SYS_NOTREADY  OT_DEFINE_ERR(HI_ID_CMPI, OT_ERR_LEVEL_ERROR, EN_ERR_SYS_NOTREADY)
+
+#endif

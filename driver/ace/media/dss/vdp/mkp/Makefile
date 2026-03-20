@@ -5,7 +5,7 @@ EXTRA_CFLAGS += -I$(srctree)/include/linux \
 
 # HDMI dir
 DSS_DIR := ${TOP_DIR}/ace/media/dss/vdp
-HDMI_DIR := $(DSS_DIR)/hdmi
+HDMI_DIR := $(DSS_DIR)
 HDMI_MKP_DIR := $(HDMI_DIR)/mkp
 HDMI_MPI_DIR := $(HDMI_DIR)/mpi
 
@@ -48,6 +48,14 @@ MB_INC_PATH += -I${MB_INC_COMMON_DIR}/sys/ext_inc
 MB_INC_PATH += -I${MB_INC_COMMON_DIR}/sys/adapt
 MB_INC_PATH += -I${MB_SRC_BASE_ARCH_DIR}
 MB_INC_PATH += -I$(TOP_DIR)/inc/driver
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include/adapt
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/inc/dvpp
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/arch/hidvpp/include
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/ext_inc
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/include
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/ext_inc
+MB_INC_PATH += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/sys/include/adapt
 
 H8_ADAPT_INC_PATH := -I$(H8_ADAPT_TOP_DIR)/include
 H8_ADAPT_INC_PATH += -I$(H8_ADAPT_TOP_DIR)/osal/include
@@ -181,4 +189,3 @@ EXTRA_CFLAGS += -Wstrict-prototypes -Wall
 
 obj-m += drv_hdmi.o
 drv_hdmi-objs = $(SRCS)
-

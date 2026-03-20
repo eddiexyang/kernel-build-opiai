@@ -1,4 +1,5 @@
-DRIVER_DIR := $(TOP_DIR)/ace/media/dss/vdp/tde/drv
+DSS_DIR := $(TOP_DIR)/ace/media/dss/vdp
+DRIVER_DIR := $(DSS_DIR)/drv
 
 #ifneq ($(OT_MAKE_DEBUG),)
 #EXTRA_CFLAGS +=-D$(OT_MAKE_DEBUG)
@@ -44,9 +45,15 @@ COMMON_INCLUDE += -I$(MPP_PATH)/base/arch/$(OT_ARCH)/include
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/include
 COMMON_INCLUDE += -I$(MPP_PATH)/sys/ext_inc
 COMMON_INCLUDE += -I$(TOP_DIR)/ace/media/dss/vdp/dfx
-COMMON_INCLUDE += -I$(TOP_DIR)/ace/media/dss/vdp/tde/drv/init/include
+COMMON_INCLUDE += -I$(DSS_DIR)/include
+COMMON_INCLUDE += -I$(DRIVER_DIR)/init/include
 COMMON_INCLUDE += -I$(TOP_DIR)/libc_sec/include
 COMMON_INCLUDE += -I$(TOP_DIR)/inc/driver
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/include/adapt
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/inc/dvpp
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/arch/hidvpp/include
+COMMON_INCLUDE += -I$(TOP_DIR)/ace/dvpp/dvpp/HiDvpp/cbb/base/ext_inc
 
 DRV_CFLAGS := -Wall -fsigned-char -Wno-error=date-time
 DRV_CFLAGS += -Wfloat-equal -Wformat=2
@@ -97,11 +104,10 @@ ifeq ($(PRODUCT), ascend320esl)
 endif
 
 EXTRA_CFLAGS += -I$(DRIVER_DIR)/include
-EXTRA_CFLAGS += -I$(DRIVER_DIR)/../api/tde/include
+EXTRA_CFLAGS += -I$(DSS_DIR)/api/tde/include
 EXTRA_CFLAGS += -I$(DRIVER_DIR)/tde/include
 EXTRA_CFLAGS += -I$(DRIVER_DIR)/tde/adp/tde_v2_0
 EXTRA_CFLAGS += -I$(DRIVER_DIR)/tde/src
-EXTRA_CFLAGS += -I$(TOP_DIR)/ace/media/dss/vdp/common/base/arch/$(OT_ARCH)/include
 
 SRCS += tde/src/tde_osr.c\
        tde/adp/tde_v2_0/tde_hal_k.c \
@@ -126,4 +132,3 @@ TARGET := drv_tde
 
 $(TARGET)-objs := $(SRCS:%.c=%.o)
 obj-m := $(TARGET).o
-

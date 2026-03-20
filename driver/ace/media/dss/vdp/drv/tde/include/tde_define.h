@@ -9,6 +9,7 @@
 #define TDE_DEFINE_H
 
 #include "ot_type.h"
+#include "ot_common.h"
 #include "ot_debug.h"
 #include "wmalloc.h"
 #include "tde_config.h"
