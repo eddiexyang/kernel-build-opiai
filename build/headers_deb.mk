@@ -23,7 +23,7 @@ headers-deb: | ensure-output-dirs
 	[ -n "$$kernel_release" ] || { printf 'error: failed to determine kernel release\n' >&2; exit 1; }
 	package_name="$${HEADERS_DEB_PACKAGE_NAME:-linux-headers-$$kernel_release}"
 	package_arch="$${HEADERS_DEB_PACKAGE_ARCH:-$(MODULES_DEB_PACKAGE_ARCH)}"
-	package_version="$${HEADERS_DEB_PACKAGE_VERSION:-1}"
+	package_version="$${HEADERS_DEB_PACKAGE_VERSION:-$(BUILD_TIMESTAMP_MINUTE)}"
 	deb_workspace="$(WORKSPACE_DIR)/headers-deb"
 	pkg_root="$$deb_workspace/pkgroot"
 	debian_dir="$$pkg_root/DEBIAN"

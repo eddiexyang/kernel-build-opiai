@@ -30,7 +30,7 @@ modules-deb: | ensure-output-dirs
 	kernel_release="$${releases[0]}"
 	package_name="$${MODULES_DEB_PACKAGE_NAME:-linux-modules-$$kernel_release}"
 	package_arch="$${MODULES_DEB_PACKAGE_ARCH:-$(MODULES_DEB_PACKAGE_ARCH)}"
-	package_version="$${MODULES_DEB_PACKAGE_VERSION:-1}"
+	package_version="$${MODULES_DEB_PACKAGE_VERSION:-$(BUILD_TIMESTAMP_MINUTE)}"
 	deb_workspace="$(WORKSPACE_DIR)/modules-deb"
 	pkg_root="$$deb_workspace/pkgroot"
 	debian_dir="$$pkg_root/DEBIAN"

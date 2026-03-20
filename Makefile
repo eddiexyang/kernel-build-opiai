@@ -28,8 +28,9 @@ KERNEL_DEFCONFIG := ascend310B_defconfig
 DRIVER_PRODUCT := ascend310Brc
 DTB_PRODUCT := ascend310Brc
 HEADER_VERSION := 0.0.0.0.0
-KERNEL_RELEASE_SUFFIX ?= HwHiAiUser
+KERNEL_RELEASE_SUFFIX ?= opiai
 KERNEL_LOCALVERSION := $(if $(strip $(KERNEL_RELEASE_SUFFIX)),-$(strip $(KERNEL_RELEASE_SUFFIX)),)
+BUILD_TIMESTAMP_MINUTE ?= $(shell date '+%Y%m%d%H%M')
 MODULES_DEB_PACKAGE_ARCH ?= $(if $(filter arm64,$(ARCH_TYPE)),arm64,$(if $(filter amd64 x86_64,$(ARCH_TYPE)),amd64,$(ARCH_TYPE)))
 
 .DEFAULT_GOAL := help
