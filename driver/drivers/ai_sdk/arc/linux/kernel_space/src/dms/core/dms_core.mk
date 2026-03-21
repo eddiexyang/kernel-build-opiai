@@ -3,6 +3,7 @@
 ifeq ($(TOP_DIR),)
 	ifeq ($(DAVINCI_HIAI_DKMS),y) #for DKMS
 		drv_devmng_host-y += core/dms_init.o
+		drv_devmng_host-y += core/dms_kv.o
 		drv_devmng_host-y += core/dms_probe.o
 		drv_devmng_host-y += core/dms_sysfs.o
 		drv_devmng_host-y += core/dms_timer.o
@@ -12,6 +13,7 @@ ifeq ($(TOP_DIR),)
 else #for CMake & ctrl cpu open
 	ifeq ($(PRODUCT_SIDE), host)
 		drv_devmng_host-y += core/dms_init.o
+		drv_devmng_host-y += core/dms_kv.o
 		drv_devmng_host-y += core/dms_probe.o
 		drv_devmng_host-y += core/dms_sysfs.o
 		drv_devmng_host-y += core/dms_timer.o
