@@ -43,7 +43,7 @@ void hvtsdrv_tsagent_register(struct hvtsdrv_tsagent_ops *ops)
     }
 #endif
 }
-EXPORT_SYMBOL(hvtsdrv_tsagent_register);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_tsagent_register);
 
 struct hvtsdrv_tsagent_ops *hvtsdrv_get_tsagent_ops(void)
 {
@@ -60,7 +60,7 @@ void hvtsdrv_tsagent_unregister(void)
     TSDRV_PRINT_INFO("tsagent unreg successful.\n");
 #endif
 }
-EXPORT_SYMBOL(hvtsdrv_tsagent_unregister);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_tsagent_unregister);
 
 s32 hvtsdrv_notice_tsagent_vsq_proc(struct tsdrv_id_inst *id_inst, u32 vsqid, enum vsqcq_type type, u32 sqe_num)
 {
@@ -221,7 +221,7 @@ int hvtsdrv_sq_write(u32 devid, u32 fid, u32 tsid, struct hvtsdrv_vsq_slot_info 
 #endif
     return 0;
 }
-EXPORT_SYMBOL(hvtsdrv_sq_write);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_sq_write);
 
 void hvtsdrv_sq_irq_trigger(u32 devid, u32 fid, u32 tsid, u32 vsq_id)
 {
@@ -270,7 +270,7 @@ void hvtsdrv_sq_irq_trigger(u32 devid, u32 fid, u32 tsid, u32 vsq_id)
 #endif
     return;
 }
-EXPORT_SYMBOL(hvtsdrv_sq_irq_trigger);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_sq_irq_trigger);
 
 /* tsdrv resource_id convert interface: virt to physical */
 int hvtsdrv_resid_v2p(u32 devid, u32 fid, u32 tsid, struct hvtsdrv_id_v2p *data)
@@ -307,7 +307,7 @@ int hvtsdrv_resid_v2p(u32 devid, u32 fid, u32 tsid, struct hvtsdrv_id_v2p *data)
     return 0;
 #endif
 }
-EXPORT_SYMBOL(hvtsdrv_resid_v2p);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_resid_v2p);
 
 int hvtsdrv_get_res_num(u32 devid, u32 fid, u32 tsid, enum tsdrv_id_type id_type, u32 *num)
 {
@@ -348,7 +348,7 @@ int hvtsdrv_get_res_num(u32 devid, u32 fid, u32 tsid, enum tsdrv_id_type id_type
 #endif
     return 0;
 }
-EXPORT_SYMBOL(hvtsdrv_get_res_num);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_get_res_num);
 
 int hvtsdrv_get_vsq_head_and_tail(u32 devid, u32 fid, u32 tsid, u32 vsq_id, struct hvtsdrv_vsq_head_tail *out)
 {
@@ -390,7 +390,7 @@ int hvtsdrv_get_vsq_head_and_tail(u32 devid, u32 fid, u32 tsid, u32 vsq_id, stru
 #endif
     return 0;
 }
-EXPORT_SYMBOL(hvtsdrv_get_vsq_head_and_tail);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_get_vsq_head_and_tail);
 
 int hvtsdrv_get_vsq_info(u32 devid, u32 fid, u32 tsid, u32 vsq_id, struct hvtsdrv_vsq_info *vsq_info)
 {
@@ -448,7 +448,7 @@ int hvtsdrv_get_vsq_info(u32 devid, u32 fid, u32 tsid, u32 vsq_id, struct hvtsdr
 #endif
     return 0;
 }
-EXPORT_SYMBOL(hvtsdrv_get_vsq_info);
+TSDRV_EXPORT_SYMBOL(hvtsdrv_get_vsq_info);
 
 int tsdrv_notice_tsagent_dev_create(u32 devid, u32 fid)
 {
@@ -464,7 +464,7 @@ int tsdrv_notice_tsagent_dev_create(u32 devid, u32 fid)
     return 0;
 #endif
 }
-EXPORT_SYMBOL(tsdrv_notice_tsagent_dev_create);
+TSDRV_EXPORT_SYMBOL(tsdrv_notice_tsagent_dev_create);
 
 void tsdrv_notice_tsagent_dev_destroy(u32 devid, u32 fid)
 {
@@ -475,7 +475,7 @@ void tsdrv_notice_tsagent_dev_destroy(u32 devid, u32 fid)
     }
 #endif
 }
-EXPORT_SYMBOL(tsdrv_notice_tsagent_dev_destroy);
+TSDRV_EXPORT_SYMBOL(tsdrv_notice_tsagent_dev_destroy);
 
 void hvtsdrv_fill_trans_info_mbox(u32 devid, u32 fid, u32 tsid, u32 disable_thread,
     struct hvtsdrv_trans_mailbox_ctx *trans_mbox)

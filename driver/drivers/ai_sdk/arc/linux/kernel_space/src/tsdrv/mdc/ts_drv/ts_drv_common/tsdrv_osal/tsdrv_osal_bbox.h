@@ -20,6 +20,7 @@
 
 #include <linux/types.h>
 #include <linux/time.h>
+#include "tsdrv_common.h"
 
 #ifdef AOS_LLVM_BUILD
 #include <linux/time64.h>

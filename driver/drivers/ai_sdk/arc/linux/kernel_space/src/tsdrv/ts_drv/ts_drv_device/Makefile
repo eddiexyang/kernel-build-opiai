@@ -36,6 +36,7 @@ else
 endif
 
 EXTRA_CFLAGS += -DCFG_FEATURE_IPC_NOTIFY
+EXTRA_CFLAGS += -DTSDRV_SHARED_NO_EXPORT
 
 ifneq ($(filter $(MAKE_PRODUCT),  ascend910 ascend910B ascend920esl ascend920emu),)
 	EXTRA_CFLAGS += -DCFG_SOC_PLATFORM_CLOUD

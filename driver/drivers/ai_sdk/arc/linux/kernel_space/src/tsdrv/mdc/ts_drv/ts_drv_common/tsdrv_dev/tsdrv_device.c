@@ -49,7 +49,7 @@ struct tsdrv_ts_resource *tsdrv_get_ts_resoruce(u32 devid, u32 fid, u32 tsid)
     }
     return &g_tsdrv_device[devid]->dev_res[fid].ts_resource[tsid];
 }
-EXPORT_SYMBOL(tsdrv_get_ts_resoruce);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_ts_resoruce);
 
 STATIC void tsdrv_dev_resource_exit(struct tsdrv_dev_resource *dev_res, u32 fid_num)
 {
@@ -465,7 +465,7 @@ int tsdrv_mirror_ctx_status_set(pid_t pid, u32 devid, u32 status)
 #endif
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_mirror_ctx_status_set);
+TSDRV_EXPORT_SYMBOL(tsdrv_mirror_ctx_status_set);
 
 int tsdrv_device_setup(void)
 {

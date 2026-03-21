@@ -38,7 +38,7 @@ int tsdrv_bbox_write(u32 devid, const char *msg)
     return 0;
 #endif
 }
-EXPORT_SYMBOL(tsdrv_bbox_write);
+TSDRV_EXPORT_SYMBOL(tsdrv_bbox_write);
 
 void tsdrv_bbox_system_err_time(u32 devid, u32 excep_id, struct timespec64 *ts, u32 arg)
 {
@@ -54,7 +54,7 @@ void tsdrv_bbox_system_err_time(u32 devid, u32 excep_id, struct timespec64 *ts, 
     bbox_system_error(devid, excep_id, &timestamp, arg);
 #endif
 }
-EXPORT_SYMBOL(tsdrv_bbox_system_err_time);
+TSDRV_EXPORT_SYMBOL(tsdrv_bbox_system_err_time);
 
 #ifdef AOS_LLVM_BUILD
 /* system error report */
@@ -79,6 +79,6 @@ void tsdrv_bbox_system_err(u32 devid, u32 excep_id, u32 arg)
     tsdrv_system_error_report(devid, excep_id, arg);
 #endif
 }
-EXPORT_SYMBOL(tsdrv_bbox_system_err);
+TSDRV_EXPORT_SYMBOL(tsdrv_bbox_system_err);
 
 #endif /* CFG_MANAGER_HOST_ENV */

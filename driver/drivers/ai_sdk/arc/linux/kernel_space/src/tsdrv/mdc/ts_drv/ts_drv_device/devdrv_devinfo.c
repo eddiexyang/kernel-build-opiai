@@ -43,4 +43,4 @@ int tsdrv_get_chip_type(void)
     return CHIP_TYPE_NOT_SET;
 #endif
 }
-EXPORT_SYMBOL(tsdrv_get_chip_type);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_chip_type);

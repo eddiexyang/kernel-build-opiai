@@ -176,7 +176,7 @@ int tsdrv_set_ts_mbox_hwinfo(u32 devid, u32 tsid, struct tsdrv_mbox_hwinfo *mbox
     mbox_hwinfo_l[chann_id].mbox_size = mbox_hwinfo->mbox_size;
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_set_ts_mbox_hwinfo);
+TSDRV_EXPORT_SYMBOL(tsdrv_set_ts_mbox_hwinfo);
 
 struct tsdrv_mbox_hwinfo *tsdrv_get_ts_mbox_hwinfo(u32 devid, u32 tsid, u32 chann_id)
 {
@@ -254,7 +254,7 @@ int tsdrv_get_dfx_cq_irq_vector(u32 devid, u32 tsid)
 
     return cq_hwinfo->dfx_cq_irq;
 }
-EXPORT_SYMBOL(tsdrv_get_dfx_cq_irq_vector);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_dfx_cq_irq_vector);
 
 int tsdrv_set_ts_cq_hwinfo(u32 devid, u32 tsid, struct tsdrv_cq_hwinfo *cq_hwinfo)
 {
@@ -402,7 +402,7 @@ int tsdrv_set_stars_sqcq_intr_hwinfo(u32 devid, u32 tsid, phys_addr_t addr, size
 
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_set_stars_sqcq_intr_hwinfo);
+TSDRV_EXPORT_SYMBOL(tsdrv_set_stars_sqcq_intr_hwinfo);
 
 void tsdrv_clr_stars_sqcq_intr_hwinfo(u32 devid, u32 tsid)
 {
@@ -422,7 +422,7 @@ void tsdrv_clr_stars_sqcq_intr_hwinfo(u32 devid, u32 tsid)
     g_dev_hwinfo[devid].hwinfo[tsid].stars_sqcq_intr_hwinfo.pa = 0;
     g_dev_hwinfo[devid].hwinfo[tsid].stars_sqcq_intr_hwinfo.size = 0;
 }
-EXPORT_SYMBOL(tsdrv_clr_stars_sqcq_intr_hwinfo);
+TSDRV_EXPORT_SYMBOL(tsdrv_clr_stars_sqcq_intr_hwinfo);
 
 struct tsdrv_stars_sqcq_intr_hwinfo *tsdrv_get_stars_sqcq_intr_hwinfo(u32 devid, u32 tsid)
 {

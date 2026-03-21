@@ -249,7 +249,7 @@ int tsdrv_get_pfvf_type_by_devid(u32 devid)
     return devdrv_get_pfvf_type_by_devid(devid);
 #endif
 }
-EXPORT_SYMBOL(tsdrv_get_pfvf_type_by_devid);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_pfvf_type_by_devid);
 
 int devdrv_open(struct inode *inode, struct file *filep)
 {
@@ -2022,7 +2022,7 @@ int devdrv_wakeup_cce_context_status(pid_t pid, u32 devid, u32 status)
     return 0;
 #endif /* TSDRV_UT */
 }
-EXPORT_SYMBOL(devdrv_wakeup_cce_context_status);
+TSDRV_EXPORT_SYMBOL(devdrv_wakeup_cce_context_status);
 
 STATIC int devdrv_basic_module_init(struct devdrv_info *dev_info)
 {
@@ -2222,7 +2222,7 @@ err_hwts_init:
     tsdrv_device_exit(devid);
     return err;
 }
-EXPORT_SYMBOL(devdrv_drv_register);
+TSDRV_EXPORT_SYMBOL(devdrv_drv_register);
 
 /* *
  * devdrv_drv_unregister - unregister a devdrv device
@@ -2288,7 +2288,7 @@ void devdrv_drv_unregister(struct devdrv_info *dev_info)
     tsdrv_device_exit(devid);
     TSDRV_PRINT_INFO("devid:%u unregister success\n", devid);
 }
-EXPORT_SYMBOL(devdrv_drv_unregister);
+TSDRV_EXPORT_SYMBOL(devdrv_drv_unregister);
 
 STATIC int __init devdrv_devinit(void)
 {

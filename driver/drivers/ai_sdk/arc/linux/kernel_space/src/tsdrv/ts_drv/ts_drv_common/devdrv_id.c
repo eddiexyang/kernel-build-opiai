@@ -938,7 +938,7 @@ int tsdrv_id_is_belong_to_proc(struct tsdrv_id_inst *id_inst, pid_t tgid,
 
     return -EFAULT;
 }
-EXPORT_SYMBOL(tsdrv_id_is_belong_to_proc);
+TSDRV_EXPORT_SYMBOL(tsdrv_id_is_belong_to_proc);
 
 STATIC struct tsdrv_id_info *devdrv_alloc_stream_id(
     struct tsdrv_ctx *ctx, struct tsdrv_ts_resource *ts_resource, u32 tsid)
@@ -2655,4 +2655,3 @@ void tsdrv_stream_logic_cq_dev_uninit(u32 devid, u32 fid, u32 tsnum)
         tsdrv_stream_logic_cq_table_uninit(devid, fid, tsid);
     }
 }
-

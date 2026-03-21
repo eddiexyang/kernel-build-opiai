@@ -429,7 +429,7 @@ int devdrv_mailbox_kernel_sync_no_feedback(struct devdrv_mailbox *mailbox, const
 
     return ret;
 }
-EXPORT_SYMBOL(devdrv_mailbox_kernel_sync_no_feedback);
+TSDRV_EXPORT_SYMBOL(devdrv_mailbox_kernel_sync_no_feedback);
 
 STATIC int tsdrv_mailbox_send_para_check(u32 devid, u32 tsid,
     struct tsdrv_mbox_data *data)
@@ -531,7 +531,7 @@ int tsdrv_mailbox_send_sync(u32 devid, u32 tsid, struct tsdrv_mbox_data *data)
 
     return ret;
 }
-EXPORT_SYMBOL(tsdrv_mailbox_send_sync);
+TSDRV_EXPORT_SYMBOL(tsdrv_mailbox_send_sync);
 
 /* interrupt upper half for mailbox ack and feedback */
 STATIC irqreturn_t devdrv_mailbox_ack_irq(int irq, void *data)
@@ -645,5 +645,7 @@ int devdrv_send_rdmainfo_to_ts(u32 dev_id, const u8 *buf, u32 len, int *result)
     return 0;
 #endif
 }
-EXPORT_SYMBOL(devdrv_send_rdmainfo_to_ts);
+#ifndef TSDRV_SHARED_NO_EXPORT
+TSDRV_EXPORT_SYMBOL(devdrv_send_rdmainfo_to_ts);
+#endif
 

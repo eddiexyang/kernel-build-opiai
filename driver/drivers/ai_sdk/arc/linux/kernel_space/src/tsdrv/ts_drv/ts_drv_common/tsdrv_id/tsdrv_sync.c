@@ -1355,10 +1355,10 @@ s32 tsdrv_chan_msg_proc(u32 devid, void *msg, u32 msg_len, u32 *ack_len)
     }
     return tsdrv_chan_msg_handlers[msg_id](devid, tsdrv_msg_info, ack_len);
 }
-EXPORT_SYMBOL(tsdrv_chan_msg_proc);
+TSDRV_EXPORT_SYMBOL(tsdrv_chan_msg_proc);
 
 void tsdrv_set_send_msg_proc(int (*sync_msg_send)(u32 devid, void *tx, size_t tx_size))
 {
     tsdrv_send_sync_msg = sync_msg_send;
 }
-EXPORT_SYMBOL(tsdrv_set_send_msg_proc);
+TSDRV_EXPORT_SYMBOL(tsdrv_set_send_msg_proc);

@@ -19,6 +19,14 @@
 
 #include <linux/types.h>
 
+#ifdef TSDRV_SHARED_NO_EXPORT
+#define TSDRV_EXPORT_SYMBOL(symbol)
+#define TSDRV_EXPORT_SYMBOL_GPL(symbol)
+#else
+#define TSDRV_EXPORT_SYMBOL(symbol) EXPORT_SYMBOL(symbol)
+#define TSDRV_EXPORT_SYMBOL_GPL(symbol) EXPORT_SYMBOL_GPL(symbol)
+#endif
+
 #ifndef __GFP_ACCOUNT
 #ifdef __GFP_KMEMCG
 #define __GFP_ACCOUNT __GFP_KMEMCG /* for linux version 3.10 */

@@ -773,13 +773,13 @@ int tsdrv_cdqm_set_topic_id(u32 devid, u32 topic_id)
 
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_cdqm_set_topic_id);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_set_topic_id);
 
 u32 tsdrv_cdqm_get_instance_by_cdqid(u32 devid, u32 tsid, u32 cdq_id)
 {
     return CDQ_INSTANCE(devid, tsid, cdq_id);
 }
-EXPORT_SYMBOL(tsdrv_cdqm_get_instance_by_cdqid);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_get_instance_by_cdqid);
 
 int tsdrv_cdqm_get_name_by_cdqid(u32 devid, u32 tsid, u32 cdq_id, char *name, int buf_len)
 {
@@ -806,7 +806,7 @@ int tsdrv_cdqm_get_name_by_cdqid(u32 devid, u32 tsid, u32 cdq_id, char *name, in
 
     return ret;
 }
-EXPORT_SYMBOL(tsdrv_cdqm_get_name_by_cdqid);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_get_name_by_cdqid);
 
 int tsdrv_cdqid_is_belong_to_proc(struct tsdrv_id_inst *id_inst, pid_t tgid, u32 id)
 {
@@ -1072,19 +1072,19 @@ u32 tsdrv_cdqm_get_instance_by_cdqid(u32 devid, u32 tsid, u32 cdq_id)
     TSDRV_PRINT_WARN("CDQM is not supported. (devid=%u; tsid=%u; cdq_id=%u)\n", devid, tsid, cdq_id);
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_cdqm_get_instance_by_cdqid);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_get_instance_by_cdqid);
 
 int tsdrv_cdqm_get_name_by_cdqid(u32 devid, u32 tsid, u32 cdq_id, char *name, int buf_len)
 {
     TSDRV_PRINT_WARN("CDQM is not supported. (devid=%u; tsid=%u; cdq_id=%u)\n", devid, tsid, cdq_id);
     return -ENODEV;
 }
-EXPORT_SYMBOL(tsdrv_cdqm_get_name_by_cdqid);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_get_name_by_cdqid);
 
 int tsdrv_cdqm_set_topic_id(u32 devid, u32 topic_id)
 {
     TSDRV_PRINT_WARN("CDQM is not supported. (devid=%u; topic_id=%u)\n", devid, topic_id);
     return -ENODEV;
 }
-EXPORT_SYMBOL(tsdrv_cdqm_set_topic_id);
+TSDRV_EXPORT_SYMBOL(tsdrv_cdqm_set_topic_id);
 #endif /* CFG_FEATURE_CDQM */

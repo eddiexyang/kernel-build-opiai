@@ -31,7 +31,7 @@ void tsdrv_set_ts_status(u32 devid, u32 tsid, enum devdrv_ts_status status)
 
     atomic_set(&g_tsdrv_mng[devid][tsid].status, status);
 }
-EXPORT_SYMBOL(tsdrv_set_ts_status);
+TSDRV_EXPORT_SYMBOL(tsdrv_set_ts_status);
 
 void tsdrv_status_init(void)
 {
@@ -42,7 +42,7 @@ void tsdrv_status_init(void)
         }
     }
 }
-EXPORT_SYMBOL(tsdrv_status_init);
+TSDRV_EXPORT_SYMBOL(tsdrv_status_init);
 
 bool tsdrv_is_ts_work(u32 devid, u32 tsid)
 {
@@ -57,7 +57,7 @@ bool tsdrv_is_ts_work(u32 devid, u32 tsid)
 
     return (status == TS_WORK);
 }
-EXPORT_SYMBOL(tsdrv_is_ts_work);
+TSDRV_EXPORT_SYMBOL(tsdrv_is_ts_work);
 
 enum devdrv_ts_status tsdrv_get_ts_status(u32 devid, u32 tsid)
 {
@@ -68,4 +68,4 @@ enum devdrv_ts_status tsdrv_get_ts_status(u32 devid, u32 tsid)
 
     return atomic_read(&g_tsdrv_mng[devid][tsid].status);
 }
-EXPORT_SYMBOL(tsdrv_get_ts_status);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_ts_status);

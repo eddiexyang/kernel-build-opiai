@@ -54,6 +54,14 @@
 #include "devmng_shm_info.h"
 #include "tsdrv_interface.h"
 
+#ifdef TSDRV_SHARED_NO_EXPORT
+#define TSDRV_EXPORT_SYMBOL(symbol)
+#define TSDRV_EXPORT_SYMBOL_GPL(symbol)
+#else
+#define TSDRV_EXPORT_SYMBOL(symbol) EXPORT_SYMBOL(symbol)
+#define TSDRV_EXPORT_SYMBOL_GPL(symbol) EXPORT_SYMBOL_GPL(symbol)
+#endif
+
 #define module_devdrv "devdrv"
 
 #ifndef __GFP_ACCOUNT

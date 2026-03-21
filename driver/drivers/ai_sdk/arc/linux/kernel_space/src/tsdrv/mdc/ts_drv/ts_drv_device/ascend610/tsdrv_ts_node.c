@@ -98,6 +98,6 @@ int devdrv_get_ts_node_num(void)
     return g_ts_node_num;
 }
 
-EXPORT_SYMBOL(devdrv_get_ts_node_num);
+TSDRV_EXPORT_SYMBOL(devdrv_get_ts_node_num);
 
 #endif

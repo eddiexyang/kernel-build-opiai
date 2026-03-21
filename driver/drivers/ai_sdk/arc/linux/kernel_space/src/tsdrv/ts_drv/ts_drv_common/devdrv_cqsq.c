@@ -4421,7 +4421,7 @@ int tsdrv_submit_task(void *handle, const void *sqe, u32 timeout)
 
     return 0;
 }
-EXPORT_SYMBOL(tsdrv_submit_task);
+TSDRV_EXPORT_SYMBOL(tsdrv_submit_task);
 
 void tsdrv_set_chan_complete_handle(void *handle,
     void(*report_handle)(void *report, u32 report_count))
@@ -4437,7 +4437,7 @@ void tsdrv_set_chan_complete_handle(void *handle,
 
     chan->report_handle = report_handle;
 }
-EXPORT_SYMBOL(tsdrv_set_chan_complete_handle);
+TSDRV_EXPORT_SYMBOL(tsdrv_set_chan_complete_handle);
 
 STATIC void tsdrv_task_complete(struct devdrv_ts_cq_info *cq_info)
 {
@@ -4866,14 +4866,14 @@ free_chan_mem:
     return NULL;
 #endif
 }
-EXPORT_SYMBOL(tsdrv_create_task_topic_sched_submit_chan);
+TSDRV_EXPORT_SYMBOL(tsdrv_create_task_topic_sched_submit_chan);
 
 void *tsdrv_task_submit_chan_create(u32 devid, u32 vfid, u32 tsid,
     int type, u32 sq_depth, u32 cq_depth)
 {
     return tsdrv_create_task_topic_sched_submit_chan(devid, vfid, tsid, type, sq_depth, cq_depth, 0, 0);
 }
-EXPORT_SYMBOL(tsdrv_task_submit_chan_create);
+TSDRV_EXPORT_SYMBOL(tsdrv_task_submit_chan_create);
 
 void tsdrv_destroy_task_submit_chan(void *handle, int type)
 {
@@ -4909,7 +4909,7 @@ void tsdrv_destroy_task_submit_chan(void *handle, int type)
     vfree(chan);
     chan = NULL;
 }
-EXPORT_SYMBOL(tsdrv_destroy_task_submit_chan);
+TSDRV_EXPORT_SYMBOL(tsdrv_destroy_task_submit_chan);
 
 /* alloc sq for ts submit task */
 int tsdrv_alloc_ts_sqcq(u32 devid, u32 vfid, u32 tsid)

@@ -798,7 +798,7 @@ int devdrv_create_functional_sq(u32 devid, u32 tsid, u32 slot_len, u32 *sq_index
     spin_unlock(&ts_resource->functional_cqsq.spinlock);
     return -ENOMEM;
 }
-EXPORT_SYMBOL(devdrv_create_functional_sq);
+TSDRV_EXPORT_SYMBOL(devdrv_create_functional_sq);
 
 void devdrv_destroy_functional_sq(u32 devid, u32 tsid, u32 sq_index)
 {
@@ -851,7 +851,7 @@ void devdrv_destroy_functional_sq(u32 devid, u32 tsid, u32 sq_index)
 
     devdrv_functional_free_sqcq_memory(sq_addr);
 }
-EXPORT_SYMBOL(devdrv_destroy_functional_sq);
+TSDRV_EXPORT_SYMBOL(devdrv_destroy_functional_sq);
 
 int devdrv_functional_set_sq_func(u32 devid, u32 tsid, u32 sq_index, enum devdrv_cqsq_func function)
 {
@@ -884,7 +884,7 @@ int devdrv_functional_set_sq_func(u32 devid, u32 tsid, u32 sq_index, enum devdrv
     sq_info->function = function;
     return 0;
 }
-EXPORT_SYMBOL(devdrv_functional_set_sq_func);
+TSDRV_EXPORT_SYMBOL(devdrv_functional_set_sq_func);
 
 int devdrv_functional_set_cq_func(u32 devid, u32 tsid, u32 cq_index, enum devdrv_cqsq_func function)
 {
@@ -914,7 +914,7 @@ int devdrv_functional_set_cq_func(u32 devid, u32 tsid, u32 cq_index, enum devdrv
     cq_info->function = function;
     return 0;
 }
-EXPORT_SYMBOL(devdrv_functional_set_cq_func);
+TSDRV_EXPORT_SYMBOL(devdrv_functional_set_cq_func);
 
 STATIC int devdrv_get_functional_cq_memory(u32 devid, struct devdrv_functional_cq_info *cq_info, u32 size)
 {
@@ -1076,7 +1076,7 @@ int devdrv_create_functional_cq(u32 devid, u32 tsid, u32 slot_len, u32 cq_type,
     return -ENOMEM;
 #endif
 }
-EXPORT_SYMBOL(devdrv_create_functional_cq);
+TSDRV_EXPORT_SYMBOL(devdrv_create_functional_cq);
 
 void devdrv_destroy_functional_cq(u32 devid, u32 tsid, u32 cq_index)
 {
@@ -1162,7 +1162,7 @@ void devdrv_destroy_functional_cq(u32 devid, u32 tsid, u32 cq_index)
     }
     mutex_unlock(&cq_info[cq_index].lock);
 }
-EXPORT_SYMBOL(devdrv_destroy_functional_cq);
+TSDRV_EXPORT_SYMBOL(devdrv_destroy_functional_cq);
 
 STATIC int devdrv_functional_send_sq_check(u32 devid, u32 tsid, u32 sq_index, const u8 *buffer, u32 buf_len)
 {
@@ -1272,7 +1272,7 @@ int devdrv_functional_send_sq(u32 devid, u32 tsid, u32 sq_index, const u8 *buffe
 
     return 0;
 }
-EXPORT_SYMBOL(devdrv_functional_send_sq);
+TSDRV_EXPORT_SYMBOL(devdrv_functional_send_sq);
 
 int devdrv_mailbox_send_cqsq(u32 devid, u32 tsid, struct devdrv_mailbox_cqsq *cqsq)
 {
@@ -1317,5 +1317,5 @@ int devdrv_mailbox_send_cqsq(u32 devid, u32 tsid, struct devdrv_mailbox_cqsq *cq
     return ret;
 #endif
 }
-EXPORT_SYMBOL(devdrv_mailbox_send_cqsq);
+TSDRV_EXPORT_SYMBOL(devdrv_mailbox_send_cqsq);
 

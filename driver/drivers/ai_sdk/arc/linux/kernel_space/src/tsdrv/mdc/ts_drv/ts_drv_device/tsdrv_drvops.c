@@ -91,7 +91,7 @@ struct tsdrv_drv_ops *tsdrv_get_drv_ops(void)
 {
     return &tsdrv_device_drv_ops;
 }
-EXPORT_SYMBOL(tsdrv_get_drv_ops);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_drv_ops);
 #else
 int tsdrv_drvops(void)
 {

@@ -97,7 +97,7 @@ int devdrv_creat_ipc_name(char *ipc_name, unsigned int len)
     return 0;
 }
 
-EXPORT_SYMBOL(devdrv_creat_ipc_name);
+TSDRV_EXPORT_SYMBOL(devdrv_creat_ipc_name);
 #endif
 STATIC u32 devdrv_mc_get_str_elfhash(const char *ipc_name, size_t len)
 {

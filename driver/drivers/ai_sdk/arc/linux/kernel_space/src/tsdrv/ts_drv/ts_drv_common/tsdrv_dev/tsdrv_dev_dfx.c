@@ -54,7 +54,7 @@ ssize_t simple_read_from_buffer_safe(void __user *to, const void *from, size_t a
     return available;
 }
 #endif
-EXPORT_SYMBOL(simple_read_from_buffer_safe);
+TSDRV_EXPORT_SYMBOL(simple_read_from_buffer_safe);
 #ifndef AOS_LLVM_BUILD
 static struct tsdrv_dfx tsdrv_dfx_root;
 
@@ -62,19 +62,19 @@ struct tsdrv_dfx *tsdrv_get_dfx_root(void)
 {
     return &tsdrv_dfx_root;
 }
-EXPORT_SYMBOL(tsdrv_get_dfx_root);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_dfx_root);
 
 struct tsdrv_dfx_dev *tsdrv_get_dev_dfx(u32 devid)
 {
     return &tsdrv_dfx_root.dfx_dev[devid];
 }
-EXPORT_SYMBOL(tsdrv_get_dev_dfx);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_dev_dfx);
 
 struct tsdrv_dfx_fid *tsdrv_get_fid_dfx(u32 devid, u32 fid)
 {
     return &tsdrv_dfx_root.dfx_dev[devid].dfx_fid[fid];
 }
-EXPORT_SYMBOL(tsdrv_get_fid_dfx);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_fid_dfx);
 
 static int tsdrv_davinci_dfx_dir_create(u32 devid)
 {
@@ -344,19 +344,19 @@ struct tsdrv_proc_dfx *tsdrv_get_dfx_root(void)
 {
     return &tsdrv_proc_dfx_root;
 }
-EXPORT_SYMBOL(tsdrv_get_dfx_root);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_dfx_root);
 
 struct tsdrv_proc_dfx_dev *tsdrv_get_dev_dfx(u32 devid)
 {
     return &tsdrv_proc_dfx_root.dfx_dev[devid];
 }
-EXPORT_SYMBOL(tsdrv_get_dev_dfx);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_dev_dfx);
 
 struct tsdrv_proc_dfx_fid *tsdrv_get_fid_dfx(u32 devid, u32 fid)
 {
     return &tsdrv_proc_dfx_root.dfx_dev[devid].dfx_fid[fid];
 }
-EXPORT_SYMBOL(tsdrv_get_fid_dfx);
+TSDRV_EXPORT_SYMBOL(tsdrv_get_fid_dfx);
 
 static int tsdrv_davinci_dfx_dir_create(u32 devid)
 {
