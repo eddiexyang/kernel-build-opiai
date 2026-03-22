@@ -15,6 +15,7 @@ DRIVER_DEVICE_MODULES += drv_tde.ko drv_hdmi.ko
 DRIVER_DEVICE_MODULES += ascend_dms_dtm.ko ascend_dms_mng.ko ascend_dms_smf.ko ascend_trs_cdqm.ko ascend_urd.ko ascend_virtmng_resmgr.ko
 DRIVER_DEVICE_MODULES += drv_centre_notify.ko drv_devdrv.ko drv_e2prom.ko drv_lpm_devmng.ko drv_lpm_fault.ko drv_media_compat.ko drv_osal.ko
 DRIVER_DEVICE_MODULES += drv_pcie.ko drv_pcie_hdc.ko drv_pm.ko drv_usb_uniform.ko hnae3.ko hns3.ko
+DRIVER_DEVICE_MODULES += ascend_hwmon.ko
 
 #add ALL module variables
 CUSTOM_DEVICE_MODULES_VARIABLES := \
