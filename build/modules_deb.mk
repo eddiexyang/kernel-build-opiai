@@ -11,6 +11,7 @@ modules-deb: | ensure-output-dirs
 	debian_dir=
 	driver_target_dir=
 	autoload_conf_src=
+	autoload_conf_name=
 	autoload_conf_dir=
 	deb_path=
 	test -e "$(OUTPUT_DIR)/modules/lib/modules" || { printf 'error: missing required path: %s\n' "$(OUTPUT_DIR)/modules/lib/modules" >&2; exit 1; }
@@ -36,6 +37,7 @@ modules-deb: | ensure-output-dirs
 	debian_dir="$$pkg_root/DEBIAN"
 	driver_target_dir="$$pkg_root/lib/modules/$$kernel_release/extra/ascend310b"
 	autoload_conf_src="$(OUTPUT_DIR)/ascend310b-driver-modules.conf"
+	autoload_conf_name="ascend310b-driver-modules-$$kernel_release.conf"
 	autoload_conf_dir="$$pkg_root/etc/modules-load.d"
 	deb_path="$(OUTPUT_DIR)/$${package_name}_$${package_version}_$${package_arch}.deb"
 	printf 'start generate modules deb\n'
@@ -50,7 +52,7 @@ modules-deb: | ensure-output-dirs
 			| sed 's/\.ko$$//' | sort -u > "$$autoload_conf_src"
 	fi
 	mkdir -p "$$autoload_conf_dir"
-	cp -f "$$autoload_conf_src" "$$autoload_conf_dir/ascend310b-driver-modules.conf"
+	cp -f "$$autoload_conf_src" "$$autoload_conf_dir/$$autoload_conf_name"
 	find "$$pkg_root/lib/modules/$$kernel_release" -maxdepth 1 -type f \
 		\( -name 'modules.dep*' -o -name 'modules.alias*' -o -name 'modules.symbols*' \
 		   -o -name 'modules.softdep' -o -name 'modules.weakdep' -o -name 'modules.devname' \) \
