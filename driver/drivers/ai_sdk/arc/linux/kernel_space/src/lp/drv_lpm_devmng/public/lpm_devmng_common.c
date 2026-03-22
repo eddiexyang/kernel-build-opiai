@@ -19,6 +19,7 @@
 #if defined(CONFIG_DEBUG_FS) && defined(LPM_BUILD_DEBUG)
 #include "lpm_devmng_debugfs.h"
 #endif
+#include "devdrv_manager_comm.h"
 #include "lpm_devmng_common.h"
 
 #if defined(CONFIG_DEBUG_FS) && defined(LPM_BUILD_DEBUG)
@@ -142,10 +143,7 @@ STATIC int32_t lpm_common_put_opt_hook(uint64_t *param, uint32_t param_num)
 {
 	struct lpm_common_priv *comm_priv = lpm_common_priv_info();
 
-	if (comm_priv->fn_hook.fn_get_chip_die_id != NULL) {
-		__symbol_put("devdrv_get_chip_die_id");
-		comm_priv->fn_hook.fn_get_chip_die_id = NULL;
-	}
+	comm_priv->fn_hook.fn_get_chip_die_id = NULL;
 
 #ifdef LPM_TRANSFORM_DEVID
 	if (comm_priv->fn_hook.fn_trans_dev_id != NULL) {
@@ -178,12 +176,11 @@ STATIC int32_t lpm_common_get_opt_hook(uint64_t *param, uint32_t param_num)
 
 	lpm_common_init_opt_hook(comm_priv);
 
-	comm_priv->fn_hook.fn_get_chip_die_id =
-		(fn_devdrv_get_chip_die_id)(uintptr_t)__symbol_get("devdrv_get_chip_die_id");
-	if (comm_priv->fn_hook.fn_get_chip_die_id == NULL) {
-		lpm_log_err("can not find devdrv get chip die id\n");
-		return -1;
-	}
+	/*
+	 * Upstream 6.18 rejects the runtime symbol_get path for this exported
+	 * symbol. Bind directly so modprobe/depmod manages the dependency.
+	 */
+	comm_priv->fn_hook.fn_get_chip_die_id = devdrv_get_chip_die_id;
 
 #ifdef LPM_TRANSFORM_DEVID
 	comm_priv->fn_hook.fn_trans_dev_id =

@@ -119,14 +119,6 @@ static int hisi_gpio_irq_set_wake(struct irq_data *d, unsigned int enable)
     return 0;
 }
 
-static int hisi_gpio_to_irq(struct gpio_chip *chip, unsigned int offset)
-{
-    int irq;
-
-    irq = irq_create_mapping(chip->irq.domain, offset);
-    return irq;
-}
-
 static void hisi_gpio_irq_handler(struct irq_desc *desc)
 {
     struct hisi_gpio *hgpio = irq_desc_get_handler_data(desc);
@@ -248,7 +240,6 @@ static int hisi_gpio_parse_resource(struct platform_device *pdev, struct hisi_gp
 {
     struct resource *res;
     u32 ngpios;
-    u32 base;
     int ret;
 
     /* Obtains the register address space. */
@@ -260,12 +251,11 @@ static int hisi_gpio_parse_resource(struct platform_device *pdev, struct hisi_gp
     }
     hgpio->reg_region.io_size = res->end - res->start + 1;
 
-    ret = device_property_read_u32(&pdev->dev, "base", &base);
-    if (ret != 0) {
-        dev_err(&pdev->dev, "get gpio base error\n");
-        return -EINVAL;
-    }
-    hgpio->chip.base = base;
+    /*
+     * Dynamic GPIO numbering avoids the static-base deprecation warning on
+     * newer kernels while still allowing the controller to register normally.
+     */
+    hgpio->chip.base = -1;
     // ngpios:number of GPIOs per controller
     ret = device_property_read_u32(&pdev->dev, "ngpios", &ngpios);
     if (ret != 0) {
@@ -297,7 +287,6 @@ static void hisi_gpio_fill_gpio_chip(struct gpio_chip *gpio_chip, struct hisi_gp
     gpio_chip->get_direction = hisi_gpio_get_direction;
     gpio_chip->get = hisi_gpio_get;
     gpio_chip->set = hisi_gpio_set;
-    gpio_chip->to_irq = hisi_gpio_to_irq;
     gpio_chip->set_config = hisi_gpio_set_config;
     gpio_chip->parent = hgpio->dev;
 }
@@ -305,12 +294,15 @@ static void hisi_gpio_fill_gpio_chip(struct gpio_chip *gpio_chip, struct hisi_gp
 static void hisi_gpio_fill_irq_chip(struct irq_chip *irq_chip, struct hisi_gpio *hgpio)
 {
     irq_chip->name = HISI_GPIO_NAME;
+    irq_chip->flags = IRQCHIP_IMMUTABLE;
     irq_chip->irq_mask = hisi_gpio_irq_mask;
     irq_chip->irq_unmask = hisi_gpio_irq_unmask;
     irq_chip->irq_set_type = hisi_gpio_irq_set_type;
     irq_chip->irq_enable = hisi_gpio_irq_enable;
     irq_chip->irq_disable = hisi_gpio_irq_disable;
     irq_chip->irq_set_wake = hisi_gpio_irq_set_wake;
+    irq_chip->irq_request_resources = gpiochip_irq_reqres;
+    irq_chip->irq_release_resources = gpiochip_irq_relres;
 }
 
 static void hisi_gpio_init_irq(struct hisi_gpio *hgpio)

@@ -2,6 +2,7 @@
 
 modules-deb: | ensure-output-dirs
 	depmod_bin=
+	nm_bin=
 	kernel_release=
 	package_name=
 	package_arch=
@@ -17,6 +18,7 @@ modules-deb: | ensure-output-dirs
 	test -e "$(OUTPUT_DIR)/modules/lib/modules" || { printf 'error: missing required path: %s\n' "$(OUTPUT_DIR)/modules/lib/modules" >&2; exit 1; }
 	test -e "$(OUTPUT_DIR)/driver_modules" || { printf 'error: missing required path: %s\n' "$(OUTPUT_DIR)/driver_modules" >&2; exit 1; }
 	depmod_bin="$$(command -v depmod 2>/dev/null || true)"
+	nm_bin="$$(command -v aarch64-linux-gnu-nm 2>/dev/null || command -v nm 2>/dev/null || true)"
 	if [ -z "$$depmod_bin" ]; then
 		for candidate in /sbin/depmod /usr/sbin/depmod; do
 			if [ -x "$$candidate" ]; then
@@ -26,6 +28,7 @@ modules-deb: | ensure-output-dirs
 		done
 	fi
 	[ -n "$$depmod_bin" ] || { printf 'error: depmod is required to build modules-deb\n' >&2; exit 1; }
+	[ -n "$$nm_bin" ] || { printf 'error: nm is required to build modules-deb\n' >&2; exit 1; }
 	mapfile -t releases < <(find "$(OUTPUT_DIR)/modules/lib/modules" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 	[ "$${#releases[@]}" -eq 1 ] || { printf 'error: expected exactly one kernel release under %s, found %s\n' "$(OUTPUT_DIR)/modules/lib/modules" "$${#releases[@]}" >&2; exit 1; }
 	kernel_release="$${releases[0]}"
@@ -40,16 +43,75 @@ modules-deb: | ensure-output-dirs
 	autoload_conf_name="ascend310b-driver-modules-$$kernel_release.conf"
 	autoload_conf_dir="$$pkg_root/etc/modules-load.d"
 	deb_path="$(OUTPUT_DIR)/$${package_name}_$${package_version}_$${package_arch}.deb"
+	ksymtab_dump="$$deb_workspace/ksymtab-exports.txt"
+	ksymtab_dups="$$deb_workspace/ksymtab-duplicates.txt"
+	driver_module_list="$$deb_workspace/driver-modules.list"
+	kernel_module_names="$$deb_workspace/kernel-modules.names"
+	driver_module_skips="$$deb_workspace/driver-modules.skipped"
 	printf 'start generate modules deb\n'
 	rm -rf "$$deb_workspace"
 	mkdir -p "$$pkg_root"
+	: > "$$ksymtab_dump"
+	find "$(OUTPUT_DIR)/modules/lib/modules" -type f -name '*.ko' -printf '%f\n' | sort -u > "$$kernel_module_names"
+	: > "$$driver_module_list"
+	: > "$$driver_module_skips"
+	while IFS= read -r ko; do \
+		ko_name="$${ko##*/}"; \
+		if grep -Fxq "$$ko_name" "$$kernel_module_names"; then \
+			printf '%s\n' "$$ko_name" >> "$$driver_module_skips"; \
+			continue; \
+		fi; \
+		printf '%s\n' "$$ko" >> "$$driver_module_list"; \
+	done < <(find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f -name '*.ko' | sort)
+	if [ -s "$$driver_module_skips" ]; then \
+		printf 'skip duplicate driver_modules already shipped in kernel tree:\n'; \
+		sort -u "$$driver_module_skips"; \
+	fi
+	while IFS= read -r -d '' ko; do \
+		"$$nm_bin" --defined-only "$$ko" 2>/dev/null | \
+			awk -v ko="$${ko#$(OUTPUT_DIR)/}" '/ __ksymtab_/ { sub(/^__ksymtab_/, "", $$3); print $$3 "\t" ko; }' \
+			>> "$$ksymtab_dump"; \
+	done < <(find "$(OUTPUT_DIR)/modules/lib/modules" -type f -name '*.ko' -print0)
+	while IFS= read -r ko; do \
+		"$$nm_bin" --defined-only "$$ko" 2>/dev/null | \
+			awk -v ko="$${ko#$(OUTPUT_DIR)/}" '/ __ksymtab_/ { sub(/^__ksymtab_/, "", $$3); print $$3 "\t" ko; }' \
+			>> "$$ksymtab_dump"; \
+	done < "$$driver_module_list"
+	sort "$$ksymtab_dump" | awk -F '\t' ' \
+		BEGIN { dup = 0; prev = ""; count = 0; } \
+		{ \
+			if ($$1 != prev) { \
+				if (count > 1) { \
+					for (i = 1; i <= count; ++i) \
+						printf "%s\t%s\n", prev, owners[i]; \
+					dup = 1; \
+				} \
+				prev = $$1; \
+				count = 0; \
+			} \
+			owners[++count] = $$2; \
+		} \
+		END { \
+			if (count > 1) { \
+				for (i = 1; i <= count; ++i) \
+					printf "%s\t%s\n", prev, owners[i]; \
+				dup = 1; \
+			} \
+			exit dup ? 0 : 1; \
+		}' > "$$ksymtab_dups" || true
+	if [ -s "$$ksymtab_dups" ]; then \
+		printf 'error: duplicate exported kernel symbols detected in packaged modules:\n' >&2; \
+		cat "$$ksymtab_dups" >&2; \
+		exit 1; \
+	fi
 	cp -a "$(OUTPUT_DIR)/modules/." "$$pkg_root/"
 	rm -rf "$$pkg_root/lib/modules/$$kernel_release/build" "$$pkg_root/lib/modules/$$kernel_release/source"
 	mkdir -p "$$driver_target_dir"
-	cp -a "$(OUTPUT_DIR)/driver_modules/." "$$driver_target_dir/"
+	while IFS= read -r ko; do \
+		cp -a "$$ko" "$$driver_target_dir/"; \
+	done < "$$driver_module_list"
 	if [ ! -f "$$autoload_conf_src" ]; then
-		find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
-			| sed 's/\.ko$$//' | sort -u > "$$autoload_conf_src"
+		sed 's#.*/##; s/\.ko$$//' "$$driver_module_list" | sort -u > "$$autoload_conf_src"
 	fi
 	mkdir -p "$$autoload_conf_dir"
 	cp -f "$$autoload_conf_src" "$$autoload_conf_dir/$$autoload_conf_name"

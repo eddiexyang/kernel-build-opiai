@@ -22,6 +22,7 @@
 #if defined(CONFIG_DEBUG_FS) && defined(LPM_BUILD_DEBUG)
 #include "lpm_fault_debugfs.h"
 #endif
+#include "devdrv_manager_comm.h"
 #include "lpm_fault_common.h"
 
 #if defined(CONFIG_DEBUG_FS) && defined(LPM_BUILD_DEBUG)
@@ -61,13 +62,9 @@ STATIC void lpm_common_put_opt_hook(void)
 {
 #ifndef LPM_FAULT_RUN_IN_AOS
 #ifndef CFG_SOC_PLATFORM_MINI
-	// aos core not support __symbol_put
 	struct lpm_fault_common_priv *common_priv = lpm_fault_get_common_priv();
 
-	if (common_priv->fn_hook.fn_get_chip_die_id != NULL) {
-		__symbol_put("devdrv_get_chip_die_id");
-		common_priv->fn_hook.fn_get_chip_die_id = NULL;
-	}
+	common_priv->fn_hook.fn_get_chip_die_id = NULL;
 #endif
 #endif // !LPM_FAULT_RUN_IN_AOS
 }
@@ -77,14 +74,13 @@ STATIC int32_t lpm_common_get_opt_hook(void)
 #ifndef LPM_FAULT_RUN_IN_AOS
 #ifndef CFG_SOC_PLATFORM_MINI
 	struct lpm_fault_common_priv *common_priv = lpm_fault_get_common_priv();
-	// aos core not support this api
-	// mini not support this api
-	common_priv->fn_hook.fn_get_chip_die_id =
-		(fn_devdrv_get_chip_die_id)(uintptr_t)__symbol_get("devdrv_get_chip_die_id");
-	if (common_priv->fn_hook.fn_get_chip_die_id == NULL) {
-		lpm_log_err("can not find devdrv get chip die id\n");
-		return -1;
-	}
+
+	/*
+	 * Upstream 6.18 rejects the runtime symbol_get path for this exported
+	 * symbol. Use the direct exported entry point instead and let module
+	 * dependency resolution guarantee availability.
+	 */
+	common_priv->fn_hook.fn_get_chip_die_id = devdrv_get_chip_die_id;
 #endif
 #endif // !LPM_FAULT_RUN_IN_AOS
 

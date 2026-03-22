@@ -270,4 +270,3 @@ int devdrv_send_rdmainfo_to_ts(u32 devid, const u8 *buf, u32 len, int *result)
     *result = 0;
     return 0;
 }
-EXPORT_SYMBOL(devdrv_send_rdmainfo_to_ts);

@@ -521,4 +521,3 @@ void hal_kernel_agentdrv_get_qos_func(struct qos_master_node *qos_master)
     qos_master->set_otsd = agentdrv_set_otsd_config;
     qos_master->get_otsd = agentdrv_get_otsd_config;
 }
-EXPORT_SYMBOL(hal_kernel_agentdrv_get_qos_func);

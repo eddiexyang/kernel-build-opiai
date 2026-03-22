@@ -713,7 +713,6 @@ void hal_kernel_agentdrv_get_qos_func(struct qos_master_node *qos_master)
     qos_master->set_otsd = pcie_rc_set_otsd_config;
     qos_master->get_otsd = pcie_rc_get_otsd_config;
 }
-EXPORT_SYMBOL(hal_kernel_agentdrv_get_qos_func);
 
 #else
 
