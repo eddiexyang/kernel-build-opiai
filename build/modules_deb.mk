@@ -155,5 +155,5 @@ modules-deb: | ensure-output-dirs
 		> "$$debian_dir/postrm"
 	chmod 0755 "$$debian_dir/postinst" "$$debian_dir/postrm"
 	rm -f "$$deb_path"
-	fakeroot dpkg-deb --build "$$pkg_root" "$$deb_path" >/dev/null
+	XZ_OPT="-T$(JOBS)" fakeroot dpkg-deb --build "$$pkg_root" "$$deb_path" >/dev/null
 	printf 'generate %s success\n' "$$deb_path"
