@@ -52,30 +52,42 @@ modules-deb: | ensure-output-dirs
 	rm -rf "$$deb_workspace"
 	mkdir -p "$$pkg_root"
 	: > "$$ksymtab_dump"
-	find "$(OUTPUT_DIR)/modules/lib/modules" -type f -name '*.ko' -printf '%f\n' | sort -u > "$$kernel_module_names"
+	find "$(OUTPUT_DIR)/modules/lib/modules" -type f \( -name '*.ko' -o -name '*.ko.xz' \) -printf '%f\n' | \
+		sed 's/\.xz$$//' | sort -u > "$$kernel_module_names"
 	: > "$$driver_module_list"
 	: > "$$driver_module_skips"
 	while IFS= read -r ko; do \
 		ko_name="$${ko##*/}"; \
-		if grep -Fxq "$$ko_name" "$$kernel_module_names"; then \
-			printf '%s\n' "$$ko_name" >> "$$driver_module_skips"; \
+		ko_name_base="$${ko_name%.xz}"; \
+		if grep -Fxq "$$ko_name_base" "$$kernel_module_names"; then \
+			printf '%s\n' "$$ko_name_base" >> "$$driver_module_skips"; \
 			continue; \
 		fi; \
 		printf '%s\n' "$$ko" >> "$$driver_module_list"; \
-	done < <(find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f -name '*.ko' | sort)
+	done < <(find "$(OUTPUT_DIR)/driver_modules" -maxdepth 1 -type f \( -name '*.ko' -o -name '*.ko.xz' \) | sort)
 	if [ -s "$$driver_module_skips" ]; then \
 		printf 'skip duplicate driver_modules already shipped in kernel tree:\n'; \
 		sort -u "$$driver_module_skips"; \
 	fi
+	nm_ko() { \
+		_ko="$$1"; \
+		case "$$_ko" in \
+			*.ko.xz) \
+				_tmp="$$(mktemp --suffix=.ko)"; \
+				xz -dc "$$_ko" > "$$_tmp" 2>/dev/null && "$$nm_bin" --defined-only "$$_tmp" 2>/dev/null; \
+				rm -f "$$_tmp" ;; \
+			*) "$$nm_bin" --defined-only "$$_ko" 2>/dev/null ;; \
+		esac; \
+	}; \
 	while IFS= read -r -d '' ko; do \
-		"$$nm_bin" --defined-only "$$ko" 2>/dev/null | \
+		nm_ko "$$ko" | \
 			awk -v ko="$${ko#$(OUTPUT_DIR)/}" '/ __ksymtab_/ { sub(/^__ksymtab_/, "", $$3); print $$3 "\t" ko; }' \
-			>> "$$ksymtab_dump"; \
-	done < <(find "$(OUTPUT_DIR)/modules/lib/modules" -type f -name '*.ko' -print0)
+			>> "$$ksymtab_dump" || true; \
+	done < <(find "$(OUTPUT_DIR)/modules/lib/modules" -type f \( -name '*.ko' -o -name '*.ko.xz' \) -print0)
 	while IFS= read -r ko; do \
-		"$$nm_bin" --defined-only "$$ko" 2>/dev/null | \
+		nm_ko "$$ko" | \
 			awk -v ko="$${ko#$(OUTPUT_DIR)/}" '/ __ksymtab_/ { sub(/^__ksymtab_/, "", $$3); print $$3 "\t" ko; }' \
-			>> "$$ksymtab_dump"; \
+			>> "$$ksymtab_dump" || true; \
 	done < "$$driver_module_list"
 	sort "$$ksymtab_dump" | awk -F '\t' ' \
 		BEGIN { dup = 0; prev = ""; count = 0; } \
