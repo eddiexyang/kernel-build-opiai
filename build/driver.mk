@@ -19,7 +19,7 @@ driver: | ensure-output-dirs
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
 		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
 		build_device=true \
-		-j1
+		-j"$(JOBS)"
 	$(MAKE) driver_host \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=host \
@@ -28,7 +28,7 @@ driver: | ensure-output-dirs
 		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
 		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
-		-j1
+		-j"$(JOBS)"
 	mkdir -p "$(OUTPUT_DIR)/driver_modules"
 	cp -rf "$(DRIVER_SOURCE_DIR)/out/device/." "$(OUTPUT_DIR)/driver_modules/"
 	rm -rf "$(OUTPUT_DIR)/driver_modules_host"

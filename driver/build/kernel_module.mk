@@ -6,7 +6,7 @@ my_local_depend_ko := $(strip $(LOCAL_DEPEND_KO))
 
 my_installed_ko_modules := $(LOCAL_INSTALLED_KO_FILES)
 
-#check if define module repeatly 
+#check if define module repeatly
 ko_id := MODULE_KO.$(KO_TYPE).$(my_ko_module_name)
 ifdef $(ko_id)
   $(error $(my_ko_module_name) has alredy defined)
@@ -34,6 +34,11 @@ KERNEL_ARCH_CONFIGS_DIR := $(dir $(KERNEL_KO_CONFIG_FILE))
 KO_GEN_CONFIG_PATH := $(KERNEL_ARCH_CONFIGS_DIR)/hw_$(TARGET_PRODUCT)_ko_defconfig
 
 ifneq ($(KERNEL_KO_CONFIG_FILE),)
+# Use the shared kernel source .config so that modules_prepare (run once via
+# KO_KERNEL_PREPARE_STAMP below) writes into the same tree that module builds
+# read from.  Keeping this as the kernel-dir .config matches the original
+# in-place design and avoids "source tree not clean" errors from the kernel
+# Kbuild when O= is pointed at a pre-built in-place tree.
 KERNEL_KO_DOT_CONFIG := $(KO_DEP_KERNEL_DIR)/.config
 endif
 
@@ -96,6 +101,37 @@ $(HOST_KERNEL_VERSION_SYMVERS):
 		exit 1; \
 	fi
 
+# ---------------------------------------------------------------------------
+# Shared kernel-prepare stamp (one per KO_TYPE)
+#
+# modules_prepare and the Module.symvers copy both write into the shared
+# kernel source tree.  Running them once (serialised by this stamp) and then
+# letting individual module compilations proceed in parallel is safe because
+# "make M=<dir> modules" only writes inside <dir>.
+# ---------------------------------------------------------------------------
+KO_KERNEL_PREPARE_STAMP := $(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)/kernel_prepare.stamp
+
+ifndef KERNEL_PREPARE_STAMP_$(KO_TYPE)_DEFINED
+KERNEL_PREPARE_STAMP_$(KO_TYPE)_DEFINED := 1
+
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_KERNEL_DIR     := $(KO_DEP_KERNEL_DIR)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_ARCH_TYPE       := $(KO_ARCH_TYPE)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_COMPILER_PREFIX := $(CROSS_COMPILER_PREFIX)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_KERNEL_CC       := $(if $(strip $(CCACHE)),$(strip $(CCACHE)) $(CROSS_COMPILER_PREFIX)gcc,$(CROSS_COMPILER_PREFIX)gcc)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_HOSTCC          := $(if $(strip $(CCACHE)),$(strip $(CCACHE)) gcc,gcc)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_HOSTCXX         := $(if $(strip $(CCACHE)),$(strip $(CCACHE)) g++,g++)
+$(KO_KERNEL_PREPARE_STAMP): PRIVATE_SYMVERS_SRC     := $(HOST_KERNEL_VERSION_SYMVERS)
+$(KO_KERNEL_PREPARE_STAMP): $(KERNEL_KO_DOT_CONFIG) $(HOST_KERNEL_VERSION_SYMVERS)
+	@mkdir -p $(dir $@)
+	@if [ -n "$(strip $(PRIVATE_SYMVERS_SRC))" ]; then \
+		cp -f $(PRIVATE_SYMVERS_SRC) $(PRIVATE_KERNEL_DIR)/Module.symvers; \
+	fi
+ifneq ($(KERNEL_KO_CONFIG_FILE),)
+	@$(MAKE) -C $(PRIVATE_KERNEL_DIR) ARCH=$(PRIVATE_ARCH_TYPE) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) CC="$(PRIVATE_KERNEL_CC)" HOSTCC="$(PRIVATE_HOSTCC)" HOSTCXX="$(PRIVATE_HOSTCXX)" modules_prepare
+endif
+	@touch $@
+
+endif # KERNEL_PREPARE_STAMP_$(KO_TYPE)_DEFINED
 
 define ko_extra_symvers
 $(strip $(foreach m,$(1),$(PWD)/$($(2)_OUT_INTERMEDIATES)/$(strip $(m))_ko/Module.symvers))
@@ -118,8 +154,23 @@ endif
 $(KO_MODULES_OUT_INTER)/Module.symvers: $(KO_KERNEL_TIMESTAMP)
 	@:
 
+# Extra symvers paths declared via LOCAL_KBUILD_EXTRA_SYMBOLS need to be Make
+# prerequisites so that parallel builds wait for those modules to finish before
+# this module's MODPOST step tries to open them.
+#
+# Only track symvers that live in the CURRENT type's intermediates directory.
+# Cross-type symvers (e.g., a HOST module referencing a DEVICE symvers file)
+# are handled by build ordering (device build always precedes host build in
+# driver.mk) and must NOT be added as Make dependencies here, because the
+# cross-type phony targets (e.g., DEVICE.foo) are undefined in the other
+# type's build context and would cause "no rule to make target" errors.
+MY_KO_INTERMEDIATES_DIR := $(PWD)/$($(KO_TYPE)_OUT_INTERMEDIATES)
+LOCAL_KBUILD_EXTRA_SYMBOLS_DEPS := $(filter $(MY_KO_INTERMEDIATES_DIR)/%,$(call normalize-local-extra-symvers,$(LOCAL_KBUILD_EXTRA_SYMBOLS)))
+
 $(KO_KERNEL_TIMESTAMP): PRIVATE_KERNEL_SYMBOLS_PATH := $(LOCAL_DEPEND_KERNEL)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_DEPEND_KO := $(my_local_depend_ko)
+# Full list for KBUILD_EXTRA_SYMBOLS (cross-type symvers must still be passed
+# to the compiler); filtered list used only as Make prerequisites above.
 $(KO_KERNEL_TIMESTAMP): PRIVATE_LOCAL_EXTRA_SYMBOLS := $(call normalize-local-extra-symvers,$(LOCAL_KBUILD_EXTRA_SYMBOLS))
 $(KO_KERNEL_TIMESTAMP): PRIVATE_EXTRA_SYMBOLS = $(call normalize-all-extra-symvers,$(call ko_extra_symvers,$(PRIVATE_DEPEND_KO),$(PRIVATE_KO_TYPE)) $(PRIVATE_LOCAL_EXTRA_SYMBOLS))
 $(KO_KERNEL_TIMESTAMP): PRIVATE_PRODUCT_SIDE := $(PRODUCT_SIDE)
@@ -136,19 +187,16 @@ $(KO_KERNEL_TIMESTAMP): PRIVATE_MODULE_DIR := $(MODULE_DIR)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_BUILD_KO_MODULES := $(BUILT_KO_MODULES)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_ARCH_TYPE := $(KO_ARCH_TYPE)
 $(KO_KERNEL_TIMESTAMP): PRIVATE_COMMON_CPPFLAGS := $(strip $(COMMON_KO_CPPFLAGS))
-$(KO_KERNEL_TIMESTAMP): $(KERNEL_KO_DOT_CONFIG) $(LOCAL_DEPEND_VALID_KO) $(LOCAL_DEPEND_SYMVERS) $(LOCAL_DEPEND_KERNEL)
+
+$(KO_KERNEL_TIMESTAMP): $(KO_KERNEL_PREPARE_STAMP) $(LOCAL_DEPEND_VALID_KO) $(LOCAL_DEPEND_SYMVERS) $(LOCAL_KBUILD_EXTRA_SYMBOLS_DEPS)
 	@mkdir -p $(PRIVATE_KERNEL_MODULES_OUT)
 	@rm -f $(PRIVATE_KERNEL_MODULES_OUT)/Module.symvers
-	@if [ -n "$(strip $(PRIVATE_KERNEL_SYMBOLS_PATH))" ]; then \
-		cp -f $(PRIVATE_KERNEL_SYMBOLS_PATH) $(PRIVATE_KERNEL_DIR)/Module.symvers; \
-	fi
 
 ifneq ($(KERNEL_KO_CONFIG_FILE),)
-	@$(MAKE) -C $(PRIVATE_KERNEL_DIR) ARCH=$(PRIVATE_ARCH_TYPE) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) CC="$(PRIVATE_KERNEL_CC)" HOSTCC="$(PRIVATE_HOSTCC)" HOSTCXX="$(PRIVATE_HOSTCXX)" modules_prepare
 	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) CC="$(PRIVATE_KERNEL_CC)" HOSTCC="$(PRIVATE_HOSTCC)" HOSTCXX="$(PRIVATE_HOSTCXX)" ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" KBUILD_EXTRA_CPPFLAGS="$(PRIVATE_COMMON_CPPFLAGS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRIVATE_PRODUCT_SIDE) OPIAI_KO_TYPE=$(PRIVATE_KO_TYPE) modules
 else
 	@$(MAKE) $(INC_N) -C $(PRIVATE_KERNEL_DIR) M=$(PRIVATE_MODULE_DIR) O='' CROSS_COMPILE=$(PRIVATE_COMPILER_PREFIX) CC="$(PRIVATE_KERNEL_CC)" HOSTCC="$(PRIVATE_HOSTCC)" HOSTCXX="$(PRIVATE_HOSTCXX)" ARCH=$(PRIVATE_ARCH_TYPE) KBUILD_EXTRA_SYMBOLS="$(PRIVATE_EXTRA_SYMBOLS)" KBUILD_EXTRA_CPPFLAGS="$(PRIVATE_COMMON_CPPFLAGS)" FEATURE_MK_PATH=$(FEATURE_MK_PATH) PRODUCT_SIDE=$(PRIVATE_PRODUCT_SIDE) OPIAI_KO_TYPE=$(PRIVATE_KO_TYPE) modules
-endif   
+endif
 	@$(PRIVATE_COMPILER_PREFIX)strip -S --remove-section=.note.gnu.build-id $(PRIVATE_BUILD_KO_MODULES)
 	@cp -f $(PRIVATE_BUILD_KO_MODULES) $(PRIVATE_KERNEL_MODULES_OUT)/$(notdir $(PRIVATE_BUILD_KO_MODULES))
 		@if [ -f "$(PRIVATE_MODULE_DIR)/Module.symvers" ]; then \
