@@ -100,7 +100,7 @@ int devdrv_manager_container_logical_id_to_physical_id(u32 logical_dev_id, u32 *
     *vfid = 0;
     return 0;
 }
-EXPORT_SYMBOL(devdrv_manager_container_logical_id_to_physical_id);
+EXPORT_SYMBOL_GPL(devdrv_manager_container_logical_id_to_physical_id);
 
 int vdevdrv_manager_ioctl_get_devnum(struct file *filep, unsigned int cmd, unsigned long arg)
 {

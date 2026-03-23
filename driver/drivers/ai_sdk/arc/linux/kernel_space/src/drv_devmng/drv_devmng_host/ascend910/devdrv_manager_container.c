@@ -1910,7 +1910,7 @@ int devdrv_manager_container_logical_id_to_physical_id(u32 logical_dev_id, u32 *
 
     return 0;
 }
-EXPORT_SYMBOL(devdrv_manager_container_logical_id_to_physical_id);
+EXPORT_SYMBOL_GPL(devdrv_manager_container_logical_id_to_physical_id);
 #endif // CFG_FEATURE_OLD_DEVID_TRANS
 
 int devdrv_manager_container_is_in_container(void)
@@ -1935,7 +1935,7 @@ int devdrv_manager_container_is_in_container(void)
 
     return is_in;
 }
-EXPORT_SYMBOL(devdrv_manager_container_is_in_container);
+EXPORT_SYMBOL_GPL(devdrv_manager_container_is_in_container);
 
 int devdrv_manager_container_is_in_admin_container(void)
 {

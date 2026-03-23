@@ -184,7 +184,7 @@ int dev_user_cfg_get_cpu_cfg(unsigned int dev_id, cpu_cfg_t *data, unsigned int 
     data->aicpu_num = flash_cpu_cfg.ai_cpu_num;
     return 0;
 }
-EXPORT_SYMBOL(dev_user_cfg_get_cpu_cfg);
+EXPORT_SYMBOL_GPL(dev_user_cfg_get_cpu_cfg);
 
 /* define for CFG_FEATURE_CPU_NUMS_FIXED */
 #define CPU_INFO_SIZE 64

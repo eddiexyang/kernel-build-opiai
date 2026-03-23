@@ -1629,7 +1629,7 @@ int devdrv_manager_container_logical_id_to_physical_id(u32 logical_dev_id, u32 *
 {
     return uda_devid_to_phy_devid(logical_dev_id, physical_dev_id, vfid);
 }
-EXPORT_SYMBOL(devdrv_manager_container_logical_id_to_physical_id);
+EXPORT_SYMBOL_GPL(devdrv_manager_container_logical_id_to_physical_id);
 
 #endif
 

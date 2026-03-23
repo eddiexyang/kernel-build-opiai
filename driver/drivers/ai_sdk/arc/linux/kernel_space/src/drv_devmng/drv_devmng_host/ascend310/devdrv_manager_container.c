@@ -66,7 +66,7 @@ int devdrv_manager_container_is_in_container(void)
 {
     return devdrv_is_in_container();
 }
-EXPORT_SYMBOL(devdrv_manager_container_is_in_container);
+EXPORT_SYMBOL_GPL(devdrv_manager_container_is_in_container);
 
 int devdrv_virtual_id_to_physical_id(u32 virtual_id, u32 *physical_id)
 {
