@@ -59,9 +59,9 @@ DEVICE_L0 := bbox dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	mttcan eeprom serdes \
 	dms_mng dms_dtm dms_smf
 
-DEVICE_L1 := dfm trs_chan trs_stars
+DEVICE_L1 := dfm trs_chan trs_stars dvpp_osal
 
-DEVICE_L2 := pcie ts_channel hns3 ts_platform upgrade user_cfg
+DEVICE_L2 := pcie ts_channel hns3 ts_platform upgrade user_cfg hiusbc
 
 DEVICE_L3 := dms virtmng trs_core
 
