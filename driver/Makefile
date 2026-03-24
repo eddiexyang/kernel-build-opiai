@@ -38,8 +38,8 @@ define module_target
 build-$(1):
 	@if [ -f "$(DRIVER_DIR)/$(1)/Kbuild" ]; then \
 		echo "  [BUILD] $(1)"; \
-		$(KMAKE) PRODUCT_SIDE=$(PRODUCT_SIDE) M=$(DRIVER_DIR)/$(1) modules 2>&1 \
-			| tail -3; \
+		$(KMAKE) PRODUCT_SIDE=$(PRODUCT_SIDE) M=$(DRIVER_DIR)/$(1) modules \
+			|| echo "  [FAIL] $(1)"; \
 	else \
 		echo "  [SKIP] $(1) (no Kbuild)"; \
 	fi
@@ -57,13 +57,14 @@ DEVICE_L0 := bbox dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	trs_id_allocator trs_id_pool trs_tsmng trs_mia_agent \
 	i2c_uniform sys_ctrl_uniform usb_uniform spi_uniform gpio_uniform pwm \
 	mttcan eeprom serdes \
-	dms_mng dms_dtm dms_smf
+	dms_mng dms_dtm dms_smf hwmon
 
-DEVICE_L1 := dfm trs_chan trs_stars dvpp_osal
+DEVICE_L1 := trs_chan trs_stars dvpp_osal dfm
 
-DEVICE_L2 := pcie ts_channel hns3 ts_platform upgrade user_cfg hiusbc
+DEVICE_L2 := hns3 ts_platform upgrade user_cfg hiusbc pcie ts_channel \
+	audio vdp mipi_rx
 
-DEVICE_L3 := dms virtmng trs_core
+DEVICE_L3 := dms virtmng virtmng_resmgr trs_core
 
 DEVICE_L4 := hdcdrv tsdrv dp_proc_mng trs_cdqm trs_pm_adapt trs_kunpeng
 
@@ -76,6 +77,12 @@ ALL_DEVICE := $(DEVICE_L0) $(DEVICE_L1) $(DEVICE_L2) $(DEVICE_L3) \
 
 # Generate targets for all modules
 $(foreach mod,$(ALL_DEVICE),$(eval $(call module_target,$(mod))))
+
+# Modules that import symbols from other out-of-tree modules must wait for the
+# provider's Module.symvers to be generated before running modpost.
+build-dfm: build-bbox
+build-ts_channel: build-dfm
+build-pcie: build-dbl_runenv_config build-dfm
 
 # Layer targets: each layer depends on the previous, but modules within a layer are parallel
 .PHONY: device-l0 device-l1 device-l2 device-l3 device-l4 device-l5 device-extra

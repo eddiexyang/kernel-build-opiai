@@ -655,7 +655,7 @@ STATIC int32_t lpm_suspend_test_probe(struct platform_device *pdev)
 STATIC void lpm_suspend_test_remove(struct platform_device *pdev)
 {
 	(void)pdev;
-	/* return removed */;  // unregister_pm_notifier(&lpm_test_pm_nb);
+	
 }
 
 static const struct of_device_id lpm_suspend_test_of_match[] = {

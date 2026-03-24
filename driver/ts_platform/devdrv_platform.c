@@ -37,21 +37,12 @@
 #include <linux/acpi.h>
 #include <linux/property.h>
 
-/* Forward declarations for DMS cross-module APIs */
-struct devdrv_info;
-extern int devdrv_manager_suspend(struct devdrv_info *info);
-extern int devdrv_manager_resume(struct devdrv_info *info);
-extern int devdrv_manager_get_hw_info(struct devdrv_info *info);
-/* Forward declarations for DMS cross-module APIs */
-struct devdrv_info;
-extern int devdrv_manager_suspend(struct devdrv_info *info);
-extern int devdrv_manager_resume(struct devdrv_info *info);
-extern int devdrv_manager_get_hw_info(struct devdrv_info *info);
+#include "devmng/devdrv_pm.h"
 #endif
 
 #include "dbl/chip_config.h"
 #include "dbl/uda.h"
-#include "devdrv_pm.h"
+#include "devmng/devdrv_pm.h"
 #include "devdrv_manager_common.h"
 #include "devdrv_platform.h"
 #include "devdrv_parse_pdata.h"
@@ -989,31 +980,31 @@ STATIC void devdrv_device_remove(struct platform_device *pdev)
 
     if (pdev == NULL) {
         TSDRV_PRINT_ERR("pdev is NULL\n");
-        /* return removed */
+        
     }
 
     dev_info = platform_get_drvdata(pdev);
     if (dev_info == NULL) {
         TSDRV_PRINT_ERR("dev_info is NULL.\n");
-        /* return removed */
+        
     }
 
     if (dev_info->dev_id >= MAX_CHIP_NUM) {
         TSDRV_PRINT_ERR("device id(%u) invalid, return.\n", dev_info->dev_id);
-        /* return removed */
+        
     }
 
     pdata = (struct devdrv_platform_data *)dev_info->pdata;
     if (pdata == NULL) {
         TSDRV_PRINT_ERR("pdata is NULL.\n");
         devdrv_devinfo_destroy(dev_info);
-        /* return removed */
+        
     }
 
 #ifdef CFG_SOC_PLATFORM_MDC_V51
     if (devdrv_get_ts_node_num() == 0) {
         TSDRV_PRINT_INFO("ts node does not exist!\n");
-        /* return removed */
+        
     }
 #endif
 
@@ -1041,7 +1032,7 @@ STATIC void devdrv_device_remove(struct platform_device *pdev)
     devdrv_destroy_pdata(pdev, pdata);
     devdrv_devinfo_destroy(dev_info);
     platform_set_drvdata(pdev, NULL);
-    /* return removed */
+    
 }
 
 STATIC void devdrv_device_shutdown(struct platform_device *pdev)
@@ -1206,7 +1197,7 @@ STATIC void tscpu_device_remove(struct platform_device *pdev)
             tscpu_irq[i] = 0;
         }
     }
-    /* return removed */
+    
 }
 #ifndef AOS_LLVM_BUILD
 static const struct acpi_device_id tscpu_acpi_match[] = {

@@ -52,11 +52,12 @@
 #include "soc_res.h"
 #include "trs_chip_def_comm.h"
 
-/* Weak stubs for cross-module APIs */
-void __attribute__((weak)) tsdrv_heart_beat_ai_down(u32 devid, u32 tsid, const void *data) {}
-void __attribute__((weak)) devdrv_ts_exception_task(unsigned long data) {}
+#include "devdrv_pm_device.h"
 
 #endif
+
+/* Cross-module declarations (from drv_devmng, resolved at module load) */
+#include "devmng/devdrv_pm.h"
 
 #define TSDRV_HEARTBEAT_MAX_LOST_COUNT 3
 #define TSDRV_HEARTBEAT_CYCLE_TIME 6000

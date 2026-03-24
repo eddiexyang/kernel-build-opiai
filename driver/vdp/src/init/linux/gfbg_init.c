@@ -4,9 +4,10 @@
  */
 #include <linux/module.h>
 #include <linux/seq_file.h>
+#include <linux/platform_device.h>
+#include <linux/of_platform.h>
 #include "gfbg_init.h"
 #include "ot_type.h"
-#include <linux/of_platform.h>
 
 char *g_layer_mmz_names[GFBG_MAX_LAYER_NUM] = { [0 ... GFBG_MAX_LAYER_NUM - 1] = TD_NULL };
 

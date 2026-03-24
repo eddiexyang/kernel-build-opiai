@@ -137,7 +137,7 @@ static void sys_ctrl_remove(struct platform_device *pdev)
             rst_infos_arr[idx].reg_ioremap_addr = NULL;
         }
     }
-    /* return removed */
+    
 }
 
 static int sys_ctrl_suspend_noirq(struct device *dev)

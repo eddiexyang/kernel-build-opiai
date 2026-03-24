@@ -8163,7 +8163,7 @@ static td_s32 __init gfbg_overlay_probe(td_u32 layer_id)
     /* save the info pointer in global pointer array */
     g_layer[layer_id].info = info;
 
-    info->flags = FBINFO_FLAG_DEFAULT | FBINFO_HWACCEL_YPAN | FBINFO_HWACCEL_XPAN;
+    info->flags = FBINFO_HWACCEL_YPAN | FBINFO_HWACCEL_XPAN;
     /* fbops members in fb_info point to g_ot_fb_ops, so open, release, ioctl, etc. can get fb_info. */
     info->fbops = &g_ot_fb_ops;
 

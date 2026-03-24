@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
+#include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include "ot_tde_mod_init.h"
 #include "ot_type.h"

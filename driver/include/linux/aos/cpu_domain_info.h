@@ -1,26 +1,31 @@
-/* Stub for Huawei-custom linux/aos/cpu_domain_info.h
- * Not available in upstream 6.18 kernel */
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * cpu_domain_info.h - Huawei AOS CPU domain interface
+ *
+ * This header is NOT part of upstream Linux. It is defined by Huawei's
+ * customized kernel (EulerOS/openEuler with AOS patches). Since the
+ * original header is not available in the open-source Ascend310B package,
+ * this definition is derived from the exact field usage across all driver
+ * source files that reference struct cpu_domain_info:
+ *
+ *   - drv_cpu_type.c (bbox, pcie, davinci_intf, dms, dms_smf, logdrv,
+ *     prof, event_sched, ipcdrv, pkicms): cpu_domain.ctrlcpu_bitmap
+ *   - davinci_intf_info.c: cpu_domain.ctrlcpu_num, datacpu_num, aicpu_num
+ *
+ * get_cpudomain_info() is expected to be provided by the AOS kernel;
+ * all callers use __attribute__((weak)) so the driver compiles and loads
+ * even when the function is absent at runtime.
+ */
 #ifndef _LINUX_AOS_CPU_DOMAIN_INFO_H
 #define _LINUX_AOS_CPU_DOMAIN_INFO_H
 
-#include <linux/errno.h>
-
 struct cpu_domain_info {
-    unsigned int ctrlcpu_bitmap;
-    unsigned int aicpu_bitmap;
-    unsigned int domain_num;
+	unsigned long ctrlcpu_bitmap;
+	unsigned int ctrlcpu_num;
+	unsigned int datacpu_num;
+	unsigned int aicpu_num;
 };
 
-static inline int get_cpudomain_info(struct cpu_domain_info *info)
-{
-    if (info) {
-        info->ctrlcpu_bitmap = 0;
-        info->aicpu_bitmap = 0;
-        info->domain_num = 1;
-    }
-    return -ENODEV;
-}
-static inline int get_cpu_domain_id(int cpu) { return 0; }
-static inline int get_cpu_domain_num(void) { return 1; }
+int get_cpudomain_info(struct cpu_domain_info *info);
 
-#endif
+#endif /* _LINUX_AOS_CPU_DOMAIN_INFO_H */

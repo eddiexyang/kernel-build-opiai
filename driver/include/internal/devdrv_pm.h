@@ -15,8 +15,8 @@
 * Create: 2019-10-15
 */
 
-#ifndef DEVDRV_PM_H
-#define DEVDRV_PM_H
+#ifndef __DEVDRV_PM_H
+#define __DEVDRV_PM_H
 
 #include <linux/hrtimer.h>
 #include <linux/list.h>
@@ -57,5 +57,12 @@ int devdrv_host_manager_device_resume(struct devdrv_info *info);
 void devdrv_host_manager_device_exception(struct devdrv_info *info);
 int devdrv_refresh_aicore_info_init(u32 dev_id);
 void devdrv_refresh_aicore_info_exit(u32 dev_id);
+
+/* Cross-module declarations (exported by drv_devmng at runtime) */
+int devdrv_manager_suspend(struct devdrv_info *info);
+int devdrv_manager_resume(struct devdrv_info *info);
+int devdrv_manager_get_hw_info(struct devdrv_info *dev_info);
+void devdrv_ts_exception_task(unsigned long data);
+void tsdrv_heart_beat_ai_down(u32 devid, u32 tsid, const void *data);
 
 #endif

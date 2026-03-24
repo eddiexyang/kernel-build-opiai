@@ -48,10 +48,12 @@ void devdrv_manager_unregister_msg_pm(void *msg_pm_p);
 
 int devdrv_manager_suspend(struct devdrv_info *info);
 int devdrv_manager_resume(struct devdrv_info *info);
+int devdrv_manager_get_hw_info(struct devdrv_info *dev_info);
 struct devdrv_pm *devdrv_manager_register_pm(int run_stage, int (*suspend)(u32 devid, u32 status), int (*resume)(u32 devid));
 void devdrv_manager_unregister_pm(struct devdrv_pm *pm);
 
 void devdrv_ts_exception_task(unsigned long data);
+void tsdrv_heart_beat_ai_down(u32 devid, u32 tsid, const void *data);
 irqreturn_t devdrv_nfe_handler(int irq, void *data);
 
 void devdrv_m3_notice_aicore_freq_state(int cmd);

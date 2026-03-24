@@ -270,7 +270,7 @@ STATIC void lpm_fault_remove(struct platform_device *pdev)
 
 	if (pdev == NULL) {
 		lpm_log_err("lpm fault driver remove parameter invalid\n");
-		/* return removed */;  // -1;
+		
 	}
 
 #if defined(LPM_START_DIRECT)
@@ -287,7 +287,7 @@ STATIC void lpm_fault_remove(struct platform_device *pdev)
 	}
 
 	lpm_log_info("lpm fault driver remove end.\n");
-	/* return removed */
+	
 }
 
 #if !defined(LPM_START_DIRECT)

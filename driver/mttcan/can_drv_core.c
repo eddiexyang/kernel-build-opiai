@@ -1632,7 +1632,7 @@ STATIC void plat_drv_remove(struct platform_device *pdev)
 #endif
     mttcan_free_can_device(ndev);
 
-    /* removed return 0 */
+    
 }
 
 STATIC int mttcan_resume_bitrate(struct net_device *ndev)

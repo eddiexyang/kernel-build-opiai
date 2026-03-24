@@ -262,7 +262,7 @@ STATIC void lpm_devmng_remove(struct platform_device *pdev)
 
 	if (pdev == NULL) {
 		lpm_log_err("lpm devmng remove parameter invalid\n");
-		/* /* return removed */  // -1;
+		
 	}
 
 	ret = lpm_devmng_exit_module();
@@ -276,7 +276,7 @@ STATIC void lpm_devmng_remove(struct platform_device *pdev)
 	}
 
 	lpm_log_info("lpm devmng driver remove end.\n");
-	/* return removed */
+	
 }
 
 #ifndef LPM_START_DIRECT

@@ -355,7 +355,7 @@ static void usb_hisi_remove(struct platform_device *pdev)
 
     devm_iounmap(&pdev->dev, hiusb->host.vaddr);
     platform_set_drvdata(pdev, NULL);
-    /* removed return 0 */
+    
 }
 
 static int usb_suspend(struct device *dev)

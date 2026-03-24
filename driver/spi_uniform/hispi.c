@@ -411,7 +411,7 @@ static void hisi_spi_remove(struct platform_device *pdev)
 
     spi_unregister_master(master);
 
-    /* removed return 0 */
+    
 }
 
 int hisi_spi_reset(struct hisi_spi *hispi)

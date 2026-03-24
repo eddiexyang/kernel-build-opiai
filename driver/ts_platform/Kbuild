@@ -43,10 +43,10 @@ ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v
 ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
 ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src) -I$(src)/tsdrv_intr -I$(src)/tsdrv_fault -I$(src)/tsdrv_soc -I$(DRIVER_INC)/include/user_config
-ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_firmware -I$(src)/tsdrv_pm -I$(src)/tsdrv_parse
+ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_firmware -I$(src)/tsdrv_pm -I$(src)/tsdrv_soc -I$(src)/tsdrv_parse
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_heartbeat -I$(src)/tsdrv_qos -I$(src)/tsdrv_pdata
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_d2h_chan -I$(src)/tsdrv_ipc -I$(src)/ascend610
-ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_soc/ascend310B -I$(src)/tsdrv_pm/ascend310B
+ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_soc/ascend310B -I$(src)/tsdrv_pm -I$(src)/tsdrv_soc/ascend310B
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_fault/ascend310B -I$(src)/tsdrv_ipc/ascend310B
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common -I$(src)/tsdrv_parse/mini_v3
 
@@ -63,4 +63,5 @@ ccflags-y += -DCFG_FEATURE_PG -DCFG_FEATURE_TS_IPC
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
-ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+
+ccflags-y += -Wno-implicit-function-declaration
