@@ -1,1 +1,0 @@
-../../../../drivers/ai_sdk/arc/linux/kernel_space/inc/drv_profile.h

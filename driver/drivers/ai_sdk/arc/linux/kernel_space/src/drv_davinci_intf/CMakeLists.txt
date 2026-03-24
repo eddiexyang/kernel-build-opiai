@@ -1,5 +1,0 @@
-if (${PRODUCT_SIDE} STREQUAL device)
-add_subdirectory(drv_davinci_intf_device)
-else ()
-add_subdirectory(drv_davinci_intf_host)
-endif()

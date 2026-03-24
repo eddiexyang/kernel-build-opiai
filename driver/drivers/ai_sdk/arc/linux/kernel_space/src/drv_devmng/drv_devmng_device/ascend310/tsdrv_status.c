@@ -1,1 +1,0 @@
-../../drv_devmng_host/ascend910/tsdrv_status.c

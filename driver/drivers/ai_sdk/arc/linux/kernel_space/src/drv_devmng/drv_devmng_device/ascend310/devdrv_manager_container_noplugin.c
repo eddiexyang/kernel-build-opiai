@@ -1,1 +1,0 @@
-../../drv_devmng_host/ascend310/devdrv_manager_container_noplugin.c

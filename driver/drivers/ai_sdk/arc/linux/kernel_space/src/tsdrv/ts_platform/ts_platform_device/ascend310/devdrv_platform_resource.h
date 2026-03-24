@@ -1,1 +1,0 @@
-../../ts_platform_host/ascend310/devdrv_platform_resource.h

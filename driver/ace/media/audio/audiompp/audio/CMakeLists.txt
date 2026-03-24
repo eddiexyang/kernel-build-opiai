@@ -1,6 +1,0 @@
-add_subdirectory(ai)
-add_subdirectory(ao)
-add_subdirectory(aio)
-add_subdirectory(acodec)
-add_subdirectory(adec)
-add_subdirectory(aenc)

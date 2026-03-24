@@ -1,1 +1,0 @@
-../../../../sia/adapt/chan/stars_v1/trs_chan_ops_stars.h

@@ -1,1 +1,0 @@
-../../../../../arc/linux/kernel_space/src/common/bind_core.c

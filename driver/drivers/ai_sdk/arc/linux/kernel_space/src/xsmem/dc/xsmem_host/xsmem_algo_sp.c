@@ -1,1 +1,0 @@
-../xsmem_algo_sp.c

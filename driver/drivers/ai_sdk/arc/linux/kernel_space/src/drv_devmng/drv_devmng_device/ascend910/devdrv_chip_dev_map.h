@@ -1,1 +1,0 @@
-../../drv_devmng_host/ascend910/devdrv_chip_dev_map.h
