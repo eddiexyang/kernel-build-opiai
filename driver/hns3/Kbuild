@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := hclgeplf.o
+hclgeplf-objs := platform_mac.o mdio/hns_mdio_common.o mdio/hns_mdio_dc.o platform_phy.o hclge_plf_flow_director.o hclge_plf_main.o hclge_dcb.o hclge_plf_tm.o hclge_plf_rss.o gpio/gpio.o hclge_plf_debugfs.o hclge_plf_profiling.o hclge_plf_err.o hclge_plf_bbox.o hclge_plf_qos.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox/device -I$(src) -I$(src)/mdio -I$(src)/gpio -I$(DRIVER_INC)/serdes/src -I$(DRIVER_INC)/eeprom -I$(src)/mac
+ccflags-y += -I$(DRIVER_INC)/../linux-source/drivers/net/ethernet/hisilicon/hns3  
+ccflags-y += -DHCLGE_PLATFORM_DEV -DCONFIG_PLATFORM_ASIC -DCONFIG_PLATFORM_SUPPORT_AUTONEG -DCONFIG_PLATFORM_SUPPORT_MAC_SGMII_AUTONEG -DPLATFORM_SUPPORT_EEPROM_MAC
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-incompatible-pointer-types

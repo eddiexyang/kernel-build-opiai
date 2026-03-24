@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := kunpeng_trs_pm_adapt.o
+kunpeng_trs_pm_adapt-objs := trs_local.o trs_device_comm.o trs_device_id.o trs_device_mbox.o \
+	chan/trs_device_chan.o chan/trs_chan_ops_mem.o chan/trs_chan_ops_mbox.o \
+	chan/stars_v1/trs_chan_ops.o chan/stars_v1/trs_chan_ops_stars.o \
+	core/trs_device_core.o core/trs_core_ops.o core/trs_core_smmu.o \
+	core/stars_v1/trs_stars_core_ops.o \
+	comm/trs_chan_irq.o comm/trs_chan_mbox.o comm/trs_chan_mem.o \
+	comm/trs_chan_update.o comm/trs_rsv_mem.o comm/trs_ts_db.o \
+	local_comm/trs_device_notice.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config
+ccflags-y += -I$(src) -I$(src)/chan -I$(src)/chan/stars_v1 -I$(src)/core -I$(src)/core/stars_v1 -I$(src)/comm -I$(src)/comm/stars_v1 -I$(src)/local_comm -I$(DRIVER_INC)/trs_pm_adapt/soc/mini_v3
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_dms_smf.o
+ascend_dms_smf-objs := dms_smf_init.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/core -I$(src)/sensor -I$(src)/event -I$(src)/report
+ccflags-y += -I$(src)/sensor/config -I$(src)/dms_smf
+ccflags-y += -DCFG_FEATURE_NEW_EVENT_CODE -DCFG_FEATURE_PG -DCFG_FEATURE_EP_MODE
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

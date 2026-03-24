@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_event_sched.o
+
+ascend_event_sched-objs := \
+	comm/esched_fops.o \
+	comm/esched.o \
+	comm/esched_sysfs.o \
+	comm/hard_sched/esched_drv.o \
+	device/esched_drv_adapt.o \
+	device/soc/topic_sched_v1/topic_sched.o \
+	device/pm/mini_v3/esched_pm.o \
+	device/esched_drv_mia.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src)/comm -I$(src)/comm/hard_sched
+ccflags-y += -I$(src)/device -I$(src)/device/soc
+ccflags-y += -I$(src)/device/soc/topic_sched_v1
+ccflags-y += -I$(src)/device/soc/mini_v3
+
+# Ascend310Brc device defines
+ccflags-y += -DCFG_FEATURE_IDENTIFY_CP
+ccflags-y += -DCFG_FEATURE_HARDWARE_SCHED
+ccflags-y += -DCFG_SOC_PLATFORM_ESL_FPGA
+ccflags-y += -DCFG_FEATURE_SOFT_NON_SCHED_ONLY
+ccflags-y += -DCFG_FEATURE_SIA_MAP_TOPIC_TABLE
+ccflags-y += -DCFG_FEATURE_PM
+ccflags-y += -DCFG_FEATURE_HARDWARE_MIA
+ccflags-y += -DCFG_FEATURE_EXTERNAL_CDEV
+ccflags-y += -DCFG_FEATURE_CPU_NUMS_FIXED
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

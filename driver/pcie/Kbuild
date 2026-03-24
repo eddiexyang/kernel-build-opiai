@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_pcie.o
+# Base objects (common to all products)
+drv_pcie-objs := agentdrv_pci.o \
+	ctrls/agentdrv_ctrl.o ctrls/agentdrv_common_msg.o \
+	ctrls/agentdrv_dfx.o ctrls/agentdrv_sysfs.o \
+	unit/agentdrv_unit.o unit/devdrv_dma.o unit/devdrv_atu.o unit/devdrv_atu_interface.o \
+	unit/msg/agentdrv_msg_trans.o unit/msg/agentdrv_msg_non_trans.o \
+	unit/msg/agentdrv_msg.o unit/msg/agentdrv_msg_admin.o unit/msg/agentdrv_msg_p2p.o \
+	unit/agentdrv_doorbell.o unit/agentdrv_mdc_p2p.o unit/agentdrv_multi_chip.o unit/agentdrv_pcie_link_info.o \
+	interfaces/agentdrv_interface.o interfaces/agentdrv_msg_interface.o interfaces/devdrv_dma_interface.o \
+	soc/dma_comm_drv.o soc/dma_adapt.o soc/nvme_comm_drv.o soc/apb_comm_drv.o soc/resource_comm_drv.o \
+	soc/mini_v3/agentdrv_platform.o \
+	soc/mini_v3/dma_drv.o soc/mini_v3/nvme_drv.o soc/mini_v3/apb_drv.o soc/mini_v3/resource_drv.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss
+ccflags-y += -I$(src) -I$(src)/soc/mini_v3
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3_RC -DCFG_SOC_PLATFORM_MINIV3 -DSNAPSHOT_ENABLE -DNOT_SUPPORT_OSNAME
+KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_runenv_config/Module.symvers $(src)/../dfm/Module.symvers
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

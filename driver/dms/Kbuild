@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: GPL-2.0
+# drv_devmng.ko - Device Management System (ascend310Brc device)
+# This is the most complex module with ~60 objects from multiple subsystems
+
+obj-m := drv_devmng.o
+
+# Core
+drv_devmng-objs := core/dms_init.o core/dms_probe.o core/dms_sysfs.o core/dms_timer.o
+drv_devmng-objs += core/drv_cpu_type.o core/workqueue_affinity.o core/dms_kv.o
+
+# IPC
+
+# LPM
+drv_devmng-objs += lpm/dms_lpm.o lpm/dms_lpm_common.o lpm/dms_lpm_info.o
+drv_devmng-objs += lpm/dms_lpm_info_from_devinfo.o lpm/dms_lpm_info_from_ipc.o
+drv_devmng-objs += lpm/dms_lpm_info_from_register.o lpm/dms_lpm_info_stub.o
+drv_devmng-objs += lpm/dms_lpm_scan.o
+# lpm/dms_lpm_pass_through_mcu.o removed - requires CONFIG_IPC_COMM_FROM_IMU_V2
+
+# Memory info
+drv_devmng-objs += mem/dms_mem_info.o mem/dms_mem_common.o mem/dms_ddr_info.o
+
+# Status
+drv_devmng-objs += status/dms_basic_info.o status/dms_bbox.o status/dms_chip_info.o
+drv_devmng-objs += status/dms_dev_topology.o status/dms_osc_freq.o status/dms_pg_info.o
+drv_devmng-objs += status/dms_vdev.o
+
+# Event adapt
+drv_devmng-objs += event/dms_adapt.o event/device/dms_event_device.o
+
+# Config / Custom / Product / DevID
+# config/dms_converge_config.o removed - file not available for 310Brc
+# custom/dms_custom.o and devid/dms_devid.o removed - files not in 310Brc source tree
+drv_devmng-objs += product/dms_product.o
+
+# XPC / Time / Power
+drv_devmng-objs += xpc/dms_xpc_common.o
+drv_devmng-objs += time/device/dms_time_device.o time/device/dms_device_time_zone.o
+drv_devmng-objs += power/dms_power.o
+# power/dms_hotreset.o removed - struct member incompatibility (domain field)
+
+# Sensor objs are part of dms_smf module, not drv_devmng
+
+# TS
+drv_devmng-objs += ts/dms_ts_info.o
+
+# Device-specific driver (ascend310 chip-specific files removed - need 310B-specific implementation)
+# TODO: Port drv_devmng_device for ascend310B
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss -I$(DRIVER_INC)/include/user_config
+ccflags-y += -I$(src) -I$(src)/include -I$(src)/config -I$(src)/core
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/ipc -I$(src)/lpm -I$(src)/mem -I$(src)/status
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/event -I$(src)/event/device -I$(src)/sensor -I$(src)/sensor/config
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/devid -I$(src)/custom -I$(src)/product -I$(src)/xpc
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/time -I$(src)/time/device -I$(src)/power -I$(src)/ts
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/drv_devmng/drv_devmng_device -I$(src)/drv_devmng/drv_devmng_inc
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)/drv_devmng/drv_devmng_device/ascend310
+ccflags-y += -I$(DRIVER_INC)/include
+ccflags-y += -DHISI_RPROC_TX_TS_ACPU1=9 -DHISI_RPROC_TX_LP_ACPU0=0
+ccflags-y += -DCFG_FEATURE_AIC_AIV_UTIL_FROM_TS -DCFG_FEATURE_IPC_FORMAT_V2
+ccflags-y += -DCFG_CHIP_INFO_FROM_VMNG -DCFG_FEATURE_OSC_FREQ
+ccflags-y += -DCFG_FEATURE_NEW_EVENT_CODE -DCFG_FEATURE_ERRORCODE_ON_NEW_CHIPS
+ccflags-y += -DCFG_TRS_HB_REFACTOR_FEATURE -DCFG_FEATURE_PG
+ccflags-y += -DCFG_FEATURE_DEVICE_CONTAINER -DCFG_FEATURE_TOPOLOGY_BY_SMP -DCFG_SOC_PLATFORM_MINIV2 -DCONFIG_IPC_COMM_FROM_IMU_STUB
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

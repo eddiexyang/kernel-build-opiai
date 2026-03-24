@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_davinci_intf.o
+drv_davinci_intf-objs := davinci_intf_init.o davinci_intf_process.o drv_cpu_mask.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/libc_sec/include -I$(src)
+ccflags-y += -DCFG_SUPPORT_OS_SVM_CLEAN -DCFG_BIND_CPU_ENABLE -DCFG_FEATURE_MANAGE_DOCKER
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-2.0
+# mntn_bbox.ko - Black Box (maintenance/debugging) driver
+
+obj-m := mntn_bbox.o
+
+# Ascend310Brc = MILANR3 platform
+mntn_bbox-objs := \
+	config/bbox_config_dts.o \
+	bootcheck/product/bbox_bootcheck_milanr3.o \
+	register/bbox_sctrl_register.o \
+	proxy/proxy_common/product/bbox_proxy_milanr3.o \
+	config/bbox_config.o \
+	bootcheck/bbox_bootcheck_pub.o \
+	bootcheck/bbox_bootcheck.o \
+	bootcheck/hdr_bootcheck.o \
+	bootcheck/cdr_bootcheck.o \
+	bootparam/bbox_boot_param.o \
+	rdr/rdr_core.o \
+	rdr/rdr_common.o \
+	rdr/rdr_exception_core.o \
+	rdr/rdr_module_core.o \
+	rdr/rdr_dump_core.o \
+	rdr/rdr_field_core.o \
+	rdr/rdr_dfx_core.o \
+	rdr/product/rdr_interface_mini.o \
+	rdr/product/rdr_interface_cloud.o \
+	proxy/proxy_common/bbox_proxy_common.o \
+	common/bbox_common.o \
+	common/bbox_sys_api.o \
+	communication/bbox_communication.o \
+	communication/bbox_message.o \
+	communication/bbox_packet.o \
+	communication/bbox_channel_status.o \
+	communication/bbox_ioctl.o \
+	communication/bbox_ioctl_drv.o \
+	os_adapter/bbox_adapter.o \
+	os_adapter/bbox_adapter_oom.o \
+	os_adapter/bbox_adapter_snapshot.o \
+	bbox_init.o
+
+# Include paths
+DRIVER_INC := $(src)/..
+
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox/device
+ccflags-y += -I$(DRIVER_INC)/include/toolchain
+ccflags-y += -I$(DRIVER_INC)/include/kernel
+ccflags-y += -I$(src)/drv_common
+ccflags-y += -I$(src)
+ccflags-y += -I$(src)/config
+ccflags-y += -I$(src)/rdr
+ccflags-y += -I$(src)/common
+
+# Platform define for Ascend310B
+ccflags-y += -DBBOX_SOC_PLATFORM_MILANR3
+
+# Feature config
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+
+# Compat layer
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+# Compiler flags
+ccflags-y += -Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare

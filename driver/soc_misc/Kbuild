@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_soc_misc.o
+
+drv_soc_misc-objs := soc_misc_init.o soc_misc_common.o soc_misc_cpu_utilization.o \
+	chipinfo/soc_misc_feature.o chipinfo/soc_misc_info.o chipinfo/soc_misc_chip_info.o \
+	faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o faultmgr/soc_misc_fault.o \
+	faultmgr/l3d/l3d_dms_init.o faultmgr/l3t/l3t_dms_init.o \
+	faultmgr/l3d/l3d_arm_ras.o faultmgr/l3t/l3t_arm_ras.o \
+	faultmgr/soc_misc_pcie.o faultmgr/soc_misc_ras.o faultmgr/soc_misc_cpucore.o \
+	faultmgr/l3d/l3d_arm_ras_unmask.o faultmgr/l3t/l3t_arm_ras_unmask.o
+
+# Feature-config driven objects (from ascend310Brc.config)
+drv_soc_misc-objs += features/board_id_from_devinfo.o
+drv_soc_misc-objs += features/boardinfo_not_support_default_01.o
+drv_soc_misc-objs += features/cpu_info_from_pcie.o
+drv_soc_misc-objs += features/slot_id_from_devinfo.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/soc/mini_v3 -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/toolchain/bbox
+ccflags-y += -I$(src) -I$(src)/chipinfo -I$(src)/faultmgr -I$(src)/features
+ccflags-y += -I$(src)/faultmgr/l3d -I$(src)/faultmgr/l3t -I$(src)/faultmgr/ascend310B
+ccflags-y += -I$(DRIVER_INC)/include/devmng -I$(DRIVER_INC)/fpdc -I$(DRIVER_INC)/fpdc/receiver
+ccflags-y += -DCFG_FEATURE_ENTIRETY_UNMASK -DCFG_FEATURE_FAULT_MANAGER
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_PCIE_HISI_COMM_FAULT
+ccflags-y += -DCFG_FEATURE_CPU_NUMS_FIXED -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -DCFG_FEATURE_VFIO -DCFG_FEATURE_RC_MODE
+ccflags-y += -DCFG_FEATURE_DEVICE_DEVID_CONVERT -DCFG_FEATURE_CPUCORE_UNMASK
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

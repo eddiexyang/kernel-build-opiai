@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_upgrade.o
+drv_upgrade-objs := common/dev_upgrade_core.o common/dev_upgrade_adapt.o common/dev_upgrade_crc.o ascd610/dev_upgrade_sec.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss
+ccflags-y += -I$(src) -I$(src)/common -I$(src)/ascd610 -I$(DRIVER_INC)/include/user_config
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DSUPPORT_TEE_SECURE_UPGRADE -DCFG_FEATURE_PSS_SIGN -DCFG_FEATURE_ROLL_BACK -DCFG_FEATURE_RC_MODE
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

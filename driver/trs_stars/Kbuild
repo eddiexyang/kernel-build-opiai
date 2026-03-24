@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_trs_stars.o
+ascend_trs_stars-objs := \
+	comm_parent/trs_stars_soc.o \
+	comm_parent/trs_stars_v1_func_com.o \
+	src/stars_rtsq_ns_reg.o \
+	src/stars_simple_sq0.o \
+	comm_parent/src/stars_notify_tbl.o \
+	comm_parent/src/stars_event_tbl_ns.o \
+	trs_stars_v1_func_adapt.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
+ccflags-y += -I$(DRIVER_INC)/include/rms -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/comm_parent -I$(src)/comm_parent/src
+ccflags-y += -I$(src)/src -I$(src)/soc/mini_v3
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+KBUILD_EXTRA_SYMBOLS := $(src)/../soc_resmng/Module.symvers
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

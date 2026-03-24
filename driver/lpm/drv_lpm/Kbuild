@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_lpm_fault.o
+drv_lpm_fault-objs := \
+	init/lpm_init.o \
+	common/lpm_fault_common.o \
+	detect/heartbeat/lpm_fault_heartbeat.o \
+	dfx/debugfs/lpm_debugfs_base.o \
+	dfx/debugfs/lpm_fault_debugfs.o \
+	common/lpm_fault_ipc.o \
+	common/lpm_fault_channel.o \
+	common/lpm_fault_sharemem.o \
+	common/lpm_fault_sharemem_v2.o \
+	external/lpm_fault_from_ipc.o \
+	report/lpm_fault_report.o \
+	report/lpm_fault_config.o \
+	detect/ras/lpm_fault_aosub_ras.o \
+	detect/ras/lpm_fault_ras.o
+
+DRIVER_INC := $(src)/../..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/init -I$(src)/common -I$(src)/detect/heartbeat
+ccflags-y += -I$(src)/dfx/debugfs -I$(src)/external -I$(src)/report
+ccflags-y += -I$(src)/detect/ras -I$(src)/public
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DLPM_IPC_V3 -DLPM_REPORT
+ccflags-y += -DLPM_FAULT_AO_SAFETY -DLPM_FAULT_RAS -DLPM_REPORT_FROM_IPC -DLPM_SHAREMEM_V2
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

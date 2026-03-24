@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_mipi_rx.o
+drv_mipi_rx-objs := mipi_rx_entry.o mipi_rx_proc.o mipi_rx_init.o mipi_rx_operate.o csi2_lvds_hal/mipi_rx_hal.o slvs_ec_hal/slvs_hal.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config
+ccflags-y += -I$(DRIVER_INC)/include/media -I$(src) -I$(src)/csi2_lvds_hal -I$(src)/slvs_ec_hal
+ccflags-y += -DBUILD_MODULE_ISP
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-return-type
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion

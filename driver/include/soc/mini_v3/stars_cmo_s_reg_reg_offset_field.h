@@ -1,0 +1,82 @@
+// ****************************************************************************** 
+// Copyright     :  Copyright (C) 2021, Hisilicon Technologies Co. Ltd.
+// File name     :  stars_cmo_s_reg_reg_offset_field.h
+// Project line  :  Platform And Key Technologies Development
+// Department    :  CAD Development Department
+// Author        :  xxx
+// Version       :  1
+// Date          :  2020/04/01
+// Description   :  The description of xxx project
+// Others        :  Generated automatically by nManager V4.2 
+// History       :  xxx 2021/10/22 14:35:24 Create file
+// ******************************************************************************
+
+#ifndef __STARS_CMO_S_REG_REG_OFFSET_FIELD_H__
+#define __STARS_CMO_S_REG_REG_OFFSET_FIELD_H__
+
+#define STARS_CMO_S_REG_BYPASS_SQ_SEC_ERR_LEN    1
+#define STARS_CMO_S_REG_BYPASS_SQ_SEC_ERR_OFFSET 8
+#define STARS_CMO_S_REG_CFG_POOL_SEC_LEN         1
+#define STARS_CMO_S_REG_CFG_POOL_SEC_OFFSET      0
+
+#define STARS_CMO_S_REG_STARS_ARSNOOP_CMO_LEN    1
+#define STARS_CMO_S_REG_STARS_ARSNOOP_CMO_OFFSET 11
+#define STARS_CMO_S_REG_STARS_ARCACHE_CMO_LEN    4
+#define STARS_CMO_S_REG_STARS_ARCACHE_CMO_OFFSET 7
+#define STARS_CMO_S_REG_STARS_ARNS_CMO_LEN       1
+#define STARS_CMO_S_REG_STARS_ARNS_CMO_OFFSET    6
+#define STARS_CMO_S_REG_STARS_AWSNOOP_CMO_LEN    1
+#define STARS_CMO_S_REG_STARS_AWSNOOP_CMO_OFFSET 5
+#define STARS_CMO_S_REG_STARS_AWCACHE_CMO_LEN    4
+#define STARS_CMO_S_REG_STARS_AWCACHE_CMO_OFFSET 1
+#define STARS_CMO_S_REG_STARS_AWNS_CMO_LEN       1
+#define STARS_CMO_S_REG_STARS_AWNS_CMO_OFFSET    0
+
+#define STARS_CMO_S_REG_STARS_S_ARPROT_CMO_LEN    3
+#define STARS_CMO_S_REG_STARS_S_ARPROT_CMO_OFFSET 3
+#define STARS_CMO_S_REG_STARS_S_AWPROT_CMO_LEN    3
+#define STARS_CMO_S_REG_STARS_S_AWPROT_CMO_OFFSET 0
+
+#define STARS_CMO_S_REG_STARS_NS_ARPROT_CMO_LEN    3
+#define STARS_CMO_S_REG_STARS_NS_ARPROT_CMO_OFFSET 3
+#define STARS_CMO_S_REG_STARS_NS_AWPROT_CMO_LEN    3
+#define STARS_CMO_S_REG_STARS_NS_AWPROT_CMO_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_ENABLE_CTRL_S_LEN    2
+#define STARS_CMO_S_REG_CMO_ENABLE_CTRL_S_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_DISABLE_CTRL_S_LEN    2
+#define STARS_CMO_S_REG_CMO_DISABLE_CTRL_S_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_ENABLED_STATUS0_S_LEN    2
+#define STARS_CMO_S_REG_CMO_ENABLED_STATUS0_S_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_ADDR_L_LEN    32
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_ADDR_L_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_IS_VIRTUAL_LEN    1
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_IS_VIRTUAL_OFFSET 31
+#define STARS_CMO_S_REG_CMO_S_SQ_SHIFT_LEN              6
+#define STARS_CMO_S_REG_CMO_S_SQ_SHIFT_OFFSET           17
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_ADDR_H_LEN        17
+#define STARS_CMO_S_REG_CMO_S_SQ_BASE_ADDR_H_OFFSET     0
+
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_ADDR_L_LEN    32
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_ADDR_L_OFFSET 0
+
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_IS_VIRTUAL_LEN    1
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_IS_VIRTUAL_OFFSET 31
+#define STARS_CMO_S_REG_CMO_NS_SQ_SHIFT_LEN              6
+#define STARS_CMO_S_REG_CMO_NS_SQ_SHIFT_OFFSET           17
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_ADDR_H_LEN        17
+#define STARS_CMO_S_REG_CMO_NS_SQ_BASE_ADDR_H_OFFSET     0
+
+#define STARS_CMO_S_REG_CFG_CMO_VAPA_SEL_LEN        1
+#define STARS_CMO_S_REG_CFG_CMO_VAPA_SEL_OFFSET     4
+#define STARS_CMO_S_REG_CFG_CMO_VAPA_CFG_SEL_LEN    1
+#define STARS_CMO_S_REG_CFG_CMO_VAPA_CFG_SEL_OFFSET 0
+
+#define STARS_CMO_S_REG_CFG_CMO_STREAMID_CFG_SEL_LEN    1
+#define STARS_CMO_S_REG_CFG_CMO_STREAMID_CFG_SEL_OFFSET 0
+
+#endif // __STARS_CMO_S_REG_REG_OFFSET_FIELD_H__

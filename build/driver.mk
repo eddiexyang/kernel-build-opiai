@@ -9,26 +9,17 @@ driver: | ensure-output-dirs
 	$(MAKE) --no-print-directory clean-kernel-build-artifacts
 	trap 'status=$$?; $(MAKE) --no-print-directory cleanup-driver-dependencies >/dev/null 2>&1 || true; exit $$status' EXIT
 	$(MAKE) --no-print-directory prepare-driver-dependencies
-	cd "$(DRIVER_SOURCE_DIR)"
-	$(MAKE) driver_device \
+	$(MAKE) -C "$(DRIVER_SOURCE_DIR)" driver_device \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=device \
-		CCACHE="$(CCACHE)" \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
-		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
-		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
-		build_device=true \
-		-j"$(JOBS)"
-	$(MAKE) driver_host \
+		build_device=true
+	$(MAKE) -C "$(DRIVER_SOURCE_DIR)" driver_host \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=host \
-		CCACHE="$(CCACHE)" \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
-		LOCALVERSION="$(KERNEL_LOCALVERSION)" \
-		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
-		KERNEL_DEFCONFIG="$(DRIVER_SOURCE_DIR)/kernel/linux-source/arch/arm64/configs/$(KERNEL_DEFCONFIG)" \
-		-j"$(JOBS)"
+		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source"
 	mkdir -p "$(OUTPUT_DIR)/driver_modules"
 	cp -rf "$(DRIVER_SOURCE_DIR)/out/device/." "$(OUTPUT_DIR)/driver_modules/"
 	rm -rf "$(OUTPUT_DIR)/driver_modules_host"

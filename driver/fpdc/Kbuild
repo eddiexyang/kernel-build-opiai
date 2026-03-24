@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_fpdc.o
+drv_fpdc-objs := fpdc_main.o distribute/fpdc_distribute_notify.o receiver/fpdc_ras_receiver.o \
+	log_restrain/log_restrain.o ras/ras_int_unmask.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(src) -I$(src)/ras -I$(src)/include -I$(src)/drv_common
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

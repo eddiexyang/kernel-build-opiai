@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_lpm_devmng.o
+drv_lpm_devmng-objs := \
+	init/lpm_devmng_init.o \
+	public/lpm_devmng_common.o \
+	api/lpm_devmng_dsmi.o \
+	dfx/statistics/lpm_devmng_statistics.o \
+	dfx/debugfs/lpm_devmng_debugfs.o \
+	dfx/debugfs/lpm_debugfs_base.o \
+	public/lpm_devmng_sharemem.o \
+	public/lpm_devmng_ipc.o \
+	public/lpm_devmng_flash.o \
+	drv/sharemem_drv/lpm_devmng_sharemem_drv.o \
+	drv/sharemem_drv/lpm_devmng_sharemem_v2.o \
+	srv/lpm_devmng_profile.o \
+	srv/lpm_devmng_idle.o \
+	drv/idle_drv/lpm_devmng_idle_ascend310b.o \
+	srv/lpm_devmng_frequency.o \
+	drv/frequency_drv/lpm_devmng_frequency_sharemem_v2.o \
+
+DRIVER_INC := $(src)/../..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/init -I$(src)/public -I$(src)/api
+ccflags-y += -I$(src)/drv/sharemem_drv -I$(src)/drv/idle_drv -I$(src)/drv/frequency_drv
+ccflags-y += -I$(src)/drv/temperature_drv -I$(src)/drv/aic_freq_drv
+ccflags-y += -I$(src)/dfx/debugfs -I$(src)/dfx/statistics -I$(src)/srv
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DLPM_IPC_V3 -DLPM_IDLE -DLPM_PROFILE
+ccflags-y += -DLPM_FLASH -DLPM_SHAREMEM_V2 -DLPM_FREQUENCY
+ccflags-y += -DLPM_SUSPEND -DLPM_TRANSFORM_DEVID
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_pkicms.o
+drv_pkicms-objs := pkicms_module.o pkicms/cmscbb.o pkicms/pkicms_common.o pkicms/soc_verify.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/hiss -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/pkicms
+ccflags-y += -DLINUX_KERNEL_BUILD -DCFG_SOC_PLATFORM_MINIV2
+ccflags-y += -DCFG_FEATURE_PKCS_SIGN -DCFG_FEATURE_PSS_SIGN
+ccflags-y += -DCMSCBB_SUPPORT_RSAPSS=0 -DCFG_FEATURE_RSA_2048 -DCFG_FEATURE_RSA_4096
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

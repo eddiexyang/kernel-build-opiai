@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_ts.o
+drv_ts-objs := ts_drv_init.o miniv3/hwts_drv_miniv3.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss
+ccflags-y += -I$(src) -I$(src)/miniv3 -I$(DRIVER_INC)/include/soc/cloud_v1
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2 -DCFG_SOC_PLATFORM_MINIV3
+KBUILD_EXTRA_SYMBOLS := $(src)/../dfm/Module.symvers
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

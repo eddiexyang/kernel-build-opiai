@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_xsmem.o
+
+ascend_xsmem-objs := \
+	xsmem_device/xsmem_framework.o \
+	xsmem_device/xsmem_ns_adapt.o \
+	xsmem_device/xsmem_proc_fs.o \
+	xsmem_device/xsmem_algo_sp.o \
+	xsmem_device/xsmem_prop.o \
+	xsmem_device/xsmem_res_idr.o \
+	xsmem_device/xsmem_res_dispatch.o \
+	xsmem_device/xsmem_algo_cache_sp.o \
+	xsmem_device/xsmem_algo_vma.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src)/xsmem_device
+
+# Ascend310Brc device defines
+ccflags-y += -DCFG_FEATURE_SUPPORT_SP
+ccflags-y += -DCFG_FEATURE_EXTERNAL_CDEV
+ccflags-y += -DCFG_FEATURE_SUPPORT_CACHE
+ccflags-y += -DCFG_FEATURE_SOC
+ccflags-y += -DCFG_FEATURE_SP_GRP_STANDALONE_VA
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

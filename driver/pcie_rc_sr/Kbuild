@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_pcierc_sr.o
+drv_pcierc_sr-objs := pcie_rc_drv.o drv_snapshot.o pcie_qos_common.o pcie_ras_config.o pcie_rc_qos.o soc/mini_v3/pcie_rc_ctrl.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/soc/mini_v3
+ccflags-y += -DCFG_ENV_PCIE_RC_SR -DSNAPSHOT_ENABLE -DNOT_SUPPORT_OSNAME
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

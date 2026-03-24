@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := dbl_chip_config.o
+dbl_chip_config-objs := chip_config_module.o numa_id/numa_id.o numa_id/numa_id_config.o numa_id/numa_id_proc_fs.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/dbl -I$(DRIVER_INC)/include
+ccflags-y += -I$(src) -I$(src)/numa_id
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

@@ -1,0 +1,62 @@
+// ******************************************************************************
+// Copyright     :  Copyright (C) 2021, Hisilicon Technologies Co. Ltd.
+// File name     :  stars_dsa_ns_reg_reg_offset.h
+// Project line  :  Platform And Key Technologies Development
+// Department    :  CAD Development Department
+// Author        :  xxx
+// Version       :  1
+// Date          :  2020/04/01
+// Description   :  The description of xxx project
+// Others        :  Generated automatically by nManager V5.1
+// History       :  xxx 2021/09/23 22:01:19 Create file
+// ******************************************************************************
+
+#ifndef __STARS_DSA_NS_REG_REG_OFFSET_H__
+#define __STARS_DSA_NS_REG_REG_OFFSET_H__
+
+/* STARS_DSA_NS_REG Base address of Module's Register */
+#define SOC_STARS_DSA_NS_REG_BASE                       (0x2C0C000)
+
+/******************************************************************************/
+/*                      SOC STARS_DSA_NS_REG Registers' Definitions                            */
+/******************************************************************************/
+
+#define SOC_STARS_DSA_NS_REG_STARS_PRIORITY_CTRL0_REG             (SOC_STARS_DSA_NS_REG_BASE + 0x0)   /* 优先级配置及SQ调度模式配置寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_PRIORITY_CTRL1_REG             (SOC_STARS_DSA_NS_REG_BASE + 0x4)   /* reserved */
+#define SOC_STARS_DSA_NS_REG_STARS_PRIORITY_CTRL2_REG             (SOC_STARS_DSA_NS_REG_BASE + 0x8)   /* WRR调度权重配置寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_PRIORITY_CTRL3_REG             (SOC_STARS_DSA_NS_REG_BASE + 0xC)   /* WRR调度权重配置寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_FRIENDLY_CTRL_REG              (SOC_STARS_DSA_NS_REG_BASE + 0x20)  /* 加速器任务调度模式配置寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_FSM_SEL_REG                (SOC_STARS_DSA_NS_REG_BASE + 0x810) /* DSA调度器状态机选择配置寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_FSM_STATE_REG              (SOC_STARS_DSA_NS_REG_BASE + 0x814) /* DSA调度器状态机指示寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_REDUNDANT_RSP_REG          (SOC_STARS_DSA_NS_REG_BASE + 0x820) /* DSA重复响应状态指示寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_FREE_DSA_CORE_BITMAP_REG       (SOC_STARS_DSA_NS_REG_BASE + 0x824) /* DSA空闲状态指示寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_CFG_FSM_STATE_REG          (SOC_STARS_DSA_NS_REG_BASE + 0x828) /* DSA配置加速器状态机状态寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_DFX_CNT_ENABLE_REG         (SOC_STARS_DSA_NS_REG_BASE + 0x830) /* DSA调度器任务总数统计使能寄存器 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_DFX_TASK_VLD_CNT_REG       (SOC_STARS_DSA_NS_REG_BASE + 0x834) /* DSA调度器下发任务总数 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_DFX_TASK_RSP_CNT_REG       (SOC_STARS_DSA_NS_REG_BASE + 0x838) /* DSA调度器收到加速器完成响应总数 */
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_0_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x840)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_1_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x844)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_2_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x848)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_3_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x84C)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_4_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x850)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_5_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x854)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_6_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x858)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_ENABLE_CTRL_NS_7_REG  (SOC_STARS_DSA_NS_REG_BASE + 0x85C)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_0_REG (SOC_STARS_DSA_NS_REG_BASE + 0x880)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_1_REG (SOC_STARS_DSA_NS_REG_BASE + 0x884)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_2_REG (SOC_STARS_DSA_NS_REG_BASE + 0x888)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_3_REG (SOC_STARS_DSA_NS_REG_BASE + 0x88C)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_4_REG (SOC_STARS_DSA_NS_REG_BASE + 0x890)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_5_REG (SOC_STARS_DSA_NS_REG_BASE + 0x894)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_6_REG (SOC_STARS_DSA_NS_REG_BASE + 0x898)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_DISABLE_CTRL_NS_7_REG (SOC_STARS_DSA_NS_REG_BASE + 0x89C)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS0_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8C0)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS1_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8C4)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS2_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8C8)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS3_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8CC)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS4_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8D0)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS5_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8D4)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS6_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8D8)
+#define SOC_STARS_DSA_NS_REG_STARS_DSA_POOL_STATUS7_NS_REG        (SOC_STARS_DSA_NS_REG_BASE + 0x8DC)
+
+#endif // __STARS_DSA_NS_REG_REG_OFFSET_H__

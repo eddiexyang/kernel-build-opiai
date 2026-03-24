@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := dbl_runenv_config.o
+dbl_runenv_config-objs := runenv_config_module.o docker_query.o vm_query.o device/runenv_device.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/dbl -I$(DRIVER_INC)/include
+ccflags-y += -I$(src)
+
+# Ascend310Brc device-side defines
+ccflags-y += -DCFG_FEATURE_RC_MODE -DCFG_FEATURE_DEVICE_ENV
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

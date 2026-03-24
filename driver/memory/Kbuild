@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_memory.o
+drv_memory-objs := memory_init.o memory_ecc.o memory_scan.o memory_ddr.o \
+	safety_ras/safety_ras_node.o safety_ras/safety_ras_report.o safety_ras/safety_ras_ipc.o \
+	safety_ras/safety_ras_310/safety_ras_init_310.o \
+	safety_ras/safety_ras_310/safety_ras_ipc_310.o \
+	safety_ras/safety_ras_310/safety_ras_mata_310.o \
+	safety_ras/safety_ras_310/safety_ras_mata_scan_310.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/devmng -I$(DRIVER_INC)/include/driver -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/soc/mini_v3 -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/safety_ras -I$(DRIVER_INC)/fpdc/receiver -I$(DRIVER_INC)/fpdc -I$(src)/safety_ras/safety_ras_310
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DCFG_MEMORY_SAFETY_RAS -DCFG_MEMORY_DDR
+ccflags-y += -DCFG_DDR_REG_ADDR_310B -DCFG_MEMORY_DDR_INFO_FROM_SHAREMEM
+ccflags-y += -DCFG_INIT_DDR_STATISTICS -DCFG_FEATURE_FORCE_NO_SCAN
+ccflags-y += -DCFG_FEATURE_DEVICE_DEVID_CONVERT -DCFG_DDR_BANDWIDTH_BY_FREQ
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

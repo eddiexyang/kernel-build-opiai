@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_centre_notify.o
+drv_centre_notify-objs := drv_notify.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/platform
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/soc/mini_v3 -I$(src)
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare
