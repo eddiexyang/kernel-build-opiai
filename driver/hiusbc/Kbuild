@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0
+# drv_hiusbc.ko - HiSilicon USB Controller driver
+
+obj-m := drv_hiusbc.o
+drv_hiusbc-objs := \
+	hiusbc_core.o \
+	hiusbc_debugfs_common.o \
+	hiusbc_debugfs.o \
+	hiusbc_drd.o \
+	hiusbc_setup.o \
+	hiusbc_transfer.o \
+	hiusbc_event.o \
+	hiusbc_gadget.o \
+	hiusbc_host.o \
+	hiusbc_asic_config.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(src)/include -I$(src)
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-implicit-fallthrough -Wno-unused-parameter
