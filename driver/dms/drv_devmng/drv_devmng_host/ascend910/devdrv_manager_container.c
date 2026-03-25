@@ -217,12 +217,18 @@ STATIC bool devdrv_manager_container_is_admin_task(struct task_struct *tsk)
     user_id = cred->uid.val;
     rcu_read_unlock();
 
+#ifdef CAP_FOR_EACH_U32
     CAP_FOR_EACH_U32(i)
     {
         if ((effective.cap[i] & privileged.cap[i]) != privileged.cap[i]) {
             return false;
         }
     }
+#else
+    if (!cap_issubset(privileged, effective)) {
+        return false;
+    }
+#endif
     if (user_id == 0) {
         return true;
     } else {

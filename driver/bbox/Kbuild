@@ -3,42 +3,71 @@
 
 obj-m := mntn_bbox.o
 
-# Ascend310Brc = MILANR3 platform
-mntn_bbox-objs := \
-	config/bbox_config_dts.o \
-	bootcheck/product/bbox_bootcheck_milanr3.o \
-	register/bbox_sctrl_register.o \
-	proxy/proxy_common/product/bbox_proxy_milanr3.o \
-	config/bbox_config.o \
-	bootcheck/bbox_bootcheck_pub.o \
-	bootcheck/bbox_bootcheck.o \
-	bootcheck/hdr_bootcheck.o \
-	bootcheck/cdr_bootcheck.o \
-	bootparam/bbox_boot_param.o \
-	rdr/rdr_core.o \
-	rdr/rdr_common.o \
-	rdr/rdr_exception_core.o \
-	rdr/rdr_module_core.o \
-	rdr/rdr_dump_core.o \
-	rdr/rdr_field_core.o \
-	rdr/rdr_dfx_core.o \
-	rdr/product/rdr_interface_mini.o \
-	rdr/product/rdr_interface_cloud.o \
-	proxy/proxy_common/bbox_proxy_common.o \
-	common/bbox_common.o \
-	common/bbox_sys_api.o \
-	communication/bbox_communication.o \
-	communication/bbox_message.o \
-	communication/bbox_packet.o \
-	communication/bbox_channel_status.o \
-	communication/bbox_ioctl.o \
-	communication/bbox_ioctl_drv.o \
-	os_adapter/bbox_adapter.o \
-	os_adapter/bbox_adapter_oom.o \
-	os_adapter/bbox_adapter_snapshot.o \
-	bbox_init.o
+ifneq ($(NOT_SUPPORT_SP), y)
+ccflags-y += -fstack-protector-all
+endif
 
-# Include paths
+mntn_bbox-objs := config/bbox_config.o
+mntn_bbox-objs += bootcheck/bbox_bootcheck_pub.o
+mntn_bbox-objs += bootcheck/bbox_bootcheck.o
+mntn_bbox-objs += bootcheck/hdr_bootcheck.o
+mntn_bbox-objs += bootcheck/cdr_bootcheck.o
+mntn_bbox-objs += bootparam/bbox_boot_param.o
+mntn_bbox-objs += rdr/rdr_core.o
+mntn_bbox-objs += rdr/rdr_common.o
+mntn_bbox-objs += rdr/rdr_exception_core.o
+mntn_bbox-objs += rdr/rdr_module_core.o
+mntn_bbox-objs += rdr/rdr_dump_core.o
+mntn_bbox-objs += rdr/rdr_field_core.o
+mntn_bbox-objs += rdr/rdr_dfx_core.o
+mntn_bbox-objs += rdr/product/rdr_interface_mini.o
+mntn_bbox-objs += rdr/product/rdr_interface_cloud.o
+mntn_bbox-objs += proxy/proxy_common/bbox_proxy_common.o
+mntn_bbox-objs += common/bbox_common.o
+mntn_bbox-objs += common/bbox_sys_api.o
+mntn_bbox-objs += communication/bbox_communication.o
+mntn_bbox-objs += communication/bbox_message.o
+mntn_bbox-objs += communication/bbox_packet.o
+mntn_bbox-objs += communication/bbox_channel_status.o
+mntn_bbox-objs += communication/bbox_ioctl.o
+mntn_bbox-objs += communication/bbox_ioctl_drv.o
+mntn_bbox-objs += os_adapter/bbox_adapter.o
+mntn_bbox-objs += os_adapter/bbox_adapter_oom.o
+mntn_bbox-objs += os_adapter/bbox_adapter_snapshot.o
+mntn_bbox-objs += bbox_init.o
+
+ifneq ($(filter $(PRODUCT), ascend910B ascend920esl),)
+mntn_bbox-objs += config/bbox_config_dts.o
+mntn_bbox-objs += bootcheck/product/bbox_bootcheck_milan.o
+mntn_bbox-objs += register/bbox_sctrl_register.o
+mntn_bbox-objs += proxy/proxy_common/product/bbox_proxy_milan.o
+ccflags-y += -DBBOX_SOC_PLATFORM_MILAN
+else ifneq ($(filter $(PRODUCT), ascend310B as31xm1 ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
+mntn_bbox-objs += config/bbox_config_dts.o
+mntn_bbox-objs += bootcheck/product/bbox_bootcheck_milanr3.o
+mntn_bbox-objs += register/bbox_sctrl_register.o
+mntn_bbox-objs += proxy/proxy_common/product/bbox_proxy_milanr3.o
+ccflags-y += -DBBOX_SOC_PLATFORM_MILANR3
+else ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
+mntn_bbox-objs += config/bbox_config_dts.o
+mntn_bbox-objs += bootcheck/product/bbox_bootcheck_mdc.o
+mntn_bbox-objs += register/bbox_sctrl_register.o
+mntn_bbox-objs += proxy/proxy_common/product/bbox_proxy_mdc.o
+mntn_bbox-objs += common/bbox_xpc_proc.o
+mntn_bbox-objs += common/bbox_xpc_common.o
+mntn_bbox-objs += common/drv_cpu_type.o
+ccflags-y += -DBBOX_SOC_PLATFORM_MDC
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DBBOX_SOC_PLATFORM_MDC_V11
+ccflags-y += -DCFG_FEATURE_MDC_CLOCK_CONFIG
+endif
+
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a),)
+ccflags-y += -DCFG_FEATURE_MDC_CLOCK_CONFIG
+endif
+
 DRIVER_INC := $(src)/..
 
 ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox
@@ -51,15 +80,7 @@ ccflags-y += -I$(src)/config
 ccflags-y += -I$(src)/rdr
 ccflags-y += -I$(src)/common
 
-# Platform define for Ascend310B
-ccflags-y += -DBBOX_SOC_PLATFORM_MILANR3
-
-# Feature config
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
-
-# Compat layer
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
-
-# Compiler flags
 ccflags-y += -Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare

@@ -8,7 +8,7 @@
 #ifndef OT_INNER_COMMON_AIO_H
 #define OT_INNER_COMMON_AIO_H
 
-#include "hi_comm_audio.h"
+#include "hi_common.h"
 #include "media_mem_file.h"
 #include "ot_debug.h"
 

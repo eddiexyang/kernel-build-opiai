@@ -519,7 +519,7 @@ int hwts_drv_get_irq(struct platform_device *pdev, struct drv_hwts_ctrl *hwts, i
         hw_irq = hwts->ts_info[0].irq_info.irq_ts_to_aicpu[i];
         for_each_msi_entry(desc, &pdev->dev) //lint !e666
         {
-            if (desc->platform.msi_index == aicpu_id) {
+            if (desc->msi_index == aicpu_id) {
                 irq_os_proxy = desc->irq;
                 break;
             }

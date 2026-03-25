@@ -148,7 +148,7 @@ const struct file_operations ts_fops = {
     .unlocked_ioctl = ts_fop_ioctl,
 };
 
-char *ts_devnode(struct device *dev, umode_t *mode)
+char *ts_devnode(const struct device *dev, umode_t *mode)
 {
     if (mode != NULL) {
         *mode = DEVNODE_PERMISSION;
@@ -296,7 +296,7 @@ fail:
     return TS_INNER_ERR;
 }
 
-STATIC int ts_drv_remove(struct platform_device *pdev)
+STATIC void ts_drv_remove(struct platform_device *pdev)
 {
     int node_id;
     struct drv_hwts_ctrl *hwts = NULL;
@@ -323,10 +323,10 @@ STATIC int ts_drv_remove(struct platform_device *pdev)
 
     ts_aisle_uninit(node_id);
     ts_drv_info("ts drv remove ok. dev_id:%d\n", node_id);
-    return 0;
+    return;
 
 remove_exit:
-    return TS_INNER_ERR;
+    return;
 }
 
 STATIC int ts_drv_resume(struct platform_device *pdev)

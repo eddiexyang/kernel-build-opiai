@@ -1104,8 +1104,8 @@ STATIC int mdev_get_child(int ipc_id, struct hisi_ipc_device *idev, struct hisi_
     struct hisi_mbox_device_priv *priv = NULL;
     mbox_msg_t *buf_pool = idev->buf_pool;
     struct hisi_mbox_device *mdev = NULL;
-    struct acpi_device *cdev_tmp = NULL;
     struct acpi_device *device = NULL;
+    struct fwnode_handle *child = NULL;
     mbox_msg_t *ack_buffer = NULL;
     mbox_msg_t *rx_buffer = NULL;
     const char *src_name = NULL;
@@ -1124,8 +1124,7 @@ STATIC int mdev_get_child(int ipc_id, struct hisi_ipc_device *idev, struct hisi_
         return -1;
     }
 
-    list_for_each_entry(cdev_tmp, &device->children, node)
-    {
+    device_for_each_child_node(node, child) {
         mdev = NULL;
         priv = NULL;
         func = 0;
@@ -1147,32 +1146,32 @@ STATIC int mdev_get_child(int ipc_id, struct hisi_ipc_device *idev, struct hisi_
             goto free_mdev;
         }
 
-        ret = fwnode_property_read_string(&cdev_tmp->fwnode, "src_remote_processor", &src_name);
+        ret = fwnode_property_read_string(child, "src_remote_processor", &src_name);
         if (ret != 0) {
             goto free_priv;
         }
 
-        ret = fwnode_property_read_string(&cdev_tmp->fwnode, "des_remote_processor", &dse_name);
+        ret = fwnode_property_read_string(child, "des_remote_processor", &dse_name);
         if (ret != 0) {
             goto free_priv;
         }
 
-        ret = fwnode_property_read_u32(&cdev_tmp->fwnode, "src_bit", &src_bit);
+        ret = fwnode_property_read_u32(child, "src_bit", &src_bit);
         if (ret != 0) {
             goto free_priv;
         }
 
-        ret = fwnode_property_read_u32(&cdev_tmp->fwnode, "des_bit", &des_bit);
+        ret = fwnode_property_read_u32(child, "des_bit", &des_bit);
         if (ret != 0) {
             goto free_priv;
         }
 
-        ret = fwnode_property_read_u32(&cdev_tmp->fwnode, "index", &index);
+        ret = fwnode_property_read_u32(child, "index", &index);
         if (ret != 0) {
             goto free_priv;
         }
 
-        ret = mdev_get_func(idev, &cdev_tmp->fwnode, mdev, &func, &irq, (remote_processor_type_t)src_bit, lpi_irq);
+        ret = mdev_get_func(idev, child, mdev, &func, &irq, (remote_processor_type_t)src_bit, lpi_irq);
         if (ret != 0) {
             goto free_priv;
         }
@@ -1212,6 +1211,8 @@ STATIC int mdev_get_child(int ipc_id, struct hisi_ipc_device *idev, struct hisi_
         kfree(mdev);
         mdev = NULL;
     to_break:
+        fwnode_handle_put(child);
+        child = NULL;
         break;
     }
 
@@ -1328,10 +1329,10 @@ STATIC int mdev_get(int ipc_id, struct hisi_ipc_device *idev, struct hisi_mbox_d
         goto deinit_mdevs;
     }
     for_each_msi_entry(desc, dev) {
-        if (desc->platform.msi_index >= HISI_MAX_LPI_IRQ_NUM) {
+        if (desc->msi_index >= HISI_MAX_LPI_IRQ_NUM) {
             break;
         }
-        ipc_lpi_irq[desc->platform.msi_index] = (int)desc->irq;
+        ipc_lpi_irq[desc->msi_index] = (int)desc->irq;
     }
 
     devm_add_action(dev, ipcdev_free_msis, dev);

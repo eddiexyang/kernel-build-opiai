@@ -60,7 +60,7 @@ struct efi_arm_error_data {
 
 
 static struct notifier_block mbox_ts_nb;
-#ifdef EMU_ST
+#ifdef CFG_SOC_PLATFORM_CLOUD
 BLOCKING_NOTIFIER_HEAD(ghes_ts_err_chain);
 #endif
 
@@ -352,4 +352,3 @@ void tsmng_notifier_ut_stub(void)
     return;
 }
 #endif
-

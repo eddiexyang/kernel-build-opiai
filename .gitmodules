@@ -2,3 +2,6 @@
 	path = linux-source
 	url = https://github.com/HwHiAiUser/linux-opiai
 	branch = 6.18
+[submodule "driver/hi_mpp_sample"]
+	path = driver/hi_mpp_sample
+	url = https://gitee.com/hieuler-pico/hi_mpp_sample

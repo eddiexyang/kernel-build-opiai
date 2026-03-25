@@ -80,7 +80,7 @@ STATIC void dha_ras_remove(struct platform_device *pdev)
 		}
 	}
 
-	return 0;
+	return;
 }
 
 STATIC int dha_ras_probe(struct platform_device *pdev)

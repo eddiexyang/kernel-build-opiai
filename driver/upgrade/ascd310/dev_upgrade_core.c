@@ -1817,9 +1817,9 @@ STATIC int hisi_d_upgarde_driver_probe(struct platform_device *pltdev)
     return 0;
 }
 
-STATIC int hisi_d_upgarde_driver_remove(struct platform_device *pltdev)
+STATIC void hisi_d_upgarde_driver_remove(struct platform_device *pltdev)
 {
-    return 0;
+    return;
 }
 
 STATIC int hisi_d_upgarde_driver_suspend(struct platform_device *pltdev, pm_message_t state)

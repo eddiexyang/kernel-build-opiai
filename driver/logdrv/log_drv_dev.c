@@ -52,26 +52,9 @@
     (defined CFG_SOC_PLATFORM_CLOUD) || (defined CFG_SOC_PLATFORM_CLOUD_V2)
 #include "devdrv_parse_pdata.h"
 
-/* Stubs for APIs removed/unavailable in kernel 6.18 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
-static inline int crypto_comp_compress(void *tfm, const u8 *src, unsigned int slen,
-    u8 *dst, unsigned int *dlen) { return -ENOTSUPP; }
-static inline int crypto_comp_decompress(void *tfm, const u8 *src, unsigned int slen,
-    u8 *dst, unsigned int *dlen) { return -ENOTSUPP; }
-#endif
-
-int __attribute__((weak)) devdrv_manager_get_ts_num(void *dev_info) { return 1; }
+u32 __attribute__((weak)) devdrv_manager_get_ts_num(struct devdrv_info *dev_info) { return 1; }
 int __attribute__((weak)) devdrv_manager_send_tslog_addr_to_host(u32 devid, u64 phy_addr,
     u32 mem_size, bool dynamic_alloc) { return 0; }
-
-#ifndef crypto_free_comp
-static inline void _stub_crypto_free_comp(void *tfm) {}
-#define crypto_free_comp _stub_crypto_free_comp
-#endif
-#ifndef crypto_alloc_comp
-static inline void *_stub_crypto_alloc_comp(const char *n, u32 t, u32 m) { return ERR_PTR(-ENOTSUPP); }
-#define crypto_alloc_comp _stub_crypto_alloc_comp
-#endif
 #endif
 
 STATIC struct log_drv_desc log_desc = {

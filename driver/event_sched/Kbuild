@@ -4,33 +4,127 @@ obj-m := ascend_event_sched.o
 ascend_event_sched-objs := \
 	comm/esched_fops.o \
 	comm/esched.o \
-	comm/esched_sysfs.o \
-	comm/hard_sched/esched_drv.o \
-	device/esched_drv_adapt.o \
-	device/soc/topic_sched_v1/topic_sched.o \
-	device/pm/mini_v3/esched_pm.o \
-	device/esched_drv_mia.o
+	comm/esched_sysfs.o
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
 ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/rms
 ccflags-y += -I$(DRIVER_INC)/libc_sec/include
-ccflags-y += -I$(src)/comm -I$(src)/comm/hard_sched
+ccflags-y += -I$(src) -I$(src)/comm -I$(src)/comm/hard_sched
 ccflags-y += -I$(src)/device -I$(src)/device/soc
 ccflags-y += -I$(src)/device/soc/topic_sched_v1
-ccflags-y += -I$(src)/device/soc/mini_v3
 
-# Ascend310Brc device defines
+ifeq ($(TARGET_BUILD_TYPE),debug)
+ccflags-y += -DCFG_BUILD_DEBUG
+endif
+
 ccflags-y += -DCFG_FEATURE_IDENTIFY_CP
+
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V51
+ccflags-y += -DCFG_FEATURE_MORE_PID_PRIORITY
+ccflags-y += -DCFG_FEATURE_TIMEOUT_PROCESS
+ccflags-y += -DCFG_FEATURE_SCHEDULE_REALTIME
+endif
+
+ifneq ($(filter $(PRODUCT), ascend610 as31xm1 bs9sx1a ascend610Lite ascend610Liteesl),)
+ccflags-y += -I$(src)/device/bind_cpu
+ascend_event_sched-objs += device/bind_cpu/drv_cpu_type.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910B ascend920esl ascend920emu),)
+ccflags-y += -I$(src)/device/soc/cloud_v2
+ccflags-y += -DCFG_FEATURE_HARDWARE_SCHED
+ccflags-y += -DCFG_SOC_PLATFORM_ESL_FPGA
+ccflags-y += -DCFG_FEATURE_REMOTE_SUBMIT
+ccflags-y += -DCFG_FEATURE_SOFT_NON_SCHED_ONLY
+ccflags-y += -DCFG_FEATURE_HARDWARE_MIA
+ccflags-y += -DCFG_FEATURE_HARD_SOFT_SCHED
+ifneq ($(filter $(PRODUCT), ascend920esl),)
+ccflags-y += -DCFG_SOC_PLATFORM_ESL
+endif
+ascend_event_sched-objs += \
+	comm/hard_sched/esched_drv.o \
+	device/esched_drv_adapt.o \
+	device/soc/topic_sched_v1/topic_sched.o \
+	device/esched_device_msg.o \
+	device/esched_sia_msg.o \
+	device/esched_drv_mia.o \
+	device/esched_mia_msg.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310B as31xm1 ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
+ccflags-y += -I$(src)/device/pm/mini_v3
+ccflags-y += -I$(src)/device/soc/mini_v3
 ccflags-y += -DCFG_FEATURE_HARDWARE_SCHED
 ccflags-y += -DCFG_SOC_PLATFORM_ESL_FPGA
 ccflags-y += -DCFG_FEATURE_SOFT_NON_SCHED_ONLY
 ccflags-y += -DCFG_FEATURE_SIA_MAP_TOPIC_TABLE
 ccflags-y += -DCFG_FEATURE_PM
+ifneq ($(filter $(PRODUCT), ascend310Besl ascend310Brcesl),)
+ccflags-y += -DCFG_SOC_PLATFORM_ESL
+endif
+ascend_event_sched-objs += \
+	comm/hard_sched/esched_drv.o \
+	device/esched_drv_adapt.o \
+	device/soc/topic_sched_v1/topic_sched.o \
+	device/pm/mini_v3/esched_pm.o
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu),)
+ccflags-y += -DCFG_FEATURE_REMOTE_SUBMIT
+ascend_event_sched-objs += \
+	device/esched_device_msg.o \
+	device/esched_sia_msg.o
+else ifneq ($(PRODUCT), as31xm1)
 ccflags-y += -DCFG_FEATURE_HARDWARE_MIA
+ascend_event_sched-objs += device/esched_drv_mia.o
+endif
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310p ascend910),)
+ccflags-y += -I$(src)/comm/soft_sched/vf_sched
+ccflags-y += -DCFG_FEATURE_VFIO
+ifneq ($(filter $(PRODUCT), ascend910),)
+ccflags-y += -I$(src)/device/soc/cloud
+ccflags-y += -DCFG_FEATURE_DEEPER_EVENT_QUE
+else
+ccflags-y += -I$(src)/device/soc/mini_v2
+endif
+ascend_event_sched-objs += \
+	comm/esched_vf.o \
+	comm/soft_sched/vf_sched/esched_vf_adapt.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310 ascend310p ascend910),)
+ccflags-y += -DCFG_FEATURE_REMOTE_SUBMIT
+ascend_event_sched-objs += \
+	device/esched_device_msg.o \
+	device/esched_sia_msg.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl as31xm1),)
+ccflags-y += -DCFG_FEATURE_TRACE_RECOED
+else
 ccflags-y += -DCFG_FEATURE_EXTERNAL_CDEV
+endif
+
+ifneq ($(filter $(PRODUCT), helper310p ascend310B as31xm1 ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
 ccflags-y += -DCFG_FEATURE_CPU_NUMS_FIXED
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11
+ccflags-y += -DCFG_FEATURE_NO_BIND_SCHED
+ccflags-y += -DCFG_FEATURE_THREAD_SWAPOUT
+ccflags-y += -DCFG_NOT_SURPPORT_PCIE_HOST_DEVICE_COMM
+endif
+
+ifneq ($(filter $(PRODUCT), ascend610Lite ascend610Liteesl),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V51_LITE
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
 ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+endif
 
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)

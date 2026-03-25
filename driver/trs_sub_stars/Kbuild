@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0
+DRIVER_INC := $(src)/..
+
+obj-m :=
+ascend_trs_sub_stars-objs := \
+	trs_stars_soc.o \
+	trs_stars_v1_func_com.o \
+	stars_event_tbl_ns.o \
+	trs_stars_v1_func_adapt.o
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
+ccflags-y += -I$(DRIVER_INC)/include/rms -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(DRIVER_INC)/trs_stars/soc
+
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc ascend310Brcesl ascend310Besl ascend310Brcemu ascend310Bemu),)
+	obj-m += ascend_trs_sub_stars.o
+	ccflags-y += -I$(DRIVER_INC)/trs_stars/soc/mini_v3
+else ifneq ($(filter $(PRODUCT), ascend910B ascend910Besl ascend910Bemu),)
+	obj-m += ascend_trs_sub_stars.o
+	ccflags-y += -I$(DRIVER_INC)/trs_stars/soc/cloud_v2
+endif
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../soc_resmng/Module.symvers
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers

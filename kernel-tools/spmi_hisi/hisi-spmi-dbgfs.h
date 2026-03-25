@@ -15,7 +15,7 @@
 
 #include <linux/debugfs.h>
 
-#ifdef CONFIG_HISI_SPMI_DEBUG_FS
+#if defined(CONFIG_HISI_SPMI_DEBUG_FS) || defined(CONFIG_HISI_SPMI_DEBUG_FS_MODULE)
 int spmi_dfs_add_controller(struct spmi_controller *ctrl);
 int spmi_dfs_del_controller(struct spmi_controller *ctrl);
 struct dentry *spmi_dfs_create_file(struct spmi_controller *ctrl,

@@ -53,24 +53,29 @@ DEVICE_L0 := bbox dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	dbl_algorithm dbl_dev_identity dbl_runenv_config \
 	soc_resmng uda urd event_sched xsmem \
 	davinci_intf icm ascend_ctl pkicms fpdc memory soc_misc drv_notify \
-	soft_fault ipcdrv pcie_rc_sr \
+	soft_fault ipcdrv pcie_rc_sr sysmonitor svm \
 	trs_id_allocator trs_id_pool trs_tsmng trs_mia_agent \
 	i2c_uniform sys_ctrl_uniform usb_uniform spi_uniform gpio_uniform pwm \
 	mttcan eeprom serdes \
 	dms_mng dms_dtm dms_smf hwmon
 
-DEVICE_L1 := trs_chan trs_stars dvpp_osal dfm
+DEVICE_L1 := trs_chan trs_stars trs_sub_stars dvpp_osal dfm
 
-DEVICE_L2 := hns3 ts_platform upgrade user_cfg hiusbc pcie ts_channel \
+DEVICE_L2 := hns3 ts_platform ts_platform_host upgrade user_cfg hiusbc pcie ts_channel \
 	audio vdp mipi_rx
 
-DEVICE_L3 := dms virtmng virtmng_resmgr trs_core
+DEVICE_L3 := dms virtmng virtmng_resmgr virtmng_host_stub vpcie vpc_agent trs_core
 
-DEVICE_L4 := hdcdrv tsdrv dp_proc_mng trs_cdqm trs_pm_adapt trs_kunpeng
+DEVICE_L4 := hdcdrv hdcdrv_host tsdrv tsdrv_host vtsdrv dp_proc_mng dp_proc_mng_host trs_cdqm trs_pm_adapt trs_kunpeng
+
+ifneq ($(filter $(PRODUCT), ascend910 ascend310p),)
+DEVICE_L4 += vhdc
+endif
 
 DEVICE_L5 := logdrv prof trs_adapt_agent trs_mia_adapt
 
 DEVICE_EXTRA := lpm/drv_lpm lpm/pm lpm/drv_lpm_devmng trs_shrid trs_sec_eh soc_platform
+DEVICE_EXTRA += kbox
 
 ALL_DEVICE := $(DEVICE_L0) $(DEVICE_L1) $(DEVICE_L2) $(DEVICE_L3) \
 	$(DEVICE_L4) $(DEVICE_L5) $(DEVICE_EXTRA)
@@ -83,6 +88,9 @@ $(foreach mod,$(ALL_DEVICE),$(eval $(call module_target,$(mod))))
 build-dfm: build-bbox
 build-ts_channel: build-dfm
 build-pcie: build-dbl_runenv_config build-dfm
+build-vpc_agent: build-vpcie
+build-vhdc: build-vpcie build-vpc_agent
+build-vtsdrv: build-vpcie build-vpc_agent
 
 # Layer targets: each layer depends on the previous, but modules within a layer are parallel
 .PHONY: device-l0 device-l1 device-l2 device-l3 device-l4 device-l5 device-extra

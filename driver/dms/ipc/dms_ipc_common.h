@@ -17,6 +17,8 @@
 #ifndef __DMS_IPC_COMMON_H
 #define __DMS_IPC_COMMON_H
 
+#include "drv_ipc.h"
+
 #ifdef CONFIG_IPC_COMM_FROM_IMU_V2
 struct dms_ipc_lpm {
     unsigned char sub_cmd;

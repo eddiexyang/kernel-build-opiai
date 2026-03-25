@@ -10,6 +10,7 @@
 
 #include "mkp_ioctl.h"
 #include "audio_inner.h"
+#include "hi_comm_audio.h"
 #include "ot_debug.h"
 
 #ifdef __cplusplus

@@ -125,16 +125,16 @@ static struct spmi_dbgfs dbgfs_data = {
 
 noinline int atfd_spmi_smc(u64 function_id, u64 arg0, u64 arg1, u64 arg2)
 {
-	asm volatile(
-		__asmeq("%0", "x0")
-		__asmeq("%1", "x1")
-		__asmeq("%2", "x2")
-		__asmeq("%3", "x3")
-		"smc    #0\n"
-	: "+r" (function_id)
-	: "r" (arg0), "r" (arg1), "r" (arg2));
+	register u64 x0 asm("x0") = function_id;
+	register u64 x1 asm("x1") = arg0;
+	register u64 x2 asm("x2") = arg1;
+	register u64 x3 asm("x3") = arg2;
 
-	return (int)function_id;/*lint -e715*/
+	asm volatile("smc    #0\n"
+		: "+r" (x0)
+		: "r" (x1), "r" (x2), "r" (x3));
+
+	return (int)x0;/*lint -e715*/
 }
 
 static int spmi_dfs_open(struct spmi_ctrl_data *ctrl_data, struct file *file)
@@ -168,7 +168,7 @@ static int spmi_dfs_open(struct spmi_ctrl_data *ctrl_data, struct file *file)
 	log_buf->wpos = 0;
 	log_buf->len = logbufsize - sizeof(*log_buf);
 
-	spmi_tran->log_buf = log_buf;
+	spmi_tran->log = log_buf;
 	spmi_tran->cnt = ctrl_data->cnt;
 	spmi_tran->addr = ctrl_data->addr;
 	spmi_tran->atf = ctrl_data->atf;
@@ -493,7 +493,7 @@ static ssize_t spmi_dfs_reg_write(struct file *file, const char __user *buf,
 	int bytes_read;
 	int data;
 	int pos = 0;
-	int count = 0;
+	int value_count = 0;
 
 	struct spmi_trans *trans = file->private_data;
 	if (count > COUNT_MAX_SIZE) {
@@ -520,21 +520,21 @@ static ssize_t spmi_dfs_reg_write(struct file *file, const char __user *buf,
 
 	/* Parse the data in the buffer.  It should be a string of numbers */
 	while (sscanf_s(k_buffer + pos, "%i%n", &data, &bytes_read) == 1) {
-		values[count++] = data & 0xff;
+		values[value_count++] = data & 0xff;
 		pos += bytes_read;
 	}
 
-	if (!count)
+	if (!value_count)
 		goto free_buf;
 
 	/* Perform the SPMI write function. */
-	ret = spmi_write_data(trans->ctrl, values, (int)trans->addr, count, trans->atf);
+	ret = spmi_write_data(trans->ctrl, values, (int)trans->addr, value_count, trans->atf);
 
 	if (ret) {
 		pr_err("SPMI write data failed. (err=%d)\n", ret);
 	} else {
-		trans->offset += (u32)count;
-		ret = count;
+		trans->offset += (u32)value_count;
+		ret = value_count;
 	}
 
 free_buf:
@@ -687,7 +687,7 @@ int spmi_dfs_add_controller(struct spmi_controller *ctrl)
 
 	(void)debugfs_create_x32("address", dfs_mode, dir, &spmictrl_data->addr);
 
-	(void)debugfs_create_bool("atf", dfs_mode, dir, (unsigned int *)&spmictrl_data->atf);
+	(void)debugfs_create_bool("atf", dfs_mode, dir, &spmictrl_data->atf);
 
 	file = debugfs_create_file("data", dfs_mode, dir, spmictrl_data,
 					&spmi_dfs_reg_fops);
@@ -712,6 +712,7 @@ err_create_dir_failed:
 	kfree(spmictrl_data);
 	return -ENOMEM;
 }
+EXPORT_SYMBOL_GPL(spmi_dfs_add_controller);
 
 /*
  * spmi_dfs_del_controller(): Deletes SPMI controller entry.
@@ -726,7 +727,7 @@ int spmi_dfs_del_controller(struct spmi_controller *ctrl)
 	pr_debug("Delete controller %s.\n", ctrl->dev.kobj.name);
 
 	ret = mutex_lock_interruptible(&dbgfs_data.lock);
-	if ret
+	if (ret)
 		return ret;
 
 	list_for_each_safe(pos, tmp, &dbgfs_data.ctrl) {
@@ -747,6 +748,7 @@ done:
 	mutex_unlock(&dbgfs_data.lock);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(spmi_dfs_del_controller);
 
 /*
  * spmi_dfs_create_file(): Creates new file in the SPMI debugfs.
@@ -800,6 +802,7 @@ static void __exit spmi_dfs_destroy(void)
 
 module_exit(spmi_dfs_destroy);/*lint -e528*/
 
+MODULE_DESCRIPTION("HISI SPMI debugfs helpers");
 MODULE_LICENSE("GPL v2");/*lint -e753*/
 MODULE_ALIAS("platform:spmi_debug_fs");/*lint -e753*/
 #else

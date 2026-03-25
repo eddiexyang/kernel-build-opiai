@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := sysmonitor.o
+
+sysmonitor-objs := sysmonitor_main.o signo_catch.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -Wall -Werror
+ccflags-y += -include $(DRIVER_INC)/include/compat.h

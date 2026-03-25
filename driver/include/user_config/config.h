@@ -95,6 +95,15 @@ struct user_config_item {
 #define SSH_ENABLE                  1
 #define SSH_DISENABLE               0
 
+#if defined(CFG_SOC_PLATFORM_MINI) && !defined(CFG_SOC_PLATFORM_MINIV2)
+#define UC_AICPU_CONFIG_SIZE        2
+#define AICPU_CONFIG_NAME           "aicpu_config"
+#define AICPU_CONFIG_BUF_SIZE       1
+#define AICPU2_CTRLCPU6_CONFIG      0xc0
+#define AICPU4_CTRLCPU4_CONFIG      0xf0
+#define AICPU6_CTRLCPU2_CONFIG      0xfc
+#endif
+
 #define CPU_NUM_CONFIG_NAME         "cpu_num_cfg"
 #define P2P_MEM_CONFIG_NAME         "p2p_mem_cfg"
 #define CCPU_USR_CERT_CONFIG_NAME   "ccpu_usr_cert_hash"

@@ -32,7 +32,7 @@
 #define DEVDRV_BLACK_BOX_MAX_EXCEPTION_NUM 1024
 
 extern int devdrv_register_black_callback(struct devdrv_black_callback *black_callback);
-extern void devdrv_unregister_black_callback(const struct devdrv_black_callback *black_callback);
+extern void devdrv_unregister_black_callback(struct devdrv_black_callback *black_callback);
 
 STATIC int devdrv_host_pcie_add_exception(u32 pci_devid, u32 code, struct timespec stamp)
 {

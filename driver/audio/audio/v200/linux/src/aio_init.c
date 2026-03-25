@@ -39,7 +39,7 @@ static int ot_aiao_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int ot_aiao_remove(struct platform_device *pdev)
+static void ot_aiao_remove(struct platform_device *pdev)
 {
     int ret;
 
@@ -48,13 +48,12 @@ static int ot_aiao_remove(struct platform_device *pdev)
     ret = asp_dma_remove(pdev);
     if (ret != 0) {
         dev_err(&pdev->dev, "asp dma remove fail in ot aio remove\n");
-        return ret;
+        return;
     }
 
     (void)asp_misc_exit();
     aiao_module_exit();
     check_pid_spin_lock_destroy();
-    return 0;
 }
 
 /**
@@ -104,4 +103,3 @@ osal_module_platform_driver(g_ot_aiao_driver);
 #endif
 
 MODULE_LICENSE("GPL");
-

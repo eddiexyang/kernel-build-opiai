@@ -18,7 +18,8 @@
 #ifndef CMSCBB_ADAPTER_H
 #define CMSCBB_ADAPTER_H
 
-#if (defined CFG_SOC_PLATFORM_CLOUD) || (defined CFG_SOC_PLATFORM_MDC_V51) || (defined CFG_SOC_PLATFORM_MINI)
+#if ((defined CFG_SOC_PLATFORM_CLOUD) || (defined CFG_SOC_PLATFORM_MDC_V51) || (defined CFG_SOC_PLATFORM_MINI)) && \
+    (!defined LINUX_KERNEL_BUILD)
 #include "cmscbb_types.h"
 #include "cmscbb_err_def.h"
 #include "cmscbb_plt_def.h"

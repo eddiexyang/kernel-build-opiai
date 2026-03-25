@@ -16,6 +16,7 @@
  */
 
 #include "cmscbb.h"
+#include "pkicms.h"
 
 #include "linux/securec.h"
 #include <linux/string.h>

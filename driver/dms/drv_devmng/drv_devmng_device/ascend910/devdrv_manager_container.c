@@ -202,8 +202,12 @@ OUT:
 
 STATIC bool devdrv_manager_container_is_admin_task(struct task_struct *tsk)
 {
+#ifdef CAP_FOR_EACH_U32
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
     kernel_cap_t privileged = (kernel_cap_t){{ ~0, (CAP_TO_MASK(CAP_AUDIT_READ + 1) -1)}};
+#else
+    kernel_cap_t privileged = CAP_FULL_SET;
+#endif
 #else
     kernel_cap_t privileged = CAP_FULL_SET;
 #endif
@@ -217,12 +221,18 @@ STATIC bool devdrv_manager_container_is_admin_task(struct task_struct *tsk)
     user_id = cred->uid.val;
     rcu_read_unlock();
 
+ #ifdef CAP_FOR_EACH_U32
     CAP_FOR_EACH_U32(i)
     {
         if ((effective.cap[i] & privileged.cap[i]) != privileged.cap[i]) {
             return false;
         }
     }
+ #else
+    if (!cap_issubset(privileged, effective)) {
+        return false;
+    }
+ #endif
     if (user_id == 0) {
         return true;
     } else {

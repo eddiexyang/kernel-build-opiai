@@ -41,6 +41,8 @@
 #include <linux/crc16.h>
 #include <linux/semaphore.h>
 #include <linux/pagemap.h>
+#include <linux/rmap.h>
+#include <linux/sched/signal.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include "dms_define.h"
@@ -911,7 +913,9 @@ STATIC void hbm_period_statistic(void)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 /*
- * collect the processes who have the pfn.
+ * Modern kernels keep collect_procs() private to mm/memory-failure.c.
+ * Rebuild the PFN-to-process walk with the public rmap API so this path
+ * can still attribute isolated pages to mapped user processes.
  */
 
 struct to_kill {
@@ -921,12 +925,62 @@ struct to_kill {
 	short size_shift;
 };
 
+static bool hbm_task_in_to_kill_list(struct list_head *to_kill, pid_t tgid)
+{
+	struct to_kill *tk = NULL;
+
+	list_for_each_entry(tk, to_kill, nd) {
+		if (task_tgid_nr(tk->tsk) == tgid) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool hbm_collect_proc_rmap_one(struct folio *folio, struct vm_area_struct *vma, unsigned long addr, void *arg)
+{
+	struct list_head *to_kill = arg;
+	struct task_struct *tsk = NULL;
+	struct to_kill *tk = NULL;
+
+	rcu_read_lock();
+	for_each_process(tsk) {
+		if (tsk->mm != vma->vm_mm) {
+			continue;
+		}
+
+		if (hbm_task_in_to_kill_list(to_kill, task_tgid_nr(tsk))) {
+			break;
+		}
+
+		tk = kmalloc(sizeof(*tk), GFP_ATOMIC);
+		if (tk == NULL) {
+			rcu_read_unlock();
+			memory_drv_err("Alloc process walker entry failed\n");
+			return false;
+		}
+
+		tk->addr = addr;
+		tk->size_shift = folio_shift(folio);
+		get_task_struct(tsk);
+		tk->tsk = tsk;
+		list_add_tail(&tk->nd, to_kill);
+		break;
+	}
+	rcu_read_unlock();
+
+	return true;
+}
+
 pid_t *collect_process_by_pfn(unsigned long pfn, int *size)
 {
 	struct to_kill *tk = NULL;
 	struct to_kill *next = NULL;
 	struct page *page = NULL;
 	struct page *page_online = NULL;
+	struct folio *folio = NULL;
+	struct rmap_walk_control rwc = {0};
 	int tmp = 0;
 	pid_t *pids = NULL;
 	LIST_HEAD(tokill);
@@ -944,13 +998,17 @@ pid_t *collect_process_by_pfn(unsigned long pfn, int *size)
 		memory_drv_err("pfn to page is invalid\n");
 		return NULL;
 	}
+	folio = page_folio(page);
 
 	lock_page(page);
 	if (!page_mapped(page)) {
 		unlock_page(page);
 		return NULL;
 	}
-	collect_procs(page, &tokill, true);
+	rwc.arg = &tokill;
+	rwc.rmap_one = hbm_collect_proc_rmap_one;
+	rwc.anon_lock = folio_lock_anon_vma_read;
+	rmap_walk(folio, &rwc);
 	unlock_page(page);
 
 	if (list_empty(&tokill)) {
@@ -968,7 +1026,7 @@ pid_t *collect_process_by_pfn(unsigned long pfn, int *size)
 	}
 
 	list_for_each_entry_safe (tk, next, &tokill, nd) {
-		pids[tmp] = tk->tsk->pid;
+		pids[tmp] = task_tgid_nr(tk->tsk);
 		put_task_struct(tk->tsk);
 		kfree(tk);
 		tmp++;

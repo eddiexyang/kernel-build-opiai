@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := ascend_trs_mia_adapt.o
 ascend_trs_mia_adapt-objs := trs_mia_device.o trs_mia_cfg.o trs_mia_device_id.o trs_mia_device_chan.o trs_mia_device_core.o trs_mia_info_ts.o trs_mia_device_db.o
+ascend_trs_mia_adapt-objs += local_comm/trs_device_ts_db.o
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
@@ -9,7 +10,10 @@ ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
 ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
 ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
 ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
-ccflags-y += -I$(src) -I$(DRIVER_INC)/trs_pm_adapt -I$(DRIVER_INC)/trs_pm_adapt/core -I$(DRIVER_INC)/trs_pm_adapt/core/stars_v1 -I$(DRIVER_INC)/trs_pm_adapt/chan -I$(DRIVER_INC)/trs_pm_adapt/chan/stars_v1 -I$(DRIVER_INC)/trs_pm_adapt/chan/tscpu -I$(DRIVER_INC)/trs_pm_adapt/soc/mini_v3 
+ccflags-y += -I$(src) -I$(src)/local_comm
+ccflags-y += -I$(DRIVER_INC)/trs_pm_adapt -I$(DRIVER_INC)/trs_pm_adapt/core -I$(DRIVER_INC)/trs_pm_adapt/core/stars_v1
+ccflags-y += -I$(DRIVER_INC)/trs_pm_adapt/chan -I$(DRIVER_INC)/trs_pm_adapt/chan/stars_v1 -I$(DRIVER_INC)/trs_pm_adapt/chan/tscpu
+ccflags-y += -I$(DRIVER_INC)/trs_pm_adapt/soc/mini_v3
 
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)

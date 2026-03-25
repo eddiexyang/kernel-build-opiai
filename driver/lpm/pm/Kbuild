@@ -1,13 +1,27 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := drv_pm.o
+ifneq ($(filter $(PRODUCT), ascend310rc ascend310),)
+drv_pm-objs := ascend310/pm.o
+drv_pm-objs += ascend310/wakeup_reason.o
+else
 drv_pm-objs := pm.o
+endif
 
 DRIVER_INC := $(src)/../..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
 ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
 ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/libc_sec/include
-ccflags-y += -I$(src)
+ccflags-y += -I$(src) -I$(src)/ascend310
+ccflags-y += -fstack-protector-all
+
+ifneq ($(filter $(PRODUCT), ascend310Brc as31xm1),)
 ccflags-y += -DHAL_KERNEL_SUSPEND_RESUME
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1 ascend610 BS9SX1A ascend610Lite),)
+ccflags-y += -DLPM_VPRINTK
+endif
+
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h

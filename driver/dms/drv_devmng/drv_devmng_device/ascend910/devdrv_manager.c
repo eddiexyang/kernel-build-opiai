@@ -5711,10 +5711,9 @@ STATIC int devdrv_manager_probe(struct platform_device *pdev)
     return 0;
 }
 
-STATIC int devdrv_manager_remove(struct platform_device *pdev)
+STATIC void devdrv_manager_remove(struct platform_device *pdev)
 {
     devdrv_sub_os_uninit();
-    return 0;
 }
 
 STATIC const struct of_device_id devdrv_manager_of_match[] = {
@@ -6510,4 +6509,3 @@ int devdrv_manager_vmngd_unregister(void)
     return 0;
 }
 #endif
-

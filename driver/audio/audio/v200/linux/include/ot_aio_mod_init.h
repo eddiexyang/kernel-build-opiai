@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/of_platform.h>
+#include <linux/platform_device.h>
 #include "ot_type.h"
 #include "hi_osal.h"
 
@@ -36,4 +37,3 @@ void aiao_module_exit(void);
 #endif /* end of #ifdef __cplusplus */
 
 #endif /* end of #ifndef OT_AIO_MOD_INIT_H */
-

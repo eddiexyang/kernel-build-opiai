@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0
+
+obj-m := kbox_init.o kbox.o
+
+kbox_init-objs := driver/drv_cdev.o driver/drv_core.o driver/drv_main.o
+kbox_init-objs += driver/drv_oper.o driver/drv_proc.o
+
+kbox-objs := kbox/kbox_common_interface.o kbox/kbox_die.o kbox/kbox_emerge.o
+kbox-objs += kbox/kbox_find_sym_addr.o kbox/kbox_main.o kbox/kbox_oom.o
+kbox-objs += kbox/kbox_panic.o kbox/kbox_printk_buf.o kbox/kbox_reboot.o
+kbox-objs += kbox/kbox_reboot_timer.o kbox/kbox_rlock.o
+
+ifeq ($(ARCH),x86_64)
+kbox-objs += kbox/kbox_x86_64.o
+endif
+ifeq ($(ARCH),arm64)
+kbox-objs += kbox/kbox_arm64.o
+endif
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(src)/driver -I$(src)/kbox -I$(DRIVER_INC)/include
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include -I$(srctree)
+ccflags-y += -fsigned-char -pipe
+ccflags-y += -DCONFIG_EULEROS_KBOX_ADD_PRINTK_NOTIFIER
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

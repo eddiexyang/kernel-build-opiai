@@ -1,21 +1,163 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := drv_memory.o
-drv_memory-objs := memory_init.o memory_ecc.o memory_scan.o memory_ddr.o \
-	safety_ras/safety_ras_node.o safety_ras/safety_ras_report.o safety_ras/safety_ras_ipc.o \
-	safety_ras/safety_ras_310/safety_ras_init_310.o \
-	safety_ras/safety_ras_310/safety_ras_ipc_310.o \
-	safety_ras/safety_ras_310/safety_ras_mata_310.o \
-	safety_ras/safety_ras_310/safety_ras_mata_scan_310.o
+
+drv_memory-objs := memory_init.o
+drv_memory-objs += memory_ecc.o
+drv_memory-objs += memory_scan.o
 
 DRIVER_INC := $(src)/..
-ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/devmng -I$(DRIVER_INC)/include/driver -I$(DRIVER_INC)/include/tsdrv
-ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
-ccflags-y += -I$(DRIVER_INC)/include/soc/mini_v3 -I$(DRIVER_INC)/libc_sec/include
-ccflags-y += -I$(src) -I$(src)/safety_ras -I$(DRIVER_INC)/fpdc/receiver -I$(DRIVER_INC)/fpdc -I$(src)/safety_ras/safety_ras_310
-ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DCFG_MEMORY_SAFETY_RAS -DCFG_MEMORY_DDR
-ccflags-y += -DCFG_DDR_REG_ADDR_310B -DCFG_MEMORY_DDR_INFO_FROM_SHAREMEM
+
+ccflags-y += -I$(src) -I$(src)/safety_ras -I$(src)/hbm_isolation -I$(src)/fault_inject
+ccflags-y += -I$(src)/safety_ras/safety_ras_310 -I$(src)/safety_ras/safety_ras_610
+ccflags-y += -I$(src)/safety_ras/safety_ras_710 -I$(src)/safety_ras/safety_ras_910
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/toolchain/bbox
+ccflags-y += -I$(DRIVER_INC)/include/hiss -I$(DRIVER_INC)/include
+ccflags-y += -I$(DRIVER_INC)/fpdc -I$(DRIVER_INC)/fpdc/receiver
+ccflags-y += -I$(DRIVER_INC)/dms/include -I$(DRIVER_INC)/dms/core -I$(DRIVER_INC)/dms/config
+ccflags-y += -I$(DRIVER_INC)/dms/sensor -I$(DRIVER_INC)/dms/sensor/config
+ccflags-y += -I$(DRIVER_INC)/dms/event -I$(DRIVER_INC)/dms/ipc
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_inc
+ccflags-y += -I$(DRIVER_INC)/tsdrv/ts_drv_common -I$(DRIVER_INC)/icm -I$(DRIVER_INC)/urd
+
+ifeq ($(PRODUCT),ascend910)
+drv_memory-objs += safety_ras/safety_ras_node.o
+drv_memory-objs += safety_ras/safety_ras_910/safety_ras_init_910.o
+drv_memory-objs += memory_ddr.o
+drv_memory-objs += memory_hbm.o
+drv_memory-objs += hbm_isolation/hbm_isolation_common.o
+drv_memory-objs += hbm_isolation/hbm_multi.o
+drv_memory-objs += hbm_isolation/hbm_single.o
+drv_memory-objs += hbm_isolation/flash_ops_wrap.o
+drv_memory-objs += device/ascend910/drvmem_base_info.o
+ccflags-y += -I$(src)/device/ascend910
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -DCFG_SOC_PLATFORM_CLOUD -DSUPPORT_HBM_ISOLATION
+ccflags-y += -DSUPPORT_IPC_GET_ECC -DCFG_MEMORY_SAFETY_RAS
+ccflags-y += -DCFG_MEMORY_DDR -DCFG_MEMORY_HBM
+ccflags-y += -DCFG_DDR_REG_ADDR_910 -DCFG_HBM_REG_ADDR_910
+ccflags-y += -DCFG_DDR_BANDWIDTH_BY_CHAN_NUM -DCFG_INIT_DDR_STATISTICS
+ccflags-y += -DCFG_MEMORY_ECC_INFO_FROM_LP -DCFG_NOR_FLASH_OPS_VER1
+ccflags-y += -DNEED_RECOVER_HBM_INTERRUPT -DCFG_LPM_INFO_FROM_IPC
+else ifneq ($(filter $(PRODUCT), ascend910B ascend920emu ascend920esl),)
+drv_memory-objs += safety_ras/safety_ras_node.o
+drv_memory-objs += safety_ras/safety_ras_910/safety_ras_init_910.o
+drv_memory-objs += memory_hbm.o
+drv_memory-objs += fault_inject/drvmem_fault_inject.o
+drv_memory-objs += fault_inject/drvmem_fault_inject_node.o
+drv_memory-objs += fault_inject/drvmem_fault_inject_common.o
+drv_memory-objs += fault_inject/device/ascend910b/drvmem_fault_inject_define.o
+drv_memory-objs += hbm_isolation/hbm_isolation_common.o
+drv_memory-objs += hbm_isolation/hbm_multi.o
+drv_memory-objs += hbm_isolation/hbm_single.o
+drv_memory-objs += hbm_isolation/flash_ops_wrap.o
+drv_memory-objs += device/ascend910B/drvmem_base_info.o
+drv_memory-objs += fault_inject/device/ascend910b/drvmem_hbm_fault_inject_define.o
+drv_memory-objs += fault_inject/device/ascend910b/drvmem_hbmc_fault_inject_define.o
+drv_memory-objs += fault_inject/device/ascend910b/drvmem_mata_fault_inject_define.o
+ccflags-y += -I$(src)/device/ascend910B -I$(src)/fault_inject/device/ascend910b
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -DCFG_SOC_PLATFORM_CLOUD_V2 -DSUPPORT_HBM_ISOLATION
+ccflags-y += -DCFG_MEMORY_HBM -DCFG_DDR_REG_ADDR_910B
+ccflags-y += -DCFG_MEMORY_ECC_INFO_FROM_LP -DCFG_INIT_DDR_STATISTICS
+ccflags-y += -DCFG_MEMORY_SAFETY_RAS -DCFG_HBM_FLASH
+ccflags-y += -DCFG_HBM_FAULT_EVENT -DCFG_LPM_INFO_FROM_SHAREMEM
+ccflags-y += -DCFG_NOR_FLASH_OPS_VER2
+ifeq ($(TARGET_BUILD_TYPE),debug)
+drv_memory-objs += fault_inject/device/ascend910b/drvmem_fault_inject_define.o
+ccflags-y += -DCFG_MEMORY_FAULT_INJECT
+endif
+else ifneq ($(filter $(PRODUCT), ascend310 ascend310rc),)
+drv_memory-objs += memory_ddr.o
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend310
+ccflags-y += -DCFG_MEMORY_DDR -DCFG_DDR_REG_ADDR_310
+ccflags-y += -DCFG_DDR_BANDWIDTH_BY_CHAN_NUM -DCFG_MEMORY_DDR_INFO_FROM_REG
+else ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl as31xm1),)
+drv_memory-objs += memory_ddr.o
+drv_memory-objs += safety_ras/safety_ras_node.o
+drv_memory-objs += safety_ras/safety_ras_report.o
+drv_memory-objs += safety_ras/safety_ras_ipc.o
+drv_memory-objs += safety_ras/safety_ras_310/safety_ras_init_310.o
+drv_memory-objs += safety_ras/safety_ras_310/safety_ras_ipc_310.o
+drv_memory-objs += safety_ras/safety_ras_310/safety_ras_mata_310.o
+drv_memory-objs += safety_ras/safety_ras_310/safety_ras_mata_scan_310.o
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DCFG_MEMORY_SAFETY_RAS
+ccflags-y += -DCFG_MEMORY_DDR -DCFG_DDR_REG_ADDR_310B
+ccflags-y += -DCFG_MEMORY_DDR_INFO_FROM_SHAREMEM -DCFG_INIT_DDR_STATISTICS
+ccflags-y += -DCFG_FEATURE_FORCE_NO_SCAN
+ifneq ($(filter $(PRODUCT), as31xm1),)
+drv_memory-objs += safety_ras/safety_ras_310/safety_ras_reg_check_310.o
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11
+endif
+ifneq ($(filter $(PRODUCT), ascend310Brc ascend310Brcesl as31xm1),)
+ccflags-y += -DCFG_FEATURE_DEVICE_DEVID_CONVERT
+endif
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc as31xm1),)
+ccflags-y += -DCFG_DDR_BANDWIDTH_BY_FREQ
+else
+ccflags-y += -DCFG_DDR_BANDWIDTH_STUB
+endif
+else ifneq ($(filter $(PRODUCT), ascend310p helper310p),)
+drv_memory-objs += memory_ddr.o
+drv_memory-objs += memory_common.o
+drv_memory-objs += memory_dev_manage.o
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -DCFG_MEMORY_DDR -DCFG_DDR_REG_ADDR_710
+ccflags-y += -DCFG_DDR_BANDWIDTH_BY_FREQ -DCFG_MEMORY_ECC_INFO_FROM_LP
+ccflags-y += -DCFG_INIT_DDR_STATISTICS -DCFG_FEATURE_LP_ENABLE
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2 -DCFG_MEMORY_DDR_INFO_FROM_LP
+ifneq ($(filter $(PRODUCT), ascend310p),)
+drv_memory-objs += safety_ras/safety_ras_node.o
+drv_memory-objs += safety_ras/safety_ras_ipc.o
+drv_memory-objs += safety_ras/safety_ras_710/safety_ras_init_710.o
+drv_memory-objs += safety_ras/safety_ras_710/safety_ras_ipc_710.o
+drv_memory-objs += safety_ras/safety_ras_710/safety_ras_isolation_710.o
+drv_memory-objs += hbm_isolation/hbm_isolation_common.o
+drv_memory-objs += hbm_isolation/hbm_multi.o
+drv_memory-objs += hbm_isolation/hbm_single.o
+drv_memory-objs += hbm_isolation/flash_ops_wrap.o
+drv_memory-objs += device/ascend310P/drvmem_base_info.o
+ccflags-y += -I$(src)/device/ascend310P
+ccflags-y += -DCFG_DDR_ISOLATION_710 -DCFG_FEATURE_SUPPORT_2P
+ccflags-y += -DCFG_FEATURE_NO_CECC_ADDR_REC -DCFG_HBM_FLASH
+ccflags-y += -DCFG_NOR_FLASH_OPS_VER2 -DCFG_MEMORY_SAFETY_RAS
+ifeq ($(TARGET_BUILD_TYPE),debug)
+drv_memory-objs += safety_ras/safety_ras_710/safety_ras_debug_710.o
+ccflags-y += -DCFG_MEMORY_DEBUGFS
+endif
+endif
+else ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
+drv_memory-objs += memory_ddr.o
+drv_memory-objs += memory_common.o
+drv_memory-objs += memory_dev_manage.o
+drv_memory-objs += memory_log.o
+drv_memory-objs += safety_ras/safety_ras_node.o
+drv_memory-objs += safety_ras/safety_ras_report.o
+drv_memory-objs += safety_ras/safety_ras_ipc.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_init_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_ipc_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_subctrl_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_dha_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_dha_dfx_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_dha_report_610.o
+drv_memory-objs += safety_ras/safety_ras_610/safety_ras_common_610.o
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -DCFG_MEMORY_DDR -DCFG_FEATURE_LP_ENABLE
+ccflags-y += -DCFG_DDR_BANDWIDTH_BY_FREQ -DCFG_MEMORY_ECC_INFO_FROM_LP
 ccflags-y += -DCFG_INIT_DDR_STATISTICS -DCFG_FEATURE_FORCE_NO_SCAN
-ccflags-y += -DCFG_FEATURE_DEVICE_DEVID_CONVERT -DCFG_DDR_BANDWIDTH_BY_FREQ
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2 -DCFG_MEMORY_DDR_INFO_FROM_LP
+ccflags-y += -DDRV_SUPPORT_SYSCOUNT -DCFG_MEMORY_SAFETY_RAS
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a),)
+ccflags-y += -DDDR_VPRINTK -DCFG_DDR_REG_ADDR_710 -DCFG_SOC_PLATFORM_MDC_V51
+endif
+ifneq ($(filter $(PRODUCT), ascend610Lite ascend610Liteesl),)
+ccflags-y += -DCFG_DDR_REG_ADDR_610VER3 -DCFG_SOC_PLATFORM_MDC_V51LITE
+endif
+endif
+
+ccflags-y += -I$(DRIVER_INC)/include/internal
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h

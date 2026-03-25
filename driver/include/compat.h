@@ -99,6 +99,27 @@
  * - signal_pending() unchanged
  */
 
+/* freezer_do_not_count()/freezer_count() were dropped from newer kernels.
+ * Older driver code only uses them as freezer accounting hints around waits. */
+#include <linux/freezer.h>
+#ifndef freezer_do_not_count
+#define freezer_do_not_count() do {} while (0)
+#endif
+#ifndef freezer_count
+#define freezer_count() do {} while (0)
+#endif
+
+/* wakeup_source_create/add/remove/destroy are now internal helpers.
+ * Older drivers still use the create/add/remove/destroy sequence directly. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+#include <linux/device.h>
+#include <linux/pm_wakeup.h>
+#define wakeup_source_create(name) wakeup_source_register(NULL, (name))
+#define wakeup_source_add(ws) do {} while (0)
+#define wakeup_source_remove(ws) do {} while (0)
+#define wakeup_source_destroy(ws) wakeup_source_unregister((ws))
+#endif
+
 /* ========================================================================
  * 7. IDR / IDA
  * ======================================================================== */
@@ -159,6 +180,13 @@
 #endif
 #endif
 
+/* get_random_int() is gone in newer kernels; old driver code only needs a
+ * 32-bit random value and can use get_random_u32() transparently. */
+#include <linux/random.h>
+#ifndef get_random_int
+#define get_random_int() get_random_u32()
+#endif
+
 /* profile_event_register/unregister removed in 5.x
  * PROFILE_TASK_EXIT profiling hooks no longer available */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
@@ -167,6 +195,88 @@
 #endif
 static inline int profile_event_register(int t, struct notifier_block *n) { return 0; }
 static inline int profile_event_unregister(int t, struct notifier_block *n) { return 0; }
+#endif
+
+/* Historical devdrv IPC ids are referenced from product-shared source files
+ * even when the selected per-product manager header no longer defines them. */
+#ifndef LPR52_TYPE1
+#define LPR52_TYPE1 0xa
+#endif
+#ifndef LPR52_LOGLEVEL_CMD
+#define LPR52_LOGLEVEL_CMD 0x2
+#endif
+#ifndef LPR52_SOURECE_ID
+#define LPR52_SOURECE_ID 0
+#endif
+#ifndef LPR52_TARGET_ID
+#define LPR52_TARGET_ID 0x4
+#endif
+
+/* Legacy synchronous compression users still reference the pre-acomp type id. */
+#include <linux/crypto.h>
+#ifndef CRYPTO_ALG_TYPE_COMPRESS
+#define CRYPTO_ALG_TYPE_COMPRESS CRYPTO_ALG_TYPE_ACOMPRESS
+#endif
+#ifndef CRYPTO_ALG_TYPE_COMPRESS_MASK
+#define CRYPTO_ALG_TYPE_COMPRESS_MASK CRYPTO_ALG_TYPE_ACOMPRESS_MASK
+#endif
+
+/* Legacy sync compression helpers were folded into acomp. Recreate the old
+ * crypto_comp API shape on top of acomp so migrated drivers keep working. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#include <crypto/acompress.h>
+#define crypto_comp crypto_acomp
+
+static inline struct crypto_comp *crypto_alloc_comp(const char *alg_name,
+	u32 type, u32 mask)
+{
+	type &= ~CRYPTO_ALG_TYPE_MASK;
+	type |= CRYPTO_ALG_TYPE_ACOMPRESS;
+	mask |= CRYPTO_ALG_TYPE_ACOMPRESS_MASK;
+
+	return crypto_alloc_acomp(alg_name, type, mask);
+}
+
+static inline void crypto_free_comp(struct crypto_comp *tfm)
+{
+	crypto_free_acomp(tfm);
+}
+
+static inline int crypto_comp_compress(struct crypto_comp *tfm, const u8 *src,
+	unsigned int slen, u8 *dst, unsigned int *dlen)
+{
+	DECLARE_CRYPTO_WAIT(wait);
+	ACOMP_REQUEST_ON_STACK(req, tfm);
+	int ret;
+
+	acomp_request_set_src_nondma(req, src, slen);
+	acomp_request_set_dst_nondma(req, dst, *dlen);
+	acomp_request_set_callback(req, CRYPTO_TFM_REQ_MAY_SLEEP,
+		crypto_req_done, &wait);
+	ret = crypto_wait_req(crypto_acomp_compress(req), &wait);
+	if (ret == 0)
+		*dlen = req->dlen;
+
+	return ret;
+}
+
+static inline int crypto_comp_decompress(struct crypto_comp *tfm,
+	const u8 *src, unsigned int slen, u8 *dst, unsigned int *dlen)
+{
+	DECLARE_CRYPTO_WAIT(wait);
+	ACOMP_REQUEST_ON_STACK(req, tfm);
+	int ret;
+
+	acomp_request_set_src_nondma(req, src, slen);
+	acomp_request_set_dst_nondma(req, dst, *dlen);
+	acomp_request_set_callback(req, CRYPTO_TFM_REQ_MAY_SLEEP,
+		crypto_req_done, &wait);
+	ret = crypto_wait_req(crypto_acomp_decompress(req), &wait);
+	if (ret == 0)
+		*dlen = req->dlen;
+
+	return ret;
+}
 #endif
 
 /* __get_free_pages / free_pages unchanged */
@@ -205,6 +315,23 @@ static inline int profile_event_unregister(int t, struct notifier_block *n) { re
 #include <linux/of.h>
 #define irq_domain_add_simple(node, size, first, ops, host_data) \
     irq_domain_create_simple(of_fwnode_handle(node), size, first, ops, host_data)
+#endif
+
+/* Legacy drivers still use the old 2-argument MSI descriptor iterator. */
+#include <linux/msi.h>
+#ifndef for_each_msi_entry
+#define for_each_msi_entry(desc, dev) msi_for_each_desc((desc), (dev), MSI_DESC_ALL)
+#endif
+
+/* Old out-of-tree drivers still use the platform_msi_domain_* helpers.
+ * The current kernel exposes the equivalent platform_device_msi_* APIs. */
+#ifndef platform_msi_domain_alloc_irqs
+#define platform_msi_domain_alloc_irqs(dev, nvec, write_msi_msg) \
+	platform_device_msi_init_and_alloc_irqs((dev), (nvec), (write_msi_msg))
+#endif
+#ifndef platform_msi_domain_free_irqs
+#define platform_msi_domain_free_irqs(dev) \
+	platform_device_msi_free_irqs_all((dev))
 #endif
 
 /* i2c_driver.probe lost the id parameter in 6.3+ */

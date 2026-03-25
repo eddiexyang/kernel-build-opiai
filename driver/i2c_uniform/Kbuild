@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := drv_i2c_uniform.o
-drv_i2c_uniform-objs := hisi_i2c.o i2c_v400.o i2c_misc.o i2c_misc_310.o
+drv_i2c_uniform-objs := hisi_i2c.o i2c_v400.o i2c_misc.o
+
+ifneq ($(filter $(PRODUCT), ascend610Lite),)
+ccflags-y += -DASCEND_MDC_LITE
+drv_i2c_uniform-objs += i2c_misc_610.o
+else
+drv_i2c_uniform-objs += i2c_misc_310.o
+endif
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver

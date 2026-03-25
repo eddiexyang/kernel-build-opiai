@@ -256,13 +256,13 @@ register_notifier_failed:
 	return -1;
 }
 
-STATIC void lpm_devmng_remove(struct platform_device *pdev)
+STATIC int32_t lpm_devmng_do_remove(struct platform_device *pdev)
 {
 	int32_t ret;
 
 	if (pdev == NULL) {
 		lpm_log_err("lpm devmng remove parameter invalid\n");
-		
+		return -1;
 	}
 
 	ret = lpm_devmng_exit_module();
@@ -276,10 +276,15 @@ STATIC void lpm_devmng_remove(struct platform_device *pdev)
 	}
 
 	lpm_log_info("lpm devmng driver remove end.\n");
-	
+	return 0;
 }
 
 #ifndef LPM_START_DIRECT
+STATIC void lpm_devmng_remove(struct platform_device *pdev)
+{
+	(void)lpm_devmng_do_remove(pdev);
+}
+
 STATIC void lpm_devmng_shutdown(struct platform_device *pdev)
 {
 	if (pdev == NULL) {
@@ -361,7 +366,7 @@ STATIC void __exit lpm_devmng_exit(void)
 #else
 	int32_t ret;
 	struct platform_device pdev = {0};
-	ret = lpm_devmng_remove(&pdev);
+	ret = lpm_devmng_do_remove(&pdev);
 	if (ret != 0) {
 		lpm_log_err("lpm devmng exit failed, ret=%d\n", ret);
 		return;

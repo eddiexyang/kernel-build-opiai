@@ -114,8 +114,9 @@ struct file_operations g_pkicms_fops = {
 };
 
 /* set cdev node 0600 */
-char *pkicms_devnode(struct device *d, umode_t *mode)
+char *pkicms_devnode(const struct device *d, umode_t *mode)
 {
+    (void)d;
     if (mode != NULL) {
         *mode = DEVNODE_MODE;
     }

@@ -1,6 +1,60 @@
 # SPDX-License-Identifier: GPL-2.0
-obj-m := drv_ai.o
-drv_ai-objs := audio/v200/linux/src/ai_init.o
+obj-m += drv_ai.o
+obj-m += drv_ao.o
+obj-m += drv_aio.o
+obj-m += drv_adec.o
+obj-m += drv_aenc.o
+obj-m += drv_acodec.o
+
+drv_ai-objs := \
+	audio/ai/ai.o \
+	audio/ai/ai_trans.o \
+	audio/comm/audio_fb.o \
+	audio/comm/aio_pub.o \
+	audio/common/ai_drv.o \
+	audio/ai/ai_proc_h7.o \
+	audio/common/ai_drv_proc_h7.o \
+	audio/v200/linux/src/ai_init.o \
+	audio/v200/hi19xx_i2s.o
+
+drv_ao-objs := \
+	audio/ao/ao.o \
+	audio/ao/ao_trans.o \
+	audio/comm/aio_pub.o \
+	audio/common/ao_drv.o \
+	audio/ao/ao_proc_h7.o \
+	audio/common/ao_drv_proc_h7.o \
+	audio/v200/linux/src/ao_init.o \
+	audio/v200/hi19xx_i2s.o
+
+drv_aio-objs := \
+	audio/common/aiao_hal_comm.o \
+	audio/v200/hal/audio/aiao_hal.o \
+	audio/v200/linux/src/aio_init.o \
+	audio/v200/asp_misc.o \
+	audio/v200/pid_protect.o \
+	audio/v200/asp_dma.o \
+	audio/v200/hi19xx_i2s.o \
+	audio/common/audio_fault.o \
+	audio/v200/asp_dma_hal.o
+
+drv_acodec-objs := \
+	audio/v200/linux/src/acodec_init.o \
+	audio/acodec/V900/acodec.o
+
+drv_adec-objs := \
+	audio/adec/adec.o \
+	audio/adec/adec_proc_h8.o \
+	audio/comm/audio_codec_pub.o \
+	audio/v200/linux/src/adec_init.o
+
+drv_aenc-objs := \
+	audio/v200/linux/src/aenc_init.o \
+	audio/comm/audio_fb.o \
+	audio/comm/audio_codec_pub.o \
+	audio/common/aenc_drv.o \
+	audio/aenc/aenc.o \
+	audio/aenc/aenc_proc_h8.o
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
@@ -10,11 +64,13 @@ ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v
 ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
 ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
 ccflags-y += -I$(DRIVER_INC)/include/user_config
-ccflags-y += -I$(DRIVER_INC)/include/media -I$(src) -I$(src)/audio -I$(src)/audio/init/v200/linux/include
+ccflags-y += -I$(src) -I$(src)/audio -I$(src)/audio/init/v200/linux/include
+ccflags-y += -I$(DRIVER_INC)/include/media
 ccflags-y += -DBUILD_MODULE_AUDIO
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-error=date-time
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-return-type
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion

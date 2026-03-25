@@ -224,9 +224,10 @@ int ina2xx_get_value(u8 reg, int *result)
     return 0;
 }
 
-STATIC int ina2xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
+STATIC int ina2xx_probe_impl(struct i2c_client *client, const struct i2c_device_id *id)
 {
     struct i2c_adapter *adapter = client->adapter;
+    const char *match_name = (id != NULL) ? id->name : dev_name(&client->dev);
     int ret;
 
     if (g_i2c_data != NULL) {
@@ -269,17 +270,21 @@ STATIC int ina2xx_probe(struct i2c_client *client, const struct i2c_device_id *i
     }
 
 
-    devdrv_drv_info("power monitor %s (Rshunt = %li uOhm)\n", id->name, g_i2c_data->rshunt);
+    devdrv_drv_info("power monitor %s (Rshunt = %li uOhm)\n", match_name, g_i2c_data->rshunt);
     return 0;
 }
 
-STATIC int ina2xx_remove(struct i2c_client *client)
+STATIC int ina2xx_probe(struct i2c_client *client)
+{
+    return ina2xx_probe_impl(client, i2c_client_get_device_id(client));
+}
+
+STATIC void ina2xx_remove(struct i2c_client *client)
 {
     if (g_i2c_data != NULL) {
         kfree(g_i2c_data);
         g_i2c_data = NULL;
     }
-    return 0;
 }
 
 STATIC const struct i2c_device_id ina2xx_id[] = {

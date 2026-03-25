@@ -192,7 +192,7 @@ STATIC void lpm_suspend_print_suspend_stats(void)
 	int32_t i;
 	int32_t last_step, last_dev, last_err;
 	struct lpm_suspend_priv *suspend_priv = lpm_suspend_priv_info();
-	void *suspend_stats = suspend_priv->opt_hook.suspend_stats;
+	struct suspend_stats *suspend_stats = suspend_priv->opt_hook.suspend_stats;
 
 	if (suspend_stats != NULL) {
 		last_dev  = (suspend_stats->last_failed_dev   + REC_FAILED_NUM - 1) % REC_FAILED_NUM;
@@ -224,8 +224,8 @@ STATIC void lpm_suspend_print_suspend_stats(void)
 STATIC bool lpm_suspend_is_resume_succ(void)
 {
 	struct lpm_suspend_priv *suspend_priv = lpm_suspend_priv_info();
-	void *suspend_stats = suspend_priv->opt_hook.suspend_stats;
-	void *last_stats = &suspend_priv->last_suspend_stats;
+	struct suspend_stats *suspend_stats = suspend_priv->opt_hook.suspend_stats;
+	struct suspend_stats *last_stats = &suspend_priv->last_suspend_stats;
 	int32_t ret;
 	bool succ_flag = true;
 
@@ -245,7 +245,8 @@ STATIC bool lpm_suspend_is_resume_succ(void)
 		succ_flag = false;
 	}
 
-	ret = memcpy_s(last_stats, 512, suspend_stats, 512);
+	ret = memcpy_s(last_stats, sizeof(struct suspend_stats),
+		suspend_stats, sizeof(struct suspend_stats));
 	if (ret != 0) {
 		lpm_log_warn("save suspend stats failed, ret=%d\n", ret);
 	}

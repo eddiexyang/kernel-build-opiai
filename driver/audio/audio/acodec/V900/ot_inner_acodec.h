@@ -7,7 +7,7 @@
 
 #ifndef OT_INNER_ACODEC_H
 #define OT_INNER_ACODEC_H
-#include "hi_comm_audio.h"
+#include "hi_common.h"
 
 #define IOC_TYPE_ACODEC 'A'
 

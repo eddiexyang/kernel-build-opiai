@@ -2,6 +2,11 @@
 obj-m := ascend_trs_core.o
 ascend_trs_core-objs := trs_fops.o trs_ts_inst.o trs_proc.o trs_res_mng.o trs_sqcq_map.o trs_hw_sqcq.o trs_sw_sqcq.o trs_logic_cq.o trs_cb_sqcq.o trs_shm_sqcq.o trs_proc_fs.o
 
+ifeq ($(TARGET_BUILD_TYPE),debug)
+ascend_trs_core-objs += trs_core_trace.o
+ccflags-y += -DCFG_BUILD_DEBUG
+endif
+
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
 ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms

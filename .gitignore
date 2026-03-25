@@ -28,6 +28,13 @@ __pycache__/
 /driver/**/modules.order
 /driver/**/.cache.mk
 /driver/**/.tmp_*.o
+*.d
+*.o
+*.ko
+*.cmd
+*.mod
+*.mod.c
+*.symvers
 
 # Kbuild leftovers if they appear outside the dedicated workspace
 *.order.cmd

@@ -10,7 +10,10 @@
  *
  *   - drv_cpu_type.c (bbox, pcie, davinci_intf, dms, dms_smf, logdrv,
  *     prof, event_sched, ipcdrv, pkicms): cpu_domain.ctrlcpu_bitmap
- *   - davinci_intf_info.c: cpu_domain.ctrlcpu_num, datacpu_num, aicpu_num
+ *   - davinci_intf_info.c / agentdrv_multi_chip.c:
+ *     cpu_domain.ctrlcpu_num, datacpu_num, aicpu_num
+ *   - bind_core.c / hisi_mailbox_dev.c:
+ *     cpu_domain.aicpu_bitmap, cpu_domain.datacpu_bitmap
  *
  * get_cpudomain_info() is expected to be provided by the AOS kernel;
  * all callers use __attribute__((weak)) so the driver compiles and loads
@@ -24,6 +27,8 @@ struct cpu_domain_info {
 	unsigned int ctrlcpu_num;
 	unsigned int datacpu_num;
 	unsigned int aicpu_num;
+	unsigned long aicpu_bitmap;
+	unsigned long datacpu_bitmap;
 };
 
 int get_cpudomain_info(struct cpu_domain_info *info);

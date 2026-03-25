@@ -127,7 +127,7 @@ int set_workqueue_affinity(struct workqueue_struct *wq, u32 flag, const struct c
         return -ENOMEM;
     }
     attrs->nice = (flag & WQ_HIGHPRI) ? MIN_NICE : 0;
-    attrs->no_numa = true;
+    /* attrs->no_numa removed in kernel 6.x */
     cpumask_copy(attrs->cpumask, wq_cpumask);
 
     ret = apply_workqueue_attrs(wq, attrs);

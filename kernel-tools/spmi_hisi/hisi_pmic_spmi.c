@@ -219,6 +219,7 @@ u32 hisi_second_pmic_read_reg(const s32 sid, const s32 reg)
 
 	return (u32)read_value;
 }
+EXPORT_SYMBOL(hisi_second_pmic_read_reg);
 
 /*
  * Function    : hisi_pmic_write_reg

@@ -371,12 +371,12 @@ static void tsdrv_parse_ts_irq(struct platform_device *pdev, u32 *irq_map, u32 i
     struct msi_desc *desc = NULL;
 
     for_each_msi_entry(desc, &pdev->dev) {
-        if (desc->platform.msi_index >= irq_num) {
+        if (desc->msi_index >= irq_num) {
             break;
         }
-        irq_map[desc->platform.msi_index] = desc->irq;
+        irq_map[desc->msi_index] = desc->irq;
         TSDRV_PRINT_DEBUG("Get msi irq. (index=%d; irq=%u)\n",
-            desc->platform.msi_index, desc->irq);
+            desc->msi_index, desc->irq);
     }
 }
 

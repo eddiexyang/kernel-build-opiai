@@ -21,7 +21,7 @@
 #include <linux/hisi-spmi.h>
 #include <linux/pm_runtime.h>
 #define CREATE_TRACE_POINTS
-#include <trace/events/spmi.h>
+#include "include/spmi.h"
 #include <linux/of_hisi_spmi.h>
 #include "hisi-spmi-dbgfs.h"
 
@@ -123,7 +123,7 @@ int spmi_del_controller(struct spmi_controller *spmi_ctrl)
 	bus_for_each_dev(&spmi_bus_type, NULL, spmi_ctrl, spmi_ctrl_remove_device);
 	mutex_unlock(&board_lock);
 
-#ifdef CONFIG_HISI_SPMI_DEBUG_FS
+#if defined(CONFIG_HISI_SPMI_DEBUG_FS) || defined(CONFIG_HISI_SPMI_DEBUG_FS_MODULE)
 	(void)spmi_dfs_del_controller(spmi_ctrl);
 #endif
 	mutex_lock(&board_lock);
@@ -497,7 +497,7 @@ static const struct spmi_device_id *spmi_match(const struct spmi_device_id *sd_i
 	return NULL;
 }
 
-static int spmi_device_match(struct device *dev, struct device_driver *dev_drv)
+static int spmi_device_match(struct device *dev, const struct device_driver *dev_drv)
 {
 	struct spmi_driver *sdrv = to_spmi_driver(dev_drv);
 	struct spmi_device *spmi_dev_temp = NULL;
@@ -643,12 +643,6 @@ static int spmi_register_controller(struct spmi_controller *spmi_ctrl)
 {
 	int ret = 0;
 
-	/* Can't register until after driver model init */
-	if (WARN_ON(!spmi_bus_type.p)) {
-		ret = -EAGAIN;
-		goto exit;
-	}
-
 	dev_set_name(&spmi_ctrl->dev, "spmi-%d", spmi_ctrl->nr);
 	spmi_ctrl->dev.bus = &spmi_bus_type;
 	spmi_ctrl->dev.type = &spmi_ctrl_type;
@@ -659,7 +653,7 @@ static int spmi_register_controller(struct spmi_controller *spmi_ctrl)
 	dev_dbg(&spmi_ctrl->dev, "Bus spmi-%d registered: dev:0x%pK\n",
 					spmi_ctrl->nr, &spmi_ctrl->dev);
 
-#ifdef CONFIG_HISI_SPMI_DEBUG_FS
+#if defined(CONFIG_HISI_SPMI_DEBUG_FS) || defined(CONFIG_HISI_SPMI_DEBUG_FS_MODULE)
 	ret = spmi_dfs_add_controller(spmi_ctrl);
 	if (ret) {
 		dev_err(&spmi_ctrl->dev, "Bus spmi-%d registered: dev:0x%pK add debug fs controller failed!\n",

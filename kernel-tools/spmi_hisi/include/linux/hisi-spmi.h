@@ -1,0 +1,1 @@
+#include "../hisi-spmi.h"

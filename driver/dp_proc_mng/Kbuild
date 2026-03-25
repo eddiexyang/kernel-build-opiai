@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := drv_dp_proc_mng.o
-drv_dp_proc_mng-objs := common_src/dp_proc_mng_module_ops.o common_src/dp_proc_mng_pci_dev_tbl.o \
-	agent_comm/dp_proc_mng_agent_register_ops.o agent_comm/dp_proc_mng_pid_map.o \
+drv_dp_proc_mng-objs := common_src/dp_proc_mng_module_ops.o \
+	agent_comm/dp_proc_mng_pid_map.o \
+	dp_proc_mng_agent_msg_client.o dp_proc_mng_agent_channel.o \
 	agent_comm/dp_proc_mng_agent_proc_info.o \
-	dp_proc_mng_agent_msg_client.o dp_proc_mng_agent_channel.o
+	agent_comm/dp_proc_mng_agent_register_ops.o
 
 DRIVER_INC := $(src)/..
+ifneq ($(NOT_SUPPORT_SP),y)
+ccflags-y += -fstack-protector-all
+endif
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
 ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
 ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
@@ -13,7 +17,10 @@ ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v
 ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
 ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
 ccflags-y += -I$(src) -I$(src)/common_src -I$(src)/agent_comm
+ccflags-y += -Wall -Werror -Wtrampolines -Wfloat-equal -Wvla -Wundef
+ifneq ($(filter $(PRODUCT), ascend310rc ascend310Brc ascend310Brcesl ascend310Brcemu),)
 ccflags-y += -DCFG_FEATURE_RC_MODE
+endif
 # KBUILD_EXTRA_SYMBOLS := $(src)/../pcie/Module.symvers $(src)/../davinci_intf/Module.symvers
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)

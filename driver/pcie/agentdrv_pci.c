@@ -1020,10 +1020,10 @@ int agentdrv_alloc_soc_db_interrupt(struct agentdrv_devctrl *agent_dev, struct p
             return ret;
         }
         for_each_msi_entry(desc, &pdev->dev) {
-            if (desc->platform.msi_index >= AGENTDRV_SOC_DB_IRQ_NUM) {
+            if (desc->msi_index >= AGENTDRV_SOC_DB_IRQ_NUM) {
                 break;
             }
-            agent_dev->msi_irq_base[agent_dev->func_index][desc->platform.msi_index] =
+            agent_dev->msi_irq_base[agent_dev->func_index][desc->msi_index] =
                 desc->irq;
         }
 

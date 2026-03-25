@@ -3638,6 +3638,11 @@ STATIC void devdrv_manager_msg_chan_notify(u32 dev_id, int status)
 {
 }
 
+STATIC void devdrv_manager_msg_chan_init_notify(u32 dev_id)
+{
+    devdrv_manager_msg_chan_notify(dev_id, 0);
+}
+
 #define DEV_MNG_NON_TRANS_MSG_DESC_SIZE 1024
 struct devdrv_non_trans_msg_chan_info dev_manager_msg_chan_info = {
     .msg_type = devdrv_msg_client_devmanager,
@@ -3691,7 +3696,7 @@ STATIC void devdrv_manager_common_chan_init(void)
     /* this function will be called at module_init, doesn't need lock */
     devdrv_manager_common_chan.type = DEVDRV_COMMON_MSG_DEVDRV_MANAGER;
     devdrv_manager_common_chan.common_msg_recv = devdrv_manager_rx_common_msg_process;
-    devdrv_manager_common_chan.init_notify = devdrv_manager_msg_chan_notify;
+    devdrv_manager_common_chan.init_notify = devdrv_manager_msg_chan_init_notify;
 }
 
 STATIC void devdrv_manager_common_chan_uninit(void)
@@ -3840,6 +3845,11 @@ STATIC int devdrv_manager_dev_state_notify(u32 probe_num, u32 devid, u32 state)
     ssleep(1);  // add 1s for bbox to dump when unbind
 
     return 0;
+}
+
+STATIC int devdrv_manager_dev_state_notify_compat(u32 devid, u32 state)
+{
+    return devdrv_manager_dev_state_notify(devdrv_manager_get_probe_num_kernel(), devid, state);
 }
 STATIC int devdrv_manager_dev_startup_notify(u32 prob_num, const u32 devids[], u32 array_len, u32 devnum)
 {
@@ -4595,7 +4605,7 @@ int devdrv_manager_init(void)
     }
 
     drvdrv_dev_startup_register(devdrv_manager_dev_startup_notify);
-    drvdrv_dev_state_notifier_register(devdrv_manager_dev_state_notify);
+    drvdrv_dev_state_notifier_register(devdrv_manager_dev_state_notify_compat);
 
     ret = log_level_file_init();
     if (ret != 0) {

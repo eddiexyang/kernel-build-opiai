@@ -32,17 +32,13 @@ TRACE_EVENT(logic_cqe,
     TP_PROTO(const char *str, struct trs_id_inst *inst, struct trs_logic_cqe_trace *cq_trace),
     TP_ARGS(str, inst, cq_trace),
     TP_STRUCT__entry(
-        __string(           str,                            str         )
+        __string(           str,                            str ? str : "nop" )
         __field_struct(     struct trs_id_inst,             inst        )
         __field_struct(     struct trs_logic_cqe_trace,     cq_trace    )
         __field_struct(     struct timespec64,              timestamp   )
     ),
     TP_fast_assign(
-        if (str != NULL) {
-            __assign_str(str, str);
-        } else  {
-            __assign_str(str, "nop");
-        }
+        __assign_str(str);
         __entry->inst = *inst;
         __entry->cq_trace = *cq_trace;
         ktime_get_ts64(&__entry->timestamp);
@@ -82,17 +78,13 @@ TRACE_EVENT(logic_cq_recv,
     TP_PROTO(const char *str, struct trs_id_inst *inst, struct trs_logic_cq_recv_trace_t *recv_trace),
     TP_ARGS(str, inst, recv_trace),
     TP_STRUCT__entry(
-        __string(           str,                                str         )
+        __string(           str,                                str ? str : "nop" )
         __field_struct(     struct trs_id_inst,                 inst        )
         __field_struct(     struct trs_logic_cq_recv_trace_t,   recv_trace  )
         __field_struct(     struct timespec64,                  timestamp   )
     ),
     TP_fast_assign(
-        if (str != NULL) {
-            __assign_str(str, str);
-        } else  {
-            __assign_str(str, "nop");
-        }
+        __assign_str(str);
         __entry->inst = *inst;
         __entry->recv_trace = *recv_trace;
         ktime_get_ts64(&__entry->timestamp);
@@ -122,4 +114,3 @@ TRACE_EVENT(logic_cq_recv,
 #define TRACE_INCLUDE_PATH .
 #define TRACE_INCLUDE_FILE trs_core_trace_event
 #include <trace/define_trace.h>
-

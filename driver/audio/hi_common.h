@@ -22,6 +22,7 @@
 #endif
 #include "hi_type.h"
 #include "hi_defines.h"
+#include "ot_common.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -54,7 +55,9 @@ extern "C" {
 #else
 #define VER_D                  " Release"
 #endif
+#ifndef ATTRIBUTE
 #define ATTRIBUTE              __attribute__((aligned(ALIGN_NUM)))
+#endif
 #define hi_unused(x)           ((hi_void)(x))
 
 #define COMPAT_POINTER(ptr, type) \

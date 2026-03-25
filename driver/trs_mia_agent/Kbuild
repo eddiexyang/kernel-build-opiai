@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := ascend_trs_mia_agent.o
-ascend_trs_mia_agent-objs := trs_near_mia_agent.o
+ascend_trs_mia_agent-objs := trs_near_mia_agent.o agent_comm/trs_cache_id_recycle.o
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver

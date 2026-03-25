@@ -232,8 +232,8 @@ STATIC int devdrv_get_brother_udevid(u32 udevid, u32 *bro_udevid)
 {
     int ret;
     u32 i;
-    struct dmanage_pcie_id_info id_info = {0};
-    struct dmanage_pcie_id_info tmp_id_info = {0};
+    struct devdrv_pcie_id_info id_info = {0};
+    struct devdrv_pcie_id_info tmp_id_info = {0};
 
     ret = devdrv_get_pcie_id_info(udevid, &id_info);
     if (ret != 0) {

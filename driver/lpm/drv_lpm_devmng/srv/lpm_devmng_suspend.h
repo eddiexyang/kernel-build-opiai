@@ -23,6 +23,38 @@
 #define LPM_SUSPEND_WAIT_RESUME_CNT 5000
 #define LPM_SUSPEND_WAIT_RESUME_TIME LPM_DELAY_1000_US
 
+#ifndef REC_FAILED_NUM
+#define REC_FAILED_NUM 2
+#endif
+
+#ifndef LPM_COMPAT_SUSPEND_STATS_DEFINED
+#define LPM_COMPAT_SUSPEND_STATS_DEFINED
+/*
+ * Newer kernels keep suspend_stats private to kernel/power/main.c. Restore the
+ * historical layout expected by the original LPM sources so the old
+ * suspend-reporting paths can still compile when that type is no longer
+ * exported via public headers.
+ */
+struct suspend_stats {
+	unsigned int success;
+	unsigned int fail;
+	unsigned int failed_freeze;
+	unsigned int failed_prepare;
+	unsigned int failed_suspend;
+	unsigned int failed_suspend_late;
+	unsigned int failed_suspend_noirq;
+	unsigned int failed_resume_noirq;
+	unsigned int failed_resume_early;
+	unsigned int failed_resume;
+	int last_failed_dev;
+	char failed_devs[REC_FAILED_NUM][40];
+	int last_failed_errno;
+	int errno[REC_FAILED_NUM];
+	int last_failed_step;
+	enum suspend_stat_step failed_steps[REC_FAILED_NUM];
+};
+#endif
+
 typedef bool (*fn_pm_get_wakeup_count_call)(uint32_t *count, bool block);
 typedef bool (*fn_pm_save_wakeup_count_call)(uint32_t count);
 
@@ -77,12 +109,12 @@ struct lpm_suspend_opt_hook {
 	bool opt_avail;
 	fn_pm_get_wakeup_count_call get_wakeup_count;
 	fn_pm_save_wakeup_count_call save_wakeup_count;
-	void *suspend_stats;
+	struct suspend_stats *suspend_stats;
 };
 
 struct lpm_suspend_priv {
 	struct lpm_suspend_opt_hook opt_hook;
-	char last_suspend_stats[512];
+	struct suspend_stats last_suspend_stats;
 	struct mutex suspend_lock;
 };
 

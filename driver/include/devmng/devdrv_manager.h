@@ -47,12 +47,40 @@
 
 #define INVAILD_DEVICE_ID 0xff
 
+/* add for partial good */
+#ifdef CFG_SOC_PLATFORM_CLOUD
+#define EFUSE_BASE_ADDR 0x8B340000
+#define EFUSE_AICORE_NUM_OFFSET     0xE2B8
+#define EFUSE_AICORE_FREQ_OFFSET    0xE224
+#define SIZE_OF_64K 0x10000
+#define EFUSE_SIZE 4
+#define PARTIAL_GOOD_CORE_NUM 30
+#ifdef CFG_SOC_PLATFORM_CLOUD_V2
+#define FULL_GOOD_CORE_NUM 48
+#else
+#define FULL_GOOD_CORE_NUM 32
+#endif
+#define PARTIAL_GOOD_FREQ_LITE      900
+#define PARTIAL_GOOD_FREQ_MEDIUM    1000
+#define PARTIAL_GOOD_FREQ_PRO       1200
+#define PARTIAL_GOOD_FREQ_EFUSE_VAL_ZERO    0
+#define PARTIAL_GOOD_FREQ_EFUSE_VAL_ONE     1
+#define PARTIAL_GOOD_FREQ_EFUSE_VAL_THREE   3
+#define PARTIAL_GOOD_FREQ_EFUSE_VAL_FIVE    5
+#define PARTIAL_GOOD_EFUSE_OFFSET_NINE      9
+#define PARTIAL_GOOD_EFUSE_AND_SEVEN   0x07
+#endif
+
 #define PMU21_VBUCK_VOLTAGE 0
 #define PMU21_VOUT_VOLTAGE 1
 #define PMU22_VBUCK_VOLTAGE 2
 #define PMU_ADC_VOLTAGE 3
 #define PMU_MAIN_DIEID 0
 #define PMU_SECOND_DIEID 1
+
+#define DEVDRV_CHIP_ADDR_OFFSET 0x200000000000
+#define DEVDRV_ADDR_DEVMNG_OFFSET 0x22140000
+#define DEVDRV_ADDR_DEVMNG_SIZE 0x1000000
 
 struct devdrv_gpioirq {
     int pid;
@@ -137,12 +165,16 @@ enum dev_id_type {
 #define LPM3_TSENSOR_RESET_ALARM 31
 #define LPM3_CANCEL_RESET_ALARM 32
 #define LPM3_EXCEPTION_INFO 34
+#define LPR52_TYPE1 0xa
 /* cmd type0: */
 #define LPM3_QUERY_CMD 2
 #define LPM3_LOGLEVEL_CMD 3
 #define LPM3_NOTIFY_CMD 4
 #define LPM3_HEART_BEAT_QUERY 8
+#define LPR52_LOGLEVEL_CMD 0x2
 /* obj or src id: */
+#define LPR52_SOURECE_ID 0
+#define LPR52_TARGET_ID 0x4
 #define LPM3_HEART_ID 3
 #define LPM3_PSCI_ID 10
 #define LPM3_ID 2
@@ -290,6 +322,10 @@ int devdrv_fresh_event_code_to_shm(u32 devid, u32 *health_code, u32 health_len,
     struct shm_event_code *event_code, u32 event_len);
 int dms_device_register(struct devdrv_info* dev);
 void dms_device_unregister(struct devdrv_info* dev);
+/* legacy drv_memory LP/ECC query interfaces */
+int devdrv_get_ecc_statistics(unsigned long arg);
+int devdrv_get_freq_from_lp_memory(unsigned int dev_id, unsigned int type, unsigned int *freq);
+int devdrv_query_ddr_statistic_from_lp(unsigned int dev_id, unsigned int type, void *out_msg);
 int devdrv_lpm3_notifier_handle(u32 dev_id, unsigned long len, void *data);
 int devdrv_lpm3_notifier_chan2(u32 dev_id, unsigned long len, void *data);
 int devdrv_manager_send_tslog_addr_to_host(u32 devid, u64 phy_addr, u32 mem_size, bool dynamic_alloc);

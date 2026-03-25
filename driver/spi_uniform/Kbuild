@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := drv_spi_uniform.o
-drv_spi_uniform-objs := hispi.o spi_hisiv500.o spi_api.o spi_misc.o spi_misc_310.o
+drv_spi_uniform-objs := hispi.o spi_hisiv500.o spi_api.o spi_misc.o
+
+ifneq ($(filter $(PRODUCT), ascend610Lite),)
+ccflags-y += -DASCEND_MDC_LITE
+drv_spi_uniform-objs += spi_misc_610.o
+else
+drv_spi_uniform-objs += spi_misc_310.o
+endif
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver

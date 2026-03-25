@@ -177,6 +177,34 @@ int devdrv_dma_fill_desc_of_sq(u32 devid, void *sq_base, struct devdrv_dma_node 
 /* async DAM link prepare */
 struct devdrv_dma_prepare *devdrv_dma_link_prepare(u32 devid, enum devdrv_dma_data_type type,
                                                    struct devdrv_dma_node *dma_node, u32 node_cnt);
+/*
+ * Some legacy host-side sources still call devdrv_dma_link_prepare() with an
+ * extra fill-status argument. Keep that call shape working and translate the
+ * extra parameter into an explicit SQ descriptor fill step.
+ */
+static inline struct devdrv_dma_prepare *compat_devdrv_dma_link_prepare_4(u32 devid,
+    enum devdrv_dma_data_type type, struct devdrv_dma_node *dma_node, u32 node_cnt)
+{
+    return devdrv_dma_link_prepare(devid, type, dma_node, node_cnt);
+}
+
+static inline struct devdrv_dma_prepare *compat_devdrv_dma_link_prepare_5(u32 devid,
+    enum devdrv_dma_data_type type, struct devdrv_dma_node *dma_node, u32 node_cnt, u32 fill_status)
+{
+    struct devdrv_dma_prepare *dma_prepare = devdrv_dma_link_prepare(devid, type, dma_node, node_cnt);
+
+    if (dma_prepare != NULL) {
+        (void)devdrv_dma_fill_desc_of_sq(devid, dma_prepare->sq_base, dma_node, node_cnt, fill_status);
+    }
+
+    return dma_prepare;
+}
+
+#define compat_devdrv_dma_link_prepare_sel(_1, _2, _3, _4, _5, NAME, ...) NAME
+#undef devdrv_dma_link_prepare
+#define devdrv_dma_link_prepare(...) \
+    compat_devdrv_dma_link_prepare_sel(__VA_ARGS__, compat_devdrv_dma_link_prepare_5, \
+    compat_devdrv_dma_link_prepare_4)(__VA_ARGS__)
 /* async DAM link free */
 int devdrv_dma_link_free(struct devdrv_dma_prepare *dma_prepare);
 
@@ -296,6 +324,77 @@ int agentdrv_register_common_msg_client(struct agentdrv_common_msg_client *msg_c
 int agentdrv_unregister_common_msg_client(const struct agentdrv_common_msg_client *msg_client);
 int agentdrv_common_msg_send(u32 devid, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len,
                              enum agentdrv_common_msg_type msg_type);
+
+/*
+ * Legacy host-side compatibility layer.
+ *
+ * A subset of the older host stack still builds against the historical
+ * devdrv_* messaging API. Keep the old names available and let drv_pcie
+ * provide the queue wrappers on top of the current agentdrv_* stack.
+ */
+#define devdrv_sync_msg_send agentdrv_sync_msg_send
+
+#define DEVDRV_COMMON_MSG_PCIVNIC AGENTDRV_COMMON_MSG_PCIVNIC
+#define DEVDRV_COMMON_MSG_SMMU AGENTDRV_COMMON_MSG_SMMU
+#define DEVDRV_COMMON_MSG_DEVMM AGENTDRV_COMMON_MSG_DEVMM
+#define DEVDRV_COMMON_MSG_VMNG AGENTDRV_COMMON_MSG_VMNG
+#define DEVDRV_COMMON_MSG_PROFILE AGENTDRV_COMMON_MSG_PROFILE
+#define DEVDRV_COMMON_MSG_HDC AGENTDRV_COMMON_MSG_HDC
+#define DEVDRV_COMMON_MSG_SYSFS AGENTDRV_COMMON_MSG_SYSFS
+#define DEVDRV_COMMON_MSG_ESCHED AGENTDRV_COMMON_MSG_ESCHED
+#define DEVDRV_COMMON_MSG_DEVDRV_MANAGER AGENTDRV_COMMON_MSG_DEVDRV_MANAGER
+#define DEVDRV_COMMON_MSG_DEVDRV_TSDRV AGENTDRV_COMMON_MSG_DEVDRV_TSDRV
+#define DEVDRV_COMMON_MSG_DP_PROC_MNG AGENTDRV_COMMON_MSG_DP_PROC_MNG
+#define DEVDRV_COMMON_MSG_TYPE_MAX AGENTDRV_COMMON_MSG_TYPE_MAX
+
+#define devdrv_msg_client_hdc agentdrv_msg_client_hdc
+#define devdrv_msg_client_devmanager agentdrv_msg_client_devmanager
+#define devdrv_msg_client_tsdrv agentdrv_msg_client_tsdrv
+
+#define devdrv_common_msg_client agentdrv_common_msg_client
+
+static inline int devdrv_common_msg_send(u32 devid, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len,
+    u32 msg_type)
+{
+    return agentdrv_common_msg_send(devid, data, in_data_len, out_data_len, real_out_len,
+        (enum agentdrv_common_msg_type)msg_type);
+}
+
+static inline int devdrv_register_common_msg_client(struct devdrv_common_msg_client *msg_client)
+{
+    return agentdrv_register_common_msg_client((struct agentdrv_common_msg_client *)msg_client);
+}
+
+static inline int devdrv_unregister_common_msg_client(u32 devid, const struct devdrv_common_msg_client *msg_client)
+{
+    (void)devid;
+    return agentdrv_unregister_common_msg_client((const struct agentdrv_common_msg_client *)msg_client);
+}
+
+struct devdrv_non_trans_msg_chan_info {
+    u32 msg_type;
+    u32 flag;
+    u32 level;
+    u32 s_desc_size;
+    u32 c_desc_size;
+    int (*rx_msg_process)(void *msg_chan, void *data, u32 in_data_len, u32 out_data_len, u32 *real_out_len);
+};
+
+struct devdrv_trans_msg_chan_info {
+    u32 msg_type;
+    u32 queue_depth;
+    u32 level;
+    u32 sq_desc_size;
+    u32 cq_desc_size;
+    void (*rx_msg_notify)(void *msg_chan);
+    void (*tx_finish_notify)(void *msg_chan);
+};
+
+void *devdrv_pcimsg_alloc_non_trans_queue(u32 dev_id, const struct devdrv_non_trans_msg_chan_info *chan_info);
+int devdrv_pcimsg_free_non_trans_queue(void *msg_chan);
+void *devdrv_pcimsg_alloc_trans_queue(u32 dev_id, const struct devdrv_trans_msg_chan_info *chan_info);
+int devdrv_pcimsg_realease_trans_queue(void *msg_chan);
+int devdrv_get_support_msg_chan_cnt(u32 dev_id, u32 msg_type);
 
 /****************************************************************************
  * ***************************** client register *****************************
@@ -570,6 +669,7 @@ int devdrv_get_slot_num(void);
 int devdrv_get_davinci_dev_num(void);
 int devdrv_get_device_boot_status(u32 devid, u32 *boot_status);
 int devdrv_get_pci_dev_info(u32 devid, struct devdrv_pci_dev_info *dev_info);
+struct device *devdrv_get_pci_dev_by_devid(u32 devid);
 int devdrv_get_ts_drv_irq_vector_id(u32 devid, u32 index, unsigned int *entry);
 int devdrv_get_topic_sched_irq_vector_id(u32 devid, u32 index, unsigned int *entry);
 int devdrv_get_cdqm_irq_vector_id(u32 devid, u32 index, unsigned int *entry);
@@ -642,10 +742,45 @@ int devdrv_get_pfvf_type_by_devid(u32 dev_id);
 #define DEVDRV_SRIOV_HOST_MAX_PF_DEV_CNT 64
 #define DEVDRV_SRIOV_HOST_VF_DEVID_START 100
 int devdrv_get_host_pfvf_id_by_devid(u32 dev_id, u32 *pf_id, u32 *vf_id);
+int vmngd_get_device_vf_list(u32 dev_id, u32 *vf_list, u32 list_len, u32 *vf_num);
 
 bool devdrv_is_mdev_vm_boot_mode(u32 dev_id);
 
 bool agentdrv_is_mdev_vm_full_spec(u32 dev_id);
+
+/*
+ * Some legacy host-side devmng sources still depend on helper APIs that are
+ * no longer exported directly. Keep their historical call sites working by
+ * translating them to the currently exported virtualization state.
+ */
+static inline int devdrv_get_pci_enabled_vf_num(u32 dev_id, int *vf_num)
+{
+    u32 vf_list[DEVDRV_SRIOV_HOST_MAX_PF_DEV_CNT] = {0};
+    u32 vf_count = 0;
+    int ret;
+
+    if (vf_num == NULL) {
+        return -EINVAL;
+    }
+
+    ret = vmngd_get_device_vf_list(dev_id, vf_list, DEVDRV_SRIOV_HOST_MAX_PF_DEV_CNT, &vf_count);
+    if (ret != 0) {
+        return ret;
+    }
+
+    *vf_num = (int)vf_count;
+    return 0;
+}
+
+static inline u32 devdrv_get_env_boot_type(u32 dev_id)
+{
+    if (devdrv_is_mdev_vm_boot_mode(dev_id)) {
+        return agentdrv_is_mdev_vm_full_spec(dev_id) ?
+            DEVDRV_MDEV_FULL_SPEC_VF_VM_BOOT : DEVDRV_MDEV_VF_VM_BOOT;
+    }
+
+    return DEVDRV_PHY_BOOT;
+}
 
 int devdrv_get_devid_by_pfvf_id(u32 pf_id, u32 vf_id, u32 *dev_id);
 int devdrv_get_pfvf_id_by_devid(u32 dev_id, u32 *pf_id, u32 *vf_id);
