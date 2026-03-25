@@ -47,6 +47,7 @@
  */
 typedef struct workqueue_attrs *(alloc_workqueue_attrs_func)(gfp_t gfp_mask);
 typedef void (free_workqueue_attrs_func)(struct workqueue_attrs *attrs);
+typedef int (apply_workqueue_attrs_func)(struct workqueue_struct *wq, const struct workqueue_attrs *attrs);
 
 /**
  * alloc workqueue attrs
@@ -130,7 +131,20 @@ int set_workqueue_affinity(struct workqueue_struct *wq, u32 flag, const struct c
     /* attrs->no_numa removed in kernel 6.x */
     cpumask_copy(attrs->cpumask, wq_cpumask);
 
-    ret = apply_workqueue_attrs(wq, attrs);
+    {
+        static apply_workqueue_attrs_func *apply_wq_attrs_pt = NULL;
+        if (!apply_wq_attrs_pt) {
+            apply_wq_attrs_pt = (apply_workqueue_attrs_func *)
+                compat_lookup_name("apply_workqueue_attrs");
+            if (IS_ERR_OR_NULL(apply_wq_attrs_pt)) {
+                PRINT_ERR("fail to find symbol apply_workqueue_attrs\n");
+                apply_wq_attrs_pt = NULL;
+                symbol_free_workqueue_attrs(attrs);
+                return -ENOSYS;
+            }
+        }
+        ret = apply_wq_attrs_pt(wq, attrs);
+    }
     if (ret != 0) {
         PRINT_ERR("apply workqueue attrs failed %d\n", ret);
     } else {

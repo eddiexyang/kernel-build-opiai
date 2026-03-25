@@ -85,12 +85,58 @@ STATIC void hisi_pm_wake(void)
  * Function Name: sr_psci_suspend
  * Decription: PSCI interface, calls by suspend and resume
  */
+/* cpu_suspend, cpu_resume, psci_ops are not exported in 6.x;
+ * resolve them at runtime via kprobe-based lookup. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#include <linux/kprobes.h>
+
+typedef int (*psci_cpu_suspend_fn)(u32 state, unsigned long entry_point);
+typedef int (*cpu_suspend_fn)(unsigned long arg, int (*fn)(unsigned long));
+
+static psci_cpu_suspend_fn compat_psci_cpu_suspend;
+static unsigned long compat_cpu_resume_addr;
+static cpu_suspend_fn compat_cpu_suspend_fn;
+
+static int compat_pm_resolve_symbols(void)
+{
+	struct psci_operations *ops;
+	unsigned long addr;
+
+	addr = compat_lookup_name("psci_ops");
+	if (!addr) {
+		lpm_log_err("cannot resolve psci_ops\n");
+		return -ENOSYS;
+	}
+	ops = (struct psci_operations *)addr;
+	compat_psci_cpu_suspend = ops->cpu_suspend;
+
+	compat_cpu_resume_addr = compat_lookup_name("cpu_resume");
+	if (!compat_cpu_resume_addr) {
+		lpm_log_err("cannot resolve cpu_resume\n");
+		return -ENOSYS;
+	}
+
+	addr = compat_lookup_name("cpu_suspend");
+	if (!addr) {
+		lpm_log_err("cannot resolve cpu_suspend\n");
+		return -ENOSYS;
+	}
+	compat_cpu_suspend_fn = (cpu_suspend_fn)addr;
+	return 0;
+}
+#endif /* >= 6.0 */
+
 static s32 sr_psci_suspend(unsigned long suspend_arg)
 {
 	(void)suspend_arg;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,2,8)
 	return psci_cpu_suspend_ext(SR_POWER_STATE_SUSPEND,
 				virt_to_phys(cpu_resume));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+	if (!compat_psci_cpu_suspend)
+		return -ENOSYS;
+	return compat_psci_cpu_suspend(SR_POWER_STATE_SUSPEND,
+				compat_cpu_resume_addr);
 #else
 	return psci_ops.cpu_suspend(SR_POWER_STATE_SUSPEND,
 				virt_to_phys(cpu_resume));
@@ -118,7 +164,12 @@ static s32 hisi_pm_enter(suspend_state_t state)
 
 	(void)cpu_cluster_pm_enter();
 	/* enter real suspend function */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+	if (compat_cpu_suspend_fn)
+		(void)compat_cpu_suspend_fn(0, sr_psci_suspend);
+#else
 	(void)cpu_suspend(0, sr_psci_suspend);
+#endif
 	/* set resume flag and clear SW backup register */
 	(void)cpu_cluster_pm_exit();
 
@@ -174,6 +225,13 @@ STATIC s32 __init hisi_pm_driver_init(void)
 {
 	s32 ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+	ret = compat_pm_resolve_symbols();
+	if (ret != 0) {
+		lpm_log_err("failed to resolve PM symbols: %d\n", ret);
+		return ret;
+	}
+#endif
 	/* disable generic psci suspend ops */
 	suspend_set_ops(NULL);
 	console_suspend_enabled = false;

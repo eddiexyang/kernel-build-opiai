@@ -167,3 +167,10 @@ endif
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../../dms/Module.symvers \
+	$(src)/../../icm/Module.symvers \
+	$(src)/../../uda/Module.symvers \
+	$(src)/../../urd/Module.symvers \
+	$(src)/../../user_cfg/Module.symvers

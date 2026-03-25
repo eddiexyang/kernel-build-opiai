@@ -377,6 +377,31 @@ STATIC s32 log_remap_noncache(struct log_channel_info *channel_info, s32 buf_siz
         slog_drv_err("Buf_size too large. (page_num=%d; buf_size=%d)\n", page_num, buf_size);
         return LOG_RET_ERROR;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    /* __get_vm_area_caller not exported in 6.x; use vmap() directly */
+    page = phys_to_page(channel_info->phy_addr);
+    pages = kzalloc(sizeof(struct page *) * page_num, GFP_KERNEL);
+    if (pages == NULL) {
+        slog_drv_err("Malloc pages failed. (buf_size=%d; page_num=%u)\n", buf_size, page_num);
+        return LOG_RET_ERROR;
+    }
+    for (i = 0; i < page_num; i++) {
+        pages[i] = nth_page(page, i);
+    }
+    {
+        void *addr = vmap(pages, page_num, VM_MAP, __pgprot(PROT_NORMAL_NC));
+        kfree(pages);
+        pages = NULL;
+        if (addr == NULL) {
+            slog_drv_err("Cannot vmap area. (buf_size=%d)\n", buf_size);
+            return LOG_RET_ERROR;
+        }
+        slog_drv_info("Remap succeeded via vmap.\n");
+        channel_info->area = NULL;
+        channel_info->vir_addr_kmalloc = channel_info->vir_addr;
+        channel_info->vir_addr = addr;
+    }
+#else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
     area = __get_vm_area((size_t)(u32)buf_size, VM_ALLOC, VMALLOC_START, VMALLOC_END);
 #else
@@ -398,17 +423,7 @@ STATIC s32 log_remap_noncache(struct log_channel_info *channel_info, s32 buf_siz
     for (i = 0; i < page_num; i++) {
         pages[i] = nth_page(page, i);
     }
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
-    {
-        /* map_kernel_range removed in 6.x; use vmap as fallback */
-        void *addr = vmap(pages, page_num, VM_MAP, __pgprot(PROT_NORMAL_NC));
-        ret = addr ? 0 : -ENOMEM;
-        if (addr && addr != area->addr) {
-            /* vmap returned different address; update area */
-        }
-    }
-    if (ret < 0) {
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
     ret = map_kernel_range((unsigned long)(uintptr_t)area->addr, get_vm_area_size(area),
         __pgprot(PROT_NORMAL_NC), pages);
     if (ret < 0) {
@@ -429,6 +444,7 @@ STATIC s32 log_remap_noncache(struct log_channel_info *channel_info, s32 buf_siz
     channel_info->area = area;
     channel_info->vir_addr_kmalloc = channel_info->vir_addr;
     channel_info->vir_addr = area->addr;
+#endif
 
     return LOG_RET_OK;
 }
@@ -438,6 +454,11 @@ STATIC void log_unmap_noncache(struct log_channel_info *channel_info)
     if (channel_info->channel_conn != LOG_CHANNEL_CONN_SQCQ) {
         return;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    if (channel_info->vir_addr != NULL && channel_info->area == NULL) {
+        vunmap(channel_info->vir_addr);
+    }
+#endif
     if (channel_info->area != NULL) {
         free_vm_area(channel_info->area);
         channel_info->area = NULL;

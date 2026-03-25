@@ -162,3 +162,13 @@ ccflags-y += -I$(DRIVER_INC)/include/internal
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../dms/Module.symvers \
+	$(src)/../dms_dtm/Module.symvers \
+	$(src)/../dms_smf/Module.symvers \
+	$(src)/../fpdc/Module.symvers \
+	$(src)/../icm/Module.symvers \
+	$(src)/../soc_resmng/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../urd/Module.symvers

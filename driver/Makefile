@@ -85,13 +85,59 @@ $(foreach mod,$(ALL_DEVICE),$(eval $(call module_target,$(mod))))
 
 # Modules that import symbols from other out-of-tree modules must wait for the
 # provider's Module.symvers to be generated before running modpost.
+# (auto-generated from KBUILD_EXTRA_SYMBOLS analysis)
+build-audio: build-dvpp_osal
+build-davinci_intf: build-svm
 build-dfm: build-bbox
-build-ts_channel: build-dfm
-build-pcie: build-dbl_runenv_config build-dfm
-build-vpc_agent: build-vpcie
-build-vhdc: build-vpcie build-vpc_agent
-build-vtsdrv: build-vpcie build-vpc_agent
+build-dms: build-bbox build-davinci_intf build-dbl_chip_config build-dfm build-dms_dtm build-dms_smf build-icm build-trs_tsmng build-uda build-urd build-user_cfg build-virtmng
+build-dms_smf: build-dms_dtm build-fpdc build-urd
+build-dp_proc_mng: build-davinci_intf build-dms build-uda
+build-dvpp_osal: build-svm
+build-eeprom: build-user_cfg
+build-event_sched: build-davinci_intf build-dms build-soc_resmng build-trs_chan build-uda build-user_cfg build-virtmng
+build-hdcdrv: build-dbl_chip_config build-pcie build-uda build-vpcie
 build-hdmi: build-dvpp_osal build-vdp
+build-hns3: build-bbox build-dms_smf
+build-icm: build-ipcdrv
+build-logdrv: build-dbl_chip_config build-dms build-icm build-soc_resmng build-trs_chan build-trs_kunpeng build-tsdrv build-uda
+build-lpm/drv_lpm: build-bbox build-dms build-dms_dtm build-dms_smf build-fpdc build-icm build-uda
+build-lpm/drv_lpm_devmng: build-dms build-icm build-uda build-urd build-user_cfg
+build-lpm/pm: build-serdes
+build-memory: build-dms build-dms_dtm build-dms_smf build-fpdc build-icm build-soc_resmng build-uda build-urd
+build-mipi_rx: build-dvpp_osal
+build-mttcan: build-urd build-user_cfg
+build-pcie: build-dbl_chip_config build-dbl_runenv_config build-dfm build-uda
+build-pkicms: build-user_cfg
+build-prof: build-dbl_chip_config build-dms build-soc_resmng build-trs_chan build-trs_kunpeng build-uda build-virtmng
+build-soc_misc: build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-uda build-urd build-user_cfg
+build-soc_platform: build-pcie build-soc_resmng build-uda
+build-soft_fault: build-dms_dtm build-dms_smf build-uda build-urd
+build-trs_adapt_agent: build-dms build-pcie build-soc_resmng build-trs_core build-trs_id_pool build-trs_kunpeng build-trs_pm_adapt build-trs_tsmng build-uda
+build-trs_cdqm: build-davinci_intf build-dms build-pcie build-soc_resmng build-trs_id_allocator
+build-trs_chan: build-trs_id_allocator
+build-trs_core: build-davinci_intf build-dms build-event_sched build-trs_chan build-trs_id_allocator
+build-trs_kunpeng: build-dbl_runenv_config build-soc_resmng build-trs_chan build-trs_core build-trs_id_allocator build-trs_id_pool build-trs_sec_eh build-uda
+build-trs_mia_adapt: build-soc_resmng build-trs_chan build-trs_core build-trs_id_allocator build-trs_id_pool build-trs_kunpeng build-trs_pm_adapt build-trs_sec_eh build-virtmng
+build-trs_mia_agent: build-pcie build-trs_adapt_agent build-trs_id_pool build-trs_kunpeng build-trs_mia_adapt
+build-trs_pm_adapt: build-dbl_chip_config build-dbl_runenv_config build-dms build-soc_resmng build-svm build-trs_chan build-trs_core build-trs_id_allocator build-trs_id_pool build-trs_sub_stars build-trs_tsmng build-uda build-urd
+build-trs_sec_eh: build-dms build-pcie build-soc_resmng build-trs_chan build-trs_core build-trs_id_allocator build-trs_pm_adapt build-uda build-urd build-virtmng_host_stub build-vpc_agent
+build-trs_shrid: build-davinci_intf build-dms build-event_sched build-trs_core build-uda
+build-trs_stars: build-dms build-soc_resmng build-uda
+build-trs_sub_stars: build-soc_resmng build-uda
+build-trs_tsmng: build-icm build-uda
+build-ts_channel: build-dfm build-dms
+build-ts_platform: build-bbox build-dbl_chip_config build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-icm build-ipcdrv build-soc_resmng build-trs_chan build-trs_id_pool build-trs_pm_adapt build-trs_tsmng build-uda build-user_cfg build-virtmng
+build-tsdrv: build-bbox build-davinci_intf build-dfm build-dms build-event_sched build-pcie build-svm build-uda
+build-uda: build-davinci_intf
+build-upgrade: build-pkicms build-user_cfg
+build-urd: build-davinci_intf build-user_cfg
+build-vdp: build-dvpp_osal
+build-vhdc: build-vpcie build-vpc_agent
+build-virtmng: build-dbl_chip_config build-dbl_runenv_config build-icm build-soc_resmng build-uda build-user_cfg
+build-virtmng_resmgr: build-davinci_intf build-virtmng
+build-vpcie: build-uda build-vpc_agent
+build-vtsdrv: build-davinci_intf build-dms build-uda build-vpc_agent build-vpcie
+build-xsmem: build-davinci_intf build-dbl_chip_config build-dms
 
 # Layer targets: each layer depends on the previous, but modules within a layer are parallel
 .PHONY: device-l0 device-l1 device-l2 device-l3 device-l4 device-l5 device-extra

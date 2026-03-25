@@ -21,7 +21,8 @@ else ifneq ($(filter $(PRODUCT), ascend910B ascend910Besl ascend910Bemu),)
 	ccflags-y += -I$(DRIVER_INC)/trs_stars/soc/cloud_v2
 endif
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../soc_resmng/Module.symvers
+KBUILD_EXTRA_SYMBOLS := $(src)/../soc_resmng/Module.symvers \
+	$(src)/../uda/Module.symvers
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h

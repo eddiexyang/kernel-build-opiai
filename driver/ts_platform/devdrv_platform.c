@@ -1263,16 +1263,13 @@ int tsdrv_get_ffts_mcu_irq_id(u32 dev_id, u32 *hwirq)
 {
     struct irq_data *irq_data = NULL;
     struct irq_data *parent = NULL;
-    struct irq_desc *desc = NULL;
     u32 irq = ffts_cpu_irq[dev_id][0];
 
-    desc = irq_to_desc(irq);
-    if (desc == NULL) {
+    irq_data = irq_get_irq_data(irq);
+    if (irq_data == NULL) {
         TSDRV_PRINT_ERR("Irq is invalid. (irq=%u)\n", irq);
         return -EINVAL;
     }
-
-    irq_data = irq_desc_get_irq_data(desc);
     parent = irq_data->parent_data;
 
     while (parent != NULL) {

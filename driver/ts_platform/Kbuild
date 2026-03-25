@@ -232,3 +232,22 @@ ccflags-y += -I$(DRIVER_INC)/include/internal
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../bbox/Module.symvers \
+	$(src)/../dbl_chip_config/Module.symvers \
+	$(src)/../dfm/Module.symvers \
+	$(src)/../dms/Module.symvers \
+	$(src)/../dms_dtm/Module.symvers \
+	$(src)/../dms_smf/Module.symvers \
+	$(src)/../fpdc/Module.symvers \
+	$(src)/../icm/Module.symvers \
+	$(src)/../ipcdrv/Module.symvers \
+	$(src)/../soc_resmng/Module.symvers \
+	$(src)/../trs_chan/Module.symvers \
+	$(src)/../trs_id_pool/Module.symvers \
+	$(src)/../trs_pm_adapt/Module.symvers \
+	$(src)/../trs_tsmng/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../user_cfg/Module.symvers \
+	$(src)/../virtmng/Module.symvers

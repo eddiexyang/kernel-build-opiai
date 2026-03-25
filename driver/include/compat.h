@@ -391,4 +391,47 @@ static inline int iommu_dev_disable_feature(struct device *dev, int feat) { retu
 
 #endif
 
+/* ========================================================================
+ * 13. Kernel symbol compatibility for 6.x
+ * ======================================================================== */
+
+/* PMD_ALIGN removed as a standalone macro; reconstruct from PMD_SIZE */
+#include <asm/pgtable-hwdef.h>
+#ifndef PMD_ALIGN
+#define PMD_ALIGN(addr) ALIGN(addr, PMD_SIZE)
+#endif
+
+/* del_timer() renamed to timer_delete() in 6.x */
+#ifndef del_timer
+#define del_timer(t) timer_delete(t)
+#endif
+
+/* bus_set_iommu() removed in 6.x — IOMMU ops are registered per-device now */
+#include <linux/iommu.h>
+static inline int bus_set_iommu(struct bus_type *bus, const struct iommu_ops *ops)
+{
+	return 0; /* no-op: modern kernels register IOMMU ops via driver probe */
+}
+
+/* iommu_domain_alloc(bus) removed in 6.x — replaced by per-device API.
+ * Callers that really need a paging domain should migrate to
+ * iommu_paging_domain_alloc(dev).  This stub keeps legacy wrappers building. */
+static inline struct iommu_domain *iommu_domain_alloc(struct bus_type *bus)
+{
+	return NULL;
+}
+
+/* kprobe-based kallsyms_lookup_name() for modules (unexported since 5.7) */
+#include <linux/kprobes.h>
+static inline unsigned long compat_lookup_name(const char *name)
+{
+	struct kprobe kp = { .symbol_name = name };
+	unsigned long addr;
+	if (register_kprobe(&kp) < 0)
+		return 0;
+	addr = (unsigned long)kp.addr;
+	unregister_kprobe(&kp);
+	return addr;
+}
+
 #endif /* __ASCEND_COMPAT_H__ */

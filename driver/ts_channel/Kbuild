@@ -12,7 +12,8 @@ ccflags-y += -I$(DRIVER_INC)/include/hiss
 ccflags-y += -I$(DRIVER_INC)/include/aicpu/common
 ccflags-y += -I$(DRIVER_INC)/event_sched -I$(DRIVER_INC)/event_sched/comm
 ccflags-y += -I$(src) -I$(DRIVER_INC)/include/soc/cloud_v1
-KBUILD_EXTRA_SYMBOLS := $(src)/../dfm/Module.symvers
+KBUILD_EXTRA_SYMBOLS := $(src)/../dfm/Module.symvers \
+	$(src)/../dms/Module.symvers
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h

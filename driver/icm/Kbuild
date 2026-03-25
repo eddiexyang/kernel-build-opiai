@@ -10,3 +10,6 @@ ccflags-y += -DCFG_SOC_PLATFORM_ESL_FPGA -DCFG_SOC_PLATFORM_MINIV3
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../ipcdrv/Module.symvers

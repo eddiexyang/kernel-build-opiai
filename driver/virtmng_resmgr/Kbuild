@@ -12,3 +12,7 @@ ccflags-y += -I$(DRIVER_INC)/virtmng -I$(src)
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-missing-field-initializers
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../davinci_intf/Module.symvers \
+	$(src)/../virtmng/Module.symvers

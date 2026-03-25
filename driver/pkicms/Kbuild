@@ -57,3 +57,6 @@ endif
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../user_cfg/Module.symvers

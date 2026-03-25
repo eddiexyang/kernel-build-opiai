@@ -208,3 +208,13 @@ endif
 endif
 
 ccflags-y += -I$(DRIVER_INC)/include/internal
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../dfm/Module.symvers \
+	$(src)/../dms/Module.symvers \
+	$(src)/../dms_dtm/Module.symvers \
+	$(src)/../dms_smf/Module.symvers \
+	$(src)/../fpdc/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../urd/Module.symvers \
+	$(src)/../user_cfg/Module.symvers

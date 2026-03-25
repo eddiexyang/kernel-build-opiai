@@ -605,3 +605,17 @@ endif
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 ccflags-y += -Wno-format-nonliteral -Wno-empty-body
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../bbox/Module.symvers \
+	$(src)/../davinci_intf/Module.symvers \
+	$(src)/../dbl_chip_config/Module.symvers \
+	$(src)/../dfm/Module.symvers \
+	$(src)/../dms_dtm/Module.symvers \
+	$(src)/../dms_smf/Module.symvers \
+	$(src)/../icm/Module.symvers \
+	$(src)/../trs_tsmng/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../urd/Module.symvers \
+	$(src)/../user_cfg/Module.symvers \
+	$(src)/../virtmng/Module.symvers

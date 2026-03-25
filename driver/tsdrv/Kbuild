@@ -217,3 +217,13 @@ ccflags-y += -I$(DRIVER_INC)/include/tsdrv
 -include $(DRIVER_INC)/config/feature_config/feature.mk
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../bbox/Module.symvers \
+	$(src)/../davinci_intf/Module.symvers \
+	$(src)/../dfm/Module.symvers \
+	$(src)/../dms/Module.symvers \
+	$(src)/../event_sched/Module.symvers \
+	$(src)/../pcie/Module.symvers \
+	$(src)/../svm/Module.symvers \
+	$(src)/../uda/Module.symvers

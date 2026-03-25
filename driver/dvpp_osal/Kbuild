@@ -32,6 +32,8 @@ else
 ccflags-y += -DDVPP_MINI
 endif
 
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../svm/Module.symvers
 drv_osal-objs := osal.o osal_addr.o osal_atomic.o osal_barrier.o osal_iommu.o osal_of.o osal_notifier.o
 drv_osal-objs += osal_debug.o osal_cache.o osal_device.o osal_fileops.o osal_property.o
 drv_osal-objs += osal_interrupt.o osal_math.o osal_mutex.o osal_acpi.o osal_bootdot.o

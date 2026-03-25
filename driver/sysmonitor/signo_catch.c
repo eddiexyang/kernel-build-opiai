@@ -118,15 +118,63 @@ static void do_store_sig_info(void *ignore, int sig, struct siginfo *info,
 	}
 }
 
+/*
+ * __tracepoint_signal_generate is NOT exported for out-of-tree modules
+ * on mainline 6.x.  Resolve it at runtime via kprobe lookup.  If the
+ * tracepoint symbol is absent, fall back to a no-op.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+
+#include <linux/kprobes.h>
+
+static struct tracepoint *tp_signal_generate;
+
+static void match_signal_tracepoint(struct tracepoint *tp, void *priv)
+{
+	if (!strcmp(tp->name, "signal_generate"))
+		*(struct tracepoint **)priv = tp;
+}
+
 int signo_catch_init(void)
 {
-	/* register tracepoint probe */
+	int ret;
+
+	tp_signal_generate = NULL;
+	for_each_kernel_tracepoint(match_signal_tracepoint, &tp_signal_generate);
+	if (!tp_signal_generate) {
+		printk(KERN_WARNING "signo_catch: signal_generate tracepoint not found\n");
+		return 0;
+	}
+	ret = tracepoint_probe_register(tp_signal_generate,
+					(void *)do_store_sig_info, NULL);
+	if (ret) {
+		printk(KERN_ERR "signo_catch: signal generate probe failed %d\n", ret);
+		tp_signal_generate = NULL;
+		return -1;
+	}
+	printk(KERN_INFO "signo_catch: signal generate probe registered\n");
+	return 0;
+}
+
+void signo_catch_exit(void)
+{
+	if (tp_signal_generate) {
+		tracepoint_probe_unregister(tp_signal_generate,
+					    (void *)do_store_sig_info, NULL);
+		tracepoint_synchronize_unregister();
+	}
+	printk(KERN_INFO "signo_catch: signal generate probe unregistered\n");
+}
+
+#else /* < 6.0 */
+
+int signo_catch_init(void)
+{
 	int ret = register_trace_signal_generate(do_store_sig_info, NULL);
 	if (ret) {
 		printk(KERN_ERR "signo_catch: signal generate probe failed\n");
 		return -1;
 	}
-
 	printk(KERN_INFO "signo_catch: signal generate probe registered\n");
 	return 0;
 }
@@ -137,3 +185,5 @@ void signo_catch_exit(void)
 	tracepoint_synchronize_unregister();
 	printk(KERN_INFO "signo_catch: signal generate probe unregistered\n");
 }
+
+#endif

@@ -545,7 +545,7 @@ STATIC int adjust_duty_ratio(void *args)
     unsigned int temperate;
     struct dms_lpm_info_in in;
 
-    get_temp_func = (int (*)(void *, char *, u32, char *, u32))kallsyms_lookup_name("dms_lpm_get_temperature");
+    get_temp_func = (int (*)(void *, char *, u32, char *, u32))compat_lookup_name("dms_lpm_get_temperature");
     if (get_temp_func == NULL) {
         pwm_log_err("Get dms_lpm_get_temperature function failed.\n");
         return -EINVAL;

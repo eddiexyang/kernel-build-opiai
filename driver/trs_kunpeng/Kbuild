@@ -25,3 +25,13 @@ ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_runenv_config/Module.symvers \
+	$(src)/../soc_resmng/Module.symvers \
+	$(src)/../trs_chan/Module.symvers \
+	$(src)/../trs_core/Module.symvers \
+	$(src)/../trs_id_allocator/Module.symvers \
+	$(src)/../trs_id_pool/Module.symvers \
+	$(src)/../trs_sec_eh/Module.symvers \
+	$(src)/../uda/Module.symvers

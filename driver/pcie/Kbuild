@@ -42,7 +42,10 @@ ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initiali
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
 ccflags-y += $(pcie_local_inc)
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_runenv_config/Module.symvers $(src)/../dfm/Module.symvers
+KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_chip_config/Module.symvers \
+	$(src)/../dbl_runenv_config/Module.symvers \
+	$(src)/../dfm/Module.symvers \
+	$(src)/../uda/Module.symvers
 
 ifeq ($(PRODUCT),ascend310p)
 pcie_soc_inc += -I$(src)/soc/mdc_v1 -I$(DRIVER_INC)/include/soc/cloud_v1

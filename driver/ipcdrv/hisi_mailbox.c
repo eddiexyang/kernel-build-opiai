@@ -702,16 +702,23 @@ STATIC int mbox_startup(struct hisi_mbox_device *mdev, mbox_mail_type_t mail_typ
                     kfifo_free(&mdev->fifo);
                     goto deconfig;
                 } else {
-                    struct sched_param param;
-
-                    /* set the thread's priority to MAX_RT_PRIO - 20, the bigger sched_priority, the higher priority */
-#ifdef AOS_LLVM_BUILD
-                    policy = SCHED_SP_FIFO;
+                    /* Set RT scheduling for the tx kthread.
+                     * sched_setscheduler() is not exported in 6.x;
+                     * use sched_set_fifo() (GPL, exported since 5.9). */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0) && !defined(AOS_LLVM_BUILD)
+                    sched_set_fifo(mdev->tx_kthread);
 #else
-                    policy = SCHED_RR;
+                    {
+                        struct sched_param param;
+#ifdef AOS_LLVM_BUILD
+                        policy = SCHED_SP_FIFO;
+#else
+                        policy = SCHED_RR;
 #endif
-                    param.sched_priority = (MAX_RT_PRIO - 20);
-                    (void)sched_setscheduler(mdev->tx_kthread, policy, &param);
+                        param.sched_priority = (MAX_RT_PRIO - 20);
+                        (void)sched_setscheduler(mdev->tx_kthread, policy, &param);
+                    }
+#endif
 
                     mbox_ts_tx_bind_cpu(mdev);
                     (void)wake_up_process(mdev->tx_kthread);
