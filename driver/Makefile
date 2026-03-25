@@ -61,12 +61,12 @@ DEVICE_L0 := bbox dbl_board_config dbl_cfg_persistent dbl_chip_config \
 
 DEVICE_L1 := trs_chan trs_stars trs_sub_stars dvpp_osal dfm
 
-DEVICE_L2 := hns3 ts_platform ts_platform_host upgrade user_cfg hiusbc pcie ts_channel \
-	audio vdp mipi_rx
+DEVICE_L2 := hns3 ts_platform upgrade user_cfg hiusbc pcie ts_channel \
+	audio vdp hdmi mipi_rx
 
 DEVICE_L3 := dms virtmng virtmng_resmgr virtmng_host_stub vpcie vpc_agent trs_core
 
-DEVICE_L4 := hdcdrv hdcdrv_host tsdrv tsdrv_host vtsdrv dp_proc_mng dp_proc_mng_host trs_cdqm trs_pm_adapt trs_kunpeng
+DEVICE_L4 := hdcdrv tsdrv vtsdrv dp_proc_mng trs_cdqm trs_pm_adapt trs_kunpeng
 
 ifneq ($(filter $(PRODUCT), ascend910 ascend310p),)
 DEVICE_L4 += vhdc
@@ -91,6 +91,7 @@ build-pcie: build-dbl_runenv_config build-dfm
 build-vpc_agent: build-vpcie
 build-vhdc: build-vpcie build-vpc_agent
 build-vtsdrv: build-vpcie build-vpc_agent
+build-hdmi: build-dvpp_osal build-vdp
 
 # Layer targets: each layer depends on the previous, but modules within a layer are parallel
 .PHONY: device-l0 device-l1 device-l2 device-l3 device-l4 device-l5 device-extra
@@ -116,7 +117,7 @@ driver_device:
 	$(MAKE) device-extra PRODUCT_SIDE=device
 	@echo "=== Collecting device .ko files ==="
 	@find $(DRIVER_DIR) -name '*.ko' -not -path '*/linux-source/*' -not -path '*/out/*' \
-		-exec cp {} $(OUT_DEVICE)/ \; 2>/dev/null
+		-exec cp -f {} $(OUT_DEVICE)/ \; 2>/dev/null
 	@echo "Device modules: $$(ls $(OUT_DEVICE)/*.ko 2>/dev/null | wc -l) .ko files"
 
 driver_host: PRODUCT_SIDE := host

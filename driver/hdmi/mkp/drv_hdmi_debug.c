@@ -125,11 +125,11 @@ static td_void debug_echo_helper_vargs(td_char *buf, td_u32 size, const td_char 
         return;
     }
 
-    f = __to_fd(__fdget(DEFAULT_ECHO_DEVICE_HANDLE));
-    if (!f.file)
+    f = fdget(DEFAULT_ECHO_DEVICE_HANDLE);
+    if (!fd_file(f))
             return ;
 
-    ret = vfs_getattr(&f.file->f_path, &stat, STATX_BASIC_STATS, 0);
+    ret = vfs_getattr(&fd_file(f)->f_path, &stat, STATX_BASIC_STATS, 0);
     if (ret) {
         hdmi_err("default echo device handle(%u) invalid! ret=%d\n", (td_u32)DEFAULT_ECHO_DEVICE_HANDLE, ret);
         return;
@@ -1546,4 +1546,3 @@ error:
 
     return -EFAULT;
 }
-
