@@ -668,7 +668,7 @@ td_s32 gfbg_drv_set_int_callback(fb_vo_int_type int_type, int_vo_callback callba
         return TD_FAILURE;
     }
 
-    return vou_graphics_set_callback(g_gfbglayer_to_hwlayer[layer_id], int_type, (vo_fb_int_call_back)callback, arg);
+    return vou_graphics_set_callback(g_gfbglayer_to_hwlayer[layer_id], int_type, (vo_fb_intcallback)callback, arg);
 }
 #else
 td_s32 gfbg_drv_set_int_callback(fb_vo_int_type int_type, int_vo_callback call_back, td_u32 layer_id,
@@ -688,7 +688,7 @@ td_s32 gfbg_drv_set_int_callback(fb_vo_int_type int_type, int_vo_callback call_b
 
     /* VOU_GraphicsSetCallback */
     return export_func->pfn_vou_graphics_set_callback(g_vo_gfbg_layer_index[layer_id], int_type,
-                                                      (vo_fb_int_call_back)call_back, call_back_arg);
+                                                      (vo_fb_intcallback)call_back, call_back_arg);
 }
 
 #endif

@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-m := ascend_vdp_hifb.o
-ascend_vdp_hifb-objs := src/gfbg_main.o src/init/linux/gfbg_init.o
+ascend_vdp_hifb-objs := src/gfbg_main.o src/init/linux/gfbg_init.o \
+	drv/adp/gfbg_vou_drv.o \
+	drv/adp/gfbg_vou_graphics.o \
+	drv/adp/gfbg_graphics_drv.o \
+	drv/adp/gfbg_blit.o \
+	drv/adp/gfbg_rotate.o \
+	drv/adp/gfbg_comm.o
 
 DRIVER_INC := $(src)/..
 ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
@@ -21,7 +27,16 @@ ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-return-type -Wno-date-time
-ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+
+# Enable FB_SEPARATE mode: VDP hifb includes its own VOU graphics implementation
+# in drv/adp/ rather than depending on an external VO module export table.
+ccflags-y += -DCONFIG_OT_VO_FB_SEPARATE
+
+# hi_mpp_sample headers provide the authoritative OT type/constant definitions
+ccflags-y += -I$(DRIVER_INC)/hi_mpp_sample/include -I$(DRIVER_INC)/hi_mpp_sample/include/exp_inc
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../dvpp_osal/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../base/Module.symvers) \
+	$(wildcard $(src)/../dvpp_osal/Module.symvers) \
+	$(wildcard $(src)/../svm/Module.symvers)

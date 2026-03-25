@@ -21,5 +21,8 @@ ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initiali
 ccflags-y += -Wno-incompatible-pointer-types
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../bbox/Module.symvers \
-	$(src)/../dms_smf/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../bbox/Module.symvers) \
+	$(wildcard $(src)/../bootdot/Module.symvers) \
+	$(wildcard $(src)/../dms_smf/Module.symvers) \
+	$(wildcard $(src)/../qos/Module.symvers)

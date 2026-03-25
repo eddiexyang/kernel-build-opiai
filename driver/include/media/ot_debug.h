@@ -56,6 +56,27 @@ extern "C" {
 #define OT_ERR_TRACE(mod, fmt, ...)     ((void)0)
 #endif
 
+/* Complete set of per-level trace macros used by audio/vdp modules.
+ * Maps to printk at the appropriate kernel log level. */
+#ifndef OT_EMERG_TRACE
+#define OT_EMERG_TRACE(mod, fmt, ...)   printk(KERN_EMERG  "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+#ifndef OT_ALERT_TRACE
+#define OT_ALERT_TRACE(mod, fmt, ...)   printk(KERN_ALERT  "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+#ifndef OT_CRIT_TRACE
+#define OT_CRIT_TRACE(mod, fmt, ...)    printk(KERN_CRIT   "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+#ifndef OT_WARN_TRACE
+#define OT_WARN_TRACE(mod, fmt, ...)    printk(KERN_WARNING "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+#ifndef OT_NOTICE_TRACE
+#define OT_NOTICE_TRACE(mod, fmt, ...)  printk(KERN_NOTICE  "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+#ifndef OT_INFO_TRACE
+#define OT_INFO_TRACE(mod, fmt, ...)    printk(KERN_INFO    "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+
 #ifdef __cplusplus
 #if __cplusplus
 }

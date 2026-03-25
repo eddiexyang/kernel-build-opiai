@@ -19,4 +19,29 @@
  */
 typedef osal_spinlock_t pid_spin_lock_s;
 
+/*
+ * Inline wrappers mapping pid_spin_lock_* to osal_spin_lock_*.
+ * The original symbols came from the closed-source mediabase layer;
+ * confirmed via IDA that these are simple spinlock operations.
+ */
+static inline int pid_spin_lock_init(pid_spin_lock_s *lock)
+{
+	return osal_spin_lock_init(lock);
+}
+
+static inline void pid_spin_lock_destory(pid_spin_lock_s *lock)
+{
+	osal_spin_lock_destroy(lock);
+}
+
+/*
+ * Call sites use spin_lock_irqsave(lock, flags) style (flags by value),
+ * so these must be macros that take the address of flags.
+ */
+#define pid_spin_lock_irqsave(lock, flags) \
+	osal_spin_lock_irqsave((lock), &(flags))
+
+#define pid_spin_unlock_irqrestore(lock, flags) \
+	osal_spin_unlock_irqrestore((lock), &(flags))
+
 #endif /* VDP_COMM_PID_CHECK_H */

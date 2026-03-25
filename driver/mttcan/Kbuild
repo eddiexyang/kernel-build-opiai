@@ -17,5 +17,7 @@ ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../urd/Module.symvers \
-	$(src)/../user_cfg/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../bootdot/Module.symvers) \
+	$(wildcard $(src)/../urd/Module.symvers) \
+	$(wildcard $(src)/../user_cfg/Module.symvers)

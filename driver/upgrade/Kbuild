@@ -96,4 +96,6 @@ ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
 
 
 KBUILD_EXTRA_SYMBOLS := $(src)/../pkicms/Module.symvers \
-	$(src)/../user_cfg/Module.symvers
+	$(src)/../user_cfg/Module.symvers \
+	$(wildcard $(src)/../hsm_flash/Module.symvers) \
+	$(wildcard $(src)/../hsm_firmware_update/Module.symvers)

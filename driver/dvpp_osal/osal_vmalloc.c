@@ -84,10 +84,14 @@ hi_void *osal_vmalloc_node(hi_ulong size, hi_s32 node_id)
     return __vmalloc_node(size, SHMLBA, GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG| HIGHUSER_MOVABLE_FLG,
         PAGE_KERNEL, VM_USERMAP, node_id, __builtin_return_address(0));
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
-    /* __vmalloc_node_range not exported in 6.x; use __vmalloc_node (GPL) */
-    return __vmalloc_node(size, SHMLBA,
-        GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG | HIGHUSER_MOVABLE_FLG,
-        node_id, __builtin_return_address(0));
+    /* __vmalloc_node / __vmalloc_node_range not exported in 6.x;
+     * use vmalloc_node() (exported) + memset for zero-fill */
+    {
+        hi_void *p = vmalloc_node(size, node_id);
+        if (p)
+            memset(p, 0, size);
+        return p;
+    }
 #else
     return __vmalloc_node_range(size,
         SHMLBA,
@@ -111,9 +115,12 @@ hi_void *osal_vmalloc_hugepage_node(hi_ulong size, hi_s32 node_id)
         __builtin_return_address(0));
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     size = PMD_ALIGN(size);
-    return __vmalloc_node(size, PMD_SIZE,
-        GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG | HIGHUSER_MOVABLE_FLG,
-        node_id, __builtin_return_address(0));
+    {
+        hi_void *p = vmalloc_node(size, node_id);
+        if (p)
+            memset(p, 0, size);
+        return p;
+    }
 #else
     size = PMD_ALIGN(size);
     return __vmalloc_node_range(size,

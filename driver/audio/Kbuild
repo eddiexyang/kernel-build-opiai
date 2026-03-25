@@ -76,4 +76,9 @@ ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompa
 ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../dvpp_osal/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../dvpp_osal/Module.symvers) \
+	$(wildcard $(src)/../base/Module.symvers) \
+	$(wildcard $(src)/../dms_dtm/Module.symvers) \
+	$(wildcard $(src)/../dms_smf/Module.symvers) \
+	$(wildcard $(src)/../svm/Module.symvers)

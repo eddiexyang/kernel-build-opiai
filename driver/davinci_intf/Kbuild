@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
-obj-m := drv_davinci_intf.o drv_davinci_intf_host.o
+ifeq ($(PRODUCT_SIDE),host)
+obj-m := drv_davinci_intf_host.o
+else
+obj-m := drv_davinci_intf.o
+endif
 drv_davinci_intf-objs := davinci_intf_init.o davinci_intf_process.o
 drv_davinci_intf_host-objs := host/davinci_intf_init.o host/davinci_intf_process.o
 

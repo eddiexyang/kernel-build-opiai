@@ -15,3 +15,6 @@ ccflags-y += -DCFG_ENV_PCIE_RC_SR -DSNAPSHOT_ENABLE -DNOT_SUPPORT_OSNAME
 ccflags-y += $(CONFIG_DEFINES)
 ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../bootdot/Module.symvers)

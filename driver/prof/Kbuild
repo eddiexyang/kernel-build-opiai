@@ -116,10 +116,12 @@ ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_chip_config/Module.symvers \
-	$(src)/../dms/Module.symvers \
-	$(src)/../soc_resmng/Module.symvers \
-	$(src)/../trs_chan/Module.symvers \
-	$(src)/../trs_kunpeng/Module.symvers \
-	$(src)/../uda/Module.symvers \
-	$(src)/../virtmng/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../dbl_chip_config/Module.symvers) \
+	$(wildcard $(src)/../dms/Module.symvers) \
+	$(wildcard $(src)/../soc_resmng/Module.symvers) \
+	$(wildcard $(src)/../trs_chan/Module.symvers) \
+	$(wildcard $(src)/../trs_kunpeng/Module.symvers) \
+	$(wildcard $(src)/../trs_pm_adapt/Module.symvers) \
+	$(wildcard $(src)/../uda/Module.symvers) \
+	$(wildcard $(src)/../virtmng/Module.symvers)

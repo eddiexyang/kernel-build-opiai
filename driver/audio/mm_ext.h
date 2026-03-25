@@ -27,7 +27,16 @@ extern hi_s32 cmpi_mmz_malloc_cached(const hi_char *cp_mmz_name, const hi_char *
 extern hi_s32 cmpi_mmz_acquire_uva(hi_ulong len, hi_void *pp_vir_addr, hi_u64 *phy_addr, pid_t pid);
 extern hi_s32 cmpi_mmz_release_uva(hi_u64 phy_addr, pid_t pid);
 
+extern hi_void *cmpi_remap_nocache(hi_u64 phy_addr, hi_ulong size);
 extern hi_void cmpi_unmap(hi_void *virt_addr);
+static inline hi_s32 cmpi_check_mmz_phy_addr(hi_u64 phy_addr, hi_ulong len)
+{
+    if ((phy_addr == 0U) || (len == 0U)) {
+        return HI_FAILURE;
+    }
+
+    return HI_SUCCESS;
+}
 static inline hi_bool read_user_linear_space_valid(hi_u8 *addr_start, hi_u32 len)
 {
     hi_u8 check;

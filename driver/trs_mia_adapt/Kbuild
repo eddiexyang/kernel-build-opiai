@@ -21,12 +21,13 @@ ccflags-y += -include $(DRIVER_INC)/include/compat.h
 ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
 
 
-KBUILD_EXTRA_SYMBOLS := $(src)/../soc_resmng/Module.symvers \
-	$(src)/../trs_chan/Module.symvers \
-	$(src)/../trs_core/Module.symvers \
-	$(src)/../trs_id_allocator/Module.symvers \
-	$(src)/../trs_id_pool/Module.symvers \
-	$(src)/../trs_kunpeng/Module.symvers \
-	$(src)/../trs_pm_adapt/Module.symvers \
-	$(src)/../trs_sec_eh/Module.symvers \
-	$(src)/../virtmng/Module.symvers
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../soc_resmng/Module.symvers) \
+	$(wildcard $(src)/../trs_chan/Module.symvers) \
+	$(wildcard $(src)/../trs_core/Module.symvers) \
+	$(wildcard $(src)/../trs_id_allocator/Module.symvers) \
+	$(wildcard $(src)/../trs_id_pool/Module.symvers) \
+	$(wildcard $(src)/../trs_kunpeng/Module.symvers) \
+	$(wildcard $(src)/../trs_pm_adapt/Module.symvers) \
+	$(wildcard $(src)/../trs_sec_eh/Module.symvers) \
+	$(wildcard $(src)/../virtmng/Module.symvers)
