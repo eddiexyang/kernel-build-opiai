@@ -315,6 +315,47 @@ td_s32 vou_graphics_get_dev_mode(hal_disp_layer layer, fb_vou_scan_mode *scan_mo
     return TD_SUCCESS;
 }
 
+td_s32 vou_graphics_refresh_layer_state(ot_gfx_layer gfx_layer)
+{
+    ot_vo_dev vo_dev;
+    td_u32 layer_index;
+    td_bool vo_enable = TD_FALSE;
+    td_bool logic_ret;
+    hal_disp_syncinfo sync_info = {0};
+    vo_intf_type intf_type = HAL_DISP_INTF_VGA;
+
+    if (fb_graphic_drv_get_layer_index(gfx_layer, &layer_index) != TD_SUCCESS) {
+        gfbg_error("gfx_layer(%u) is invalid!\n", (td_u32)gfx_layer);
+        return TD_FAILURE;
+    }
+
+    if (!g_gfbg_gfx_layer_ctx[layer_index].binded) {
+        gfbg_error("graphics layer %u has not been binded!\n", layer_index);
+        return TD_FAILURE;
+    }
+
+    vo_dev = g_gfbg_gfx_layer_ctx[layer_index].binded_dev;
+
+    logic_ret = graphic_drv_get_dev_enable(vo_dev, &vo_enable);
+    if (logic_ret == TD_FALSE) {
+        gfbg_error("get vo dev %d enable failed!\n", vo_dev);
+        return TD_FAILURE;
+    }
+    g_ast_vo_dev[vo_dev].vo_enable = vo_enable;
+
+    logic_ret = graphic_drv_get_intf_sync(vo_dev, &sync_info);
+    if (logic_ret == TD_TRUE) {
+        g_ast_vo_dev[vo_dev].max_width = sync_info.hact;
+        g_ast_vo_dev[vo_dev].max_height = (sync_info.iop) ? sync_info.vact : (sync_info.vact * 2);
+    }
+
+    logic_ret = graphic_drv_get_intf_mux_sel(vo_dev, &intf_type);
+    if (logic_ret == TD_TRUE)
+        g_ast_vo_dev[vo_dev].intf_type = intf_type;
+
+    return TD_SUCCESS;
+}
+
 td_s32 vou_graphics_resource_init(td_void)
 {
     td_s32 ret;

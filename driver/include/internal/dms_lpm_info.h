@@ -140,12 +140,18 @@ struct dms_share_mem {
     char reset_temp;
 };
 
-int lpm_get_temperature(u32 dev_id, u32 core_id, u32 *temperature);
-int lpm_get_power(u32 dev_id, u32 core_id, u32 *power);
-int lpm_get_voltage(u32 dev_id, u32 core_id, u32 *voltage);
-int lpm_get_frequency(u32 dev_id, u32 core_id, u32 *frequency);
-int lpm_get_tsensor(u32 dev_id, u32 core_id, u32 *value);
-int lpm_get_max_frequency(u32 dev_id, u32 core_id, u32 *frequency);
+/*
+ * lpm_get_* — LPM hardware info queries.
+ * Normally exported by lpm/drv_lpm_devmng, but that module does not
+ * implement them for ascend310Brc. Provide inline stubs returning -ENOSYS;
+ * callers in dms already handle failure gracefully.
+ */
+static inline int lpm_get_temperature(u32 dev_id, u32 core_id, u32 *temperature) { return -ENOSYS; }
+static inline int lpm_get_power(u32 dev_id, u32 core_id, u32 *power) { return -ENOSYS; }
+static inline int lpm_get_voltage(u32 dev_id, u32 core_id, u32 *voltage) { return -ENOSYS; }
+static inline int lpm_get_frequency(u32 dev_id, u32 core_id, u32 *frequency) { return -ENOSYS; }
+static inline int lpm_get_tsensor(u32 dev_id, u32 core_id, u32 *value) { return -ENOSYS; }
+static inline int lpm_get_max_frequency(u32 dev_id, u32 core_id, u32 *frequency) { return -ENOSYS; }
 
 int lpm_get_temperature_from_ipc(u32 dev_id, u32 core_id, u32 *temperature);
 int lpm_get_temperature_from_devinfo(u32 dev_id, u32 core_id, u32 *temperature);

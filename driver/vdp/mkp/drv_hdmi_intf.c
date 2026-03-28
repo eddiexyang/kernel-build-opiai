@@ -3221,7 +3221,7 @@ td_s32 drv_hdmi_start(hdmi_device *hdmi_dev)
 #if defined(HDMI_PRODUCT_CHIP_1)
     drv_hdmi_low_power_set(hdmi_dev->hdmi_dev_id, TD_FALSE);
 #else
-    drv_hdmi_low_power_set(TD_FALSE);
+    drv_hdmi_low_power_set(hdmi_dev->hdmi_dev_id, TD_FALSE);
 #endif
 
     if (hdmi_mode_strategy(hdmi_dev) != TD_SUCCESS) {
@@ -3273,7 +3273,7 @@ td_s32 drv_hdmi_stop(hdmi_device *hdmi_dev)
 #if defined(HDMI_PRODUCT_CHIP_1)
     drv_hdmi_low_power_set(hdmi_dev->hdmi_dev_id, TD_TRUE);
 #else
-    drv_hdmi_low_power_set(TD_TRUE);
+    drv_hdmi_low_power_set(hdmi_dev->hdmi_dev_id, TD_TRUE);
 #endif
     hdmi_dev->run_state = (td_u32)hdmi_dev->run_state & (~((td_s32)HDMI_RUN_STATE_START));
     hdmi_dev->run_state = (td_u32)hdmi_dev->run_state | HDMI_RUN_STATE_STOP;

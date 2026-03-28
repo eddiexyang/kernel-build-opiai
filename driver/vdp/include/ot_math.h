@@ -16,4 +16,16 @@
 #define ALIGN_UP(x, a)  HI_ALIGN_UP(x, a)
 #endif
 
+
+/* 64-bit physical address split helpers (from hi_mpp_sample ot_math.h) */
+static inline td_u32 get_low_addr(td_phys_addr_t phys_addr)
+{
+    return (td_u32)phys_addr;
+}
+
+static inline td_u32 get_high_addr(td_phys_addr_t phys_addr)
+{
+    return (td_u32)(phys_addr >> 32);
+}
+
 #endif /* OT_MATH_H */

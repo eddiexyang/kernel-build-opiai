@@ -30,7 +30,12 @@
 int svm_get_pasid(pid_t vpid, int dev_id);
 #else
 int svm_get_pasid(pid_t vpid, int dev_id __maybe_unused);
-struct iommu_domain *svm_find_domain_by_name(char *smmu_name) __attribute__ ((weak));
+/*
+ * svm_find_domain_by_name is optionally provided by the SVM module.
+ * Cannot use __attribute__((weak)) because GCC generates GOT-based
+ * relocations (R_AARCH64_LD64_GOT_LO12_NC) which the kernel module
+ * loader does not support.  Use compat_lookup_name() at runtime instead.
+ */
 #endif
 
 hi_s32 osal_iommu_attach_group(void *domain, void *group)
@@ -217,21 +222,30 @@ int osal_svm_get_pasid(pid_t vpid, int dev_id)
 }
 EXPORT_SYMBOL(osal_svm_get_pasid);
 
+typedef struct iommu_domain *(*svm_find_domain_fn)(char *smmu_name);
+
 struct iommu_domain *osal_svm_get_dvpp_smmu_domain(hi_u32 idx)
 {
 #ifdef AOS_LLVM_BUILD
     return HI_NULL;
 #else
-    if (svm_find_domain_by_name == HI_NULL) {
-        return HI_NULL;
-    } else {
-        hi_char dvpp_smmu_name[SMMU_NAME_MAX_LEN] = { [0 ... SMMU_NAME_MAX_LEN - 1] = '\0' };
-        hi_s32 ret = snprintf_s(dvpp_smmu_name, SMMU_NAME_MAX_LEN - 1, SMMU_NAME_MAX_LEN - 2, "dvpp_smmu_%u", idx);
-        if (ret < 0) {
-            return HI_NULL;
-        }
-        return svm_find_domain_by_name(dvpp_smmu_name);
+    static svm_find_domain_fn find_fn;
+    static int resolved;
+    hi_char dvpp_smmu_name[SMMU_NAME_MAX_LEN] = { [0 ... SMMU_NAME_MAX_LEN - 1] = '\0' };
+    hi_s32 ret;
+
+    if (!resolved) {
+        find_fn = (svm_find_domain_fn)compat_lookup_name("svm_find_domain_by_name");
+        resolved = 1;
     }
+    if (find_fn == HI_NULL) {
+        return HI_NULL;
+    }
+    ret = snprintf_s(dvpp_smmu_name, SMMU_NAME_MAX_LEN - 1, SMMU_NAME_MAX_LEN - 2, "dvpp_smmu_%u", idx);
+    if (ret < 0) {
+        return HI_NULL;
+    }
+    return find_fn(dvpp_smmu_name);
 #endif
 }
 EXPORT_SYMBOL(osal_svm_get_dvpp_smmu_domain);

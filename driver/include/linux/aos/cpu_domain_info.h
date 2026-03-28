@@ -31,6 +31,7 @@ struct cpu_domain_info {
 	unsigned long datacpu_bitmap;
 };
 
-int get_cpudomain_info(struct cpu_domain_info *info);
+/* Stub: AOS kernel not present */
+static inline int get_cpudomain_info(struct cpu_domain_info *info) { return -ENOSYS; }
 
 #endif /* _LINUX_AOS_CPU_DOMAIN_INFO_H */

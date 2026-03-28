@@ -84,6 +84,26 @@ typedef hi_pixel_format     ot_pixel_format;
 /* VGS handle type - confirmed via IDA: simple td_s32 */
 typedef td_s32 ot_vgs_handle;
 
+/* VO defines from ot_defines.h (ascend310Brc values) */
+#ifndef OT_VO_MAX_PHYS_DEV_NUM
+#define OT_VO_MAX_PHYS_DEV_NUM            1
+#define OT_VO_MAX_VIRT_DEV_NUM            0
+#define OT_VO_MAX_CAS_DEV_NUM             0
+#define OT_VO_MAX_DEV_NUM                 (OT_VO_MAX_PHYS_DEV_NUM + OT_VO_MAX_VIRT_DEV_NUM + OT_VO_MAX_CAS_DEV_NUM)
+#define OT_VO_MAX_PHYS_VIDEO_LAYER_NUM    1
+#define OT_VO_MAX_GFX_LAYER_NUM           1
+#define OT_VO_MAX_PHYS_LAYER_NUM          (OT_VO_MAX_PHYS_VIDEO_LAYER_NUM + OT_VO_MAX_GFX_LAYER_NUM)
+#define OT_VO_MAX_LAYER_NUM               (OT_VO_MAX_PHYS_LAYER_NUM + OT_VO_MAX_VIRT_DEV_NUM + OT_VO_MAX_CAS_DEV_NUM)
+#define OT_VO_LAYER_V0                    0
+#define OT_VO_LAYER_G0                    1
+#define OT_VO_MAX_CHN_NUM                 4
+#endif
+
+#ifndef VO_MAX_DEV_NUM
+#define VO_MAX_DEV_NUM       OT_VO_MAX_DEV_NUM
+#define VO_MAX_PHY_DEV_NUM   OT_VO_MAX_PHYS_DEV_NUM
+#endif
+
 #ifdef __cplusplus
 #if __cplusplus
 }

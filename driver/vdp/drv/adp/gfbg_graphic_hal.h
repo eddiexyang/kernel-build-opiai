@@ -9,6 +9,7 @@
 #include "gfbg.h"
 #include "gfbg_reg.h"
 #include "gfbg_def.h"
+#include "ot_math.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -21,6 +22,8 @@ td_void fb_hal_vou_exit(td_void);
 
 /* Prototype       : device Relative */
 td_bool fb_hal_disp_get_intf_enable(hal_disp_outputchannel chan, td_bool *intf_en);
+td_bool fb_hal_disp_set_intf_enable(hal_disp_outputchannel chan, td_bool intf_en);
+td_bool fb_hal_disp_set_reg_up(hal_disp_outputchannel chan);
 
 td_bool fb_hal_disp_get_intf_sync(hal_disp_outputchannel chan, hal_disp_syncinfo *sync_info);
 td_bool fb_hal_disp_get_disp_iop(hal_disp_outputchannel chan, td_bool *iop);

@@ -84,13 +84,30 @@ hi_void *osal_vmalloc_node(hi_ulong size, hi_s32 node_id)
     return __vmalloc_node(size, SHMLBA, GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG| HIGHUSER_MOVABLE_FLG,
         PAGE_KERNEL, VM_USERMAP, node_id, __builtin_return_address(0));
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
-    /* __vmalloc_node / __vmalloc_node_range not exported in 6.x;
-     * use vmalloc_node() (exported) + memset for zero-fill */
+    /*
+     * IDA confirms original calls __vmalloc_node_range with:
+     *   align=PAGE_SIZE, start=VMALLOC_START, end=VMALLOC_END,
+     *   gfp=GFP_KERNEL|__GFP_ZERO|__GFP_ACCOUNT|THISNODE|HIGHMEM|MOVABLE,
+     *   pgprot=PAGE_KERNEL, vm_flags=VM_USERMAP(8), node, caller
+     *
+     * __vmalloc_node_range is not exported in 6.x.
+     * Resolve it at runtime via compat_lookup_name to preserve exact behavior.
+     */
     {
-        hi_void *p = vmalloc_node(size, node_id);
-        if (p)
-            memset(p, 0, size);
-        return p;
+        typedef void *(*vmalloc_node_range_fn)(unsigned long size, unsigned long align,
+            unsigned long start, unsigned long end, gfp_t gfp_mask,
+            pgprot_t prot, unsigned long vm_flags, int node,
+            const void *caller);
+        static vmalloc_node_range_fn fn;
+        if (!fn)
+            fn = (vmalloc_node_range_fn)compat_lookup_name("__vmalloc_node_range_noprof");
+        if (!fn)
+            fn = (vmalloc_node_range_fn)compat_lookup_name("__vmalloc_node_range");
+        if (fn)
+            return fn(size, PAGE_SIZE, VMALLOC_START, VMALLOC_END,
+                GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG | HIGHUSER_MOVABLE_FLG,
+                PAGE_KERNEL, VM_USERMAP, node_id, __builtin_return_address(0));
+        return NULL;
     }
 #else
     return __vmalloc_node_range(size,
@@ -116,10 +133,20 @@ hi_void *osal_vmalloc_hugepage_node(hi_ulong size, hi_s32 node_id)
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
     size = PMD_ALIGN(size);
     {
-        hi_void *p = vmalloc_node(size, node_id);
-        if (p)
-            memset(p, 0, size);
-        return p;
+        typedef void *(*vmalloc_node_range_fn)(unsigned long size, unsigned long align,
+            unsigned long start, unsigned long end, gfp_t gfp_mask,
+            pgprot_t prot, unsigned long vm_flags, int node,
+            const void *caller);
+        static vmalloc_node_range_fn fn;
+        if (!fn)
+            fn = (vmalloc_node_range_fn)compat_lookup_name("__vmalloc_node_range_noprof");
+        if (!fn)
+            fn = (vmalloc_node_range_fn)compat_lookup_name("__vmalloc_node_range");
+        if (fn)
+            return fn(size, PAGE_SIZE, VMALLOC_START, VMALLOC_END,
+                GFP_KERNEL | __GFP_ZERO | __GFP_ACCOUNT | THISNODE_FLAG | HIGHUSER_MOVABLE_FLG,
+                PAGE_KERNEL, VM_HUGEPAGE | VM_USERMAP, node_id, __builtin_return_address(0));
+        return NULL;
     }
 #else
     size = PMD_ALIGN(size);

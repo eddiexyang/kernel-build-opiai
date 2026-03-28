@@ -195,6 +195,60 @@ td_bool fb_hal_disp_get_intf_enable(hal_disp_outputchannel chan, td_bool *intf_e
     return TD_TRUE;
 }
 
+td_bool fb_hal_disp_set_intf_enable(hal_disp_outputchannel chan, td_bool intf_en)
+{
+    volatile u_dhd0_ctrl dhd0_ctrl;
+    volatile td_ulong addr_reg;
+
+    if (g_gfbg_reg == TD_NULL) {
+        gfbg_error("NULL pointer %s: L%d\n", __FUNCTION__, __LINE__);
+        return TD_FALSE;
+    }
+
+    switch (chan) {
+        case HAL_DISP_CHANNEL_DHD0:
+        case HAL_DISP_CHANNEL_DHD1:
+        case HAL_DISP_CHANNEL_DSD0:
+            addr_reg = fb_vou_get_chn_abs_addr(chan, (td_ulong)(uintptr_t)&(g_gfbg_reg->dhd0_ctrl.u32));
+            dhd0_ctrl.u32 = fb_hal_read_reg((td_u32 *)(uintptr_t)addr_reg);
+            dhd0_ctrl.bits.intf_en = intf_en;
+            fb_hal_write_reg((td_u32 *)(uintptr_t)addr_reg, dhd0_ctrl.u32);
+            break;
+        default:
+            gfbg_error("Error channel id found in %s: L%d\n", __FUNCTION__, __LINE__);
+            return TD_FALSE;
+    }
+
+    return TD_TRUE;
+}
+
+td_bool fb_hal_disp_set_reg_up(hal_disp_outputchannel chan)
+{
+    volatile u_dhd0_ctrl dhd0_ctrl;
+    volatile td_ulong addr_reg;
+
+    if (g_gfbg_reg == TD_NULL) {
+        gfbg_error("NULL pointer %s: L%d\n", __FUNCTION__, __LINE__);
+        return TD_FALSE;
+    }
+
+    switch (chan) {
+        case HAL_DISP_CHANNEL_DHD0:
+        case HAL_DISP_CHANNEL_DHD1:
+        case HAL_DISP_CHANNEL_DSD0:
+            addr_reg = fb_vou_get_chn_abs_addr(chan, (td_ulong)(uintptr_t)&(g_gfbg_reg->dhd0_ctrl.u32));
+            dhd0_ctrl.u32 = fb_hal_read_reg((td_u32 *)(uintptr_t)addr_reg);
+            dhd0_ctrl.bits.regup = 1;
+            fb_hal_write_reg((td_u32 *)(uintptr_t)addr_reg, dhd0_ctrl.u32);
+            break;
+        default:
+            gfbg_error("Error channel id found in %s: L%d\n", __FUNCTION__, __LINE__);
+            return TD_FALSE;
+    }
+
+    return TD_TRUE;
+}
+
 td_bool fb_hal_disp_get_intf_sync(hal_disp_outputchannel chan, hal_disp_syncinfo *sync_info)
 {
     volatile u_dhd0_ctrl dhd0_ctrl;
@@ -2797,4 +2851,3 @@ td_s32 fb_hal_set_smmu_enable(td_u32 sid, td_u32 ssid)
     hal_unmap_smmu_reg();
     return TD_SUCCESS;
 }
-

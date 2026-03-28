@@ -7,6 +7,7 @@
 #define GFBG_VOU_GRAPHICS_H
 
 #include "ot_type.h"
+#include "ot_common.h"
 #include "gfbg.h"
 #include "gfbg_vou_drv.h"
 #include "gfbg_graphics_drv.h"
@@ -106,6 +107,7 @@ td_bool vou_graphics_get_gfx_stride(ot_gfx_layer gfx_layer, td_u32 *gfx_stride);
 td_bool vou_graphics_get_gfx_addr(ot_gfx_layer gfx_layer, td_phys_addr_t *gfx_addr);
 
 td_s32 vou_graphics_get_dev_mode(hal_disp_layer layer, fb_vou_scan_mode *scan_mode, td_bool *feild_update);
+td_s32 vou_graphics_refresh_layer_state(ot_gfx_layer gfx_layer);
 
 td_s32 vou_graphics_resource_init(td_void);
 td_s32 vou_graphics_resource_deinit(td_void);
@@ -142,4 +144,3 @@ td_void vou_graphics_set_axi_type(td_void);
 td_s32 vou_graphics_set_smmu_enable(td_u32 sid, td_u32 ssid);
 
 #endif /* VOU_GRAPHICS_H */
-

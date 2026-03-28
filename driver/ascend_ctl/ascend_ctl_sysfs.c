@@ -374,7 +374,7 @@ int ascend_ctl_get_dev_num(unsigned int *dev_num)
     *dev_num = g_ascend_ctl_sysfs.smp_dev_num;
     return 0;
 }
-EXPORT_SYMBOL(ascend_ctl_get_dev_num);
+EXPORT_SYMBOL_GPL(ascend_ctl_get_dev_num);
 
 int ascend_ctl_get_dts_cpu_cfg_to_user_cfg(unsigned int *ctrl_cpu_num, unsigned int *data_cpu_num,
     unsigned int *ai_cpu_num)
@@ -389,7 +389,7 @@ int ascend_ctl_get_dts_cpu_cfg_to_user_cfg(unsigned int *ctrl_cpu_num, unsigned 
     *ai_cpu_num = g_ascend_ctl_sysfs.dts_cpu_cfg.aicpu_num;
     return 0;
 }
-EXPORT_SYMBOL(ascend_ctl_get_dts_cpu_cfg_to_user_cfg);
+EXPORT_SYMBOL_GPL(ascend_ctl_get_dts_cpu_cfg_to_user_cfg);
 
 STATIC int ascend_ctl_get_dts_board_id(unsigned int *board_id)
 {

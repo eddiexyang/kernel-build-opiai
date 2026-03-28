@@ -57,6 +57,7 @@ extern "C" {
     HI_DEBUG_TRACE(HI_ID_VI, "[mipi-rx]:%s [line]:%d " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 #define hi_mipi_rx_unused(x) ((void)(x))
+#define mipi_rx_unused(x) ((void)(x))
 #define max2(x, y)       ((x) > (y) ? (x) : (y))
 #define min2(x, y)       ((x) < (y) ? (x) : (y))
 #define mipi_align_up(x, a)           ((((x) + ((a) - 1U)) / (a)) * (a))

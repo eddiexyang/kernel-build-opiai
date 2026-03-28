@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.16.3)
 project(dtbtool)
 
 # 编译dtbTool
-set(HEADER_DIR ${TOP_DIR}/libc_sec/include)
-set(HEADER_SRC_DIR ${TOP_DIR}/libc_sec/src)
+set(HEADER_DIR ${TOP_DIR}/driver/libc_sec/include)
+set(HEADER_SRC_DIR ${TOP_DIR}/driver/libc_sec/src)
 set(BIN_DTBTOOL ${CMAKE_CURRENT_BINARY_DIR}/dtbTool CACHE STRING "dtbTool")
 
 set(SRC_DTBTOOL

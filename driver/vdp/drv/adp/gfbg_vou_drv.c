@@ -771,7 +771,7 @@ td_s32 gfbg_open_layer(td_u32 layer_id)
 
 td_s32 gfbg_exit_vo(td_void)
 {
-#ifdef CONFIG_OT_VO_FB_SEPARATE
+#ifndef CONFIG_OT_VO_FB_SEPARATE
     vou_export_func *export_func = TD_NULL;
 
     export_func = func_entry(vou_export_func, OT_ID_VO);
@@ -779,7 +779,6 @@ td_s32 gfbg_exit_vo(td_void)
         gfbg_error("VOU graphics_vo_exit is NULL!\n");
         return TD_FAILURE;
     }
-    /* See pfn_vou_graphics_vo_exit */
     export_func->pfn_vou_graphics_vo_exit();
 #endif
     return TD_SUCCESS;

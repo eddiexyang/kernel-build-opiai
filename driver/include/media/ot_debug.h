@@ -29,6 +29,19 @@ extern "C" {
 #define OT_DBG_INFO     6   /* informational */
 #define OT_DBG_DEBUG    7   /* debug-level messages */
 
+/* HI_DBG_* legacy aliases (used by drv/adp/ compress code) */
+#ifndef HI_DBG_ERR
+#define HI_DBG_ERR    OT_DBG_ERR
+#define HI_DBG_WARN   OT_DBG_WARN
+#define HI_DBG_INFO   OT_DBG_INFO
+#define HI_DBG_DEBUG  OT_DBG_DEBUG
+#endif
+
+/* OT_TRACE(level, mod, fmt...) - generic trace used by HAL compress code */
+#ifndef OT_TRACE
+#define OT_TRACE(level, mod, fmt, ...) printk(KERN_DEBUG "[OT][%s] " fmt, __FUNCTION__, ##__VA_ARGS__)
+#endif
+
 /*
  * OT_DEBUG_TRACE - kernel-mode trace macro
  *

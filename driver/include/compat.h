@@ -421,17 +421,29 @@ static inline struct iommu_domain *iommu_domain_alloc(struct bus_type *bus)
 	return NULL;
 }
 
-/* kprobe-based kallsyms_lookup_name() for modules (unexported since 5.7) */
+/*
+ * compat_lookup_name() — resolve any kernel symbol (code or data) from a module.
+ *
+ * kallsyms_lookup_name() is not exported since 5.7. We bootstrap it:
+ *   1. Use kprobe to find kallsyms_lookup_name (it IS a function)
+ *   2. Call it to resolve any symbol including data (e.g. psci_ops)
+ */
 #include <linux/kprobes.h>
+
+typedef unsigned long (*_kallsyms_lookup_name_t)(const char *name);
+
 static inline unsigned long compat_lookup_name(const char *name)
 {
-	struct kprobe kp = { .symbol_name = name };
-	unsigned long addr;
-	if (register_kprobe(&kp) < 0)
-		return 0;
-	addr = (unsigned long)kp.addr;
-	unregister_kprobe(&kp);
-	return addr;
+	static _kallsyms_lookup_name_t _fn;
+
+	if (!_fn) {
+		struct kprobe kp = { .symbol_name = "kallsyms_lookup_name" };
+		if (register_kprobe(&kp) < 0)
+			return 0;
+		_fn = (_kallsyms_lookup_name_t)kp.addr;
+		unregister_kprobe(&kp);
+	}
+	return _fn ? _fn(name) : 0;
 }
 
 #endif /* __ASCEND_COMPAT_H__ */

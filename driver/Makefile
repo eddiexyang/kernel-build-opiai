@@ -31,7 +31,7 @@ KMAKE = $(MAKE) -C $(KERNEL_DIR) \
 # Some modules trip Linux modfinal races when the nested sub-make inherits the
 # outer -j value. Keep those module-local builds serialized while preserving
 # cross-module parallelism in this top-level driver build.
-SERIAL_SUBMAKE_MODULES := hsm_firmware_update
+SERIAL_SUBMAKE_MODULES := hsm_firmware_update sys
 
 # ============================================================================
 # Per-module build targets (enables parallel make -jN)
@@ -66,14 +66,14 @@ endef
 DEVICE_L0_ALL := bbox bootdot qos hsm_flash hsm_firmware_update hsm_heartbeat dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	dbl_algorithm dbl_dev_identity dbl_runenv_config \
 	soc_resmng uda urd event_sched xsmem \
-	davinci_intf icm ascend_ctl pkicms fpdc memory soc_misc drv_notify \
+	davinci_intf icm ascend_ctl pkicms fpdc memory mem_ctrl soc_misc drv_notify \
 	soft_fault ipcdrv pcie_rc_sr sysmonitor svm \
 	trs_id_allocator trs_id_pool trs_tsmng trs_mia_agent \
 	i2c_uniform sys_ctrl_uniform usb_uniform spi_uniform gpio_uniform pwm \
 	mttcan eeprom serdes \
 	dms_mng dms_dtm dms_smf hwmon
 
-DEVICE_L1_ALL := trs_chan trs_stars trs_sub_stars dvpp_osal base dfm
+DEVICE_L1_ALL := trs_chan trs_stars trs_sub_stars dvpp_osal base sys dfm
 
 DEVICE_L2_ALL := hns3 ts_platform upgrade user_cfg hiusbc pcie ts_channel \
 	audio vdp hdmi mipi_rx
@@ -96,14 +96,14 @@ DEVICE_EXTRA_ALL += kbox dvpp_pngd
 DEVICE_L0 := bbox bootdot qos hsm_flash hsm_firmware_update hsm_heartbeat dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	dbl_algorithm dbl_dev_identity dbl_runenv_config \
 	soc_resmng uda urd event_sched xsmem \
-	davinci_intf icm ascend_ctl pkicms fpdc memory soc_misc \
+	davinci_intf icm ascend_ctl pkicms fpdc memory mem_ctrl soc_misc \
 	soft_fault ipcdrv pcie_rc_sr sysmonitor svm \
 	trs_id_allocator trs_id_pool trs_tsmng \
 	i2c_uniform sys_ctrl_uniform spi_uniform gpio_uniform pwm \
 	mttcan eeprom serdes \
 	dms_mng dms_dtm dms_smf
 
-DEVICE_L1 := trs_chan trs_stars dvpp_osal base dfm
+DEVICE_L1 := trs_chan trs_stars dvpp_osal base sys dfm
 
 DEVICE_L2 := hns3 ts_platform upgrade user_cfg hiusbc ts_channel \
 	audio vdp hdmi mipi_rx
@@ -161,6 +161,7 @@ build-pcie_rc_sr: build-bootdot
 build-pkicms: build-user_cfg build-hsm_firmware_update
 build-prof: build-dbl_chip_config build-dms build-soc_resmng build-trs_chan build-trs_kunpeng build-trs_pm_adapt build-uda build-virtmng
 build-serdes: build-bootdot build-hsm_flash
+build-sys: build-base build-dvpp_osal build-hsm_heartbeat
 build-soc_misc: build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-uda build-urd build-user_cfg
 build-soc_platform: build-pcie build-soc_resmng build-uda
 build-soft_fault: build-dms_dtm build-dms_smf build-uda build-urd

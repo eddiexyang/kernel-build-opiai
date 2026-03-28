@@ -19,6 +19,7 @@
 
 #define VO_INT_MSK_DHD0 0x06
 #define VO_INT_MSK_DHD1 0x60
+#define VO_INT_MSK_DSD0 0x600
 
 #define GFX_MAX_CSC_TABLE 61
 
@@ -975,6 +976,9 @@ td_s32 fb_int_msk_init(td_u32 layer_id)
             if (vo_dev == VO_DEV_DHD0) {
                 /* set vdac and dhd0 mask reg */
                 graphic_drv_int_set_mask(VO_INT_MSK_DHD0);
+            } else if (vo_dev == VO_DEV_DSD0) {
+                /* set dsd mask reg */
+                graphic_drv_int_set_mask(VO_INT_MSK_DSD0);
             } else {
                 /* set vdac and dhd1 mask reg */
                 graphic_drv_int_set_mask(VO_INT_MSK_DHD1);
