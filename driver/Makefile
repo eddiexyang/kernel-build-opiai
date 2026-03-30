@@ -101,7 +101,7 @@ DEVICE_L0 := bbox bootdot qos hsm_flash hsm_firmware_update hsm_heartbeat dbl_bo
 	trs_id_allocator trs_id_pool trs_tsmng \
 	i2c_uniform sys_ctrl_uniform spi_uniform gpio_uniform pwm \
 	mttcan eeprom serdes \
-	dms_mng dms_dtm dms_smf
+	dms_mng dms_dtm dms_smf hwmon
 
 DEVICE_L1 := trs_chan trs_stars dvpp_osal base sys dfm
 
