@@ -1588,7 +1588,7 @@ int devdrv_get_chip_die_id(u32 dev_id, u32 *chip_id, u32 *die_id)
 
     return 0;
 }
-EXPORT_SYMBOL(devdrv_get_chip_die_id);
+EXPORT_SYMBOL_GPL(devdrv_get_chip_die_id);
 
 int devdrv_get_device_ids(u32 dev_id, u32 *board_id, u32 *slot_id)
 {

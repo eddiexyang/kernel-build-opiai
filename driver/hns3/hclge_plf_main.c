@@ -4605,4 +4605,5 @@ module_exit(hns3_platform_exit);
 MODULE_DESCRIPTION("HNS3: Hisilicon Ethernet Platform Driver");
 MODULE_AUTHOR("Huawei Tech. Co., Ltd.");
 MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: drv_e2prom");
 MODULE_ALIAS("platform: hns3-platform-nic");

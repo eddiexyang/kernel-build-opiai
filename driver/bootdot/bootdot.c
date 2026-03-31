@@ -103,7 +103,7 @@ int bootdot_init_blk(u32 block_id, u32 magic, u32 execption_id, u32 expect_statu
 
 	return 0;
 }
-EXPORT_SYMBOL(bootdot_init_blk);
+EXPORT_SYMBOL_GPL(bootdot_init_blk);
 
 int bootdot_set_blk(u32 block_id, u32 magic, u32 current_status)
 {
@@ -130,7 +130,7 @@ int bootdot_set_blk(u32 block_id, u32 magic, u32 current_status)
 
 	return 0;
 }
-EXPORT_SYMBOL(bootdot_set_blk);
+EXPORT_SYMBOL_GPL(bootdot_set_blk);
 
 static int bootdot_blkget_show(struct seq_file *m, void *v)
 {

@@ -475,7 +475,7 @@ long eeprom_ioctl_kernel(struct file *file, unsigned int cmd, unsigned long arg)
 
     return ret;
 }
-EXPORT_SYMBOL(eeprom_ioctl_kernel);
+EXPORT_SYMBOL_GPL(eeprom_ioctl_kernel);
 
 STATIC struct file_operations eeprom_fops = {
     .owner = THIS_MODULE,

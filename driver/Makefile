@@ -143,7 +143,7 @@ build-eeprom: build-user_cfg
 build-event_sched: build-davinci_intf build-dms build-soc_resmng build-trs_chan build-uda build-user_cfg build-virtmng
 build-hdcdrv: build-dbl_chip_config build-pcie build-uda build-vpcie
 build-hdmi: build-base build-bootdot build-dvpp_osal build-vdp
-build-hns3: build-bbox build-bootdot build-dms_smf build-qos
+build-hns3: build-bbox build-bootdot build-dms_smf build-eeprom build-qos
 build-hsm_heartbeat: build-bbox
 build-icm: build-ipcdrv
 build-ipcdrv: build-bootdot

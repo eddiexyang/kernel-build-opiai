@@ -25,4 +25,5 @@ KBUILD_EXTRA_SYMBOLS := \
 	$(wildcard $(src)/../bbox/Module.symvers) \
 	$(wildcard $(src)/../bootdot/Module.symvers) \
 	$(wildcard $(src)/../dms_smf/Module.symvers) \
+	$(wildcard $(src)/../eeprom/Module.symvers) \
 	$(wildcard $(src)/../qos/Module.symvers)
