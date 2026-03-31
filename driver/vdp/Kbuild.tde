@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-2.0
+# drv_tde.ko - TDE (2D Graphics Engine) driver for Ascend310B VDP subsystem
+
+obj-m := drv_tde.o
+drv_tde-objs := \
+	drv/init/tde_init.o \
+	drv/tde/src/tde_osr.o \
+	drv/tde/src/tde_ioctl.o \
+	drv/tde/src/tde_handle.o \
+	drv/tde/src/tde_osilist.o \
+	drv/tde/src/tde_proc.o \
+	drv/tde/src/wmalloc.o \
+	drv/tde/adp/tde_v2_0/tde_adp.o \
+	drv/tde/adp/tde_v2_0/tde_hal_k.o \
+	drv/tde/adp/tde_v2_0/tde_osictl_k.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config -I$(DRIVER_INC)/include/media
+ccflags-y += -I$(src) -I$(src)/include
+ccflags-y += -I$(src)/drv/tde/include -I$(src)/drv/tde/adp/tde_v2_0
+ccflags-y += -I$(src)/drv/include -I$(src)/drv/init/include -I$(src)/drv/adp
+ccflags-y += -I$(src)/api/tde/include
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-date-time

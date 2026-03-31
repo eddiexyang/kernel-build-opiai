@@ -21,6 +21,7 @@
 #include <linux/of_device.h>
 #include <linux/math64.h>
 #include <linux/err.h>
+#include <linux/module.h>
 #include <linux/spinlock.h>
 
 #define RET_SUCC                   0
@@ -549,6 +550,9 @@ s32 ntc_read_temp(const s32 channel, s32 *temp)
 	return RET_SUCC;
 }
 EXPORT_SYMBOL(ntc_read_temp);
+
+MODULE_DESCRIPTION("HISI PMIC tsensor helpers");
+MODULE_LICENSE("GPL v2");
 
 #else
 int ntc_read_temp(void)

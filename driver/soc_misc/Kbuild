@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_soc_misc.o
+
+drv_soc_misc-objs := soc_misc_init.o
+drv_soc_misc-objs += chipinfo/soc_misc_feature.o chipinfo/soc_misc_info.o
+drv_soc_misc-objs += soc_misc_common.o chipinfo/soc_misc_chip_info.o soc_misc_cpu_utilization.o
+
+DRIVER_INC := $(src)/..
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel
+ccflags-y += -I$(DRIVER_INC)/include/driver -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/../kernel-tools/spmi_hisi/include
+ccflags-y += -I$(DRIVER_INC)/fpdc -I$(DRIVER_INC)/fpdc/receiver
+ccflags-y += -I$(DRIVER_INC)/dms/include -I$(DRIVER_INC)/dms/config
+ccflags-y += -I$(DRIVER_INC)/dms/smf/sensor -I$(DRIVER_INC)/dms/smf/sensor/config
+ccflags-y += -I$(DRIVER_INC)/dms/smf/event -I$(DRIVER_INC)/dms/core
+ccflags-y += -I$(DRIVER_INC)/dms/dfm_template
+ccflags-y += -I$(src) -I$(src)/chipinfo -I$(src)/faultmgr -I$(src)/features
+ccflags-y += -I$(src)/faultmgr/l3d -I$(src)/faultmgr/l3t
+ccflags-y += -Wall -Werror -funsigned-char -Wextra -Wformat=2 -Wfloat-equal
+ccflags-y += -Wcast-align -Wvla -Wundef
+ccflags-y += -Wstack-usage=2048 -Wno-unused-parameter -Wno-sign-compare
+ccflags-y += -Wno-missing-field-initializers
+
+ifneq ($(NOT_SUPPORT_SP),y)
+ccflags-y += -fstack-protector-all
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+ifeq ($(CONFIG_BOARD_ID_FROM_DEVINFO),y)
+drv_soc_misc-objs += features/board_id_from_devinfo.o
+else ifeq ($(CONFIG_BOARD_ID_FROM_DTS),y)
+drv_soc_misc-objs += features/board_id_from_dts.o
+else ifeq ($(CONFIG_BOARD_ID_FROM_GPIO),y)
+drv_soc_misc-objs += features/board_id_from_gpio.o
+else ifeq ($(CONFIG_BOARD_ID_STUB),y)
+drv_soc_misc-objs += features/board_id_stub.o
+endif
+
+ifeq ($(CONFIG_BOARD_INFO_FROM_PCA6416),y)
+drv_soc_misc-objs += features/boardinfo_from_pca6416.o
+else ifeq ($(CONFIG_BOARD_INFO_NOT_SUPPORT_DEFAULT_5A),y)
+drv_soc_misc-objs += features/boardinfo_not_support_default_5a.o
+else ifeq ($(CONFIG_BOARD_INFO_NOT_SUPPORT_DEFAULT_01),y)
+drv_soc_misc-objs += features/boardinfo_not_support_default_01.o
+else ifeq ($(CONFIG_BOARD_INFO_NOT_SUPPORT_DEFAULT_FF),y)
+drv_soc_misc-objs += features/boardinfo_not_support_default_ff.o
+endif
+
+ifeq ($(CONFIG_CPU_INFO_FROM_DEVINFO),y)
+drv_soc_misc-objs += features/cpu_info_from_devinfo.o
+else ifeq ($(CONFIG_CPU_INFO_FROM_PCIE),y)
+drv_soc_misc-objs += features/cpu_info_from_pcie.o
+endif
+
+ifeq ($(CONFIG_SLOT_ID_FROM_CMDLINE),y)
+drv_soc_misc-objs += features/slot_id_from_cmdline.o
+else ifeq ($(CONFIG_SLOT_ID_FROM_DEVINFO),y)
+drv_soc_misc-objs += features/slot_id_from_devinfo.o
+else ifeq ($(CONFIG_SLOT_ID_FROM_GPIO),y)
+drv_soc_misc-objs += features/slot_id_from_gpio.o
+else ifeq ($(CONFIG_SLOT_ID_STUB),y)
+drv_soc_misc-objs += features/slot_id_stub.o
+endif
+
+ifeq ($(PRODUCT),ascend910)
+ccflags-y += -DCFG_FEATURE_FAULT_MANAGER -DCFG_FEATURE_DIE_ID_N_V
+ccflags-y += -DCFG_FEATURE_SLOT_ID_FROM_DEVINFO -DCFG_SOC_PLATFORM_CLOUD
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_RING_FAULT
+ccflags-y += -DCFG_FEATURE_PCIE_LOCAL_FAULT -DCFG_FEATURE_CHIP_EXPAND_VERSION
+ccflags-y += -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -I$(src)/faultmgr/ascend910
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend910
+
+ifneq ($(CONFIG_SLOT_ID_FROM_DEVINFO),y)
+drv_soc_misc-objs += features/slot_id_from_devinfo.o
+endif
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/l3d/l3d_dms_init.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_dms_init.o faultmgr/l3d/l3d_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_arm_ras_unmask.o faultmgr/l3t/l3t_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras_unmask.o faultmgr/soc_misc_cpucore.o
+drv_soc_misc-objs += faultmgr/soc_misc_ring.o faultmgr/soc_misc_pcie.o
+drv_soc_misc-objs += faultmgr/soc_misc_ras.o
+else ifneq ($(filter $(PRODUCT),ascend310 ascend310rc),)
+ccflags-y += -DCFG_FEATURE_DIE_ID_PMU
+ccflags-y += -I$(src)/faultmgr/ascend310
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend310
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend310
+else ifneq ($(filter $(PRODUCT),ascend610 bs9sx1a),)
+ccflags-y += -DCFG_FEATURE_FAULT_MANAGER -DCFG_FEATURE_SAFETY_MANAGER
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_RING_FAULT
+ccflags-y += -DCFG_FEATURE_MN_FAULT -DCFG_FEATURE_RBRG_FAULT
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V51 -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -I$(src)/faultmgr/ascend610
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend610
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/soc_misc_safety.o
+drv_soc_misc-objs += faultmgr/soc_misc_safety_conf.o faultmgr/soc_misc_ras.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_dms_init.o faultmgr/l3t/l3t_dms_init.o
+drv_soc_misc-objs += faultmgr/soc_misc_cpucore.o faultmgr/l3d/l3d_safety.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_arm_ras.o faultmgr/l3t/l3t_safety.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras.o faultmgr/soc_misc_ring.o
+drv_soc_misc-objs += faultmgr/soc_misc_pcie.o faultmgr/soc_misc_mn.o
+drv_soc_misc-objs += faultmgr/soc_misc_cpucluster.o faultmgr/soc_misc_io_subsys.o
+drv_soc_misc-objs += faultmgr/soc_misc_hac_subsys.o faultmgr/soc_misc_peri_subsys.o
+drv_soc_misc-objs += faultmgr/soc_misc_mbigen_peri.o faultmgr/soc_misc_mbigen_io.o
+drv_soc_misc-objs += faultmgr/soc_misc_rbrg.o faultmgr/l3t/l3t_irq_ras.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_irq_ras.o
+else ifneq ($(filter $(PRODUCT),ascend610Lite ascend610Liteesl),)
+ccflags-y += -DCFG_FEATURE_FAULT_MANAGER -DCFG_FEATURE_SAFETY_MANAGER
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_MN_FAULT
+ccflags-y += -DCFG_FEATURE_CPU_INFO_FROM_DEVINFO_AND_PCIE
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_LITE_ESL -DCFG_SOC_PLATFORM_MDC_LITE
+ccflags-y += -I$(src)/faultmgr/ascend610L
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend610
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_safety_conf.o faultmgr/soc_misc_fault.o
+drv_soc_misc-objs += faultmgr/soc_misc_safety.o faultmgr/l3d/l3d_dms_init.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_dms_init.o faultmgr/l3d/l3d_safety.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_safety.o faultmgr/soc_misc_mn.o
+else ifneq ($(filter $(PRODUCT),helper310p),)
+ccflags-y += -DCFG_FEATURE_CPU_NUMS_FIXED -DCFG_FEATURE_BASE_FAULT
+ccflags-y += -DCFG_FEATURE_FAULT_MANAGER -DCFG_FEATURE_PCIE_LOCAL_FAULT
+ccflags-y += -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -I$(src)/faultmgr/helper310p
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend610
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/l3d/l3d_dms_init.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_dms_init.o faultmgr/l3d/l3d_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_arm_ras_unmask.o faultmgr/l3t/l3t_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras_unmask.o faultmgr/soc_misc_ras.o
+drv_soc_misc-objs += faultmgr/soc_misc_cpucore.o faultmgr/soc_misc_ring.o
+drv_soc_misc-objs += faultmgr/soc_misc_pcie.o
+else ifeq ($(PRODUCT),ascend310p)
+ccflags-y += -DCFG_FEATURE_FAULT_MANAGER -DCFG_FEATURE_PCIE_LOCAL_FAULT
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2 -DCFG_FEATURE_BASE_FAULT
+ccflags-y += -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -I$(src)/faultmgr/ascend310p
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend610
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/l3d/l3d_dms_init.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_dms_init.o faultmgr/l3d/l3d_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras.o faultmgr/soc_misc_ras.o
+drv_soc_misc-objs += faultmgr/soc_misc_cpucore.o faultmgr/soc_misc_ring.o
+drv_soc_misc-objs += faultmgr/soc_misc_pcie.o
+else ifneq ($(filter $(PRODUCT),ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu as31xm1),)
+ccflags-y += -DCFG_FEATURE_ENTIRETY_UNMASK -DCFG_FEATURE_FAULT_MANAGER
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_PCIE_HISI_COMM_FAULT
+ccflags-y += -DCFG_FEATURE_CPU_NUMS_FIXED -DCFG_FEATURE_DFM_RAS_FAULT
+ccflags-y += -I$(src)/faultmgr/ascend310B
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend610
+
+ifneq ($(filter $(PRODUCT),ascend310Brc ascend310Brcesl as31xm1),)
+ccflags-y += -DCFG_FEATURE_VFIO -DCFG_FEATURE_RC_MODE
+ccflags-y += -DCFG_FEATURE_DEVICE_DEVID_CONVERT
+endif
+
+ifneq ($(filter $(PRODUCT),as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11 -DCFG_SOC_PLATFORM_MINIV2
+else
+ccflags-y += -DCFG_FEATURE_CPUCORE_UNMASK
+drv_soc_misc-objs += faultmgr/l3d/l3d_arm_ras_unmask.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras_unmask.o
+endif
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/l3d/l3d_dms_init.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_dms_init.o faultmgr/l3d/l3d_arm_ras.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras.o faultmgr/soc_misc_pcie.o
+drv_soc_misc-objs += faultmgr/soc_misc_ras.o faultmgr/soc_misc_cpucore.o
+else ifneq ($(filter $(PRODUCT),ascend910B ascend920esl ascend920emu),)
+ccflags-y += -DCFG_FEATURE_ENTIRETY_UNMASK -DCFG_FEATURE_FAULT_MANAGER
+ccflags-y += -DCFG_FEATURE_BASE_FAULT -DCFG_FEATURE_PCIE_HISI_COMM_FAULT
+ccflags-y += -DCFG_FEATURE_PCIE_DISP_FAULT -DCFG_FEATURE_DIE_ID_N_V
+ccflags-y += -DCFG_FEATURE_SRIOV -DCFG_FEATURE_SLOT_ID_FROM_MODULE_ID
+ccflags-y += -DCFG_FEATURE_DRIVER_QUERY_RAS_ERROR -DCFG_FEATURE_HCCS_FAULT
+ccflags-y += -DCFG_FEATURE_DFM_RAS_FAULT -DCFG_FEATURE_SLOT_ID_FROM_DEVINFO
+ccflags-y += -I$(src)/faultmgr/ascend910B
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_device/ascend910
+ccflags-y += -I$(DRIVER_INC)/ts_platform/ascend910
+
+drv_soc_misc-objs += faultmgr/soc_misc_dms_init.o faultmgr/soc_misc_err_info.o
+drv_soc_misc-objs += faultmgr/soc_misc_fault.o faultmgr/soc_misc_ras.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_dms_init.o faultmgr/l3t/l3t_dms_init.o
+drv_soc_misc-objs += faultmgr/l3d/l3d_arm_ras.o faultmgr/l3d/l3d_arm_ras_unmask.o
+drv_soc_misc-objs += faultmgr/l3t/l3t_arm_ras.o faultmgr/l3t/l3t_arm_ras_unmask.o
+drv_soc_misc-objs += faultmgr/soc_misc_pcie.o faultmgr/soc_misc_hccs.o
+drv_soc_misc-objs += faultmgr/soc_misc_cpucore.o
+
+ifneq ($(filter $(PRODUCT),ascend920esl),)
+ccflags-y += -DCFG_FEATURE_ESL_NOT_SUPPORT
+endif
+endif
+
+ccflags-y += -I$(DRIVER_INC)/include/internal
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../dfm/Module.symvers \
+	$(src)/../dms/Module.symvers \
+	$(src)/../dms_dtm/Module.symvers \
+	$(src)/../dms_smf/Module.symvers \
+	$(src)/../fpdc/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../urd/Module.symvers \
+	$(src)/../user_cfg/Module.symvers

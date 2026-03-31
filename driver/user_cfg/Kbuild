@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_user_cfg.o
+drv_user_cfg-objs := dev_user_cfg.o user_cfg_management.o drv_whitelist.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/hiss
+ccflags-y += -I$(src)  -I$(DRIVER_INC)/include/user_config
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2 -DCFG_FEATURE_GET_DEV_NUM_FROM_ASCEND_CTL -DCFG_FEATURE_PSS_SIGN -DCFG_FEATURE_PROCESS_WHITELIST -DCFG_USER_CFG_SUPPORT_DYNAMIC_ITEM -DCFG_USER_CFG_SUPPORT_SEC_FLASH -DCFG_USER_CFG_SUPPORT_MULTI_BLOCK -DCFG_FEATURE_CONTAINER
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../hsm_flash/Module.symvers)

@@ -1,5 +1,0 @@
-if (${PRODUCT_SIDE} STREQUAL host)
-    add_subdirectory(near)
-else ()
-    add_subdirectory(local)
-endif()

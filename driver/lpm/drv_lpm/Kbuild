@@ -1,0 +1,125 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_lpm_fault.o
+
+drv_lpm_fault-objs := init/lpm_init.o
+drv_lpm_fault-objs += common/lpm_fault_common.o
+drv_lpm_fault-objs += detect/heartbeat/lpm_fault_heartbeat.o
+drv_lpm_fault-objs += dfx/debugfs/lpm_debugfs_base.o
+drv_lpm_fault-objs += dfx/debugfs/lpm_fault_debugfs.o
+drv_lpm_fault-objs += common/lpm_fault_ipc.o
+drv_lpm_fault-objs += common/lpm_fault_channel.o
+
+DRIVER_INC := $(src)/../..
+
+ifneq ($(NOT_SUPPORT_SP), y)
+ccflags-y += -fstack-protector-all
+endif
+
+ifeq ($(TARGET_BUILD_TYPE),debug)
+ccflags-y += -DLPM_BUILD_DEBUG
+endif
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/init -I$(src)/common -I$(src)/report
+ccflags-y += -I$(src)/detect -I$(src)/detect/heartbeat -I$(src)/detect/startup
+ccflags-y += -I$(src)/detect/safety -I$(src)/detect/ras
+ccflags-y += -I$(src)/external -I$(src)/dfx -I$(src)/dfx/debugfs -I$(src)/public
+ccflags-y += -DDRV_LPM_FAULT -DLPM_FAULT_HEARTBEAT
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+ifneq ($(filter $(PRODUCT), ascend310 ascend310rc),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINI
+ccflags-y += -DLPM_START_DIRECT -DLPM_IPC_V1
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910B ascend920esl ascend920emu),)
+ccflags-y += -DCFG_SOC_PLATFORM_CLOUD_V2
+ccflags-y += -DLPM_IPC_V3 -DLPM_REPORT -DLPM_SHAREMEM_V2
+drv_lpm_fault-objs += common/lpm_fault_sharemem.o
+drv_lpm_fault-objs += common/lpm_fault_sharemem_v2.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+ccflags-y += -DLPM_IPC_V3 -DLPM_REPORT -DLPM_FAULT_AO_SAFETY
+ccflags-y += -DLPM_FAULT_RAS -DLPM_REPORT_FROM_IPC -DLPM_SHAREMEM_V2
+drv_lpm_fault-objs += common/lpm_fault_sharemem.o
+drv_lpm_fault-objs += common/lpm_fault_sharemem_v2.o
+drv_lpm_fault-objs += external/lpm_fault_from_ipc.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+drv_lpm_fault-objs += detect/ras/lpm_fault_aosub_ras.o
+drv_lpm_fault-objs += detect/ras/lpm_fault_ras.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910),)
+ccflags-y += -DCFG_SOC_PLATFORM_CLOUD
+ccflags-y += -DLPM_START_DIRECT -DLPM_IPC_V2
+ccflags-y += -DLPM_REPORT_FROM_IPC -DLPM_REPORT
+drv_lpm_fault-objs += external/lpm_fault_from_ipc.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a BS9SX1A),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V51
+ccflags-y += -DLPM_IPC_V2 -DLPM_REPORT_FROM_IPC -DLPM_FAULT_STARTUP
+ccflags-y += -DLPM_FAULT_SAFETY -DLPM_FAULT_AO_SAFETY -DLPM_REPORT
+ccflags-y += -DLPM_BUILD_DEBUG -DCFG_FEATURE_PARTIAL_GOOD -DLPM_VPRINTK
+drv_lpm_fault-objs += detect/startup/lpm_fault_startup.o
+drv_lpm_fault-objs += detect/safety/lpm_fault_safety.o
+drv_lpm_fault-objs += detect/safety/lpm_fault_crg.o
+drv_lpm_fault-objs += detect/safety/lpm_fault_aosub_safety.o
+drv_lpm_fault-objs += external/lpm_fault_from_ipc.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+drv_lpm_fault-objs += common/lpm_log_base.o
+endif
+
+ifneq ($(filter $(PRODUCT), helper310p),)
+ccflags-y += -DCFG_SOC_PLATFORM_HELPER -DCFG_SOC_PLATFORM_MINIV2
+ccflags-y += -DLPM_START_DIRECT -DLPM_IPC_V2 -DLPM_REPORT -DLPM_SHAREMEM_V1
+drv_lpm_fault-objs += common/lpm_fault_sharemem.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310p),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2
+ccflags-y += -DLPM_IPC_V2 -DLPM_REPORT -DLPM_SHAREMEM_V1
+drv_lpm_fault-objs += common/lpm_fault_sharemem.o
+drv_lpm_fault-objs += report/lpm_fault_report.o
+drv_lpm_fault-objs += report/lpm_fault_config.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910B),)
+ccflags-y += -DLPM_REPORT_FROM_IPC
+drv_lpm_fault-objs += external/lpm_fault_from_ipc.o
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11
+ccflags-y += -DLPM_FAULT_RAS_PLL -DLPM_VPRINTK
+drv_lpm_fault-objs += detect/ras/lpm_fault_lpm_ras.o
+drv_lpm_fault-objs += common/lpm_log_base.o
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../../bbox/Module.symvers \
+	$(src)/../../dms/Module.symvers \
+	$(src)/../../dms_dtm/Module.symvers \
+	$(src)/../../dms_smf/Module.symvers \
+	$(src)/../../fpdc/Module.symvers \
+	$(src)/../../icm/Module.symvers \
+	$(src)/../../uda/Module.symvers

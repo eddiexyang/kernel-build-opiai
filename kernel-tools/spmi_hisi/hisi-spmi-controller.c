@@ -388,16 +388,15 @@ err_add_controller:
 	return ret;
 }
 
-static int spmi_controller_remove(struct platform_device *pdev)
+static void spmi_controller_remove(struct platform_device *pdev)
 {
 	struct spmi_controller_dev *spmi_controller = platform_get_drvdata(pdev);
-	int ret;
 
 	platform_set_drvdata(pdev, NULL);
 	if (spmi_controller == NULL)
-		return -ENOMEM;
+		return;
 
-	ret = spmi_del_controller(&spmi_controller->controller);
+	(void)spmi_del_controller(&spmi_controller->controller);
 	if (spmi_controller->base != NULL) {
 		iounmap(spmi_controller->base);
 		spmi_controller->base = NULL;
@@ -405,7 +404,6 @@ static int spmi_controller_remove(struct platform_device *pdev)
 
 	devm_kfree(&pdev->dev, spmi_controller);
 	spmi_controller = NULL;
-	return ret;
 }
 
 static struct of_device_id g_spmi_controller_match_table[] = {
@@ -435,6 +433,7 @@ static void __exit spmi_controller_exit(void)
 }
 module_exit(spmi_controller_exit);
 /*lint -e753 -esym(753,*)*/
+MODULE_DESCRIPTION("HISI SPMI controller driver");
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION("1.0");/*lint !e785 !e64 !e528*/
 MODULE_ALIAS("platform:spmi_controlller");

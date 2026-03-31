@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_trs_pm_adapt.o
+
+DRIVER_INC := $(src)/..
+
+ifeq ($(TARGET_BUILD_TYPE),debug)
+ccflags-y += -DCFG_BUILD_DEBUG
+endif
+
+ifneq ($(NOT_SUPPORT_SP), y)
+ccflags-y += -fstack-protector-all
+endif
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) -I$(src)/comm -I$(src)/comm/tscpu
+
+ifeq ($(PRODUCT_SIDE),host)
+ascend_trs_pm_adapt-objs := \
+	trs_host_init.o \
+	near_comm/trs_host_comm.o \
+	near_comm/trs_host_db.o \
+	near_comm/trs_host_id.o \
+	near_comm/trs_host_mbox.o \
+	near_comm/trs_host_msg.o \
+	near_comm/trs_near_adapt_init.o \
+	near_comm/soc_adapt/soc_adapt.o \
+	trs_host_init/trs_host.o \
+	trs_host_chan/trs_host_chan.o \
+	trs_host_chan/trs_sqe_update.o \
+	trs_host_core/trs_host_core.o \
+	near_comm/trs_host_chan/stars_v1/trs_chan_stars_v1_ops.o \
+	near_comm/trs_host_chan/stars_v1/trs_chan_stars_v1_ops_stars.o \
+	near_comm/trs_host_chan/trs_chan_near_ops_mbox.o \
+	near_comm/trs_host_chan/trs_chan_near_ops_mem.o \
+	near_comm/trs_host_chan/trs_chan_near_ops_rsv_mem.o \
+	near_comm/trs_host_chan/trs_chan_near_ops_db.o \
+	near_comm/trs_host_chan/tscpu/trs_tscpu_chan_near_ops.o \
+	near_comm/trs_host_chan/tscpu/trs_tscpu_chan_near_ops_db.o \
+	near_comm/trs_host_core/trs_core_near_ops_mbox.o \
+	near_comm/trs_host_core/stars_v1/trs_core_stars_v1_ops.o \
+	near_comm/trs_host_core/tscpu/trs_tscpu_core_near_ops.o \
+	near_comm/trs_host_core/trs_core_near_ops.o \
+	comm/trs_chan_mem.o \
+	comm/trs_chan_mbox.o \
+	comm/trs_id_conv.o \
+	comm/trs_mbox.o \
+	comm/trs_rsv_mem.o \
+	comm/trs_ts_db.o \
+	comm/trs_chan_update.o \
+	comm/trs_chan_irq.o \
+	comm/trs_ts_status.o \
+	comm/trs_chan_maint_sqcq.o \
+	comm/stars_v1/trs_stars.o \
+	comm/stars_v1/trs_stars_cq.o \
+	comm/stars_v1/trs_chan_sqcq.o \
+	comm/stars_v1/trs_stars_sq.o \
+	comm/tscpu/trs_tscpu_sq.o \
+	comm/tscpu/trs_tscpu_cq.o \
+	comm/tscpu/trs_tscpu_chan_sqcq.o \
+	near_comm/soc_adapt/mini_v3/soc_adapt_res_mini_v3.o \
+	near_comm/soc_adapt/cloud_v2/soc_adapt_res_cloud_v2.o \
+	near_comm/soc_adapt/mini_v2/soc_adapt_res_mini_v2.o
+
+ccflags-y += -I$(src)/near_comm
+ccflags-y += -I$(src)/near_comm/soc_adapt
+ccflags-y += -I$(src)/near_comm/soc_adapt/mini_v3
+ccflags-y += -I$(src)/near_comm/soc_adapt/cloud_v2
+ccflags-y += -I$(src)/near_comm/soc_adapt/mini_v2
+ccflags-y += -I$(src)/near_comm/trs_host_chan
+ccflags-y += -I$(src)/near_comm/trs_host_chan/stars_v1
+ccflags-y += -I$(src)/near_comm/trs_host_chan/tscpu
+ccflags-y += -I$(src)/near_comm/trs_host_core
+ccflags-y += -I$(src)/near_comm/trs_host_core/stars_v1
+ccflags-y += -I$(src)/near_comm/trs_host_core/tscpu
+ccflags-y += -I$(src)/trs_host_chan -I$(src)/trs_host_core -I$(src)/trs_host_init
+ccflags-y += -I$(src)/comm/stars_v1
+else
+ascend_trs_pm_adapt-objs := \
+	trs_device.o \
+	trs_device_comm.o \
+	trs_device_id.o \
+	trs_device_mbox.o \
+	local_comm/trs_device_ts_db.o \
+	local_comm/trs_device_notice.o \
+	trs_device_tsfw_shr_mem.o \
+	trs_device_ts_status.o \
+	chan/trs_device_chan.o \
+	chan/trs_chan_ops_mem.o \
+	chan/trs_chan_ops_irq.o \
+	chan/trs_chan_ops_mbox.o \
+	chan/trs_chan_ops_rsv_mem.o \
+	core/trs_device_core.o \
+	core/trs_core_ops.o \
+	comm/trs_chan_mem.o \
+	comm/trs_chan_mbox.o \
+	comm/trs_id_conv.o \
+	comm/trs_mbox.o \
+	comm/trs_rsv_mem.o \
+	comm/trs_ts_db.o \
+	comm/trs_chan_update.o \
+	comm/trs_chan_irq.o \
+	comm/trs_ts_status.o \
+	comm/trs_chan_maint_sqcq.o \
+	comm/tscpu/trs_tscpu_sq.o \
+	comm/tscpu/trs_tscpu_cq.o \
+	comm/tscpu/trs_tscpu_chan_sqcq.o
+
+ccflags-y += -I$(src)/soc -I$(src)/chan -I$(src)/core -I$(src)/local_comm
+ccflags-y += -DCFG_FEATURE_IRQ_BIND
+
+ifneq ($(filter $(PRODUCT), ascend310B as31xm1 ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
+ccflags-y := -I$(src)/soc/mini_v3 $(ccflags-y)
+ccflags-y += -DCFG_FEATURE_TS_ABNORMAL_INFO
+else ifneq ($(filter $(PRODUCT), ascend910B),)
+ccflags-y := -I$(src)/soc/cloud_v2 $(ccflags-y)
+ccflags-y += -DCFG_FEATURE_TS_ABNORMAL_INFO
+ccflags-y += -DCFG_FEATURE_TS_MEM_NODE
+else ifneq ($(filter $(PRODUCT), helper310p),)
+ccflags-y := -I$(src)/soc/mini_v2 $(ccflags-y)
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310B ascend310Besl ascend310Bemu ascend310Brc ascend310Brcesl ascend310Brcemu),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11
+ccflags-y += -DCFG_MEMORY_OPTIMIZE
+ccflags-y += -DCFG_SUPPORT_AOS_KERNEL
+endif
+
+ifneq ($(filter $(PRODUCT), helper310p),)
+ascend_trs_pm_adapt-objs += \
+	chan/tscpu/trs_tscpu_chan_ops.o \
+	chan/tscpu/trs_tscpu_chan_ops_db.o \
+	core/tscpu/trs_tscpu_core_ops.o
+ccflags-y += -I$(src)/chan/tscpu -I$(src)/core/tscpu
+ccflags-y += -DCFG_FEATURE_TSCPU
+else
+ascend_trs_pm_adapt-objs += \
+	chan/stars_v1/trs_chan_ops.o \
+	chan/stars_v1/trs_chan_ops_db.o \
+	chan/stars_v1/trs_chan_ops_stars.o \
+	core/stars_v1/trs_stars_core_ops.o \
+	comm/stars_v1/trs_stars.o \
+	comm/stars_v1/trs_stars_cq.o \
+	comm/stars_v1/trs_stars_sq.o \
+	comm/stars_v1/trs_chan_sqcq.o
+ccflags-y += -I$(src)/chan/stars_v1 -I$(src)/core/stars_v1 -I$(src)/comm/stars_v1
+endif
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../dbl_chip_config/Module.symvers) \
+	$(wildcard $(src)/../dbl_runenv_config/Module.symvers) \
+	$(wildcard $(src)/../dms/Module.symvers) \
+	$(wildcard $(src)/../soc_resmng/Module.symvers) \
+	$(wildcard $(src)/../svm/Module.symvers) \
+	$(wildcard $(src)/../trs_chan/Module.symvers) \
+	$(wildcard $(src)/../trs_core/Module.symvers) \
+	$(wildcard $(src)/../trs_id_allocator/Module.symvers) \
+	$(wildcard $(src)/../trs_id_pool/Module.symvers) \
+	$(wildcard $(src)/../trs_stars/Module.symvers) \
+	$(wildcard $(src)/../trs_sub_stars/Module.symvers) \
+	$(wildcard $(src)/../trs_tsmng/Module.symvers) \
+	$(wildcard $(src)/../uda/Module.symvers) \
+	$(wildcard $(src)/../urd/Module.symvers)

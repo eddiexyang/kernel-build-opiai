@@ -1,0 +1,164 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_pcie.o
+
+drv_pcie-objs := \
+	agentdrv_pci.o \
+	ctrls/agentdrv_ctrl.o \
+	ctrls/agentdrv_common_msg.o \
+	ctrls/agentdrv_dfx.o \
+	ctrls/agentdrv_sysfs.o \
+	unit/agentdrv_unit.o \
+	unit/devdrv_dma.o \
+	unit/devdrv_atu.o \
+	unit/devdrv_atu_interface.o \
+	unit/msg/agentdrv_msg_trans.o \
+	unit/msg/agentdrv_msg_non_trans.o \
+	unit/msg/agentdrv_msg.o \
+	unit/msg/agentdrv_msg_admin.o \
+	unit/msg/agentdrv_msg_p2p.o \
+	unit/agentdrv_doorbell.o \
+	unit/agentdrv_mdc_p2p.o \
+	unit/agentdrv_multi_chip.o \
+	unit/agentdrv_pcie_link_info.o \
+	interfaces/agentdrv_interface.o \
+	interfaces/agentdrv_msg_interface.o \
+	interfaces/devdrv_dma_interface.o \
+	soc/dma_comm_drv.o \
+	soc/dma_adapt.o \
+	soc/nvme_comm_drv.o \
+	soc/apb_comm_drv.o \
+	soc/resource_comm_drv.o
+
+DRIVER_INC := $(src)/..
+pcie_local_inc := -I$(src) -I$(src)/unit/msg -I$(src)/interfaces
+pcie_local_inc += -I$(src)/soc -I$(src)/unit -I$(src)/ctrls -I$(src)/qos
+pcie_soc_inc :=
+ccflags-y += -fstack-protector-all
+ccflags-y += -Wall -Werror -Wtrampolines
+ccflags-y += $(WDATE_TIME) -Wfloat-equal -Wvla -Wundef -funsigned-char -Wformat=2
+ccflags-y += -Wstack-usage=2048 -Wcast-align -Wextra
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += $(pcie_local_inc)
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../dbl_chip_config/Module.symvers \
+	$(src)/../dbl_runenv_config/Module.symvers \
+	$(src)/../dfm/Module.symvers \
+	$(src)/../uda/Module.symvers
+
+ifeq ($(PRODUCT),ascend310p)
+pcie_soc_inc += -I$(src)/soc/mdc_v1 -I$(DRIVER_INC)/include/soc/cloud_v1
+ccflags-y += -DCFG_FEATURE_P2P
+drv_pcie-objs += \
+	ctrls/agentdrv_profiling.o \
+	soc/mdc_v1/profiling_drv.o \
+	soc/mdc_v1/agentdrv_platform.o \
+	soc/mdc_v1/dma_drv.o \
+	soc/mdc_v1/nvme_drv.o \
+	soc/mdc_v1/apb_drv.o \
+	soc/mdc_v1/resource_drv.o
+else ifneq ($(filter $(PRODUCT), ascend310 ascend310rc),)
+pcie_soc_inc += -I$(src)/soc/mini_v1 -I$(DRIVER_INC)/include/soc/mini_v1 -I$(DRIVER_INC)/include/soc/cloud_v1
+ccflags-y += -DCFG_FEATURE_PM -DCFG_SOC_PLATFORM_MINI
+drv_pcie-objs += \
+	soc/mini_v1/agentdrv_platform.o \
+	soc/mini_v1/agentdrv_linkdown.o \
+	soc/mini_v1/agentdrv_reset.o \
+	soc/mini_v1/config_secure_reg.o \
+	soc/mini_v1/agentdrv_config_secure_reg.o \
+	soc/mini_v1/agentdrv_pm.o \
+	soc/mini_v1/dma_drv.o \
+	soc/mini_v1/nvme_drv.o \
+	soc/mini_v1/apb_drv.o \
+	soc/mini_v1/resource_drv.o
+else ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a helper310p ascend610Lite ascend610Liteesl),)
+pcie_soc_inc += -I$(src)/soc/mdc_v1 -I$(DRIVER_INC)/include/soc/cloud_v1
+ccflags-y += -DCFG_FEATURE_P2P -DCFG_SOC_PLATFORM_MDC_V2 -DCFG_SOC_PLATFORM_MDC_V51
+ifneq ($(filter $(PRODUCT), ascend610Liteesl),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_LITE_ESL
+endif
+ifneq ($(filter $(PRODUCT), ascend610Lite),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_LITE_DECOUPLING
+endif
+ifneq ($(filter $(PRODUCT), helper310p),)
+ccflags-y += -DCFG_FEATURE_SUPPORT_CPUDOMAIN
+endif
+drv_pcie-objs += \
+	soc/mdc_v1/agentdrv_platform.o \
+	soc/mdc_v1/dma_drv.o \
+	soc/mdc_v1/nvme_drv.o \
+	soc/mdc_v1/apb_drv.o \
+	soc/mdc_v1/resource_drv.o \
+	interfaces/workqueue_affinity.o
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
+drv_pcie-objs += interfaces/drv_cpu_type.o
+else
+drv_pcie-objs += interfaces/drv_cpu_mask.o
+endif
+else ifneq ($(filter $(PRODUCT), ascend910),)
+pcie_soc_inc += -I$(src)/soc/cloud_v1 -I$(DRIVER_INC)/include/soc/cloud_v1
+ccflags-y += -DCFG_FEATURE_P2P
+drv_pcie-objs += \
+	ctrls/agentdrv_profiling.o \
+	soc/cloud_v1/profiling_drv.o \
+	soc/cloud_v1/agentdrv_platform.o \
+	soc/cloud_v1/agentdrv_linkdown.o \
+	soc/cloud_v1/agentdrv_reset.o \
+	soc/cloud_v1/dma_drv.o \
+	soc/cloud_v1/nvme_drv.o \
+	soc/cloud_v1/apb_drv.o \
+	soc/cloud_v1/resource_drv.o
+else ifneq ($(filter $(PRODUCT), ascend910B ascend920esl ascend920emu),)
+pcie_soc_inc += -I$(src)/soc/cloud_v2 -I$(DRIVER_INC)/include/soc/cloud_v2
+ccflags-y += -DCFG_FEATURE_P2P -DCFG_FEATURE_SRIOV -DCFG_FEATURE_PASSID
+drv_pcie-objs += \
+	ctrls/agentdrv_profiling.o \
+	soc/cloud_v2/profiling_drv.o \
+	soc/cloud_v2/agentdrv_platform.o \
+	soc/cloud_v2/agentdrv_flr.o \
+	soc/cloud_v2/dma_drv.o \
+	soc/cloud_v2/nvme_drv.o \
+	soc/cloud_v2/apb_drv.o \
+	soc/cloud_v2/resource_drv.o
+else ifneq ($(filter $(PRODUCT), ascend310B ascend310Brc as31xm1),)
+pcie_soc_inc += -I$(src)/soc/mini_v3 -I$(DRIVER_INC)/include/soc/mini_v3
+ifneq ($(filter $(PRODUCT), ascend310Brc),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3_RC
+endif
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DCFG_SOC_PLATFORM_MDC_V11 -DCFG_SOC_FEATURE_SR
+ccflags-y += -DCFG_FEATURE_PCIE_LINK_INFO -DCFG_FEATURE_SUPPORT_CPUDOMAIN
+endif
+drv_pcie-objs += \
+	soc/mini_v3/agentdrv_platform.o \
+	soc/mini_v3/dma_drv.o \
+	soc/mini_v3/nvme_drv.o \
+	soc/mini_v3/apb_drv.o \
+	soc/mini_v3/resource_drv.o
+endif
+
+ccflags-y += $(pcie_soc_inc)
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include/hiss -I$(DRIVER_INC)/libc_sec/include
+
+ifneq ($(filter $(PRODUCT), ascend310B as31xm1),)
+drv_pcie-objs += \
+	qos/agentdrv_qos.o \
+	qos/agentdrv_qos_mini_v3.o \
+	qos/pcie_qos_common.o
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910B ascend920esl ascend920emu),)
+drv_pcie-objs += \
+	qos/agentdrv_qos.o \
+	qos/agentdrv_qos_cloud_v2.o \
+	qos/pcie_qos_common.o
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h

@@ -1,1 +1,0 @@
-../../../../comm/adapt/trs_chan_irq.c

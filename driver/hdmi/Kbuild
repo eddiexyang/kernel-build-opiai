@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_hdmi.o
+
+drv_hdmi-objs := \
+	mkp/init/archv200/src/hdmi_init.o \
+	mkp/drv_hdmi_intf.o \
+	mkp/drv_hdmi_intf_k.o \
+	mkp/drv_hdmi_common.o \
+	mkp/drv_hdmi_edid.o \
+	mkp/drv_hdmi_event.o \
+	mkp/drv_hdmi_infoframe.o \
+	mkp/drv_hdmi_compatibility.o \
+	mkp/drv_hdmi_debug.o \
+	mkp/drv_hdmi_proc.o \
+	mkp/dfx/drv_avi_infoframe.o \
+	mkp/dfx/drv_hdmi_capture.o \
+	mkp/dfx/drv_hdmi_detection.o \
+	mkp/dfx/drv_hdmi_hotplug.o \
+	mkp/dfx/drv_hdmi_pattern.o \
+	mkp/dfx/drv_hdmi_reset.o \
+	mkp/dfx/drv_hdmi_timing.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ctrl.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ddc.o \
+	mkp/hal/ctrl/v200/hdmi_hal_intf.o \
+	mkp/hal/ctrl/v200/hdmi_hal_machine.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ncts.o \
+	mkp/hal/ctrl/v200/hdmi_hal_scdc.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_aon.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_audio_path.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_ctrl.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_tx.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_video_path.o \
+	mkp/hal/phy/v200/hdmi_hal_phy.o \
+	mkp/hal/phy/v200/regs/hdmi_reg_dphy.o \
+	mkp/osal/v600/hdmi_osal.o \
+	mkp/product/archv200/hdmi_product_define.o \
+	mkp/product/archv200/regs/hdmi_reg_crg.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config -I$(DRIVER_INC)/include/media
+ccflags-y += -I$(DRIVER_INC)/vdp -I$(DRIVER_INC)/vdp/include
+ccflags-y += -I$(src)
+ccflags-y += -I$(src)/mkp -I$(src)/mkp/dfx
+ccflags-y += -I$(src)/mkp/hal -I$(src)/mkp/hal/ctrl/v200 -I$(src)/mkp/hal/ctrl/v200/regs
+ccflags-y += -I$(src)/mkp/hal/phy/v200 -I$(src)/mkp/hal/phy/v200/regs
+ccflags-y += -I$(src)/mkp/init/archv200/include
+ccflags-y += -I$(src)/mkp/osal/v600
+ccflags-y += -I$(src)/mkp/product/archv200 -I$(src)/mkp/product/archv200/regs
+
+ccflags-y += -DHDMI_PRODUCT_CHIP_1 -DCHIP_TYPE_hi3536av100 -DHDMI_SUPPORT_DUAL_CHANNEL
+ccflags-y += -DCONFIG_OT_PROC_SHOW_SUPPORT -DHDMI_SCDC_SUPPORT -DHDMI_DEBUG_SUPPORT
+ccflags-y += -DHDMI_DEFUALT_CALLBACK_SUPPORT -DDVI_SUPPORT
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+ccflags-y += -Wno-incompatible-pointer-types -Wno-return-type -Wno-date-time
+
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../base/Module.symvers) \
+	$(wildcard $(src)/../bootdot/Module.symvers) \
+	$(wildcard $(src)/../dvpp_osal/Module.symvers)

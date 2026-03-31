@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_vdp_drm.o
+ascend_vdp_hifb-objs := src/gfbg_main.o src/init/linux/gfbg_init.o \
+	drv/adp/gfbg_vou_drv.o \
+	drv/adp/gfbg_vou_graphics.o \
+	drv/adp/gfbg_graphics_drv.o \
+	drv/adp/gfbg_graphic_hal.o \
+	drv/adp/gfbg_blit.o \
+	drv/adp/gfbg_rotate.o \
+	drv/adp/gfbg_rotate_tde.o \
+	drv/adp/gfbg_comm.o
+
+ascend_vdp_drm-objs := \
+	drm/ascend_vdp_drm.o \
+	mkp/drv_hdmi_intf.o \
+	mkp/drv_hdmi_intf_k.o \
+	mkp/drv_hdmi_common.o \
+	mkp/drv_hdmi_edid.o \
+	mkp/drv_hdmi_event.o \
+	mkp/drv_hdmi_infoframe.o \
+	mkp/drv_hdmi_compatibility.o \
+	mkp/drv_hdmi_debug.o \
+	mkp/drv_hdmi_proc.o \
+	mkp/dfx/drv_avi_infoframe.o \
+	mkp/dfx/drv_hdmi_capture.o \
+	mkp/dfx/drv_hdmi_detection.o \
+	mkp/dfx/drv_hdmi_hotplug.o \
+	mkp/dfx/drv_hdmi_pattern.o \
+	mkp/dfx/drv_hdmi_reset.o \
+	mkp/dfx/drv_hdmi_timing.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ctrl.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ddc.o \
+	mkp/hal/ctrl/v200/hdmi_hal_intf.o \
+	mkp/hal/ctrl/v200/hdmi_hal_machine.o \
+	mkp/hal/ctrl/v200/hdmi_hal_ncts.o \
+	mkp/hal/ctrl/v200/hdmi_hal_scdc.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_aon.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_audio_path.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_ctrl.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_tx.o \
+	mkp/hal/ctrl/v200/regs/hdmi_reg_video_path.o \
+	mkp/hal/phy/v200/hdmi_hal_phy.o \
+	mkp/hal/phy/v200/regs/hdmi_reg_dphy.o \
+	mkp/osal/v600/hdmi_osal.o \
+	mkp/product/archv200/hdmi_product_define.o \
+	mkp/product/archv200/regs/hdmi_reg_crg.o \
+	drv/adp/gfbg_vou_drv.o \
+	drv/adp/gfbg_vou_graphics.o \
+	drv/adp/gfbg_graphics_drv.o \
+	drv/adp/gfbg_graphic_hal.o \
+	drv/adp/gfbg_comm.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config
+ccflags-y += -I$(DRIVER_INC)/include/media -I$(src) -I$(src)/include -I$(src)/src -I$(src)/src/init -I$(src)/src/init/linux -I$(src)/common
+ccflags-y += -I$(src)/drv/adp -I$(src)/drv/include -I$(src)/drv/tde/include -I$(src)/drv/tde/adp/tde_v2_0
+ccflags-y += -I$(src)/mkp -I$(src)/mkp/hal -I$(src)/mkp/hal/ctrl/v200 -I$(src)/mkp/hal/phy/v200
+ccflags-y += -I$(src)/mkp/hal/ctrl/v200/regs -I$(src)/mkp/hal/phy/v200/regs
+ccflags-y += -I$(src)/mkp/product/archv200 -I$(src)/mkp/init/archv200/include -I$(src)/mkp/osal/v600 -I$(src)/mkp/dfx
+ccflags-y += -I$(src)/api/tde/include -I$(src)/mpi -I$(src)/drv/init/include -I$(src)/stub
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-return-type -Wno-date-time
+
+# Enable FB_SEPARATE mode: VDP hifb includes its own VOU graphics implementation
+# in drv/adp/ rather than depending on an external VO module export table.
+ccflags-y += -DCONFIG_OT_VO_FB_SEPARATE -DCONFIG_TDE_GFBG_COMPRESS_V2
+ccflags-y += -DASCEND310B_DRM_HDMI_ENABLE
+
+# hi_mpp_sample headers provide the authoritative OT type/constant definitions
+ccflags-y += -I$(DRIVER_INC)/hi_mpp_sample/include -I$(DRIVER_INC)/hi_mpp_sample/include/exp_inc
+
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../base/Module.symvers) \
+	$(wildcard $(src)/../dvpp_osal/Module.symvers) \
+	$(wildcard $(src)/../svm/Module.symvers) \
+	$(wildcard $(src)/../qos/Module.symvers)

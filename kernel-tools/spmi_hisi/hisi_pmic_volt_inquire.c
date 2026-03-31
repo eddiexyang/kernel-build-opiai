@@ -16,6 +16,7 @@
 #ifndef DRV_UT
 #include <hisi_pmic.h>
 #include <linux/err.h>
+#include <linux/module.h>
 
 #define MAX_LDO_INDEX             20
 #define RET_SUCC                  0
@@ -390,6 +391,9 @@ s32 get_second_pmu_die_id(u32 device_id, u8 *die_id, u8 len)
 	return RET_SUCC;
 }
 EXPORT_SYMBOL(get_second_pmu_die_id);
+
+MODULE_DESCRIPTION("HISI PMIC voltage inquiry helpers");
+MODULE_LICENSE("GPL v2");
 
 #else
 int get_second_pmu_die_id(void)

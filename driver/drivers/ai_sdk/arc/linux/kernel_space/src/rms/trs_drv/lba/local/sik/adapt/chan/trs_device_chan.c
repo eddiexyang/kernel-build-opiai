@@ -1,1 +1,0 @@
-../../../sia/adapt/chan/trs_device_chan.c

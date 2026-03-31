@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := dbl_dev_identity.o
+dbl_dev_identity-objs := dev_identity_module.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/dbl -I$(DRIVER_INC)/include
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare

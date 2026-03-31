@@ -1,1 +1,0 @@
-../../../../common/bind_core.c

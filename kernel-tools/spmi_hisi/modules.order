@@ -1,0 +1,7 @@
+hisi-spmi-core.o
+hisi-spmi-controller.o
+of_hisi_spmi.o
+hisi_pmic_spmi.o
+hisi_pmu_tsensor.o
+hisi-spmi-dbgfs.o
+hisi_pmic_volt_inquire.o

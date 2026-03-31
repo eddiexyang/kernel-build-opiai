@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := ascend_uda.o
+ascend_uda-objs := uda_access.o uda_dev.o uda_fops.o uda_notifier.o uda_proc_fs.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/driver -I$(DRIVER_INC)/include
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include -I$(src)
+
+# Ascend310Brc device defines
+ccflags-y += -DCFG_FEATURE_SURPORT_UDEV_MNG
+ccflags-y += -DCFG_FEATURE_DEVID_TRANS
+ccflags-y += -DCFG_FEATURE_VFIO_SOC
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../davinci_intf/Module.symvers

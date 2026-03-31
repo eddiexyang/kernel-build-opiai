@@ -296,7 +296,7 @@ static int of_spmi_create_device(struct of_spmi_dev_info *d_info,
 	void *result = NULL;
 	int rc;
 
-	rc = of_modalias_node(node, board_info->name, sizeof(board_info->name));
+	rc = of_alias_from_compatible(node, board_info->name, sizeof(board_info->name));
 	if (rc < 0) {
 		dev_err(&ctrl->dev, "of spmi modalias failed on %s\n",
 						node->full_name);
@@ -536,6 +536,7 @@ int of_spmi_register_devices(struct spmi_controller *ctrl)
 }
 EXPORT_SYMBOL(of_spmi_register_devices);
 
+MODULE_DESCRIPTION("HISI SPMI OF helpers");
 MODULE_LICENSE("GPL v2");
 #else
 int of_spmi_register_devices(void)

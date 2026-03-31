@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m :=
+
+ifeq ($(PRODUCT_SIDE),host)
+obj-m += drv_tsdrv_platform_host.o
+endif
+
+drv_tsdrv_platform_host-objs := tsdrv_platform.o
+drv_tsdrv_platform_host-objs += tsdrv_handshake.o tsdrv_plat_dev.o tsdrv_parse/tsdrv_parse.o
+drv_tsdrv_platform_host-objs += tsdrv_h2d_chan/tsdrv_h2d_chan.o tsdrv_h2d_chan/pci/tsdrv_pci_chan.o
+
+DRIVER_INC := $(src)/..
+
+ccflags-y += -I$(src) -I$(src)/tsdrv_parse -I$(src)/tsdrv_h2d_chan -I$(src)/tsdrv_h2d_chan/pci
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/tsdrv/ts_drv_common
+ccflags-y += -I$(DRIVER_INC)/tsdrv/ts_drv_common/tsdrv_id
+ccflags-y += -I$(DRIVER_INC)/tsdrv/ts_drv_common/tsdrv_dev
+ccflags-y += -I$(DRIVER_INC)/tsdrv/tsdrv_virt -I$(DRIVER_INC)/tsdrv/tsdrv/tsdrv_virt
+ccflags-y += -DCFG_MANAGER_HOST_ENV -DCFG_FEATURE_SHARE_LOG
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-format-nonliteral -Wno-empty-body
+
+ifneq ($(NOT_SUPPORT_SP),y)
+ccflags-y += -fstack-protector-all
+endif
+
+ifneq ($(filter $(PRODUCT),ascend910 ascend910B ascend920esl ascend920emu),)
+ccflags-y += -I$(src)/ascend910 -I$(src)/tsdrv_parse/ascend910
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_host/ascend910
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend910/tsdrv_irq_parse.o
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend910/tsdrv_addr_parse.o
+ifneq ($(filter $(PRODUCT),ascend910B ascend920esl ascend920emu),)
+ccflags-y += -DCFG_SOC_PLATFORM_CLOUD_V2 -DCFG_FEATURE_SUPPORT_VSQ_MNG
+endif
+else ifneq ($(filter $(PRODUCT),ascend310 ascend310rc),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINI
+ccflags-y += -I$(src)/ascend310 -I$(src)/tsdrv_parse/ascend310
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_host/ascend310
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend310/tsdrv_irq_parse.o
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend310/tsdrv_addr_parse.o
+else ifneq ($(filter $(PRODUCT),ascend310p ascend310B ascend310Besl),)
+ccflags-y += -I$(src)/ascend610 -I$(src)/tsdrv_parse/ascend910
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_host/ascend910
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend910/tsdrv_irq_parse.o
+drv_tsdrv_platform_host-objs += tsdrv_parse/ascend910/tsdrv_addr_parse.o
+ifneq ($(filter $(PRODUCT),ascend310B ascend310Besl),)
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV3 -DCFG_FEATURE_SUPPORT_VSQ_MNG
+else
+ccflags-y += -DCFG_SOC_PLATFORM_MINIV2
+endif
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/internal/host_config.h
+ccflags-y += -include $(DRIVER_INC)/include/compat.h

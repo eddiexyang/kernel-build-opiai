@@ -1,1 +1,0 @@
-../../../comm/trs_device_notice.c

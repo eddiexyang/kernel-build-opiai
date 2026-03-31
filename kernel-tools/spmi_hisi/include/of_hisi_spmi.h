@@ -13,7 +13,7 @@
 #include <linux/of_irq.h>
 #include <linux/hisi-spmi.h>
 
-#ifdef CONFIG_HISI_SPMI
+#if defined(CONFIG_HISI_SPMI) || defined(CONFIG_HISI_SPMI_MODULE)
 /**
  * of_spmi_register_devices() - Register devices in spmi Device Tree
  * @ctrl: the spmi_controller which devices should be registered.

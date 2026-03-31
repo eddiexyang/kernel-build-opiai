@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_mttcan.o
+drv_mttcan-objs := can_drv_core.o can_drv_mttcan.o can_drv_interrupt.o can_drv_default_cfg.o can_drv_api.o can_drv_fault_mgr.o can_drv_sysfs.o bind_core.o drv_snapshot.o can_drv_dms_init.o can_drv_feature.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src) 
+ccflags-y += -DCONFIG_CAN_FAULT_REPORT -DSUPPORT_MTTCAN_FAULT_RECOVERY -DSUPPORT_MTTCAN_DFX -DDFM_DISABLE -DSNAPSHOT_ENABLE -DNOT_SUPPORT_OSNAME -DSUPPORT_FLEXIBLE_BIND_CORE -DCTRL_CPU_INFO_USER_CFG
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+
+
+KBUILD_EXTRA_SYMBOLS := \
+	$(wildcard $(src)/../bootdot/Module.symvers) \
+	$(wildcard $(src)/../urd/Module.symvers) \
+	$(wildcard $(src)/../user_cfg/Module.symvers)

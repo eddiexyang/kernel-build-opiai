@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-2.0
+
+obj-m := drv_vtsdrv.o
+
+CFG_FEATURE_RUNTIME_NO_THREAD := y
+
+drv_vtsdrv-objs := \
+	vtsdrv_init.o \
+	vtsdrv_proc.o \
+	vtsdrv_sqcq.o \
+	vtsdrv_cb.o \
+	vtsdrv_logic_cq.o \
+	vtsdrv_stub.o
+
+drv_vtsdrv-$(CFG_FEATURE_RUNTIME_NO_THREAD) += vtsdrv_shm_sq.o
+
+drv_vtsdrv-objs += \
+	ts_drv_common/devdrv_callback/devdrv_cb.o \
+	ts_drv_common/devdrv_callback/devdrv_cbctrl.o \
+	ts_drv_common/tsdrv_dev/tsdrv_hwinfo.o \
+	ts_drv_common/tsdrv_dev/tsdrv_device.o \
+	ts_drv_common/tsdrv_dev/tsdrv_ctx.o \
+	ts_drv_common/tsdrv_dev/tsdrv_dev_dfx.o \
+	ts_drv_common/tsdrv_dev/tsdrv_capacity.o \
+	ts_drv_common/tsdrv_dev/tsdrv_id_dfx.o \
+	ts_drv_common/tsdrv_dev/tsdrv_mailbox_dfx.o \
+	ts_drv_common/tsdrv_nvme/logic/logic_cq.o \
+	ts_drv_common/tsdrv_dev/tsdrv_ctx_dfx.o \
+	ts_drv_common/tsdrv_dev/tsdrv_id_config_dfx.o \
+	ts_drv_common/tsdrv_dev/tsdrv_event_id_dfx.o \
+	ts_drv_common/tsdrv_id/tsdrv_id.o
+
+DRIVER_INC := $(src)/..
+
+ccflags-y += -Wall -Werror
+ccflags-y += $(WDATE_TIME) -Wfloat-equal -Wvla -Wundef -funsigned-char -Wformat=2
+ccflags-y += -Wstack-usage=2048 -Wcast-align -Wextra
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-format-nonliteral -Wno-empty-body
+
+ifneq ($(NOT_SUPPORT_SP),y)
+ccflags-y += -fstack-protector-all
+endif
+
+ccflags-y += -DCFG_MANAGER_HOST_ENV
+ccflags-y += -DCFG_FEATURE_SHARE_LOG
+ccflags-y += -DCFG_TSDRV_VM_ENV
+ccflags-y += -DCFG_FEATURE_VM_GRACEFUL_RELEASE
+
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
+ccflags-y += -I$(DRIVER_INC)/include/devmng -I$(DRIVER_INC)/include/tsdrv
+ccflags-y += -I$(DRIVER_INC)/include/dbl -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/dms/drv_devmng/drv_devmng_host/ascend910
+ccflags-y += -I$(DRIVER_INC)/tsdrv_host/tsdrv_virt
+
+ccflags-y += -I$(src) -I$(src)/ts_drv_common
+ccflags-y += -I$(src)/ts_drv_common/devdrv_callback
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_dev
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_id
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_nvme
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_nvme/logic
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_nvme/shm
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_hotreset
+ccflags-y += -I$(src)/ts_drv_common/tsdrv_osal
+
+ifeq ($(TARGET_BUILD_TYPE),debug)
+ccflags-y += -DCFG_BUILD_DEBUG
+endif
+
+ifneq ($(filter $(PRODUCT),ascend910),)
+	CFG_FEATURE_RUNTIME_NO_THREAD := n
+	ccflags-y += -I$(DRIVER_INC)/ts_platform_host/ascend910
+else ifneq ($(filter $(PRODUCT),ascend310p),)
+	ccflags-y += -DCFG_FEATURE_RUNTIME_NO_THREAD
+	ccflags-y += -I$(DRIVER_INC)/ts_platform_host/ascend610
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../davinci_intf/Module.symvers \
+	$(src)/../dms/Module.symvers \
+	$(src)/../uda/Module.symvers \
+	$(src)/../vpc_agent/Module.symvers \
+	$(src)/../vpcie/Module.symvers

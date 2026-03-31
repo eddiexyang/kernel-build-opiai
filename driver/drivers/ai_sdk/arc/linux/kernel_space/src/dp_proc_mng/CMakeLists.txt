@@ -1,6 +1,0 @@
-if (${PRODUCT_SIDE} STREQUAL host)
-    add_subdirectory(master)
-    add_subdirectory(agent)
-else ()
-    add_subdirectory(agent)
-endif ()

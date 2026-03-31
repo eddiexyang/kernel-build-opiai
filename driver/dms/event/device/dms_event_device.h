@@ -1,0 +1,26 @@
+/*
+* Copyright (c) Huawei Technologies Co., Ltd. 2019-2022. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* Description:
+* Author: huawei
+* Create: 2019-10-15
+*/
+
+#ifndef __DMS_EVENT_DEVICE_H__
+#define __DMS_EVENT_DEVICE_H__
+
+int dms_get_event_code_from_sensor(u32 devid, u32 *health_code, u32 health_len,
+    struct shm_event_code *event_code, u32 event_len);
+int dms_event_clear_by_phyid(u32 phyid);
+int dms_event_mask_by_phyid(u32 phyid, u32 event_code, u8 mask);
+
+#endif

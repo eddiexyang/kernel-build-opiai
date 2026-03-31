@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-2.0
+ifeq ($(PRODUCT_SIDE),host)
+obj-m := drv_davinci_intf_host.o
+else
+obj-m := drv_davinci_intf.o
+endif
+drv_davinci_intf-objs := davinci_intf_init.o davinci_intf_process.o
+drv_davinci_intf_host-objs := host/davinci_intf_init.o host/davinci_intf_process.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/internal
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(src)
+
+CFLAGS_host/davinci_intf_init.o += -DCFG_HOST_ENV
+CFLAGS_host/davinci_intf_process.o += -DCFG_HOST_ENV
+
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a helper310p ascend610Lite ascend610Liteesl),)
+ifneq ($(filter $(PRODUCT), ascend610 bs9sx1a ascend610Lite ascend610Liteesl),)
+ccflags-y += -DCFG_FEATURE_SUPPORT_CPUDOMAIN
+drv_davinci_intf-objs += drv_cpu_type.o
+else
+ccflags-y += -DCFG_SUPPORT_OS_SVM_CLEAN
+drv_davinci_intf-objs += drv_cpu_mask.o
+endif
+else
+ccflags-y += -DCFG_SUPPORT_OS_SVM_CLEAN
+drv_davinci_intf-objs += drv_cpu_mask.o
+endif
+
+ifeq ($(filter $(PRODUCT), ascend920esl ascend920emu),)
+ccflags-y += -DCFG_BIND_CPU_ENABLE
+endif
+
+ifneq ($(filter $(PRODUCT), ascend310Brc),)
+ccflags-y += -DCFG_FEATURE_MANAGE_DOCKER
+endif
+
+ifneq ($(filter $(PRODUCT), ascend910B ascend920esl ascend920emu),)
+CFLAGS_host/davinci_intf_init.o += -DCFG_FEATURE_SRIOV
+CFLAGS_host/davinci_intf_process.o += -DCFG_FEATURE_SRIOV
+endif
+
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../svm/Module.symvers

@@ -1,1 +1,0 @@
-../xsmem_res_idr.c

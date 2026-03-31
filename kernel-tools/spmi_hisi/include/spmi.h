@@ -117,4 +117,8 @@ TRACE_EVENT(spmi_read_end,
 #endif /* _TRACE_SPMI_H */
 
 /* This part must be outside of protection */
+#undef TRACE_INCLUDE_PATH
+#define TRACE_INCLUDE_PATH /mnt/sda1/yihao/opiai/kernel-build-opiai/kernel-tools/spmi_hisi/include/trace/events
+#undef TRACE_INCLUDE_FILE
+#define TRACE_INCLUDE_FILE spmi
 #include <trace/define_trace.h>

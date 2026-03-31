@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-m := drv_osal.o
+
+DRIVER_INC := $(src)/..
+ccflags-y += -I$(DRIVER_INC)/include/kernel -I$(DRIVER_INC)/include/driver
+ccflags-y += -I$(DRIVER_INC)/include -I$(DRIVER_INC)/include/dms -I$(DRIVER_INC)/include/dbl
+ccflags-y += -I$(DRIVER_INC)/include/internal -I$(DRIVER_INC)/include/rms
+ccflags-y += -I$(DRIVER_INC)/include/platform -I$(DRIVER_INC)/include/soc/mini_v3
+ccflags-y += -I$(DRIVER_INC)/include/toolchain/bbox -I$(DRIVER_INC)/include/devmng
+ccflags-y += -I$(DRIVER_INC)/include/tsdrv -I$(DRIVER_INC)/libc_sec/include
+ccflags-y += -I$(DRIVER_INC)/include/user_config
+ccflags-y += -I/mnt/sda1/yihao/opiai/Ascend310B-source-opi/driver/ace/dvpp/dvpp/HiDvpp/cbb/include -I/mnt/sda1/yihao/opiai/Ascend310B-source-opi/driver/ace/dvpp/dvpp/HiDvpp/cbb/ext_inc -I$(src)
+ccflags-y += -DBUILD_DRV_OSAL
+-include $(DRIVER_INC)/config/feature_config/feature.mk
+ccflags-y += $(CONFIG_DEFINES)
+ccflags-y += -include $(DRIVER_INC)/include/compat.h
+ccflags-y += -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-return-type
+ccflags-y += -Wno-implicit-function-declaration -Wno-int-conversion
+
+ifneq ($(filter $(PRODUCT), helper310p),)
+ifneq ($(filter $(HELPER_KERNAL), openeuler),)
+else
+ccflags-y += -DSHARE_POOL_GROUP_ID
+endif
+ccflags-y += -DDVPP_HLP
+endif
+
+ifneq ($(filter $(PRODUCT), as31xm1),)
+ccflags-y += -DDVPP_MINI_V2_MDC
+else
+ccflags-y += -DDVPP_MINI
+endif
+
+
+KBUILD_EXTRA_SYMBOLS := $(src)/../svm/Module.symvers
+drv_osal-objs := osal.o osal_addr.o osal_atomic.o osal_barrier.o osal_iommu.o osal_of.o osal_notifier.o
+drv_osal-objs += osal_debug.o osal_cache.o osal_device.o osal_fileops.o osal_property.o
+drv_osal-objs += osal_interrupt.o osal_math.o osal_mutex.o osal_acpi.o osal_bootdot.o
+drv_osal-objs += osal_platform.o osal_proc.o osal_schedule.o osal_semaphore.o
+drv_osal-objs += osal_spinlock.o osal_string.o osal_task.o osal_timer.o
+drv_osal-objs += osal_vmalloc.o osal_wait.o osal_workqueue.o himedia/base.o
+drv_osal-objs += himedia/himedia.o
