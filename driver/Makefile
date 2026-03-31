@@ -15,6 +15,7 @@ CROSS_COMPILE ?= aarch64-linux-gnu-
 ARCH ?= arm64
 PRODUCT ?= ascend310Brc
 PRODUCT_SIDE ?= device
+JOBS ?= $(shell nproc)
 
 -include $(DRIVER_DIR)/config/feature_config/feature.mk
 
@@ -215,7 +216,7 @@ driver_device:
 	@$(MAKE) --no-print-directory clean >/dev/null
 	@mkdir -p $(OUT_DEVICE)
 	@echo "=== Building device-side modules (parallel within layers) ==="
-	$(MAKE) device-extra PRODUCT_SIDE=device
+	$(MAKE) -j$(JOBS) device-extra PRODUCT_SIDE=device
 	@echo "=== Collecting device .ko files ==="
 	@for mod in $(ACTIVE_DEVICE); do \
 		find "$(DRIVER_DIR)/$$mod" -name '*.ko' -not -path '*/linux-source/*' -not -path '*/out/*' \
