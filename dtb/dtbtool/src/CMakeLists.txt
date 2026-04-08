@@ -2,18 +2,14 @@ cmake_minimum_required(VERSION 3.16.3)
 project(dtbtool)
 
 # 编译dtbTool
-set(HEADER_DIR ${TOP_DIR}/driver/libc_sec/include)
-set(HEADER_SRC_DIR ${TOP_DIR}/driver/libc_sec/src)
 set(BIN_DTBTOOL ${CMAKE_CURRENT_BINARY_DIR}/dtbTool CACHE STRING "dtbTool")
 
 set(SRC_DTBTOOL
-    ${HEADER_SRC_DIR}/strncat_s.c
-    ${HEADER_SRC_DIR}/strncpy_s.c
     ${CMAKE_CURRENT_SOURCE_DIR}/dtbtool.c
 )
 
 add_custom_command(OUTPUT ${BIN_DTBTOOL}
-    COMMAND gcc ${SRC_DTBTOOL} -o ${BIN_DTBTOOL} -I ${HEADER_DIR}
+    COMMAND gcc ${SRC_DTBTOOL} -o ${BIN_DTBTOOL}
     -s -O1 -Wall -Wextra -Wfloat-equal -fno-common -std=gnu90
     DEPENDS ${SRC_DTBTOOL}
 )

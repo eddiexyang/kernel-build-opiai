@@ -31,5 +31,11 @@ kernel: | ensure-output-dirs
 		-platform hi1910Brc \
 		-version "$(HEADER_VERSION)"
 	printf 'sign %s/Image success\n' "$(OUTPUT_DIR)"
+	image_size="$$(stat -c '%s' "$(OUTPUT_DIR)/Image")"
+	if [ "$$image_size" -gt 31457280 ]; then \
+		printf 'error: Image size %s bytes exceeds 31457280 (30 MiB) limit\n' "$$image_size" >&2; \
+		exit 1; \
+	fi
+	printf 'Image size: %s bytes (limit 31457280)\n' "$$image_size"
 	printf 'generate %s/modules success\n' "$(OUTPUT_DIR)"
 	printf 'generate %s/Image success\n' "$(OUTPUT_DIR)"

@@ -47,7 +47,9 @@ include $(ROOT_DIR)/build/kernel.mk
 include $(ROOT_DIR)/build/dtb.mk
 include $(ROOT_DIR)/build/driver.mk
 include $(ROOT_DIR)/build/modules_deb.mk
+include $(ROOT_DIR)/build/modules_apk.mk
 include $(ROOT_DIR)/build/headers_deb.mk
+include $(ROOT_DIR)/build/headers_apk.mk
 
 .PHONY: help clean
 help:
@@ -57,7 +59,9 @@ help:
 	printf '%-50s%-50s\n' '    make dtb' '# build dtb'
 	printf '%-50s%-50s\n' '    make driver' '# build driver'
 	printf '%-50s%-50s\n' '    make modules-deb' '# build merged kernel/driver modules deb'
+	printf '%-50s%-50s\n' '    make modules-apk' '# build merged kernel/driver modules apk (OpenWrt)'
 	printf '%-50s%-50s\n' '    make headers-deb' '# build linux-headers deb for external modules'
+	printf '%-50s%-50s\n' '    make headers-apk' '# build linux-headers apk for OpenWrt'
 	printf '%-50s%-50s\n' "    default linux source" "# $(LINUX_SOURCE_DIR)"
 
 clean:

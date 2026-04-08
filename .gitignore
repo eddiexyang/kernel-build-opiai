@@ -45,3 +45,7 @@ __pycache__/
 
 # Packaging outputs
 *.deb
+*.apk
+
+# Local CI test files
+/ci/

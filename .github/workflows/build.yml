@@ -1,0 +1,166 @@
+name: Build Kernel & Packages
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+'           # e.g. 6.18
+      - '[0-9]+.[0-9]+.[0-9]+'    # e.g. 6.18.20
+      - 'v[0-9]+.[0-9]+'          # e.g. v6.18
+      - 'v[0-9]+.[0-9]+.[0-9]+'   # e.g. v6.18.20
+  workflow_dispatch:
+    inputs:
+      kernel_tag:
+        description: 'Kernel version tag'
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  CROSS_COMPILE_PREFIX: aarch64-linux-gnu-
+  ARCH_TYPE: arm64
+  SKIP_MENUCONFIG: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:trixie
+    timeout-minutes: 180
+
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [[ -n "${{ github.event.inputs.kernel_tag }}" ]]; then
+            VER="${{ github.event.inputs.kernel_tag }}"
+          else
+            VER="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "Building kernel version: ${VER}"
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential bc kmod cpio flex libncurses-dev libssl-dev \
+            libelf-dev bison dwarves python3 python3-pip \
+            gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu \
+            fakeroot dpkg-dev ccache cmake device-tree-compiler \
+            xz-utils wget rsync git ca-certificates
+          update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100
+          update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14 100
+          aarch64-linux-gnu-gcc --version
+
+      - name: Checkout kernel-build-opiai
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-kernel-${{ steps.version.outputs.version }}-${{ github.sha }}
+          restore-keys: |
+            ccache-kernel-${{ steps.version.outputs.version }}-
+            ccache-kernel-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=5G
+          ccache --set-config=compression=true
+          ccache -z
+
+      - name: Build kernel
+        run: |
+          make kernel \
+            SKIP_MENUCONFIG=1 \
+            KERNEL_RELEASE_SUFFIX=opiai \
+            JOBS=$(nproc)
+
+      - name: Build DTB
+        run: |
+          make dtb JOBS=$(nproc)
+
+      - name: Build drivers
+        run: |
+          make driver \
+            KERNEL_RELEASE_SUFFIX=opiai \
+            JOBS=$(nproc)
+
+      - name: Build modules deb
+        run: |
+          make modules-deb \
+            MODULES_DEB_PACKAGE_VERSION="${{ steps.version.outputs.version }}" \
+            JOBS=$(nproc)
+
+      - name: Build headers deb
+        run: |
+          make headers-deb \
+            HEADERS_DEB_PACKAGE_VERSION="${{ steps.version.outputs.version }}" \
+            JOBS=$(nproc)
+
+      - name: Build modules apk (OpenWrt)
+        run: |
+          make modules-apk \
+            MODULES_APK_PACKAGE_VERSION="${{ steps.version.outputs.version }}" \
+            JOBS=$(nproc)
+
+      - name: Build headers apk (OpenWrt)
+        run: |
+          make headers-apk \
+            HEADERS_APK_PACKAGE_VERSION="${{ steps.version.outputs.version }}" \
+            JOBS=$(nproc)
+
+      - name: Collect artifacts
+        id: artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp output/*.deb release-artifacts/ 2>/dev/null || true
+          cp output/*.apk release-artifacts/ 2>/dev/null || true
+          cp output/Image release-artifacts/ 2>/dev/null || true
+          cp output/dt.img release-artifacts/ 2>/dev/null || true
+          ls -lh release-artifacts/
+          echo "artifacts_dir=release-artifacts" >> "$GITHUB_OUTPUT"
+
+      - name: Print ccache stats
+        if: always()
+        run: ccache -s
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-packages-${{ steps.version.outputs.version }}
+          path: release-artifacts/
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Kernel ${{ steps.version.outputs.version }}"
+          body: |
+            ## Kernel ${{ steps.version.outputs.version }} for Orange Pi AI Pro 20T
+
+            ### Packages
+            - **DEB**: `linux-modules-*.deb` — kernel + Ascend310B driver modules
+            - **DEB**: `linux-headers-*.deb` — kernel headers for out-of-tree modules
+            - **APK**: `linux-modules-*.apk` — kernel + driver modules for OpenWrt
+            - **APK**: `linux-headers-*.apk` — kernel headers for OpenWrt
+            - **Image** — signed kernel image
+            - **dt.img** — signed device tree blob
+
+            ### Install (Debian/Ubuntu)
+            ```bash
+            sudo dpkg -i linux-modules-*.deb
+            ```
+
+            ### Install (OpenWrt)
+            ```bash
+            apk add --allow-untrusted linux-modules-*.apk
+            ```
+          files: release-artifacts/*
+          fail_on_unmatched_files: false

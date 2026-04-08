@@ -28,19 +28,47 @@
  */
 
 #define _GNU_SOURCE
-#include "securec.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+
+/* Drop-in replacements for Huawei libc_sec functions used in this file. */
+#ifndef EOK
+#define EOK 0
+#endif
+typedef int errno_t;
+
+static inline errno_t strncpy_s(char *dest, size_t dmax, const char *src, size_t slen)
+{
+    if (!dest || dmax == 0) return -1;
+    if (!src) { dest[0] = '\0'; return -1; }
+    size_t copy = slen < dmax - 1 ? slen : dmax - 1;
+    memcpy(dest, src, copy);
+    dest[copy] = '\0';
+    return EOK;
+}
+
+static inline errno_t strncat_s(char *dest, size_t dmax, const char *src, size_t slen)
+{
+    if (!dest || dmax == 0) return -1;
+    size_t dlen = strlen(dest);
+    if (dlen >= dmax) return -1;
+    size_t remain = dmax - dlen - 1;
+    size_t copy = slen < remain ? slen : remain;
+    if (!src) return -1;
+    memcpy(dest + dlen, src, copy);
+    dest[dlen + copy] = '\0';
+    return EOK;
+}
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <unistd.h>
-#include <errno.h>
 #include <limits.h>
 
 #define HSDT_MAGIC "HSDT" /* Master DTB magic */
