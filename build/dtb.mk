@@ -8,6 +8,7 @@ dtb: | ensure-output-dirs
 	cmake "$(DTB_SOURCE_DIR)/dtbtool" -DTOP_DIR="$(ROOT_DIR)" -DPRODUCT="$(DTB_PRODUCT)"
 	$(MAKE) device_dtb
 	cp -f "$(DTB_WORKSPACE)/dt.img" "$(OUTPUT_DIR)"
+	cp -f "$(DTB_WORKSPACE)/dtbs/hi1910B-orangepiaipro20t.dtb" "$(OUTPUT_DIR)"
 	python3 "$(SIGNING_DIR)/esbc_header/esbc_header.py" \
 		-raw_img "$(OUTPUT_DIR)/dt.img" \
 		-out_img "$(OUTPUT_DIR)/dt.img" \
