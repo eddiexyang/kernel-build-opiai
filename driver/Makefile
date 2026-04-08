@@ -64,7 +64,7 @@ endef
 # Device-side modules (dependency layers for ordering)
 # ============================================================================
 
-DEVICE_L0_ALL := bbox bootdot qos hsm_flash hsm_firmware_update hsm_heartbeat dbl_board_config dbl_cfg_persistent dbl_chip_config \
+DEVICE_L0_ALL := bbox bootdot qos hsm_flash hsm_firmware_update dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	dbl_algorithm dbl_dev_identity dbl_runenv_config \
 	soc_resmng uda urd event_sched xsmem \
 	davinci_intf icm ascend_ctl pkicms fpdc memory mem_ctrl soc_misc drv_notify \
@@ -94,7 +94,7 @@ DEVICE_EXTRA_ALL += kbox dvpp_pngd
 
 # White-listed device targets requested by the user. Keep only modules whose
 # produced .ko names are in the approved list.
-DEVICE_L0 := bbox bootdot qos hsm_flash hsm_firmware_update hsm_heartbeat dbl_board_config dbl_cfg_persistent dbl_chip_config \
+DEVICE_L0 := bbox bootdot qos hsm_flash hsm_firmware_update dbl_board_config dbl_cfg_persistent dbl_chip_config \
 	dbl_algorithm dbl_dev_identity dbl_runenv_config \
 	soc_resmng uda urd event_sched xsmem \
 	davinci_intf icm ascend_ctl pkicms fpdc memory mem_ctrl soc_misc \
@@ -145,7 +145,6 @@ build-event_sched: build-davinci_intf build-dms build-soc_resmng build-trs_chan 
 build-hdcdrv: build-dbl_chip_config build-pcie build-uda build-vpcie
 build-hdmi: build-base build-bootdot build-dvpp_osal build-vdp
 build-hns3: build-bbox build-bootdot build-dms_smf build-eeprom build-qos
-build-hsm_heartbeat: build-bbox
 build-icm: build-ipcdrv
 build-ipcdrv: build-bootdot
 build-hsm_flash:
@@ -162,7 +161,7 @@ build-pcie_rc_sr: build-bootdot
 build-pkicms: build-user_cfg build-hsm_firmware_update
 build-prof: build-dbl_chip_config build-dms build-soc_resmng build-trs_chan build-trs_kunpeng build-trs_pm_adapt build-uda build-virtmng
 build-serdes: build-bootdot build-hsm_flash
-build-sys: build-base build-dvpp_osal build-hsm_heartbeat
+build-sys: build-base build-dvpp_osal
 build-soc_misc: build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-uda build-urd build-user_cfg
 build-soc_platform: build-pcie build-soc_resmng build-uda
 build-soft_fault: build-dms_dtm build-dms_smf build-uda build-urd
@@ -180,7 +179,7 @@ build-trs_stars: build-dms build-soc_resmng build-uda
 build-trs_sub_stars: build-soc_resmng build-uda
 build-trs_tsmng: build-icm build-uda
 build-ts_channel: build-dfm build-dms
-build-ts_platform: build-bbox build-bootdot build-dbl_chip_config build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-hsm_heartbeat build-icm build-ipcdrv build-qos build-soc_resmng build-trs_chan build-trs_id_pool build-trs_pm_adapt build-trs_tsmng build-uda build-user_cfg build-virtmng
+build-ts_platform: build-bbox build-bootdot build-dbl_chip_config build-dfm build-dms build-dms_dtm build-dms_smf build-fpdc build-icm build-ipcdrv build-qos build-soc_resmng build-trs_chan build-trs_id_pool build-trs_pm_adapt build-trs_tsmng build-uda build-user_cfg build-virtmng
 build-tsdrv: build-bbox build-davinci_intf build-dfm build-dms build-event_sched build-pcie build-svm build-uda
 build-uda: build-davinci_intf
 build-upgrade: build-hsm_flash build-hsm_firmware_update build-pkicms build-user_cfg
