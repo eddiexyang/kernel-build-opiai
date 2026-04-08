@@ -123,6 +123,7 @@ jobs:
           cp output/*.apk release-artifacts/ 2>/dev/null || true
           cp output/Image release-artifacts/ 2>/dev/null || true
           cp output/dt.img release-artifacts/ 2>/dev/null || true
+          cp workspace/dtb/dtbs/hi1910B-orangepiaipro20t.dtb release-artifacts/ 2>/dev/null || true
           ls -lh release-artifacts/
           echo "artifacts_dir=release-artifacts" >> "$GITHUB_OUTPUT"
 
