@@ -13,12 +13,18 @@ driver: | ensure-output-dirs
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=device \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
+		CC="$(KERNEL_CC)" \
+		HOSTCC="$(KERNEL_HOSTCC)" \
+		HOSTCXX="$(KERNEL_HOSTCXX)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source" \
 		build_device=true
 	$(MAKE) -C "$(DRIVER_SOURCE_DIR)" driver_host \
 		PRODUCT="$(DRIVER_PRODUCT)" \
 		PRODUCT_SIDE=host \
 		CROSS_COMPILE="$(CROSS_COMPILE_PREFIX)" \
+		CC="$(KERNEL_CC)" \
+		HOSTCC="$(KERNEL_HOSTCC)" \
+		HOSTCXX="$(KERNEL_HOSTCXX)" \
 		KERNEL_DIR="$(DRIVER_SOURCE_DIR)/kernel/linux-source"
 	mkdir -p "$(OUTPUT_DIR)/driver_modules"
 	cp -rf "$(DRIVER_SOURCE_DIR)/out/device/." "$(OUTPUT_DIR)/driver_modules/"

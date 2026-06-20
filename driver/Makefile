@@ -22,9 +22,21 @@ JOBS ?= $(shell nproc)
 OUT_DEVICE := $(DRIVER_DIR)/out/device
 OUT_HOST := $(DRIVER_DIR)/out/host
 
+KMAKE_TOOLCHAIN_VARS :=
+ifneq ($(origin CC),default)
+KMAKE_TOOLCHAIN_VARS += CC="$(CC)"
+endif
+ifneq ($(origin HOSTCC),undefined)
+KMAKE_TOOLCHAIN_VARS += HOSTCC="$(HOSTCC)"
+endif
+ifneq ($(origin HOSTCXX),undefined)
+KMAKE_TOOLCHAIN_VARS += HOSTCXX="$(HOSTCXX)"
+endif
+
 # Common kernel module build command
 KMAKE = $(MAKE) -C $(KERNEL_DIR) \
 	ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) \
+	$(KMAKE_TOOLCHAIN_VARS) \
 	PRODUCT=$(PRODUCT) PRODUCT_SIDE=$(PRODUCT_SIDE) \
 	FEATURE_MK_PATH=$(DRIVER_DIR)/config/feature_config/feature.mk \
 	KBUILD_MODPOST_WARN=1

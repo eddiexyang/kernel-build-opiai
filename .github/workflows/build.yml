@@ -20,6 +20,8 @@ env:
   CROSS_COMPILE_PREFIX: aarch64-linux-gnu-
   ARCH_TYPE: arm64
   SKIP_MENUCONFIG: 1
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_BASEDIR: ${{ github.workspace }}
 
 jobs:
   build:
@@ -62,7 +64,7 @@ jobs:
       - name: Set up ccache
         uses: actions/cache@v4
         with:
-          path: ~/.ccache
+          path: ${{ env.CCACHE_DIR }}
           key: ccache-kernel-${{ steps.version.outputs.version }}-${{ github.sha }}
           restore-keys: |
             ccache-kernel-${{ steps.version.outputs.version }}-
@@ -70,8 +72,11 @@ jobs:
 
       - name: Configure ccache
         run: |
+          mkdir -p "$CCACHE_DIR"
           ccache --set-config=max_size=5G
           ccache --set-config=compression=true
+          ccache --set-config=compiler_check=content
+          ccache --show-config | grep -E 'cache_dir|base_dir|compiler_check|max_size|compression'
           ccache -z
 
       - name: Build kernel
