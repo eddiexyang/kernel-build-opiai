@@ -9,9 +9,6 @@
 /driver/out/
 /driver/config/feature_config/
 
-# DTB temporary workspace
-/dtb/dtbtool/tmp/
-
 # Python cache
 __pycache__/
 *.py[cod]

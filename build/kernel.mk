@@ -17,25 +17,11 @@ kernel: | ensure-output-dirs
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) Image -j"$(JOBS)"
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) modules -j"$(JOBS)"
 	$(MAKE) -C "$(KERNEL_WORKSPACE)" $(KERNEL_MAKE_VARS) INSTALL_MOD_PATH="$(OUTPUT_DIR)/modules" modules_install
-	cp -f "$(KERNEL_WORKSPACE)/arch/arm64/boot/Image" "$(OUTPUT_DIR)/Image"
-	python3 "$(SIGNING_DIR)/esbc_header/esbc_header.py" \
-		-raw_img "$(OUTPUT_DIR)/Image" \
-		-out_img "$(OUTPUT_DIR)/Image" \
-		-version "$(HEADER_VERSION)" \
-		-nvcnt 0 \
-		-tag uimage \
-		-platform hi1910Brc
-	python3 "$(SIGNING_DIR)/image_pack/image_pack.py" \
-		-raw_img "$(OUTPUT_DIR)/Image" \
-		-out_img "$(OUTPUT_DIR)/Image" \
-		-platform hi1910Brc \
-		-version "$(HEADER_VERSION)"
-	printf 'sign %s/Image success\n' "$(OUTPUT_DIR)"
-	image_size="$$(stat -c '%s' "$(OUTPUT_DIR)/Image")"
-	if [ "$$image_size" -gt 31457280 ]; then \
-		printf 'error: Image size %s bytes exceeds 31457280 (30 MiB) limit\n' "$$image_size" >&2; \
+	cp -f "$(KERNEL_WORKSPACE)/arch/arm64/boot/Image" "$(OUTPUT_DIR)/Image.raw"
+	raw_image_magic="$$(od -An -tx1 -N4 -j56 "$(OUTPUT_DIR)/Image.raw" | tr -d ' \n')"
+	if [ "$$raw_image_magic" != "41524d64" ]; then \
+		printf 'error: %s/Image.raw is not a standard ARM64 Linux Image (magic: %s)\n' "$(OUTPUT_DIR)" "$$raw_image_magic" >&2; \
 		exit 1; \
 	fi
-	printf 'Image size: %s bytes (limit 31457280)\n' "$$image_size"
 	printf 'generate %s/modules success\n' "$(OUTPUT_DIR)"
-	printf 'generate %s/Image success\n' "$(OUTPUT_DIR)"
+	printf 'generate standard ARM64 Linux Image %s/Image.raw success\n' "$(OUTPUT_DIR)"

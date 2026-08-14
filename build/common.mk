@@ -18,7 +18,7 @@ sync-kernel-source-inputs: | ensure-output-dirs
 	printf 'build directly from %s\n' "$(KERNEL_WORKSPACE)"
 
 clean-kernel-outputs:
-	rm -rf "$(OUTPUT_DIR)/modules" "$(OUTPUT_DIR)/Image"
+	rm -rf "$(OUTPUT_DIR)/modules" "$(OUTPUT_DIR)/Image" "$(OUTPUT_DIR)/Image.raw"
 
 clean-kernel-workspace:
 	printf 'kernel source is built in-place; nothing to remove under workspace\n'

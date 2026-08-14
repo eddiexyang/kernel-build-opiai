@@ -49,7 +49,7 @@ jobs:
             build-essential bc kmod cpio flex libncurses-dev libssl-dev \
             libelf-dev bison dwarves python3 python3-pip \
             gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu \
-            fakeroot dpkg-dev ccache cmake device-tree-compiler \
+            fakeroot dpkg-dev ccache device-tree-compiler \
             xz-utils wget rsync git ca-certificates
           update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100
           update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14 100
@@ -126,9 +126,11 @@ jobs:
           mkdir -p release-artifacts
           cp output/*.deb release-artifacts/ 2>/dev/null || true
           cp output/*.apk release-artifacts/ 2>/dev/null || true
-          cp output/Image release-artifacts/ 2>/dev/null || true
-          cp output/dt.img release-artifacts/ 2>/dev/null || true
-          cp workspace/dtb/dtbs/hi1910B-orangepiaipro20t.dtb release-artifacts/ 2>/dev/null || true
+          cp output/Image.raw release-artifacts/
+          cp \
+            output/hi1910B-orangepiaipro20t.dtb \
+            output/hi1910B-orangepiaipro8t.dtb \
+            release-artifacts/
           ls -lh release-artifacts/
           echo "artifacts_dir=release-artifacts" >> "$GITHUB_OUTPUT"
 
@@ -149,15 +151,16 @@ jobs:
         with:
           name: "Kernel ${{ steps.version.outputs.version }}"
           body: |
-            ## Kernel ${{ steps.version.outputs.version }} for Orange Pi AI Pro 20T
+            ## Kernel ${{ steps.version.outputs.version }} for Orange Pi AI Pro
 
             ### Packages
             - **DEB**: `linux-modules-*.deb` — kernel + Ascend310B driver modules
             - **DEB**: `linux-headers-*.deb` — kernel headers for out-of-tree modules
             - **APK**: `linux-modules-*.apk` — kernel + driver modules for OpenWrt
             - **APK**: `linux-headers-*.apk` — kernel headers for OpenWrt
-            - **Image** — signed kernel image
-            - **dt.img** — signed device tree blob
+            - **Image.raw** — standard unwrapped ARM64 Linux kernel image for U-Boot
+            - **hi1910B-orangepiaipro20t.dtb** — Orange Pi AI Pro 20T device tree
+            - **hi1910B-orangepiaipro8t.dtb** — Orange Pi AI Pro 8T device tree
 
             ### Install (Debian/Ubuntu)
             ```bash

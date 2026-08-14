@@ -1,25 +1,12 @@
 .PHONY: dtb
 
 dtb: | ensure-output-dirs
-	printf 'start generate dt.img\n'
-	rm -rf "$(DTB_WORKSPACE)"
-	mkdir -p "$(DTB_WORKSPACE)"
-	cd "$(DTB_WORKSPACE)"
-	cmake "$(DTB_SOURCE_DIR)/dtbtool" -DTOP_DIR="$(ROOT_DIR)" -DPRODUCT="$(DTB_PRODUCT)"
-	$(MAKE) device_dtb
-	cp -f "$(DTB_WORKSPACE)/dt.img" "$(OUTPUT_DIR)"
-	cp -f "$(DTB_WORKSPACE)/dtbs/hi1910B-orangepiaipro20t.dtb" "$(OUTPUT_DIR)"
-	python3 "$(SIGNING_DIR)/esbc_header/esbc_header.py" \
-		-raw_img "$(OUTPUT_DIR)/dt.img" \
-		-out_img "$(OUTPUT_DIR)/dt.img" \
-		-version "$(HEADER_VERSION)" \
-		-nvcnt 0 \
-		-tag dtimg \
-		-platform hi1910Brc
-	python3 "$(SIGNING_DIR)/image_pack/image_pack.py" \
-		-raw_img "$(OUTPUT_DIR)/dt.img" \
-		-out_img "$(OUTPUT_DIR)/dt.img" \
-		-platform hi1910Brc \
-		-version "$(HEADER_VERSION)"
-	printf 'sign %s/dt.img success\n' "$(OUTPUT_DIR)"
-	printf 'generate %s/dt.img success\n' "$(OUTPUT_DIR)"
+	printf 'start generate standalone device trees\n'
+	dtc -I dts -O dtb \
+		"$(DTB_SOURCE_DIR)/dts/hi1910b/hi1910BL/hi1910B-orangepiaipro20t.dts" \
+		-o "$(OUTPUT_DIR)/hi1910B-orangepiaipro20t.dtb"
+	dtc -I dts -O dtb \
+		"$(DTB_SOURCE_DIR)/dts/hi1910b/hi1910BL/hi1910B-orangepiaipro8t.dts" \
+		-o "$(OUTPUT_DIR)/hi1910B-orangepiaipro8t.dtb"
+	printf 'generate %s/hi1910B-orangepiaipro20t.dtb success\n' "$(OUTPUT_DIR)"
+	printf 'generate %s/hi1910B-orangepiaipro8t.dtb success\n' "$(OUTPUT_DIR)"
