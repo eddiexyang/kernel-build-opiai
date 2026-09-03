@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-obj-y := drv_pcierc_sr.o
+obj-$(if $(KBUILD_EXTMOD),m,y) := drv_pcierc_sr.o
 drv_pcierc_sr-objs := pcie_rc_drv.o drv_snapshot.o pcie_qos_common.o pcie_ras_config.o pcie_rc_qos.o soc/mini_v3/pcie_rc_ctrl.o
 
 DRIVER_INC := $(src)/..

@@ -15,6 +15,7 @@ sync-kernel-source-inputs: | ensure-output-dirs
 		printf 'error: missing required path: %s\n' "$(KERNEL_WORKSPACE)/certs/ELF_Common_RSA4096_CN_20191009_Huawei.pem" >&2; \
 		exit 1; \
 	}
+	$(MAKE) --no-print-directory prepare-driver-dependencies
 	printf 'build directly from %s\n' "$(KERNEL_WORKSPACE)"
 
 clean-kernel-outputs:
@@ -40,9 +41,26 @@ prepare-driver-dependencies:
 	grep -v '^#' "$(CONFIG_FEATURE_FILE)" | sed 's/^CONFIG/#define CONFIG/g' > "$(DRIVER_SOURCE_DIR)/config/feature_config/feature.h"
 	grep -v '^#' "$(CONFIG_FEATURE_FILE)" | \
 		sed -r 's/^(.*)=(.*)/CONFIG_DEFINES += -D\1=\2\n\1 := \2/;1iCONFIG_DEFINES :=' > "$(DRIVER_SOURCE_DIR)/config/feature_config/feature.mk"
+	pcie_rc_link="$(KERNEL_WORKSPACE)/drivers/pci/ascend_vendor"; \
+	test -d "$(KERNEL_WORKSPACE)/drivers/pci" || { printf 'error: missing PCI source directory: %s\n' "$(KERNEL_WORKSPACE)/drivers/pci" >&2; exit 1; }; \
+	if [ -L "$$pcie_rc_link" ]; then \
+		test "$$(readlink "$$pcie_rc_link")" = "$(DRIVER_SOURCE_DIR)" || { printf 'error: unexpected PCIe RC link: %s\n' "$$pcie_rc_link" >&2; exit 1; }; \
+	elif [ -e "$$pcie_rc_link" ]; then \
+		printf 'error: refusing to replace existing PCIe RC path: %s\n' "$$pcie_rc_link" >&2; exit 1; \
+	else \
+		ln -s "$(DRIVER_SOURCE_DIR)" "$$pcie_rc_link"; \
+	fi; \
+	grep -Fq 'kernel-build-opiai: built-in Ascend PCIe RC' "$(KERNEL_WORKSPACE)/drivers/pci/Makefile" || \
+		printf '\n# kernel-build-opiai: built-in Ascend PCIe RC\nobj-$$(CONFIG_PCI) += ascend_vendor/\n' >> "$(KERNEL_WORKSPACE)/drivers/pci/Makefile"
 
 cleanup-driver-dependencies:
 	rm -rf "$(DRIVER_SOURCE_DIR)/kernel"
+	if [ -L "$(KERNEL_WORKSPACE)/drivers/pci/ascend_vendor" ]; then rm -f "$(KERNEL_WORKSPACE)/drivers/pci/ascend_vendor"; fi
+	if grep -Fq 'kernel-build-opiai: built-in Ascend PCIe RC' "$(KERNEL_WORKSPACE)/drivers/pci/Makefile"; then \
+		awk '/kernel-build-opiai: built-in Ascend PCIe RC/{skip=1; next} skip && index($$0, "ascend_vendor/"){skip=0; next} !skip{print}' \
+			"$(KERNEL_WORKSPACE)/drivers/pci/Makefile" > "$(KERNEL_WORKSPACE)/drivers/pci/Makefile.kernel-build-opiai.tmp"; \
+		mv "$(KERNEL_WORKSPACE)/drivers/pci/Makefile.kernel-build-opiai.tmp" "$(KERNEL_WORKSPACE)/drivers/pci/Makefile"; \
+	fi
 
 clean-driver-outputs:
 	rm -rf "$(OUTPUT_DIR)/driver_modules" "$(OUTPUT_DIR)/driver_modules_host"

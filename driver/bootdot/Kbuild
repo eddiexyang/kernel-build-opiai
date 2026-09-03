@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-obj-m := ascend_bootdot.o
+obj-$(if $(KBUILD_EXTMOD),m,y) := ascend_bootdot.o
 
 ascend_bootdot-objs := bootdot.o
 

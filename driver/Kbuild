@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0
+# Built-in entry point used when this tree is linked from the kernel source.
+
+obj-y += bootdot/
+obj-y += pcie_rc_sr/
